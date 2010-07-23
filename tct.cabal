@@ -1,0 +1,43 @@
+Name:               tct
+Version:            1.9
+Author:             Martin Avanzini, 
+                    Georg Moser, 
+                    Andreas Schnabl
+Category:           Math
+Maintainer:         Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability:          Experimental
+License:            LGPL
+License-file:       COPYING.LESSER
+Homepage:           http://cl-informatik.uibk.ac.at/software/tct/
+Synopsis:           A Complexity Analyser for Term Rewrite Systems
+Description:
+  The Tyrolean Complexity Tool (TCT) is a tool for automatically proving 
+  (low) upper bounds on the derivational complexity and runtime complexity 
+  of terminating term rewriting systems.
+cabal-version:      >= 1.6
+build-type:         Simple
+Executable tct
+ main-is:           Main.hs
+ build-depends:     base>=4.0, haskell98, containers, mtl, qlogic, termlib, parsec, filepath, parfold, fgl, unix, regex-compat, directory, dyre
+ hs-source-dirs:    source
+ ghc-options:       -threaded -O2
+Library
+ exposed-modules:   Tct
+                    Tct.Certificate
+                    Tct.Main
+                    Tct.Main.Flags
+                    Tct.Main.Version
+                    Tct.Method.Combinator
+                    Tct.Processor
+                    Tct.Processor.Proof
+                    Tct.Processor.SomeProcessor
+                    Tct.Processor.Timeout
+                    Tct.Proof
+                    Tct.Strategy
+                    Tct.Strategy.Arg
+                    Tct.Strategy.Flag
+                    Tct.Strategy.Parse
+
+ build-depends:     base>=4.0.0.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre
+ hs-source-dirs:    source
+ ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

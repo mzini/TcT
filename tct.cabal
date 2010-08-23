@@ -37,6 +37,9 @@ Library
                     Tct.Strategy.Arg
                     Tct.Strategy.Flag
                     Tct.Strategy.Parse
+                    Tct.Strategy.Default
+                    Tct.Processor.StdProcessor
+                    Tct.Processor.Args
 
  build-depends:     base>=4.0.0.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre
  hs-source-dirs:    source

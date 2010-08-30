@@ -21,10 +21,10 @@ module Tct.Proof
     )
 where
 
-import Termlib.Utils (PrettyPrintable (..))
+-- import Termlib.Utils (PrettyPrintable (..))
 import Tct.Certificate (Certificate)
 
-class (PrettyPrintable proof) => Proof proof where
+class Proof proof where
       succeeded :: proof -> Bool
       succeeded = not . failed
       failed :: proof -> Bool

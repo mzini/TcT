@@ -28,25 +28,23 @@ import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags 
+import Tct.Processor (SomeProcessor, any, Proof)
 import Tct.Processor.Proof (answer)
+import Tct.Processor.Parse (fromString)
 import Tct.Processor (SatSolver(..), Proof, apply, runSolver)
-import Tct.Processor.SomeProcessor (SomeProcessor)
 import Tct.Processor.Timeout (timeout)
-import Tct.Strategy (SomeStrategy (..))
-import Tct.Strategy (strategyFromString)
-import qualified Tct.Method.Combinator as Comb
 
-data Config = Config { strategies       :: [SomeStrategy]
-                     , process          :: Problem -> TCT (Proof SomeProcessor)
-                     , defaultProcessor :: Problem -> TCT SomeProcessor
-                     , getProcessor     :: Problem -> TCT SomeProcessor
-                     , getProblem       :: TCT Problem
-                     , getSolver        :: TCT SatSolver
-                     , showProof        :: (Proof SomeProcessor) -> TCT String
-                     , timeoutAfter     :: Float
-                     , satSolver        :: SatSolver
-                     , configDir        :: IO FilePath
-                     , errorMsg         :: [String]}
+data Config = Config { parsableProcessor :: SomeProcessor
+                     , process           :: Problem -> TCT (Proof SomeProcessor)
+                     , defaultProcessor  :: Problem -> TCT SomeProcessor
+                     , getProcessor      :: Problem -> TCT SomeProcessor
+                     , getProblem        :: TCT Problem
+                     , getSolver         :: TCT SatSolver
+                     , showProof         :: (Proof SomeProcessor) -> TCT String
+                     , timeoutAfter      :: Float
+                     , satSolver         :: SatSolver
+                     , configDir         :: IO FilePath
+                     , errorMsg          :: [String]}
 
 
 data TCTError = StrategyParseError String
@@ -83,8 +81,7 @@ check prob = do p <- askConfig process
                 p prob
 
 readProblem :: TCT Problem
-readProblem = do r <- askConfig getProblem
-                 r
+readProblem = askConfig getProblem
 
 putProof :: Proof SomeProcessor -> TCT ()
 putProof proof = do r <- askConfig showProof 
@@ -92,7 +89,7 @@ putProof proof = do r <- askConfig showProof
                     liftIO $ putStrLn s
 
 defaultConfig :: Config
-defaultConfig = Config { strategies       = strategies_
+defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , process          = process_
                        , defaultProcessor = defaultProcessor_
                        , getProcessor     = getProcessor_
@@ -105,13 +102,14 @@ defaultConfig = Config { strategies       = strategies_
                                                return $ home </> ".tct"
                        , errorMsg         = []
                        }
-    where strategies_ = [ Comb.bestStrategy
-                        , Comb.fastestStrategy
-                        , Comb.sequentiallyStrategy
-                        , Comb.iteStrategy
-                        , Comb.failStrategy
-                        , Comb.succStrategy
-                        ]
+    where parsableProcessor_ = anyOf []
+-- [ Comb.bestStrategy
+--                         , Comb.fastestStrategy
+--                         , Comb.sequentiallyStrategy
+--                         , Comb.iteStrategy
+--                         , Comb.failStrategy
+--                         , Comb.succStrategy
+--                         ]
           process_ prob      = do getProc <- askConfig getProcessor
                                   proc <- getProc prob
                                   gs <- askConfig getSolver
@@ -175,7 +173,7 @@ defaultConfig = Config { strategies       = strategies_
                                   return $ case to of 
                                              Just s -> timeout s proc
                                              Nothing -> proc
-                                      where parseStrategy source strats str = liftError $ strategyFromString source strats str
+                                      where parseStrategy source strats str = liftError $ fromString source strats str
                                                 where liftError (Left err) = throwError $ StrategyParseError $ show err
                                                       liftError (Right e)  = return $ e
 

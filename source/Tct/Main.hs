@@ -43,7 +43,6 @@ import Termlib.Utils (PrettyPrintable (..))
 import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
 import Tct.Main.Version (version)
-import Tct.Strategy (Strategy(..))
 
 
 showError :: Config -> String -> Config

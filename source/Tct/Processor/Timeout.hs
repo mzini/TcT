@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -26,51 +28,53 @@ module Tct.Processor.Timeout
 where 
 import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
-import Data.Typeable
 
 import Tct.Certificate (uncertified)
 import Tct.Processor hiding (Proof)
 import Tct.Processor.Proof
-import Tct.Processor.SomeProcessor
 import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ
 
-data TimeoutProc = Timeout !Int SomeProcessor
-                   deriving Typeable
+data Timeout p = Timeout p
 
-timeout :: Int -> SomeProcessor -> SomeProcessor
-timeout i proc = SomeProcessor $ Timeout (i * (10^(6 :: Int))) proc
+timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
+timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
 
 toSeconds :: Int -> Double
 toSeconds i = fromIntegral i / (10 ^ (6 :: Int))
 
-data instance ProofFrom TimeoutProc = TimedOut Int 
-                                    | forall p. (ComplexityProof p, PrettyPrintable p) => TOProof p
 
-instance Proof (ProofFrom TimeoutProc) where 
+data TOProof p = TimedOut Int 
+               | TOProof (ProofOf p)
+instance Processor p => Processor (Timeout p) where 
+    type ProofOf (Timeout p) = TOProof p
+    data InstanceOf (Timeout p) = TOInstance !Int p (InstanceOf p)
+    name  (Timeout proc)    = name proc
+    solve (TOInstance t _ inst) prob = do io <- mkIO $ apply inst prob 
+                                          r <- liftIO $ timedKill t io
+                                          return $ case r of 
+                                                     Just p  -> TOProof (result p)
+                                                     Nothing -> TimedOut t
+    fromInstance (TOInstance _ proc _) = Timeout proc
+    parseProcessor_ (Timeout _) = error "timeoutprocessor should be added by system and not the user"
+    
+
+
+instance Proof (ProofOf p) => Proof (TOProof p) where 
     succeeded (TOProof p)  = succeeded p
     succeeded (TimedOut _) = False
 
-instance ComplexityProof (ProofFrom TimeoutProc) where
+instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
     certificate (TOProof p) = certificate p
     certificate _           = uncertified
 
-instance PrettyPrintable (ProofFrom TimeoutProc) where
+instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
     pprint (TOProof p)  = pprint p
     pprint (TimedOut i) = text "Computation stopped due to timeout after" <+> double (toSeconds i) <+> text "seconds"
 
-instance Processor TimeoutProc where 
-    name  i (Timeout t proc)    = name i proc ++ " [" ++ show (toSeconds t) ++ "]"
-    solve (Timeout t proc) prob = do slvr <- getSatSolver
-                                     r <- liftIO $ timedKill t (runSolver slvr $ apply proc prob)
-                                     case r of 
-                                       Just p  -> return $ TOProof $ p
-                                       Nothing -> return $ TimedOut t
-    
 
-instance Answerable (ProofFrom TimeoutProc) where 
-    answer (TOProof p) | succeeded p = CertAnswer $ certificate p
-                       | otherwise   = FailAnswer
-    answer (TimedOut _)              = TimeoutAnswer
+instance Answerable (ProofOf p) => Answerable (TOProof p) where 
+    answer (TOProof p)  = answer p
+    answer (TimedOut _) = TimeoutAnswer
 

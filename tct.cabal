@@ -29,16 +29,10 @@ Library
                     Tct.Main.Version
                     Tct.Processor
                     Tct.Processor.Proof
-                    Tct.Processor.SomeProcessor
-                    Tct.Processor.Standard
                     Tct.Processor.Timeout
                     Tct.Processor.Standard
                     Tct.Processor.Args
                     Tct.Proof
-                    Tct.Strategy.Arg
-                    Tct.Strategy.Flag
-                    Tct.Strategy.Parse
-                    Tct.Strategy.Default
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence
                     Tct.Encoding.Relative

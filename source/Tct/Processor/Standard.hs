@@ -19,14 +19,22 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-module Tct.Processor.Standard where
+
+module Tct.Processor.Standard 
+    ( processor
+    , processorArgs
+    , TheProcessor
+    , Processor (..))
+where
+
+import Text.ParserCombinators.Parsec
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-import Tct.Strategy.Parse
-import Text.ParserCombinators.Parsec
+
 import Termlib.Problem (Problem)
 
+import Tct.Processor.Parse
 
 data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: Arguments a
@@ -52,12 +60,6 @@ instance Processor a => P.Processor (StdProc a) where
                                     args <- A.parseArg (arguments a)
                                     return $ TP $ TheProcessor { processor = a
                                                                , processorArgs = args}
-
-arg :: Arg a
-arg = Arg { argname = "unknown"
-          , description = ""
-          , defaultValue = error "no default value given"}
-
 
 -- data Foo = Foo
 

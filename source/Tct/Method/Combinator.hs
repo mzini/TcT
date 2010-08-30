@@ -51,10 +51,8 @@ import Termlib.Utils
 import Tct.Certificate
 import Tct.Processor
 import Tct.Strategy
-import Tct.Strategy.Arg (mkParseSomeProcessor)
 import Tct.Strategy.Flag (noFlags)
 import Tct.Strategy.Parse (whiteSpace)
-import Tct.Processor.SomeProcessor
 import Tct.Proof (certificate, succeeded, failed)
 import qualified Tct.Proof as P
 

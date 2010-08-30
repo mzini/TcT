@@ -3,7 +3,7 @@
 module Tct.Processor.Args 
 where
 
-import Tct.Strategy.Default
+import Tct.Processor.Standard
 import Tct.Strategy.Parse
 import Text.ParserCombinators.Parsec hiding (parse)
 import Control.Monad (liftM)
@@ -14,23 +14,26 @@ data Arg k = Arg { argname      :: String
                  , defaultValue :: k
                  }
 
-type family StubOf a
+arg :: Arg a
+arg = Arg { argname = "unknown"
+          , description = ""
+          , defaultValue = error "no default value given"}
 
 class ParsableArgument a where 
+    type StubOf a
     syn :: a -> String
     parseArg :: StubOf a -> ProcessorParser a
 
-
-type instance StubOf (Instance p) = p
 instance Processor p => ParsableArgument (Instance p) where
+    type StubOf (Instance p) = p
     syn _ = "<processor>"
     parseArg p = parseProcessor p
 
+
 newtype Nat = Nat Int
 
-type instance StubOf Nat = Arg Nat
-
 instance ParsableArgument Nat where
+    type StubOf Nat = Arg Nat
     syn _ = "<nat>"
     parseArg _ = do n <- natural
                     return $ Nat n
@@ -39,9 +42,8 @@ instance ParsableArgument Nat where
 data Optional a = Specified a 
                 | Default a
 
-type instance StubOf (Optional a) = Arg a
-
 instance ParsableArgument a => ParsableArgument (Optional a) where
+    type StubOf (Optional a) = Arg a
     syn _ = "[" ++ (undefined :: a) ++ "]"
     parseArg a = try (Specified `liftM` pa) <|> (return $ Default $ defaultValue a)
         where pa = do _ <- char ':' 
@@ -51,9 +53,8 @@ instance ParsableArgument a => ParsableArgument (Optional a) where
 
 data a :+: b = a :+: b
 
-type instance StubOf (a :+: b) = StubOf a :+: StubOf b
-
 instance (ParsableArgument a, ParsableArgument b) => ParsableArgument (a :+: b) where
+    type StubOf (a :+: b) = StubOf a :+: StubOf b
     syn (sa :+: sb) = syn sa ++ " " ++ syn sb
     parseArg (sa :+: sb) = do a <- parseArg sa
                               whiteSpace

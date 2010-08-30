@@ -36,37 +36,25 @@ import Tct.Proof (succeeded, certificate)
 import Tct.Processor
 import Tct.Certificate (Certificate, uncertified)
 
-
-instance (Processor proc, PrettyPrintable (ProofFrom proc)) => PrettyPrintable (PartialProof proc) where
-    pprint pp = text "The Processor oriented the following rules strictly:"
-                $+$ text ""
-                $+$ pprint (ppStrict pp, ppSig pp, ppVars pp)
-                $+$ text ""
-                $+$ text "Details:" 
-                $+$ (nest 3 $ pprint $ ppProof pp)
-                $+$ text ""
-
-instance (Processor proc, P.Proof (ProofFrom proc)) => P.Proof (PartialProof proc) where
-    succeeded = succeeded . ppProof
-
-instance Processor proc => PrettyPrintable (Proof proc) where
-    pprint p@(Proof proc prob res) = ppheading $+$ text "" $+$ ppres
-        where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
-              pphead    = quotes (text (name 3 proc))
+instance (Answerable (ProofOf proc)
+         , PrettyPrintable (ProofOf proc)
+         , Processor proc) => PrettyPrintable (Proof proc) where
+    pprint p@(Proof inst prob res) = ppheading $+$ text "" $+$ ppres
+        where proc      = fromInstance inst
+              ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
+              pphead    = quotes (text (name proc))
               ppres     = pt "Details" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
                           $+$ nest 2 (prettyPrintRelation prob)
-              ppanswer  = pt "Answer" <+> pprint (answer p) <+> ppreason 
-              ppreason  = case res of 
-                            Right p' | succeeded p' -> empty
-                                     | otherwise    -> text "(subprocessor failed)"
-                            _                       -> empty
+              ppanswer  = pt "Answer" <+> pprint (answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"
               wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
 
-instance Processor proc => P.Proof (Proof proc) where succeeded = succeeded . result
-instance Processor proc => P.ComplexityProof (Proof proc) where certificate = certificate . result
+instance (P.Proof (ProofOf proc)) => P.Proof (Proof proc) 
+    where succeeded = succeeded . result
+instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc) 
+    where certificate = certificate . result
 
 
 
@@ -97,5 +85,5 @@ instance P.ComplexityProof p => Answerable p where
 
 
     
-instance (Answerable (ProofFrom proc)) => Answerable (Proof proc) where
-    answer p = either (const FailAnswer) answer (result p)
+instance (Answerable (ProofOf proc)) => Answerable (Proof proc) where
+    answer p = answer (result p)

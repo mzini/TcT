@@ -26,143 +26,122 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Processor
     ( SatSolver (..)
-    , Erroneous 
     , Processor (..)
     , Proof (..)
-    , Solver (..)
-    , PartialProof (..)
-    , ProofFrom
+    , SolverM (..)
 
     , apply
-    , applyPartial
+    , mkIO
     , runSolver 
-
-    , toErroneous
-
-    , inapplicable
-    , abortWith
+    , parseProcessor
     , minisatValue
-    , catchFailed
     , getSatSolver
+
+    , SomeProcessor
+    , AnyProcessor
+    , some
+    , anyOf
     ) 
 where
 
 import Control.Monad.Error
-import Data.Typeable
-import Text.PrettyPrint.HughesPJ
 import Control.Monad.Reader
+import Text.ParserCombinators.Parsec (CharParser, choice, (<|>))
 
 import qualified Qlogic.SatSolver as SatSolver
-import Qlogic.SatSolver (Decoder, SatError(..))
+import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
 
-import Termlib.FunctionSymbol (Signature)
 import Termlib.Problem
-import Termlib.Trs (Trs)
-import Termlib.Variable (Variables)
-import Termlib.Utils
 
-import Tct.Proof (succeeded, certificate)
-import Tct.Certificate (uncertified)
-import qualified Tct.Proof as P
+import Tct.Processor.Parse
 
-
-data SatSolver = MiniSat FilePath
-
-type ProcessorFailure = Doc
-
-instance Error ProcessorFailure where strMsg = text
-
-type Erroneous p = Either ProcessorFailure p
-
-instance PrettyPrintable p => PrettyPrintable (Erroneous p) where 
-    pprint (Right p') = pprint p'
-    pprint (Left e)   = text "We abort due to the following reason:" $+$ nest 2 e
-
-instance P.Proof p => P.Proof (Erroneous p) where
-    succeeded (Right p') = succeeded p'
-    succeeded _          = False
-
-instance P.ComplexityProof p => P.ComplexityProof (Erroneous p) where
-    certificate (Right p') = certificate p'
-    certificate _          = uncertified
-
+type ProcessorParser a = CharParser [SomeProcessor] a 
 
 data SolverState = SolverState SatSolver
-newtype Solver r = S {runS :: (ReaderT SolverState IO) r }
-    deriving (Monad, MonadIO, MonadError ProcessorFailure, MonadReader SatSolver)
+data SatSolver = MiniSat FilePath
 
-inapplicable :: Processor p => p -> ProcessorFailure
-inapplicable _ = text "Processor is inapplicable."
+newtype SolverM r = S {runS :: ReaderT SolverState IO r }
+    deriving (Monad, MonadIO, MonadReader SolverState)
 
-runSolver :: SatSolver -> Solver a -> IO (Erroneous a)
-runSolver slver m = runReaderT (runErrorT $ runS m) slver
 
-getSatSolver :: Solver SatSolver
-getSatSolver = ask
+class Processor a where
+    type ProofOf a                  
+    data InstanceOf a 
+    name  :: a -> String
+    fromInstance :: (InstanceOf a) -> a
+    solve :: InstanceOf a -> Problem -> SolverM (ProofOf a)
+    parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
 
-catchFailed :: Solver a -> Solver (Erroneous a)
-catchFailed m = (Right `liftM` m) `catchError` (return . Left)
 
-abortWith :: ProcessorFailure -> Solver a
-abortWith = throwError
+parseProcessor :: Processor a => a -> ProcessorParser (InstanceOf a)
+parseProcessor a = parens parse <|> parse
+    where parse = parseProcessor a
 
-minisatValue :: (Decoder e a) => MiniSat () -> e -> Solver (Maybe e)
+runSolver :: SolverState -> SolverM a -> IO a
+runSolver slver m = runReaderT (runS m) slver
+
+getSatSolver :: SolverM SatSolver
+getSatSolver = do SolverState ss <- ask
+                  return ss
+
+mkIO :: SolverM a -> SolverM (IO a)
+mkIO m = do s <- ask
+            return $ runSolver s m
+
+minisatValue :: (Decoder e a) => MiniSat () -> e -> SolverM (Maybe e)
 minisatValue m e =  do slver <- getSatSolver
                        r <- liftIO $ val slver
                        case r of 
-                         Left Unsatisfiable   -> return Nothing
-                         Left AssertFailed    -> abortWith $ text "sat assertion of formula failed"
-                         Left (OtherError er) -> abortWith $ text "sat error" <+> text er
-                         Right v              -> return $ Just v
+                         Right v -> return $ Just v
+                         Left  _ -> return Nothing
     where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
 
 
-data family ProofFrom proc
+data Proof proc = Proof { appliedProcessor :: InstanceOf proc
+                        , inputProblem     :: Problem 
+                        , result           :: ProofOf proc}
 
-data Proof proc = Proof { appliedProcessor :: proc
-                        , inputProblem    :: Problem 
-                        , result          :: Erroneous (ProofFrom proc)}
-
-data PartialProof proc = PartialProof { ppProof  :: ProofFrom proc
-                                      , ppStrict :: Trs
-                                      , ppVars   :: Variables
-                                      , ppSig    :: Signature
-                                      , ppProc   :: proc}
-
-class (P.ComplexityProof (ProofFrom proc), Typeable proc) => Processor proc where
-  name :: Int -> proc -> String
-
-  solve :: proc -> Problem -> Solver (ProofFrom proc)
-  solve _ _ = abortWith $ text "Processor not applicable for non-relative solving"
-
-  solvePartial :: proc -> Problem -> Solver (PartialProof proc)
-  solvePartial _ _ = abortWith $ text "Processor not applicable for relative solving"
-
-toErroneous :: Proof proc -> Erroneous (ProofFrom proc)
-toErroneous = result
-
--- mergeErroneous :: Erroneous (Proof proc) -> Proof proc
--- mergeErroneous = undefined
-
-
-apply_ :: Processor proc => SatSolver -> proc -> Problem -> IO (Proof proc)
+apply_ :: Processor proc => SolverState -> (InstanceOf proc) -> Problem -> IO (Proof proc)
 apply_ slver proc prob = (runSolver slver $ solve proc prob) >>= mkProof
     where mkProof = return . Proof proc prob
 
-applyPartial_ :: Processor proc => SatSolver -> proc -> Problem -> IO (Erroneous (PartialProof proc))
-applyPartial_ slver proc prob = (runSolver slver $ solvePartial proc prob)
 
-
-apply :: Processor proc => proc -> Problem -> Solver (Proof proc)
-apply proc prob = do slver <- getSatSolver
+apply :: Processor proc => (InstanceOf proc) -> Problem -> SolverM (Proof proc)
+apply proc prob = do slver <- ask
                      liftIO $ apply_ slver proc prob
 
-applyPartial :: Processor proc => proc -> Problem -> Solver (Erroneous (PartialProof proc))
-applyPartial proc prob = do slver <- getSatSolver
-                            liftIO $ applyPartial_ slver proc prob
 
+-- someprocessor
+data SomeProcessor = forall p. (Processor p) => SomeProcessor p 
+data SomeProof = forall p . SomeProof p
+data SomeInstance = forall p . Processor p => SomeInstance p (InstanceOf p)
 
+instance Processor SomeProcessor where
+    type ProofOf    SomeProcessor = SomeProof
+    data InstanceOf SomeProcessor = SPI SomeInstance
+    name (SomeProcessor proc) = name proc
+    solve (SPI (SomeInstance _ inst)) prob = SomeProof `liftM` solve inst prob
+    fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
+    parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance proc) `liftM` parseProcessor_ proc
+
+some :: forall p. (Processor p) => p -> SomeProcessor
+some = SomeProcessor
+
+-- oneof processor
+data AnyProcessor = OO [SomeProcessor]
+
+instance Processor AnyProcessor where
+    type ProofOf AnyProcessor = ProofOf SomeProcessor
+    data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor) AnyProcessor
+    name _ = "some processor"
+    solve (OOI inst _) prob = solve inst prob
+    fromInstance (OOI _ proc) = proc
+    parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor_ p' | p' <- ps]
+                                   return $ OOI inst p
+
+anyOf :: [SomeProcessor] -> AnyProcessor
+anyOf = OO
 
 
 

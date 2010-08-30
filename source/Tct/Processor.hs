@@ -88,7 +88,8 @@ instance P.ComplexityProof p => P.ComplexityProof (Erroneous p) where
     certificate _          = uncertified
 
 
-newtype Solver r = S {runS :: ErrorT ProcessorFailure (ReaderT SatSolver IO) r }
+data SolverState = SolverState SatSolver
+newtype Solver r = S {runS :: (ReaderT SolverState IO) r }
     deriving (Monad, MonadIO, MonadError ProcessorFailure, MonadReader SatSolver)
 
 inapplicable :: Processor p => p -> ProcessorFailure

@@ -55,9 +55,6 @@ class Processor a where
     parseProcessor :: a -> ProcessorParser (Instance a)
 
 
-data TransformationProof a b = Transformed Problem a
-                             | Open bjep 
-                             
 -- someprocessor
 
 data SomeProcessor = forall p. (Processor p) => SomeProcessor p

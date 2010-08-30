@@ -38,7 +38,6 @@ module Tct.Processor
     , runSolver 
 
     , toErroneous
---    , mergeErroneous
 
     , inapplicable
     , abortWith
@@ -120,7 +119,7 @@ minisatValue m e =  do slver <- getSatSolver
 
 data family ProofFrom proc
 
-data Proof proc = Proof {appliedProcessor :: proc
+data Proof proc = Proof { appliedProcessor :: proc
                         , inputProblem    :: Problem 
                         , result          :: Erroneous (ProofFrom proc)}
 

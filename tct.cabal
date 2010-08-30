@@ -1,5 +1,5 @@
 Name:               tct
-Version:            1.9
+Version:            1.7
 Author:             Martin Avanzini, 
                     Georg Moser, 
                     Andreas Schnabl
@@ -27,19 +27,22 @@ Library
                     Tct.Main
                     Tct.Main.Flags
                     Tct.Main.Version
-                    Tct.Method.Combinator
                     Tct.Processor
                     Tct.Processor.Proof
                     Tct.Processor.SomeProcessor
+                    Tct.Processor.Standard
                     Tct.Processor.Timeout
+                    Tct.Processor.Standard
+                    Tct.Processor.Args
                     Tct.Proof
-                    Tct.Strategy
                     Tct.Strategy.Arg
                     Tct.Strategy.Flag
                     Tct.Strategy.Parse
                     Tct.Strategy.Default
-                    Tct.Processor.StdProcessor
-                    Tct.Processor.Args
+                    Tct.Encoding.ArgumentFiltering
+                    Tct.Encoding.Precedence
+                    Tct.Encoding.Relative
+                    Tct.Encoding.SafeMapping		    
 
  build-depends:     base>=4.0.0.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre
  hs-source-dirs:    source

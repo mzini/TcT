@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-module Tct.Processor.Args where
+module Tct.Processor.Args 
+where
 
 import Tct.Strategy.Default
 import Tct.Strategy.Parse
@@ -14,7 +15,6 @@ data Arg k = Arg { argname      :: String
                  }
 
 type family StubOf a
-
 
 class ParsableArgument a where 
     syn :: a -> String

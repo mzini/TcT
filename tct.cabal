@@ -18,7 +18,7 @@ cabal-version:      >= 1.6
 build-type:         Simple
 Executable tct
  main-is:           Main.hs
- build-depends:     base>=4.0, haskell98, containers, mtl, qlogic, termlib, parsec, filepath, parfold, fgl, unix, regex-compat, directory, dyre
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
  hs-source-dirs:    source
  ghc-options:       -threaded -O2
 Library
@@ -28,16 +28,15 @@ Library
                     Tct.Main.Flags
                     Tct.Main.Version
                     Tct.Processor
-                    Tct.Processor.Proof
+                    Tct.Processor.Parse
+                    Tct.Processor.SomeProcessor
                     Tct.Processor.Timeout
-                    Tct.Processor.Standard
-                    Tct.Processor.Args
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence
                     Tct.Encoding.Relative
                     Tct.Encoding.SafeMapping		    
 
- build-depends:     base>=4.0.0.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

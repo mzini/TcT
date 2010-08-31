@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -15,48 +16,42 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tct.Processor
     ( SatSolver (..)
     , Processor (..)
     , Proof (..)
     , SolverM (..)
-
+    , ProcessorParser
     , apply
     , mkIO
     , runSolver 
     , parseProcessor
     , minisatValue
     , getSatSolver
-
-    , SomeProcessor
-    , AnyProcessor
-    , some
-    , anyOf
-    ) 
+    , fromString)
 where
 
 import Control.Monad.Error
 import Control.Monad.Reader
-import Text.ParserCombinators.Parsec (CharParser, choice, (<|>))
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
+import Text.ParserCombinators.Parsec (CharParser, (<|>), ParseError)
+import Text.PrettyPrint.HughesPJ hiding (parens)
 
 import Termlib.Problem
+import Termlib.Utils (PrettyPrintable(..))
+import Tct.Processor.Parse hiding (fromString)
+import qualified Tct.Processor.Parse as Parse
+import qualified Tct.Proof as P
 
-import Tct.Processor.Parse
-
-type ProcessorParser a = CharParser [SomeProcessor] a 
+type ProcessorParser a = CharParser () a 
 
 data SolverState = SolverState SatSolver
 data SatSolver = MiniSat FilePath
@@ -69,6 +64,8 @@ class Processor a where
     type ProofOf a                  
     data InstanceOf a 
     name  :: a -> String
+    description :: a -> [String]
+    synopsis :: a -> String
     fromInstance :: (InstanceOf a) -> a
     solve :: InstanceOf a -> Problem -> SolverM (ProofOf a)
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
@@ -78,16 +75,20 @@ parseProcessor :: Processor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse <|> parse
     where parse = parseProcessor a
 
-runSolver :: SolverState -> SolverM a -> IO a
-runSolver slver m = runReaderT (runS m) slver
 
 getSatSolver :: SolverM SatSolver
 getSatSolver = do SolverState ss <- ask
                   return ss
 
+runSolver_ :: SolverState -> SolverM a -> IO a
+runSolver_ slver m = runReaderT (runS m) slver
+
+runSolver :: SatSolver -> SolverM a -> IO a
+runSolver s = runSolver_ (SolverState s)
+
 mkIO :: SolverM a -> SolverM (IO a)
 mkIO m = do s <- ask
-            return $ runSolver s m
+            return $ runSolver_ s m
 
 minisatValue :: (Decoder e a) => MiniSat () -> e -> SolverM (Maybe e)
 minisatValue m e =  do slver <- getSatSolver
@@ -102,46 +103,29 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
                         , result           :: ProofOf proc}
 
-apply_ :: Processor proc => SolverState -> (InstanceOf proc) -> Problem -> IO (Proof proc)
-apply_ slver proc prob = (runSolver slver $ solve proc prob) >>= mkProof
+instance ( P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (Proof proc) where
+    pprint p@(Proof inst prob res) = ppheading $+$ text "" $+$ ppres
+        where proc      = fromInstance inst
+              ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
+              pphead    = quotes (text (name proc))
+              ppres     = pt "Details" $+$ nest 2 (pprint res)
+              ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
+                          $+$ nest 2 (prettyPrintRelation prob)
+              ppanswer  = pt "Answer" <+> pprint (P.answer p)
+              underline = text (take (length $ show pphead) $ repeat '-')
+              pt s = wtext 17 $ s ++  ":"
+              wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
+
+instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
+    answer p = P.answer (result p)
+
+instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
+
+apply :: Processor proc => (InstanceOf proc) -> Problem -> SolverM (Proof proc)
+apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
 
-apply :: Processor proc => (InstanceOf proc) -> Problem -> SolverM (Proof proc)
-apply proc prob = do slver <- ask
-                     liftIO $ apply_ slver proc prob
-
-
--- someprocessor
-data SomeProcessor = forall p. (Processor p) => SomeProcessor p 
-data SomeProof = forall p . SomeProof p
-data SomeInstance = forall p . Processor p => SomeInstance p (InstanceOf p)
-
-instance Processor SomeProcessor where
-    type ProofOf    SomeProcessor = SomeProof
-    data InstanceOf SomeProcessor = SPI SomeInstance
-    name (SomeProcessor proc) = name proc
-    solve (SPI (SomeInstance _ inst)) prob = SomeProof `liftM` solve inst prob
-    fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
-    parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance proc) `liftM` parseProcessor_ proc
-
-some :: forall p. (Processor p) => p -> SomeProcessor
-some = SomeProcessor
-
--- oneof processor
-data AnyProcessor = OO [SomeProcessor]
-
-instance Processor AnyProcessor where
-    type ProofOf AnyProcessor = ProofOf SomeProcessor
-    data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor) AnyProcessor
-    name _ = "some processor"
-    solve (OOI inst _) prob = solve inst prob
-    fromInstance (OOI _ proc) = proc
-    parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor_ p' | p' <- ps]
-                                   return $ OOI inst p
-
-anyOf :: [SomeProcessor] -> AnyProcessor
-anyOf = OO
-
-
+fromString :: Processor p => p -> String -> Either ParseError (InstanceOf p)
+fromString p s = Parse.fromString (parseProcessor p) () "supplied strategy" s
 

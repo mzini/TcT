@@ -24,57 +24,49 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Tct.Processor.Timeout 
-    (timeout)
+    ( timeout
+    , TOProof (..))
 where 
 import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
 
-import Tct.Certificate (uncertified)
 import Tct.Processor hiding (Proof)
-import Tct.Processor.Proof
 import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ
 
-data Timeout p = Timeout p
+data Timeout p = Timeout !Int p
 
 timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
-timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
+timeout i proc = TOInstance (i * (10^(6 :: Int))) (fromInstance proc) proc
 
 toSeconds :: Int -> Double
 toSeconds i = fromIntegral i / (10 ^ (6 :: Int))
 
-
 data TOProof p = TimedOut Int 
                | TOProof (ProofOf p)
+
 instance Processor p => Processor (Timeout p) where 
     type ProofOf (Timeout p) = TOProof p
     data InstanceOf (Timeout p) = TOInstance !Int p (InstanceOf p)
-    name  (Timeout proc)    = name proc
+    name  (Timeout _ proc)    = name proc
+    description (Timeout i proc) = description proc ++ ["The processor aborts after a timeout of " ++ show (toSeconds i) ++ " seconds."]
+    synopsis (Timeout _ proc)    = synopsis proc ++ "[<nat>]"                                   
     solve (TOInstance t _ inst) prob = do io <- mkIO $ apply inst prob 
                                           r <- liftIO $ timedKill t io
                                           return $ case r of 
                                                      Just p  -> TOProof (result p)
                                                      Nothing -> TimedOut t
-    fromInstance (TOInstance _ proc _) = Timeout proc
-    parseProcessor_ (Timeout _) = error "timeoutprocessor should be added by system and not the user"
+    fromInstance (TOInstance i proc _) = Timeout i proc
+    parseProcessor_ (Timeout _ _) = error "timeoutprocessor should be added by system and not the user"
     
-
-
-instance Proof (ProofOf p) => Proof (TOProof p) where 
-    succeeded (TOProof p)  = succeeded p
-    succeeded (TimedOut _) = False
-
-instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
-    certificate (TOProof p) = certificate p
-    certificate _           = uncertified
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
     pprint (TOProof p)  = pprint p
     pprint (TimedOut i) = text "Computation stopped due to timeout after" <+> double (toSeconds i) <+> text "seconds"
 
-
 instance Answerable (ProofOf p) => Answerable (TOProof p) where 
     answer (TOProof p)  = answer p
     answer (TimedOut _) = TimeoutAnswer
 
+instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p)

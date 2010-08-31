@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,19 +17,61 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Tct.Proof
-    ( Proof (..)
-    , ComplexityProof (..)
+    ( ComplexityProof
+    , Answer (..)
+    , Answerable (..)
+    , succeeded
+    , failed
+    , isTimeout
+    , certificate
     )
 where
 
--- import Termlib.Utils (PrettyPrintable (..))
+import Text.PrettyPrint.HughesPJ
+
+import Termlib.Utils (PrettyPrintable (..))
 import Tct.Certificate (Certificate)
 
-class Proof proof where
-      succeeded :: proof -> Bool
-      succeeded = not . failed
-      failed :: proof -> Bool
-      failed = not . succeeded
+data Answer = CertAnswer Certificate 
+            | FailAnswer
+            | YesAnswer
+            | TimeoutAnswer deriving (Eq, Ord, Show)
 
-class Proof proof => ComplexityProof proof where
-  certificate :: proof -> Certificate
+instance PrettyPrintable Answer where 
+  pprint (CertAnswer cert) = pprint cert
+  pprint TimeoutAnswer     = text "TIMEOUT"
+  pprint FailAnswer        = text "MAYBE"
+  pprint YesAnswer         = text "YES"
+
+
+class Answerable proof where 
+    answer :: proof -> Answer
+
+instance Answerable Answer where
+    answer = id
+
+
+succeeded :: Answerable p => p -> Bool
+succeeded p = case answer p of 
+                CertAnswer _ -> True
+                YesAnswer    -> True
+                _            -> False
+
+failed :: Answerable p => p -> Bool
+failed = not . succeeded
+
+isTimeout :: Answerable p => p -> Bool
+isTimeout p = case answer p of 
+                TimeoutAnswer -> True
+                _             -> False
+
+certificate :: Answerable p => p -> Maybe Certificate
+certificate p = case answer p of 
+                CertAnswer c -> Just c
+                _            -> Nothing
+
+class (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
+
+
+
+

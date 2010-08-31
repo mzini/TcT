@@ -34,10 +34,6 @@ import Termlib.Problem (Problem)
 import Text.ParserCombinators.Parsec (CharParser)
 
 import Control.Monad.Reader
---import qualified Qlogic.SatSolver as SatSolver
--- import Qlogic.SatSolver (Decoder, SatError(..))
-
--- import Tct.Proof
 
 type ProcessorParser a = CharParser [SomeProcessor] a 
 

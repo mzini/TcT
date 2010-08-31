@@ -28,23 +28,24 @@ import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags 
-import Tct.Processor (SomeProcessor, any, Proof)
-import Tct.Processor.Proof (answer)
-import Tct.Processor.Parse (fromString)
-import Tct.Processor (SatSolver(..), Proof, apply, runSolver)
+import Tct.Processor (Proof, fromString, Processor(..), SatSolver(..), runSolver, apply)
+import Tct.Processor.SomeProcessor
+import Tct.Proof
+import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
 
-data Config = Config { parsableProcessor :: SomeProcessor
+data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: Problem -> TCT (Proof SomeProcessor)
-                     , defaultProcessor  :: Problem -> TCT SomeProcessor
-                     , getProcessor      :: Problem -> TCT SomeProcessor
+                     , defaultProcessor  :: Problem -> TCT (InstanceOf SomeProcessor)
+                     , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProblem        :: TCT Problem
                      , getSolver         :: TCT SatSolver
                      , showProof         :: (Proof SomeProcessor) -> TCT String
                      , timeoutAfter      :: Float
                      , satSolver         :: SatSolver
                      , configDir         :: IO FilePath
-                     , errorMsg          :: [String]}
+                     , errorMsg          :: [String]
+                     , version           :: String}
 
 
 data TCTError = StrategyParseError String
@@ -81,7 +82,8 @@ check prob = do p <- askConfig process
                 p prob
 
 readProblem :: TCT Problem
-readProblem = askConfig getProblem
+readProblem = do r <- askConfig getProblem
+                 r
 
 putProof :: Proof SomeProcessor -> TCT ()
 putProof proof = do r <- askConfig showProof 
@@ -95,14 +97,15 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , getProcessor     = getProcessor_
                        , getProblem       = getProblem_
                        , getSolver        = getSolver_
-                       , showProof        = showProof_
+                       , showProof        = showProof_ 
                        , timeoutAfter     = 60.0
                        , satSolver        = MiniSat "minisat" -- TODO pfad und exe unterscheiden
                        , configDir        = do home <- getHomeDirectory 
                                                return $ home </> ".tct"
                        , errorMsg         = []
+                       , version          = Version.version
                        }
-    where parsableProcessor_ = anyOf []
+    where parsableProcessor_ = anyOf [] -- TODO
 -- [ Comb.bestStrategy
 --                         , Comb.fastestStrategy
 --                         , Comb.sequentiallyStrategy
@@ -114,10 +117,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                   proc <- getProc prob
                                   gs <- askConfig getSolver
                                   slver <- gs
-                                  eproof <- liftIO $ runSolver slver (apply proc prob)
-                                  case eproof of 
-                                    Left e -> throwError $ UnknownError $ show e
-                                    Right p -> return p
+                                  liftIO $ runSolver slver (apply proc prob)
 
           getProblem_        = do inputFile <- input `liftM` askFlags
                                   parseResult <- liftIO $ ProblemParser.problemFromFile inputFile
@@ -163,19 +163,18 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
 
 
           defaultProcessor_  = undefined --TODO
-          getProcessor_ prob = do str <- askFlag strategy
-                                  strats <- askConfig strategies
+          getProcessor_ prob = do anyproc <- askConfig parsableProcessor
                                   to <- askFlag time
+                                  str <- askFlag strategy
                                   proc <- case str of 
-                                           Just s -> parseStrategy "supplied strategy"  strats s
-                                           Nothing -> do defproc <- askConfig defaultProcessor 
-                                                         defproc prob
+                                            Just s -> case fromString anyproc s of 
+                                                        Left err    -> throwError $ StrategyParseError $ show err
+                                                        Right proc' -> return $ someInstance proc'
+                                            Nothing -> do defproc <- askConfig defaultProcessor 
+                                                          defproc prob
                                   return $ case to of 
-                                             Just s -> timeout s proc
+                                             Just s -> someInstance (timeout s proc)
                                              Nothing -> proc
-                                      where parseStrategy source strats str = liftError $ fromString source strats str
-                                                where liftError (Left err) = throwError $ StrategyParseError $ show err
-                                                      liftError (Right e)  = return $ e
 
           getSolver_          =  do slver <- getSlver
                                     fn <- findms slver

@@ -42,24 +42,24 @@ import Termlib.Utils (PrettyPrintable (..))
 
 import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Main.Version (version)
+import Tct.Processor.SomeProcessor (processors)
+import Tct.Processor (Processor (..))
 
 
 showError :: Config -> String -> Config
 showError cfg msg = cfg { errorMsg = msg : errorMsg cfg }
 
 runTct :: Config -> Flags -> IO ExitCode
-runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolean Complexity Tool, Version " ++ version
+runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolean Complexity Tool, Version " ++ version cfg
                                                          return ExitSuccess
                 | showHelp flgs                     = do putStrLn $ unlines helpMessage
                                                          return ExitSuccess
                 | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
-                                                             strats = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
-                                                                        Just reg -> [strat | strat <- strategies cfg
-                                                                                          , matches reg (strategyName strat)
-                                                                                                        || matches reg (unlines (description strat))]
-                                                                        Nothing  -> strategies cfg 
-                                                         putStrLn $ show $ vcat [pprint strat $$ (text "") | strat <- strats]
+                                                             procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
+                                                                       Just reg -> [proc | proc <- processors (parsableProcessor cfg)
+                                                                                   , matches reg (name proc) || matches reg (unlines (description proc))]
+                                                                       Nothing  -> processors (parsableProcessor cfg)
+                                                         putStrLn $ show $ vcat [pprint proc $$ (text "") | proc <- procs]
                                                          return ExitSuccess
                 | otherwise        = do (r,warns) <- liftIO $ run flgs cfg (readProblem >>= check >>= putProof)
                                         putWarnMsg [show $ pprint warn | warn <- warns]

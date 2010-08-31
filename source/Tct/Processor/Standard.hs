@@ -42,24 +42,27 @@ data TheProcessor a = TheProcessor { processor     :: a
 
 class (A.ParsableArgument (Arguments a)) => Processor a where
     type Arguments a
-    type Proof a 
+    type ProofOf a 
     name      :: a -> String
     description :: a -> [String]
-    solve     :: TheProcessor a -> Problem -> P.SolverM (Proof a)
+    solve     :: TheProcessor a -> Problem -> P.SolverM (ProofOf a)
     arguments :: a -> A.StubOf (Arguments a)
 
 data StdProc a = StdProc a deriving Show
 
 instance Processor a => P.Processor (StdProc a) where
-    type P.Proof (StdProc a) = Proof a
-    data P.Instance (StdProc a) = TP (TheProcessor a)
+    type P.ProofOf (StdProc a) = ProofOf a
+    data P.InstanceOf (StdProc a) = TP (TheProcessor a)
     name (StdProc a) = name a
+    description (StdProc a) = description a
+    synopsis (StdProc a) = name a ++ " " ++ A.syn (arguments a) 
     solve (TP theproc) prob = solve theproc prob
-    parseProcessor (StdProc a) = do _ <- string (name a)
-                                    whiteSpace
-                                    args <- A.parseArg (arguments a)
-                                    return $ TP $ TheProcessor { processor = a
-                                                               , processorArgs = args}
+    fromInstance (TP theproc) = StdProc $ processor theproc
+    parseProcessor_ (StdProc a) = do _ <- string (name a)
+                                     whiteSpace
+                                     args <- A.parseArg (arguments a)
+                                     return $ TP $ TheProcessor { processor = a
+                                                                , processorArgs = args}
 
 -- data Foo = Foo
 

@@ -18,4 +18,4 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Main.Version where
 
 version :: String
-version = "1.9"
+version = "1.7"

@@ -31,6 +31,8 @@ Library
                     Tct.Processor.Parse
                     Tct.Processor.SomeProcessor
                     Tct.Processor.Timeout
+                    Tct.Processor.Standard
+                    Tct.Processor.Args
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence

@@ -31,22 +31,23 @@ import Text.ParserCombinators.Parsec
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
+import Tct.Processor.Args
 
 import Termlib.Problem (Problem)
 
 import Tct.Processor.Parse
 
 data TheProcessor a = TheProcessor { processor     :: a
-                                   , processorArgs :: Arguments a
+                                   , processorArgs :: A.A (Arguments a)
                                    }
 
-class (A.ParsableArgument (Arguments a)) => Processor a where
+class (A.Stub (Arguments a)) => Processor a where
     type Arguments a
     type ProofOf a 
     name      :: a -> String
     description :: a -> [String]
     solve     :: TheProcessor a -> Problem -> P.SolverM (ProofOf a)
-    arguments :: a -> A.StubOf (Arguments a)
+    arguments :: a -> (Arguments a)
 
 data StdProc a = StdProc a deriving Show
 
@@ -64,17 +65,16 @@ instance Processor a => P.Processor (StdProc a) where
                                      return $ TP $ TheProcessor { processor = a
                                                                 , processorArgs = args}
 
--- data Foo = Foo
+data Foo = Foo
 
--- instance StdProcessor Foo where
---     type Arguments Foo = Nat :+: Optional Nat
---     type Proof Foo = String :+: (Nat :+: Optional Nat)
---     name Foo = "wdp"
---     solve proc _ = return $ "foo" :+: processorArgs proc
---     arguments Foo = arg { argname = "slisize"
---                         , description = "descr1"}
---                     :+: 
---                     arg { argname = "arg2"
---                         , description = "descr1"
---                         , defaultValue = Nat 3
---                         }
+instance Processor Foo where
+    type Arguments Foo = (Arg A.Nat) :+: (Arg A.Nat)
+    type ProofOf Foo = String :+: (A.Nat :+: A.Nat)
+    name Foo = "wdp"
+    solve proc _ = return $ "foo" :+: processorArgs proc
+    arguments Foo = arg { argName = "slisize"
+                        , argDescription = "descr1"}
+                    :+: 
+                    arg { argName = "arg2"
+                        , argDescription = "descr1"
+                        }

@@ -28,8 +28,8 @@ import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags 
-import Tct.Processor (Proof, fromString, Processor(..), SatSolver(..), runSolver, apply)
-import Tct.Processor.SomeProcessor
+import Tct.Processor (Proof, fromString, Processor(..), SatSolver(..), runSolver, apply, AnyProcessor, SomeProcessor)
+import Tct.Processor
 import Tct.Proof
 import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
@@ -167,13 +167,13 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                   to <- askFlag time
                                   str <- askFlag strategy
                                   proc <- case str of 
-                                            Just s -> case fromString anyproc s of 
+                                            Just s -> case fromString anyproc anyproc s of 
                                                         Left err    -> throwError $ StrategyParseError $ show err
                                                         Right proc' -> return $ someInstance proc'
                                             Nothing -> do defproc <- askConfig defaultProcessor 
                                                           defproc prob
                                   return $ case to of 
-                                             Just s -> someInstance (timeout s proc)
+                                             Just s -> undefined -- TODO someInstance (timeout s proc)
                                              Nothing -> proc
 
           getSolver_          =  do slver <- getSlver

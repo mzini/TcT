@@ -28,14 +28,20 @@ module Tct.Proof
 where
 
 import Text.PrettyPrint.HughesPJ
-
-import Termlib.Utils (PrettyPrintable (..))
+import Text.ParserCombinators.Parsec hiding (parse)
+import Termlib.Utils (PrettyPrintable (..), Parsable (..))
 import Tct.Certificate (Certificate)
 
 data Answer = CertAnswer Certificate 
             | FailAnswer
             | YesAnswer
             | TimeoutAnswer deriving (Eq, Ord, Show)
+
+instance Parsable Answer where
+  parse = parseYes <|> parseMaybe <|> parseTimeout
+    where parseMaybe   = string "MAYBE" >> return FailAnswer
+          parseTimeout = string "TIMEOUT" >> return TimeoutAnswer
+          parseYes     = parse >>= return . CertAnswer
 
 instance PrettyPrintable Answer where 
   pprint (CertAnswer cert) = pprint cert

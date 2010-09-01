@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
@@ -24,6 +25,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Processor
     ( SatSolver (..)
     , Processor (..)
+    , ParsableProcessor (..)
     , Proof (..)
     , SolverM (..)
     , ProcessorParser
@@ -33,7 +35,15 @@ module Tct.Processor
     , parseProcessor
     , minisatValue
     , getSatSolver
-    , fromString)
+    , fromString
+    , SomeProcessor
+    , AnyProcessor
+    , some
+    , someInstance
+    , anyOf
+    , processors
+    , parseAnyProcessor
+    ) 
 where
 
 import Control.Monad.Error
@@ -42,7 +52,7 @@ import Control.Monad.Reader
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
-import Text.ParserCombinators.Parsec (CharParser, (<|>), ParseError)
+import Text.ParserCombinators.Parsec (CharParser, (<|>), ParseError, getState, choice)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
 import Termlib.Problem
@@ -51,23 +61,23 @@ import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse
 import qualified Tct.Proof as P
 
-type ProcessorParser a = CharParser () a 
 
+type ProcessorParser a = CharParser AnyProcessor a 
 data SolverState = SolverState SatSolver
 data SatSolver = MiniSat FilePath
-
 newtype SolverM r = S {runS :: ReaderT SolverState IO r }
     deriving (Monad, MonadIO, MonadReader SolverState)
-
 
 class Processor a where
     type ProofOf a                  
     data InstanceOf a 
     name  :: a -> String
     description :: a -> [String]
-    synopsis :: a -> String
     fromInstance :: (InstanceOf a) -> a
     solve :: InstanceOf a -> Problem -> SolverM (ProofOf a)
+
+class Processor a => ParsableProcessor a where
+    synopsis :: a -> String
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
 
 
@@ -126,6 +136,70 @@ apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
 
-fromString :: Processor p => p -> String -> Either ParseError (InstanceOf p)
-fromString p s = Parse.fromString (parseProcessor p) () "supplied strategy" s
+fromString :: Processor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
+fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
 
+
+data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeProcessor p 
+data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
+data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeInstance p (InstanceOf p)
+
+instance PrettyPrintable SomeProof where
+    pprint (SomeProof p) = pprint p
+
+instance P.Answerable SomeProof where
+    answer (SomeProof p) = P.answer p
+
+instance P.ComplexityProof SomeProof
+
+instance Processor SomeProcessor where
+    type ProofOf    SomeProcessor = SomeProof
+    data InstanceOf SomeProcessor = SPI SomeInstance
+    name (SomeProcessor proc) = name proc
+    description (SomeProcessor proc) = description proc
+    solve (SPI (SomeInstance _ inst)) prob = SomeProof `liftM` solve inst prob
+    fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
+
+instance ParsableProcessor SomeProcessor where
+    synopsis (SomeProcessor proc) = synopsis proc
+    parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance proc) `liftM` parseProcessor_ proc
+
+instance PrettyPrintable SomeProcessor where
+    pprint (SomeProcessor proc) = ppheading $$ (nest 2 $ ppdescr $+$ text "" $+$ ppsyn)
+        where ppheading = text "Strategy" <+> doubleQuotes (text sname) <> text ":"
+              ppdescr = vcat [fsep $ [text w | w <- words s] | s <- descr] 
+              ppsyn = text "Usage:" $+$ text "" $+$  (nest 2 $ text $ synopsis proc)
+              sname = name proc 
+              descr = description proc 
+
+some :: forall p. (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
+some = SomeProcessor
+
+someInstance :: forall p. (P.ComplexityProof (ProofOf p), ParsableProcessor p) => InstanceOf p -> InstanceOf SomeProcessor
+someInstance inst = SPI (SomeInstance (fromInstance inst) inst)
+
+
+-- any processor
+data AnyProcessor = OO [SomeProcessor]
+instance Processor AnyProcessor where
+    type ProofOf AnyProcessor = SomeProof
+    data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor) AnyProcessor
+    name _ = "some processor" -- TODO
+    description _ = []
+    solve (OOI inst _) prob = solve inst prob
+    fromInstance (OOI _ proc) = proc
+
+instance ParsableProcessor AnyProcessor where
+    synopsis _    = "" -- TODO
+    parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor_ p' | p' <- ps]
+                                   return $ OOI inst p
+
+anyOf :: [SomeProcessor] -> AnyProcessor
+anyOf = OO
+
+processors :: AnyProcessor -> [SomeProcessor]
+processors (OO l) = l
+
+parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
+parseAnyProcessor = do a <- getState
+                       parseProcessor a

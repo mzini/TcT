@@ -5,11 +5,11 @@
 module Tct.Processor.Args 
 where
 
-import Tct.Processor
+import qualified Tct.Processor as P
 import Tct.Processor.Parse
 import Tct.Processor.SomeProcessor
 import Text.ParserCombinators.Parsec hiding (parse)
-import Control.Monad (liftM)
+-- import Control.Monad (liftM)
 
 
 data Arg k = Arg { argName         :: String
@@ -26,21 +26,25 @@ arg = Arg { argName         = "unknown"
 class Stub a where
     type A a
     syn :: a -> String
-    parseArg :: a -> ProcessorParser (A a)
 
-instance Stub SomeProcessor where
-    type A SomeProcessor = InstanceOf SomeProcessor
-    syn _ = "<processor>"
-    parseArg p = parseProcessor p
-
+class Stub a => ParsableStub a where
+    parseArg :: a -> P.ProcessorParser (A a)
 
 newtype Nat = Nat Int
 
 instance Stub (Arg Nat) where
     type A (Arg Nat) = Nat
     syn _ = "<nat>"
+
+instance ParsableStub (Arg Nat) where
     parseArg _ = do n <- natural
                     return $ Nat n
+
+-- instance Stub (Arg Bool) where
+--     type A (Arg Bool) = Bool
+--     syn _ = "<nat>"
+--     parseArg _ = do n <- try (string "On") <|> string "Off"
+--                     return $ if n == "On" then True else False
                                
 
 -- data Optional stub = Optional { argument :: stub
@@ -63,6 +67,8 @@ data a :+: b = a :+: b
 instance (Stub a, Stub b) => Stub (a :+: b) where
     type A (a :+: b) = A a :+: A b
     syn (sa :+: sb) = syn sa ++ " " ++ syn sb
+
+instance (ParsableStub a, ParsableStub b) => ParsableStub (a :+: b) where
     parseArg (sa :+: sb) = do a <- parseArg sa
                               whiteSpace
                               b <- parseArg sb 

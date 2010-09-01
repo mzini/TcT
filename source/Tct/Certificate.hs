@@ -29,8 +29,11 @@ module Tct.Certificate
     , primrec
     )
 where 
-import Termlib.Utils (PrettyPrintable(..))
-import Text.PrettyPrint.HughesPJ
+import Termlib.Utils (PrettyPrintable(..), Parsable(..))
+import Text.Parsec.Prim
+import Text.Parsec.Combinator
+import Text.ParserCombinators.Parsec.Char
+import Text.PrettyPrint.HughesPJ hiding (char)
 
 data Complexity = Poly (Maybe Int)
                 | Exp (Maybe Int)
@@ -70,7 +73,7 @@ a               `mult` b               = max a b
 newtype Certificate = Cert (Complexity, Complexity) deriving (Show)
 
 certified :: (Complexity, Complexity) -> Certificate
-certified (lower,upper) = Cert (lower, upper)
+certified (l,u) = Cert (l, u)
 
 lowerBound :: Certificate -> Complexity
 lowerBound (Cert (l,_)) = l
@@ -93,6 +96,34 @@ instance Eq Certificate where
 --MA:TODO: lower bounds miteinbeziehen
 instance Ord Certificate where
   (Cert (_,c1)) <=  (Cert (_,c2)) = c1 <= c2
+
+instance Parsable Certificate where
+  parse = do _ <- string "YES"
+             _ <- char '('
+             l <- parseBound
+             _ <- char ','
+             u <- parseBound
+             _ <- char ')'
+             return $ Cert (l, u)
+    where parseBound  = try pPoly <|> pSpecPoly <|> pElem <|> pSupexp <|> pPrec <|> pMrec <|> pRec <|> pUnknown
+          pPoly       = string "POLY" >> return (Poly Nothing)
+          pSpecPoly   = do _   <- string "O("
+                           deg <- pPolyDegree
+                           _   <- char ')'
+                           return $ Poly $ Just deg
+          pPolyDegree = (char '1' >> return 0) <|> (string "n^" >> pInt)
+          pElem       = do _ <- string "ELEMENTARY"
+                           pSpecElem <|> return (Exp Nothing)
+          pSpecElem   = do _ <- char '('
+                           n <- pInt
+                           _ <- char ')'
+                           return $ Exp $ Just n
+          pSupexp     = string "SUPEREXPONENTIAL" >> return Supexp
+          pPrec       = string "PRIMITIVE RECURSIVE" >> return Primrec
+          pMrec       = string "MULTIPLE RECURSIVE" >> return Multrec
+          pRec        = string "RECURSIVE" >> return Rec
+          pUnknown    = string "?" >> return Unknown
+          pInt        = many1 digit >>= return . read
 
 instance PrettyPrintable Certificate where 
   pprint c = text "YES" <> (parens $ (pp $ lowerBound c) <>  text "," <> (pp $ upperBound c))

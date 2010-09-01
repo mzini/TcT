@@ -42,8 +42,7 @@ import Termlib.Utils (PrettyPrintable (..))
 
 import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Processor.SomeProcessor (processors)
-import Tct.Processor (Processor (..))
+import Tct.Processor (Processor (..), processors)
 
 
 showError :: Config -> String -> Config

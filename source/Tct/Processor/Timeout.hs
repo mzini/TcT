@@ -51,14 +51,13 @@ instance Processor p => Processor (Timeout p) where
     data InstanceOf (Timeout p) = TOInstance !Int p (InstanceOf p)
     name  (Timeout _ proc)    = name proc
     description (Timeout i proc) = description proc ++ ["The processor aborts after a timeout of " ++ show (toSeconds i) ++ " seconds."]
-    synopsis (Timeout _ proc)    = synopsis proc ++ "[<nat>]"                                   
+--    synopsis (Timeout _ proc)    = synopsis proc ++ "[<nat>]"                                   
     solve (TOInstance t _ inst) prob = do io <- mkIO $ apply inst prob 
                                           r <- liftIO $ timedKill t io
                                           return $ case r of 
                                                      Just p  -> TOProof (result p)
                                                      Nothing -> TimedOut t
     fromInstance (TOInstance i proc _) = Timeout i proc
-    parseProcessor_ (Timeout _ _) = error "timeoutprocessor should be added by system and not the user"
     
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where

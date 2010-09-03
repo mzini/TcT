@@ -31,6 +31,11 @@ where
 import Text.ParserCombinators.Parsec
 
 import qualified Tct.Processor as P
+import Tct.Proof -- TODO
+import Termlib.Utils (PrettyPrintable(..)) -- TODO
+import Tct.Certificate -- TODO
+import System.IO.Unsafe (unsafePerformIO) -- TODO
+import Text.PrettyPrint.HughesPJ
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
 
@@ -79,9 +84,18 @@ instance ParsableStub (Arg (P P.AnyProcessor)) where
 
 data Foo = Foo
 
+
+instance Answerable (String :+: (Nat :+: Nat)) where
+    answer _ = FailAnswer
+
+instance PrettyPrintable (String :+: (Nat :+: Nat)) where
+    pprint _ = text "string :+: nat :+: nat"
+
+instance ComplexityProof (String :+: (Nat :+: Nat))
+
 instance Processor Foo where
-    type Arguments Foo = (Arg A.Nat) :+: (Arg A.Nat)
-    type ProofOf Foo = String :+: (A.Nat :+: A.Nat)
+    type Arguments Foo = (Arg Nat) :+: (Arg Nat)
+    type ProofOf Foo = String :+: (Nat :+: Nat)
     name Foo = "wdp"
     description Foo = ["leaf processor"]
     solve proc _ = return $ "foo" :+: processorArgs proc
@@ -94,20 +108,24 @@ instance Processor Foo where
 
 data Bar p = Bar
 
-
-instance Processor a => Processor (Bar a) where
+instance P.Processor a => Processor (Bar a) where
     type Arguments (Bar a) = (Arg (P a)) :+: (Arg Nat)
-    type ProofOf (Bar a) = P.InstanceOf a :+: Nat
+    type ProofOf (Bar a) = P.ProofOf a
     name Bar = "bar"
     description Bar = ["i am bar"]
-    solve proc _ = return $ processorArgs proc
+    solve proc prob = P.solve proc' prob
+        where proc' :+: _ = processorArgs proc
     arguments Bar = arg { argName = "subproc"
                         , argDescription = "some subprocessor" }
                     :+: 
                     arg { argName = "a natural"
                         , argDescription = "somenaturalnumber"}
 
--- instance P.Processor p => Processor (Bar p) where
---     type Arguments (Bar p) = (Arg
-                              
 
+someBar :: StdProc (Bar P.AnyProcessor)
+someBar  = StdProc Bar
+
+
+pp :: P.AnyProcessor
+pp = P.anyOf [ P.some (StdProc Foo)
+             , P.some someBar]

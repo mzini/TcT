@@ -26,10 +26,10 @@ Library
                     Tct.Certificate
                     Tct.Main
                     Tct.Main.Flags
+                    Tct.Main.Debug
                     Tct.Main.Version
                     Tct.Processor
                     Tct.Processor.Parse
-                    Tct.Processor.SomeProcessor
                     Tct.Processor.Timeout
                     Tct.Processor.Standard
                     Tct.Processor.Args

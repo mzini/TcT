@@ -7,8 +7,6 @@ where
 
 import qualified Tct.Processor as P
 import Tct.Processor.Parse
-import Tct.Processor.SomeProcessor
-import Text.ParserCombinators.Parsec hiding (parse)
 -- import Control.Monad (liftM)
 
 
@@ -19,10 +17,6 @@ arg :: Arg a
 arg = Arg { argName         = "unknown"
           , argDescription  = ""}
 
--- class ParsableArgument a where 
---     type StubOf a
---     parseArg :: StubOf a -> ProcessorParser a
-
 class Stub a where
     type A a
     syn :: a -> String
@@ -31,11 +25,9 @@ class Stub a => ParsableStub a where
     parseArg :: a -> P.ProcessorParser (A a)
 
 newtype Nat = Nat Int
-
 instance Stub (Arg Nat) where
     type A (Arg Nat) = Nat
     syn _ = "<nat>"
-
 instance ParsableStub (Arg Nat) where
     parseArg _ = do n <- natural
                     return $ Nat n

@@ -81,9 +81,9 @@ class Processor a => ParsableProcessor a where
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
 
 
-parseProcessor :: Processor a => a -> ProcessorParser (InstanceOf a)
+parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse <|> parse
-    where parse = parseProcessor a
+    where parse = parseProcessor_ a
 
 
 getSatSolver :: SolverM SatSolver
@@ -136,7 +136,7 @@ apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
 
-fromString :: Processor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
+fromString :: ParsableProcessor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
 fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
 
 
@@ -191,7 +191,7 @@ instance Processor AnyProcessor where
 
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "" -- TODO
-    parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor_ p' | p' <- ps]
+    parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst p
 
 anyOf :: [SomeProcessor] -> AnyProcessor

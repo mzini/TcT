@@ -125,18 +125,21 @@ instance Parsable Certificate where
           pUnknown    = string "?" >> return Unknown
           pInt        = many1 digit >>= return . read
 
+
+instance PrettyPrintable Complexity where
+    pprint (Poly Nothing)  = text "POLY"
+    pprint (Poly (Just 0)) = text "O(1)"
+    pprint (Poly (Just n)) = text "O(n^" <> text (show n) <> text ")"
+    pprint (Exp Nothing)   = text "ELEMENTARY"
+    pprint (Exp (Just n))  = text "ELEMENTARY" <> (parens $ text $ show n)
+    pprint Supexp          = text "SUPEREXPONENTIAL"
+    pprint Primrec         = text "PRIMITIVE RECURSIVE"
+    pprint Multrec         = text "MULTIPLE RECURSIVE"
+    pprint Rec             = text "RECURSIVE"
+    pprint Unknown         = text "?"
+
 instance PrettyPrintable Certificate where 
-  pprint c = text "YES" <> (parens $ (pp $ lowerBound c) <>  text "," <> (pp $ upperBound c))
-    where pp (Poly Nothing)  = text "POLY"
-          pp (Poly (Just 0)) = text "O(1)"
-          pp (Poly (Just n)) = text "O(n^" <> text (show n) <> text ")"
-          pp (Exp Nothing)   = text "ELEMENTARY"
-          pp (Exp (Just n))  = text "ELEMENTARY" <> (parens $ text $ show n)
-          pp Supexp          = text "SUPEREXPONENTIAL"
-          pp Primrec         = text "PRIMITIVE RECURSIVE"
-          pp Multrec         = text "MULTIPLE RECURSIVE"
-          pp Rec             = text "RECURSIVE"
-          pp Unknown         = text "?"
+  pprint c = text "YES" <> (parens $ (pprint $ lowerBound c) <>  text "," <> (pprint $ upperBound c))
 
 uncertified :: Certificate
 uncertified = Cert (Unknown, Unknown)

@@ -1,4 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -47,39 +49,47 @@ data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: A.A (Arguments a)
                                    }
 
-class Processor a where
+
+-- type family Fn a b 
+
+-- type instance Fn () b = b
+-- type instance Fn (a :+: b) r = a -> (Fn b r)
+
+
+
+class StdProcessor a where
     type Arguments a
     type ProofOf a 
     name      :: a -> String
     description :: a -> [String]
     solve     :: TheProcessor a -> Problem -> P.SolverM (ProofOf a)
+--    s :: a -> Problem -> Fn (Arguments a) (P.SolverM (ProofOf a))
     arguments :: a -> (Arguments a)
 
-data StdProc a = StdProc a deriving Show
+data Processor a = Processor a deriving Show
 
-instance (Processor a, Stub (Arguments a)) => P.Processor (StdProc a) where
-    type P.ProofOf (StdProc a) = ProofOf a
-    data P.InstanceOf (StdProc a) = TP (TheProcessor a)
-    name (StdProc a) = name a
-    description (StdProc a) = description a
+instance (StdProcessor a, Stub (Arguments a)) => P.Processor (Processor a) where
+    type P.ProofOf (Processor a) = ProofOf a
+    data P.InstanceOf (Processor a) = TP (TheProcessor a)
+    name (Processor a) = name a
+    description (Processor a) = description a
     solve (TP theproc) prob = solve theproc prob
-    fromInstance (TP theproc) = StdProc $ processor theproc
+    fromInstance (TP theproc) = Processor $ processor theproc
 
-instance (Processor a, ParsableStub (Arguments a)) => P.ParsableProcessor (StdProc a) where
-    synopsis (StdProc a) = name a ++ " " ++ A.syn (arguments a) 
-    parseProcessor_ (StdProc a) = do _ <- string (name a)
-                                     whiteSpace
-                                     args <- A.parseArg (arguments a)
-                                     return $ TP $ TheProcessor { processor = a
-                                                                , processorArgs = args}
+instance (StdProcessor a, ParsableStub (Arguments a)) => P.ParsableProcessor (Processor a) where
+    synopsis (Processor a) = name a ++ " " ++ A.syn (arguments a) 
+    parseProcessor_ (Processor a) = do _ <- string (name a)
+                                       whiteSpace
+                                       args <- A.parseArg (arguments a)
+                                       return $ TP $ TheProcessor { processor = a
+                                                                  , processorArgs = args}
 
 
-data P a = P a 
-instance P.Processor a => Stub (Arg (P a)) where
-    type A (Arg (P a)) = P.InstanceOf a
+instance P.Processor a => Stub (Arg (Processor a)) where
+    type A (Arg (Processor a)) = P.InstanceOf a
     syn _ = "<processor>"
 
-instance ParsableStub (Arg (P P.AnyProcessor)) where
+instance ParsableStub (Arg (Processor P.AnyProcessor)) where
     parseArg _ = P.parseAnyProcessor
 
 data Foo = Foo
@@ -93,7 +103,7 @@ instance PrettyPrintable (String :+: (Nat :+: Nat)) where
 
 instance ComplexityProof (String :+: (Nat :+: Nat))
 
-instance Processor Foo where
+instance StdProcessor Foo where
     type Arguments Foo = (Arg Nat) :+: (Arg Nat)
     type ProofOf Foo = String :+: (Nat :+: Nat)
     name Foo = "wdp"
@@ -106,10 +116,15 @@ instance Processor Foo where
                         , argDescription = "descr1"
                         }
 
+
+processorFoo :: Processor Foo
+processorFoo = Processor Foo
+
+
 data Bar p = Bar
 
-instance P.Processor a => Processor (Bar a) where
-    type Arguments (Bar a) = (Arg (P a)) :+: (Arg Nat)
+instance P.Processor a => StdProcessor (Bar a) where
+    type Arguments (Bar a) = (Arg (Processor a)) :+: (Arg Nat)
     type ProofOf (Bar a) = P.ProofOf a
     name Bar = "bar"
     description Bar = ["i am bar"]
@@ -122,10 +137,28 @@ instance P.Processor a => Processor (Bar a) where
                         , argDescription = "somenaturalnumber"}
 
 
-someBar :: StdProc (Bar P.AnyProcessor)
-someBar  = StdProc Bar
 
+calledWith :: StdProcessor a => a -> A (Arguments a) -> P.InstanceOf (Processor a)
+p `calledWith` a = TP $ TheProcessor { processor = p
+                                     , processorArgs = a }
+
+
+-- class F a b | a -> b where
+--     call :: a -> b
+
+-- instance F (p, (a :+: b)) r => F (p, a) (b -> r) where
+--     call (p,a) = undefined -- \ b -> call (p,(a :+: b))
+
+bar :: P.Processor p => P.InstanceOf p -> Nat -> P.InstanceOf (Processor (Bar p))
+bar p n = Bar `calledWith` (p :+: n)
+
+
+processorBar :: Processor (Bar P.AnyProcessor)
+processorBar  = Processor Bar
+
+-- proc :: (StdProcessor a, ParsableStub (Arguments a), ComplexityProof (ProofOf a)) => a -> P.SomeProcessor
+-- proc = P.some . Processor
 
 pp :: P.AnyProcessor
-pp = P.anyOf [ P.some (StdProc Foo)
-             , P.some someBar]
+pp = P.anyOf [ P.some processorFoo
+             , P.some processorBar]

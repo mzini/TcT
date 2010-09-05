@@ -27,6 +27,7 @@ module Tct.Certificate
     , poly
     , expo
     , primrec
+    , unknown
     )
 where 
 import Termlib.Utils (PrettyPrintable(..), Parsable(..))
@@ -89,6 +90,9 @@ expo = Exp
 
 primrec :: Complexity
 primrec = Primrec
+
+unknown :: Complexity
+unknown = Unknown
 
 instance Eq Certificate where
   (Cert (l1,c1)) ==  (Cert (l2,c2)) = l1 == l2 && c1 == c2

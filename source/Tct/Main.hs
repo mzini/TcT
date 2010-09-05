@@ -43,7 +43,7 @@ import Termlib.Utils (PrettyPrintable (..))
 import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
 import Tct.Processor (Processor (..), processors)
-
+import qualified Tct.Main.Version as V
 
 showError :: Config -> String -> Config
 showError cfg msg = cfg { errorMsg = msg : errorMsg cfg }
@@ -89,7 +89,7 @@ tct conf = flip Dyre.wrapMain conf params
                    , Dyre.configDir   = Just $ configDir conf
                    , Dyre.cacheDir    = Just $ configDir conf
                    , Dyre.statusOut   = hPutStrLn stderr
-                   , Dyre.ghcOpts     = ["-threaded"]
+                   , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version]
                    } 
           realMain cfg | errorMsg cfg /= [] = putErrorMsg (errorMsg cfg) >> exitWith exitFail
                        | otherwise          = do flgs <- readFlags

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-
@@ -48,6 +49,7 @@ where
 
 import Control.Monad.Error
 import Control.Monad.Reader
+import Data.Typeable
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
@@ -142,7 +144,7 @@ fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
 
 data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
-data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeInstance p (InstanceOf p)
+data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeInstance p (InstanceOf p) deriving Typeable
 
 instance PrettyPrintable SomeProof where
     pprint (SomeProof p) = pprint p
@@ -159,6 +161,10 @@ instance Processor SomeProcessor where
     description (SomeProcessor proc) = description proc
     solve (SPI (SomeInstance _ inst)) prob = SomeProof `liftM` solve inst prob
     fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
+
+instance Typeable (InstanceOf SomeProcessor) where 
+    typeOf (SPI i) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [typeOf i]
+
 
 instance ParsableProcessor SomeProcessor where
     synopsis (SomeProcessor proc) = synopsis proc
@@ -180,7 +186,7 @@ someInstance inst = SPI (SomeInstance (fromInstance inst) inst)
 
 
 -- any processor
-data AnyProcessor = OO [SomeProcessor]
+data AnyProcessor = OO [SomeProcessor] deriving Typeable
 instance Processor AnyProcessor where
     type ProofOf AnyProcessor = SomeProof
     data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor) AnyProcessor
@@ -189,10 +195,16 @@ instance Processor AnyProcessor where
     solve (OOI inst _) prob = solve inst prob
     fromInstance (OOI _ proc) = proc
 
+instance Typeable (InstanceOf AnyProcessor) where 
+    typeOf (OOI i a) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [typeOf i, typeOf a]
+
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "" -- TODO
     parseProcessor_ p@(OO ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst p
+
+instance Show (InstanceOf AnyProcessor) where -- TODO
+    show _ = "InstanceOf <anyprocessor>"
 
 anyOf :: [SomeProcessor] -> AnyProcessor
 anyOf = OO

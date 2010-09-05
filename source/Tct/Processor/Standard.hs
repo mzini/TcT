@@ -1,6 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -22,6 +19,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Standard 
     -- ( processor
@@ -40,7 +39,7 @@ import System.IO.Unsafe (unsafePerformIO) -- TODO
 import Text.PrettyPrint.HughesPJ
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
-
+import Data.Typeable 
 import Termlib.Problem (Problem)
 
 import Tct.Processor.Parse
@@ -66,7 +65,7 @@ class StdProcessor a where
 --    s :: a -> Problem -> Fn (Arguments a) (P.SolverM (ProofOf a))
     arguments :: a -> (Arguments a)
 
-data Processor a = Processor a deriving Show
+data Processor a = Processor a deriving (Typeable, Show)
 
 instance (StdProcessor a, Stub (Arguments a)) => P.Processor (Processor a) where
     type P.ProofOf (Processor a) = ProofOf a
@@ -80,18 +79,19 @@ instance (StdProcessor a, ParsableStub (Arguments a)) => P.ParsableProcessor (Pr
     synopsis (Processor a) = name a ++ " " ++ A.syn (arguments a) 
     parseProcessor_ (Processor a) = do _ <- string (name a)
                                        whiteSpace
-                                       args <- A.parseArg (arguments a)
+                                       args <- parseArguments (arguments a)
                                        return $ TP $ TheProcessor { processor = a
                                                                   , processorArgs = args}
 
 
-instance P.Processor a => Stub (Arg (Processor a)) where
+instance (Typeable (P.InstanceOf a), P.Processor a, Show (P.InstanceOf a)) => Stub (Arg (Processor a)) where
     type A (Arg (Processor a)) = P.InstanceOf a
     syn _ = "<processor>"
 
 instance ParsableStub (Arg (Processor P.AnyProcessor)) where
-    parseArg _ = P.parseAnyProcessor
-
+    parseName = Just . argName
+    parseArg _ _ = P.parseAnyProcessor
+    optionalParsers a = optparser a P.parseAnyProcessor
 data Foo = Foo
 
 
@@ -99,7 +99,7 @@ instance Answerable (String :+: (Nat :+: Nat)) where
     answer _ = FailAnswer
 
 instance PrettyPrintable (String :+: (Nat :+: Nat)) where
-    pprint _ = text "string :+: nat :+: nat"
+    pprint n = text $ show n
 
 instance ComplexityProof (String :+: (Nat :+: Nat))
 
@@ -109,8 +109,9 @@ instance StdProcessor Foo where
     name Foo = "wdp"
     description Foo = ["leaf processor"]
     solve proc _ = return $ "foo" :+: processorArgs proc
-    arguments Foo = arg { argName = "slisize"
-                        , argDescription = "descr1"}
+    arguments Foo = opt { argName = "slisize"
+                        , argDescription = "descr1"
+                        , argDefault     = Nat 42}
                     :+: 
                     arg { argName = "arg2"
                         , argDescription = "descr1"
@@ -123,18 +124,30 @@ processorFoo = Processor Foo
 
 data Bar p = Bar
 
+data BarProof a = BarProof Nat (P.ProofOf a)
 instance P.Processor a => StdProcessor (Bar a) where
     type Arguments (Bar a) = (Arg (Processor a)) :+: (Arg Nat)
-    type ProofOf (Bar a) = P.ProofOf a
+    type ProofOf (Bar a) = BarProof a
     name Bar = "bar"
     description Bar = ["i am bar"]
-    solve proc prob = P.solve proc' prob
-        where proc' :+: _ = processorArgs proc
+    solve proc prob = do r <- P.solve proc' prob
+                         return $ BarProof n r
+        where proc' :+: n = processorArgs proc
     arguments Bar = arg { argName = "subproc"
                         , argDescription = "some subprocessor" }
                     :+: 
-                    arg { argName = "a natural"
-                        , argDescription = "somenaturalnumber"}
+                    opt { argName = "natural"
+                        , argDescription = "somenaturalnumber"
+                        , argDefault = Nat 47}
+
+
+instance Answerable (P.ProofOf a) => Answerable (BarProof a) where
+    answer (BarProof _ a) = answer a
+
+instance PrettyPrintable (P.ProofOf a) => PrettyPrintable (BarProof a) where
+    pprint (BarProof n p) = (text $ show n) $$ pprint p
+
+instance (PrettyPrintable (P.ProofOf a), Answerable (P.ProofOf a)) => ComplexityProof (BarProof a)
 
 
 

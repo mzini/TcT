@@ -49,6 +49,7 @@ import Text.Parsec.Char
 import Control.Monad (forM, liftM)
 import Control.Monad.Trans (liftIO)
 
+import Tct.Main.Debug
 -- import Text.ParserCombinators.Parsec
 
 
@@ -234,7 +235,7 @@ instance S.StdProcessor OneOf where
               
               solveSeq [] = return $ OneOfFailed Sequentially
               solveSeq (p:ps) = do r <- P.solve p prob
-                                   if succeeded r 
+                                   if succeeded r
                                     then return $ OneOfSucceeded Sequentially r p
                                     else solveSeq ps
               

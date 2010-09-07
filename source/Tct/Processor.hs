@@ -60,7 +60,7 @@ import Data.Typeable
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
-import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
+import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice, try)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
@@ -212,7 +212,7 @@ instance Typeable (InstanceOf AnyProcessor) where
 
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "<processor>"
-    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
+    parseProcessor_ (OO _ ps) = do inst <- choice [ try $ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
 instance Show (InstanceOf AnyProcessor) where

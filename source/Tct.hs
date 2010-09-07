@@ -28,11 +28,12 @@ import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags 
-import Tct.Processor (Proof, fromString, Processor(..), SatSolver(..), runSolver, apply, AnyProcessor, SomeProcessor)
 import Tct.Processor
 import Tct.Proof
 import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
+import Tct.Processor.Standard (Processor (..))
+import qualified Tct.Method.Combinator as Combinator
 
 data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: Problem -> TCT (Proof SomeProcessor)
@@ -48,7 +49,7 @@ data Config = Config { parsableProcessor :: AnyProcessor
                      , version           :: String}
 
 
-data TCTError = StrategyParseError String
+data TCTError = StrategyParseError String -- ==> stdout
               | ProblemParseError ProblemPEs.ParseError
               | ProblemUnknownFileError String
               | ProblemNotWellformed Problem
@@ -58,7 +59,7 @@ data TCTError = StrategyParseError String
               | SomeExceptionRaised C.SomeException
               | UnknownError String
 
-data TCTWarning = ProblemParseWarning ProblemPEs.ParseWarning deriving Show
+data TCTWarning = ProblemParseWarning ProblemPEs.ParseWarning deriving Show -- ==> stdout
 
 data TCTState = TCTState
 
@@ -105,14 +106,13 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , errorMsg         = []
                        , version          = Version.version
                        }
-    where parsableProcessor_ = anyOf [] -- TODO
--- [ Comb.bestStrategy
---                         , Comb.fastestStrategy
---                         , Comb.sequentiallyStrategy
---                         , Comb.iteStrategy
---                         , Comb.failStrategy
---                         , Comb.succStrategy
---                         ]
+    where parsableProcessor_ = Combinator.failProcessor 
+                               <|> Combinator.successProcessor
+                               <|> Combinator.iteProcessor parsableProcessor_ parsableProcessor_ parsableProcessor_
+                               <|> Combinator.bestProcessor
+                               <|> Combinator.fastestProcessor
+                               <|> Combinator.sequentiallyProcessor
+                               <|> none
           process_ prob      = do getProc <- askConfig getProcessor
                                   proc <- getProc prob
                                   gs <- askConfig getSolver
@@ -173,7 +173,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                             Nothing -> do defproc <- askConfig defaultProcessor 
                                                           defproc prob
                                   return $ case to of 
-                                             Just s -> undefined -- TODO someInstance (timeout s proc)
+                                             Just s ->  proc -- TODO someInstance (timeout s proc)
                                              Nothing -> proc
 
           getSolver_          =  do slver <- getSlver
@@ -200,7 +200,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                               notexecutable = SatSolverMissing $  "Given filename " ++ fp ++ " is not executable"
           showProof_ proof   = do printproofp <- askFlag proofOutput
                                   return $ show $ pprint (answer proof) $+$  if printproofp 
-                                                                              then pprint proof
+                                                                              then text "" $+$ pprint proof
                                                                               else empty
                                      
 

@@ -30,24 +30,26 @@ where
 import Text.PrettyPrint.HughesPJ
 import Text.ParserCombinators.Parsec hiding (parse)
 import Termlib.Utils (PrettyPrintable (..), Parsable (..))
-import Tct.Certificate (Certificate)
+import Tct.Certificate (Certificate, uncertified)
 
 data Answer = CertAnswer Certificate 
-            | FailAnswer
+            | MaybeAnswer
             | YesAnswer
+            | NoAnswer
             | TimeoutAnswer deriving (Eq, Ord, Show)
 
 instance Parsable Answer where
   parse = parseYes <|> parseMaybe <|> parseTimeout
-    where parseMaybe   = string "MAYBE" >> return FailAnswer
+    where parseMaybe   = string "MAYBE" >> return MaybeAnswer
           parseTimeout = string "TIMEOUT" >> return TimeoutAnswer
           parseYes     = parse >>= return . CertAnswer
 
 instance PrettyPrintable Answer where 
   pprint (CertAnswer cert) = pprint cert
   pprint TimeoutAnswer     = text "TIMEOUT"
-  pprint FailAnswer        = text "MAYBE"
+  pprint MaybeAnswer       = text "MAYBE"
   pprint YesAnswer         = text "YES"
+  pprint NoAnswer          = text "NO"
 
 
 class Answerable proof where 
@@ -71,10 +73,10 @@ isTimeout p = case answer p of
                 TimeoutAnswer -> True
                 _             -> False
 
-certificate :: Answerable p => p -> Maybe Certificate
+certificate :: Answerable p => p -> Certificate
 certificate p = case answer p of 
-                CertAnswer c -> Just c
-                _            -> Nothing
+                CertAnswer c -> c
+                _            -> uncertified
 
 class (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
 

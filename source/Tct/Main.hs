@@ -58,7 +58,7 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                                                                        Just reg -> [proc | proc <- processors (parsableProcessor cfg)
                                                                                    , matches reg (name proc) || matches reg (unlines (description proc))]
                                                                        Nothing  -> processors (parsableProcessor cfg)
-                                                         putStrLn $ show $ vcat [pprint proc $$ (text "") | proc <- procs]
+                                                         putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- procs]
                                                          return ExitSuccess
                 | otherwise        = do (r,warns) <- liftIO $ run flgs cfg (readProblem >>= check >>= putProof)
                                         putWarnMsg [show $ pprint warn | warn <- warns]

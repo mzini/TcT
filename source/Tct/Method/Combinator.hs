@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeSynonymInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -15,278 +16,253 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Tct.Method.Combinator 
-    ( bestStrategy
-    , fastestStrategy
-    , sequentiallyStrategy
-    , iteStrategy
-    , failStrategy
-    , succStrategy
-    , best
-    , fastest
-    , sequentially
-    , (.>>)
-    , ite
-    , fail
-    , success
-    )
+    -- ( bestStrategy
+    -- , fastestStrategy
+    -- , sequentiallyStrategy
+    -- , iteStrategy
+    -- , failStrategy
+    -- , succStrategy
+    -- , best
+    -- , fastest
+    -- , sequentially
+    -- , (.>>)
+    -- , ite
+    -- , fail
+    -- , success
+    -- )
 where
 import Prelude hiding (fail)
-import Control.Concurrent.PFold (pfoldA, Return(..))
-import Control.Monad.Trans
-import Data.List (intersperse)
 import Data.Typeable
-import Text.ParserCombinators.Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
+import Data.List (intersperse)
+import Control.Concurrent.PFold (pfold, fastestSatisfying)
+import Text.Parsec.Prim
+import Text.Parsec.Combinator
+import Text.Parsec.Char
+import Control.Monad (forM, liftM)
+import Control.Monad.Trans (liftIO)
 
-import qualified Termlib.Trs as Trs
-import Termlib.Utils
-
-import Tct.Certificate
-import Tct.Processor
-import Tct.Strategy
-import Tct.Strategy.Flag (noFlags)
-import Tct.Strategy.Parse (whiteSpace)
-import Tct.Proof (certificate, succeeded, failed)
-import qualified Tct.Proof as P
+-- import Text.ParserCombinators.Parsec
 
 
--- ^ Strategies
+-- import qualified Termlib.Trs as Trs
+import Termlib.Utils (PrettyPrintable(..) , ($++$))
 
-bestStrategy :: SomeStrategy
-bestStrategy = SomeStrategy $ OneOfStrat Best
+-- import Tct.Certificate
+import qualified Tct.Processor as P
+import qualified Tct.Processor.Standard as S
+import Tct.Proof
+import Tct.Processor.Args
+import qualified Tct.Processor.Args as A
+import Tct.Processor.Args.Instances ()
+import Tct.Processor.Parse
+import qualified Tct.Certificate as C
+-- failure and success
 
-fastestStrategy :: SomeStrategy
-fastestStrategy = SomeStrategy $ OneOfStrat Fastest
+data TrivialProof = Succeeded 
+                  | Failed
 
-sequentiallyStrategy :: SomeStrategy
-sequentiallyStrategy = SomeStrategy $ SeqStrategy
+instance Answerable TrivialProof where 
+    answer Succeeded = YesAnswer
+    answer Failed    = NoAnswer
 
-iteStrategy :: SomeStrategy
-iteStrategy = SomeStrategy IteStrat
+instance PrettyPrintable TrivialProof where 
+    pprint Succeeded = text "Success"
+    pprint Failed    = text "Fail"
 
-failStrategy :: SomeStrategy
-failStrategy = SomeStrategy Fail
-
-succStrategy :: SomeStrategy
-succStrategy = SomeStrategy Succ
-
--- ^ Combinators
-
-best :: forall a. Processor a => [a] -> OneOf
-best as = OneOf [SomeProcessor a | a <- as] Best
-
-fastest :: forall a. Processor a => [a] -> OneOf
-fastest as = OneOf [SomeProcessor a | a <- as] Fastest
-
-(.>>) :: (Processor a, Processor b) => a -> b -> Sequentially
-a .>> b = Sequentially [SomeProcessor a, SomeProcessor b]
-
-sequentially :: forall a. Processor a => [a] -> Sequentially
-sequentially as = Sequentially [SomeProcessor a | a <- as]
-
-ite :: (Processor g, Processor t, Processor e) => g -> t -> e -> Ite
-ite g t e = Ite (SomeProcessor g) (SomeProcessor t) (SomeProcessor e)
-
-fail :: Fail
-fail = Fail
-
-success :: Succ
-success = Succ
-
--- Parallel combinator 
-data OneOfCombine = Best | Fastest deriving (Show, Typeable)
-data OneOf = OneOf [SomeProcessor] OneOfCombine deriving (Typeable)
-
-data instance (ProofFrom OneOf) = forall proc proof. (Processor proc, P.ComplexityProof proof) => OneOfProof proof proc
-
-instance PrettyPrintable (ProofFrom OneOf)   
-    where pprint (OneOfProof p _) = pprint p
-instance P.Proof (ProofFrom OneOf)           where succeeded (OneOfProof p _) = succeeded p
-instance P.ComplexityProof (ProofFrom OneOf) where certificate (OneOfProof p _) = certificate p
-
-instance Processor OneOf where 
-  name i (OneOf l c) = n c ++ (concat $ intersperse ", " [ "'" ++ name (i - 1) p ++ "'"| p <- l])
-      where n Best = "best of "
-            n Fastest = "fastest of "
-  solve (OneOf ps s) prob = 
-      do r <- oneOfRun s betterThan $ oneOfMkActions apply prob ps
-         case r of 
-           Left l  -> abortWith $ oneOfMkFailMsg l
-           Right (proof', proc') -> return $ OneOfProof proof' proc'
-      where proof1 `betterThan` proof2 = certificate proof1 <= certificate proof2
-  solvePartial proc@(OneOf ps s) prob = 
-      do r <- oneOfRun s betterThan $ oneOfMkActions applyPartial prob ps
-         case r of 
-           Left l                        -> abortWith $ oneOfMkFailMsg l
-           Right (Right proof', proc') -> return $ proof' { ppProof = OneOfProof (ppProof proof') proc' , ppProc = proc }
-
-           _               -> error "Combinator.OneOf.solvePartial: failed proof succeeded"
-      where (Right proof1) `betterThan` (Right proof2) | c1 < c2   = True
-                                                       | c1 > c2   = False
-                                                       | otherwise = n1 <= n2
-                where c1 = certificate $ ppProof proof1
-                      c2 = certificate $ ppProof proof2
-                      n1 =  length $ Trs.toRules $ ppStrict proof1
-                      n2 =  length $ Trs.toRules $ ppStrict proof2
-            _               `betterThan` _                          = error "Combinator.OneOf.betterThan: called with failed proof"
-
-oneOfMkActions :: (Processor proc, P.Proof proof, Monad m) => (proc -> prob -> m proof) -> prob -> [proc] -> [m (proof, proc)]
-oneOfMkActions applyfn prob procs = [ applyfn sp prob >>= \ p -> return (p,sp)  | sp <- procs ]
-
-oneOfMkFailMsg :: (Processor proc, P.Proof proof) => [(proof, proc)] -> Doc
-oneOfMkFailMsg ls =  text "All processors failed. Below you can find the failed subproofs." 
-                $++$ fsep [ ppHeading proc c $++$ (nest 2 $ pprint proof $+$ text "") | ((proof,proc), c) <- zip ls [(1::Int)..] ] 
-    where ppHeading proc c = pprint c <> text ")" <+> text "Processor" <+> quotes (text $ name 3 proc) <+> text "failed due to the following reason(s):" 
-
-oneOfRun :: (Processor proc, P.Proof proof) => OneOfCombine -> (proof -> proof -> Bool) -> [Solver (proof, proc)] -> Solver (Either [(proof, proc)] (proof, proc))
-oneOfRun s betterThan solveActions = do slver <- getSatSolver
-                                        liftIO $ pfoldA (combinator s) (Left []) [toIO slver sa | sa <- solveActions]
-    where toIO slver a = do r <- runSolver slver a 
-                            case r of 
-                              Right e -> return e
-                              Left _  -> error "Combinator.oneOfRun should not happen"
-          combinator Best = betterOne 
-          combinator Fastest = fastestOne
-          betterOne (Left l) p@(proof,_) | failed proof = Continue $ Left $ p : l
-                                         | otherwise    = Continue $ Right p
-          betterOne (Right p1@(proof1,_)) p2@(proof2,_) | failed proof2 = Continue $ Right $ p1
-                                                        | otherwise     = Continue $ Right $ if proof1 `betterThan` proof2 then p1 else p2
-          fastestOne (Left l) p@(proof,_) | failed proof = Continue $ Left $ p : l
-                                          | otherwise    = Stop $ Right p
-          fastestOne _       _ = error "Combinator: -60 sec until explosion"
- 
-data OneOfStrat = OneOfStrat OneOfCombine deriving Show
-
-instance Strategy OneOfStrat where 
-  strategyName (OneOfStrat Best) = "best"
-  strategyName (OneOfStrat Fastest) = "fastest"
-  flags _ = noFlags
-  description (OneOfStrat Best) = [unlines ["This processor applies a list of strategies in parallel and returns the 'best' proof."
-                                           , "Usually the 'best' proof is the one admitting the lowest complexity."
-                                           , "However, if applied in a relative setting, we additionally prefer those proofs that orient more rules strictly."]]
-  description (OneOfStrat Fastest) = ["This processor applies a list of strategies in parallel and returns the first successful proof."]
-
-  parseProcessor s@(OneOfStrat c)  = mkParseSomeProcessor s
-                                   $ \ (_,ls) -> OneOf ls c
-  synopsis p =  text (strategyName p) <+> text "[<strategy>]^+"
-
-
-
-
-data Sequentially = Sequentially [SomeProcessor] deriving (Typeable)
-data instance (ProofFrom Sequentially) = forall p. (P.ComplexityProof p) => SeqSucceeded p
-                                       | forall p. (P.ComplexityProof p) => SeqFailed [p]
-
-
-instance PrettyPrintable (ProofFrom Sequentially) where 
-    pprint (SeqSucceeded p) = pprint p
-    pprint (SeqFailed ps)    = text "None of the processors succeeded:"
-                               $+$ text ""
-                               $+$ vcat [ text [l] <> text ")" <+> pprint p | (p,l) <- zip ps ['a'..]]
-
-instance P.Proof (ProofFrom Sequentially) where 
-    succeeded (SeqSucceeded _) = True
-    succeeded _                = False
-instance P.ComplexityProof (ProofFrom Sequentially) where 
-    certificate (SeqSucceeded p) = certificate p
-    certificate _                = uncertified
-
-instance Processor Sequentially where 
-  name i (Sequentially l) =  "sequentially " ++ (concat $ intersperse ", " [name (i - 1) p | p <- l])
-  solve (Sequentially ls) prob = slv ls []
-      where slv []     fs = return $ SeqFailed $ reverse fs
-            slv (p:ps) fs = do proof <- apply p prob
-                               case succeeded proof of 
-                                 True  -> return $ SeqSucceeded proof
-                                 False -> slv ps (proof:fs)
- 
-data SeqStrategy = SeqStrategy deriving Show
-
-instance Strategy SeqStrategy where 
-  strategyName _    = "sequentially"
-  flags _           = noFlags
-  description _     = ["applies a list of strategies in sequentially, returns the first successful proof"]
-
-  parseProcessor s  = mkParseSomeProcessor s $ \ (_,ls) -> Sequentially ls
-  synopsis _        =  text "sequentially [<strategy>]^+"
-
-
-data Ite = Ite SomeProcessor SomeProcessor SomeProcessor deriving (Typeable)
-
-data instance (ProofFrom Ite) = forall proc1 proc2. (Processor proc1, Processor proc2) => 
-                                IteProof (Erroneous (ProofFrom proc1))
-                                         (Erroneous (ProofFrom proc2))
-
-
-instance PrettyPrintable (ProofFrom Ite) where
-  pprint (IteProof cond proof) = ppcond $+$ text "" $+$ ppbranch
-    where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
-                     $+$ (nest 3 $ pprint cond)
-          ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
-                     $+$ (nest 3 $ pprint proof)
-          suc      = succeeded cond
-instance P.Proof (ProofFrom Ite)           where succeeded (IteProof _ proof)   = succeeded proof
-instance P.ComplexityProof (ProofFrom Ite) where certificate (IteProof _ proof) = certificate proof
-
-instance Processor Ite where
-  name i (Ite c t e) = concat ["if ", name (i - 1) c, " then ", name (i - 1) t, " else ", name (i - 1) e]  
-  solve (Ite c t e) prob = do cproof <- apply c prob
-                              (if succeeded cproof 
-                               then apply t prob 
-                               else apply e prob) >>= mk cproof
-                                where mk cproof proof = return $ IteProof (toErroneous cproof) (toErroneous proof)
-
-data IteStrat = IteStrat deriving Show
-
-instance Strategy IteStrat where 
-  strategyName _ = "if"
-  flags _ = noFlags
-  description _ = ["if-then-else strategy"]
-  parseProcessor _ = do c <- pb "if"
-                        whiteSpace
-                        t <- pb "then"
-                        whiteSpace
-                        e <- pb "else"
-                        return $ SomeProcessor (Ite c t e)
-    where pb s = try (string s) >> whiteSpace >> parseSomeProcessor
-  synopsis _ =  text "if <strategy> then <strategy> else <strategy>"
-
+instance ComplexityProof TrivialProof
 
 data Fail = Fail deriving (Show, Typeable)
-data instance (ProofFrom Fail) = Failed
-instance PrettyPrintable (ProofFrom Fail)   where pprint _      = text "Failed"
-instance P.Proof (ProofFrom Fail)           where succeeded _   = False
-instance P.ComplexityProof (ProofFrom Fail) where certificate _ = uncertified
-instance Processor Fail where 
-   name _ _ = "Fail"
-   solve _ _ = abortWith $ text "Processor " <+> quotes (text "Fail") <+> text "always fails"
 
-instance Strategy Fail where
-  strategyName _ = "fail"
-  flags _ = noFlags
-  description _ = ["the strategy that always fails"]
-  parseProcessor s = mkParseSomeProcessor s $ \ (_,()) -> Fail
+instance S.StdProcessor Fail where
+    type S.ArgumentsOf Fail = NoArgs
+    type S.ProofOf Fail     = TrivialProof
+    name Fail               = "fail"
+    instanceName _          = "fail"
+    solve _ _               = return Failed
+    description Fail        = ["Processor 'fail' always returns the answer 'No'."]
+    arguments Fail          = NoArgs
+
+data Success = Success deriving (Show, Typeable)
+
+instance S.StdProcessor Success where
+    type S.ArgumentsOf Success = NoArgs
+    type S.ProofOf Success     = TrivialProof
+    name Success               = "success"
+    instanceName _             = "success"
+    solve _ _                  = return Succeeded
+    description Success        = ["Processor 'success' always returns the answer 'Yes'."]
+    arguments   Success        = NoArgs
+
+failProcessor :: S.Processor Fail
+failProcessor = S.Processor Fail
+
+successProcessor :: S.Processor Success
+successProcessor = S.Processor Success
+
+fail :: P.InstanceOf (S.Processor Fail)
+fail = Fail `S.calledWith` ()
+
+success :: P.InstanceOf (S.Processor Success)
+success = Success `S.calledWith` ()
 
 
-data Succ = Succ deriving (Show, Typeable)
-data instance (ProofFrom Succ) = Succeed
-instance PrettyPrintable (ProofFrom Succ)   where pprint _      = text "Processor " <+> quotes (text "succ") <+> text "always succeeds"
-instance P.Proof (ProofFrom Succ)           where succeeded _   = True
-instance P.ComplexityProof (ProofFrom Succ) where certificate _ = uncertified
-instance Processor Succ where 
-   name _ _ = "Succeed"
-   solve _ _ = return Succeed
 
-instance Strategy Succ where
-  strategyName _ = "succ"
-  flags _ = noFlags
-  description _ = ["the strategy that always succeeds"]
-  parseProcessor s = mkParseSomeProcessor s $ \ (_,()) -> Succ
+-- if-then-else
 
+data Ite g t e = Ite g t e
+
+data IteProof g t e = IteProof { guardProof  :: P.ProofOf g
+                               , branchProof :: Either (P.ProofOf t) (P.ProofOf e) }
+
+instance ( Answerable (P.ProofOf t)
+         , Answerable (P.ProofOf e))
+    => Answerable (IteProof g t e) where
+      answer p = either answer answer $ branchProof p
+
+instance ( Answerable (P.ProofOf g)
+         , PrettyPrintable (P.ProofOf g)
+         , PrettyPrintable (P.ProofOf t)
+         , PrettyPrintable (P.ProofOf e)) 
+    => PrettyPrintable (IteProof g t e) where
+        pprint p = ppcond $+$ text "" $+$ ppbranch
+            where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
+                             $+$ (nest 3 $ pprint $ guardProof p)
+                  ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
+                             $+$ (nest 3 $ either pprint pprint $ branchProof p)
+                  suc      = succeeded $ guardProof p
+
+
+instance ( Answerable (P.ProofOf g)
+         , Answerable (P.ProofOf t)
+         , Answerable (P.ProofOf e)
+         , PrettyPrintable (P.ProofOf g)
+         , PrettyPrintable (P.ProofOf t)
+         , PrettyPrintable (P.ProofOf e)) => ComplexityProof (IteProof g t e)
+
+instance ( P.Processor g
+         , Answerable (P.ProofOf g)
+         , P.Processor t
+         , P.Processor e) 
+    => P.Processor (Ite g t e) where
+        type P.ProofOf (Ite g t e)    = IteProof g t e 
+        data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
+        name (Ite _ _ _) = "if-then-else processor"
+        instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
+        description  _   = ["This processor implements conditional branching."]
+--        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
+        solve (IteInstance g t e) prob = do gproof <- P.solve g prob
+                                            if succeeded gproof 
+                                             then finish gproof Left t
+                                             else finish gproof Right e
+            where finish gproof d p = do bproof <- P.solve p prob
+                                         return $ IteProof { guardProof  = gproof
+                                                           , branchProof = d bproof }
+
+instance ( P.ParsableProcessor g
+         , Answerable (P.ProofOf g)
+         , P.ParsableProcessor t
+         , P.ParsableProcessor e) 
+    => P.ParsableProcessor (Ite g t e) where
+        synopsis        (Ite g t e) = "if " ++ P.synopsis g ++ " then " ++ P.synopsis t ++ " else " ++ P.synopsis e
+        parseProcessor_ (Ite g t e) = do let pb s p = try (string s) >> whiteSpace >> P.parseProcessor p
+                                         ginst <- pb "if" g
+                                         whiteSpace
+                                         tinst <- pb "then" t
+                                         whiteSpace
+                                         einst <- pb "else" e
+                                         return $ IteInstance ginst tinst einst
+
+ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
+ite = IteInstance
+
+iteProcessor :: g -> t -> e -> (Ite g t e)
+iteProcessor g t e = Ite g t e
+
+
+-- parallel combinators
+
+data OneOf = Best | Fastest | Sequentially deriving (Eq, Show, Typeable)
+
+data OneOfProof = OneOfFailed OneOf
+                | OneOfSucceeded OneOf P.SomeProof (P.InstanceOf P.AnyProcessor)
+
+instance Answerable OneOfProof where
+    answer (OneOfFailed _)        = MaybeAnswer
+    answer (OneOfSucceeded _ p _) = answer p
+
+instance PrettyPrintable OneOfProof where
+    pprint (OneOfFailed _) = text "All processors failed"
+    pprint (OneOfSucceeded _ proof proc) = text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "succeeded:"
+                                           $++$ pprint proof
+instance ComplexityProof OneOfProof
+
+instance S.StdProcessor OneOf where
+    type S.ArgumentsOf OneOf = Arg [S.Processor P.AnyProcessor]
+    type S.ProofOf OneOf     = OneOfProof
+
+    name Best         = "best"
+    name Fastest      = "fastest"
+    name Sequentially = "sequentially"
+
+    instanceName inst = c (S.processor inst) ++ " of " ++  (concat $ intersperse ", " [ "'" ++ P.instanceName p ++ "'" | p <- S.processorArgs inst])
+        where c Best         = "Best"
+              c Fastest      = "Fastest"
+              c Sequentially = "First successful"
+
+    description Best         = ["Processor 'Best' applies the given list of processors in parallel and returns the proof admitting the lowest complexity certificate."]
+    description Fastest      = ["Processor 'Fastest' applies the given list of processors in parallel and returns the first successful proof."]
+    description Sequentially = ["Processor 'Fastest' applies the given list of processors sequentially and returns the first successful proof."]
+
+    arguments _ = arg { A.name        = "subprocessors"
+                      , A.description = "a list of subprocessors"}
+    solve theproc prob | S.processor theproc == Sequentially = solveSeq (S.processorArgs theproc)
+                       | S.processor theproc == Best         = solveBest (S.processorArgs theproc)
+                       | S.processor theproc == Fastest      = solveFast (S.processorArgs theproc)
+
+        where mkActions ps = forM ps $ \ proc -> P.mkIO $ do proof <- P.solve proc prob
+                                                             return $ Just (proof, proc)
+              ofResult o Nothing = OneOfFailed o
+              ofResult o (Just (proof, proc)) = OneOfSucceeded o proof proc
+              
+              solveSeq [] = return $ OneOfFailed Sequentially
+              solveSeq (p:ps) = do r <- P.solve p prob
+                                   if succeeded r 
+                                    then return $ OneOfSucceeded Sequentially r p
+                                    else solveSeq ps
+              
+              solveFast ps = do actions <- mkActions ps
+                                let msucceeded Nothing = False
+                                    msucceeded (Just (proof, _)) = succeeded proof
+                                r <- liftIO $ fastestSatisfying msucceeded Nothing actions
+                                return $ ofResult Fastest r
+                                
+              solveBest ps = do actions <- mkActions ps
+                                let mcertificate Nothing           = C.uncertified 
+                                    mcertificate (Just (proof, _)) = certificate proof 
+                                    select mpr1 mpr2 | mcertificate mpr1 > mcertificate mpr2 = mpr2
+                                                     | otherwise                             = mpr1
+                                r <- liftIO $ pfold select Nothing $ actions
+                                return $ ofResult Best r
+
+
+
+
+bestProcessor :: S.Processor OneOf
+bestProcessor = S.Processor Best
+
+fastestProcessor :: S.Processor OneOf
+fastestProcessor = S.Processor Fastest
+
+sequentiallyProcessor :: S.Processor OneOf
+sequentiallyProcessor = S.Processor Fastest
+
+
+-- best :: 

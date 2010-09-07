@@ -38,7 +38,7 @@ import Text.PrettyPrint.HughesPJ
 data Timeout p = Timeout !Int p
 
 timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
-timeout i proc = TOInstance (i * (10^(6 :: Int))) (fromInstance proc) proc
+timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
 
 toSeconds :: Int -> Double
 toSeconds i = fromIntegral i / (10 ^ (6 :: Int))
@@ -47,17 +47,19 @@ data TOProof p = TimedOut Int
                | TOProof (ProofOf p)
 
 instance Processor p => Processor (Timeout p) where 
-    type ProofOf (Timeout p) = TOProof p
-    data InstanceOf (Timeout p) = TOInstance !Int p (InstanceOf p)
-    name  (Timeout _ proc)    = name proc
-    description (Timeout i proc) = description proc ++ ["The processor aborts after a timeout of " ++ show (toSeconds i) ++ " seconds."]
---    synopsis (Timeout _ proc)    = synopsis proc ++ "[<nat>]"                                   
-    solve (TOInstance t _ inst) prob = do io <- mkIO $ apply inst prob 
-                                          r <- liftIO $ timedKill t io
-                                          return $ case r of 
-                                                     Just p  -> TOProof (result p)
-                                                     Nothing -> TimedOut t
-    fromInstance (TOInstance i proc _) = Timeout i proc
+    type ProofOf (Timeout p)         = TOProof p
+    data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
+    name  (Timeout _ proc)           = name proc
+    instanceName (TOInstance i inst) = instanceName inst ++ "[" ++ show (toSeconds i) ++ "]"
+    description (Timeout i proc)     = description proc ++ ["The processor aborts after a timeout of " ++ show (toSeconds i) ++ " seconds."]
+    argDescriptions _                = []
+    solve (TOInstance t inst) prob = 
+        do io <- mkIO $ apply inst prob 
+           r <- liftIO $ timedKill t io
+           return $ case r of 
+                      Just p  -> TOProof (result p)
+                      Nothing -> TimedOut t
+--    fromInstance (TOInstance i proc _) = Timeout i proc
     
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where

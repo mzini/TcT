@@ -97,7 +97,7 @@ unknown = Unknown
 instance Eq Certificate where
   (Cert (l1,c1)) ==  (Cert (l2,c2)) = l1 == l2 && c1 == c2
 
---MA:TODO: lower bounds miteinbeziehen
+--MA:TODO: should we consider lower bounds?
 instance Ord Certificate where
   (Cert (_,c1)) <=  (Cert (_,c2)) = c1 <= c2
 

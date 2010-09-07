@@ -1,3 +1,20 @@
+{-
+This file is part of the Tyrolean Complexity Tool (TCT).
+
+The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+-}
+
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -14,130 +31,127 @@ import Text.Parsec.Prim
 import Text.Parsec.Combinator
 import Text.Parsec.Char
 import qualified Data.Map as Map
+import Data.List (partition, intersperse)
 import Data.Typeable (cast, Typeable)
 import Control.Monad (liftM)
-import Tct.Main.Debug
+-- import Tct.Main.Debug
+-- import Control.Monad (mplus)
+import Data.Maybe (fromMaybe)
 
-data Arg k = Arg { argName         :: String
-                 , argDescription  :: String
-                 , argDefault      :: A (Arg k)
-                 , isOptional      :: Bool}
+-- single argument
+data Phantom k = Phantom
+
+class (Typeable (Domain a), Show (Domain a)) => Argument a where
+    type Domain a
+    domainName :: Phantom a -> String
+
+class Argument a => ParsableArgument a where
+    parseArg :: Phantom a -> P.ProcessorParser (Domain a)
+
+
+-- argument lists
+
+data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
+                                             , adName       :: String
+                                             , adDefault    :: Maybe a
+                                             , adDescr      :: String
+                                             , adSynopsis   :: String }
+
+data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
+
+instance Show SomeDomainElt where show (SomeDomainElt e) = show e
+
+type ParsedOptionals = Map.Map String SomeDomainElt
+
+type OptionalParser = P.ProcessorParser (String, SomeDomainElt)
+
+
+class Arguments a where
+    type Domains a 
+    descriptions :: a -> [ArgDescr]
+
+class Arguments a => ParsableArguments a where
+    parseArgs :: a -> ParsedOptionals -> P.ProcessorParser (Domains a)
+    optionalParsers :: a -> [OptionalParser]
+
+
+data NoArgs = NoArgs deriving (Typeable, Show)
+
+data Arg k = Arg { name         :: String
+                 , description  :: String
+                 , defaultValue :: Domain k
+                 , isOptional_  :: Bool}
              deriving Typeable 
-
-arg :: Arg a
-arg = Arg { argName         = "unknown"
-          , argDescription  = ""
-          , argDefault      = error "no default argument given"
-          , isOptional      = False}
-
-opt :: Arg a
-opt = arg { isOptional = True}
-
-data SomeA = forall a. (Show a, Typeable a) => SomeA a deriving (Typeable)
-instance Show SomeA where
-    show (SomeA a) = "SomeA " ++ show a
-
-class (Typeable (A a), Show (A a)) => Stub a where
-    type A a
-    syn :: a -> String
-
-
-optparser a p = case parseName a of 
-                  Just n -> [do _ <- string $ ":" ++ n
-                                whiteSpace
-                                a' <- p
-                                return (n, SomeA a')]
-                  Nothing -> []
-
-class Stub a => ParsableStub a where
-    parseArg :: a -> Map.Map String SomeA -> P.ProcessorParser (A a)
-    parseName :: a -> Maybe String
-    optionalParsers :: (Typeable (A a), Show (A a)) => a -> [P.ProcessorParser (String, SomeA)]
-
-newtype Nat = Nat Int deriving (Typeable, Show)
-instance Stub (Arg Nat) where
-    type A (Arg Nat) = Nat
-    syn _ = "<nat>"
-
-instance ParsableStub (Arg Nat) where
-    parseName = Just . argName
-    parseArg a m | isOptional a = case Map.lookup (argName a) m of 
-                                    Just (SomeA n) -> case cast n of 
-                                                       Just n' -> return (n' :: Nat)
-                                                       Nothing -> return $ Nat 33
-                                    Nothing -> return $ Nat 99
-                                              
-                 | otherwise    = Nat `liftM` natural
-    optionalParsers a = optparser a (Nat `liftM` natural)
 
 data a :+: b = a :+: b deriving (Typeable, Show)
 
-instance (Stub a, Stub b) => Stub (a :+: b) where
-    type A (a :+: b) = A a :+: A b
-    syn (sa :+: sb) = syn sa ++ " " ++ syn sb
 
-instance (ParsableStub a, ParsableStub b) => ParsableStub (a :+: b) where
-    parseName = const Nothing
-    parseArg (sa :+: sb) opts = do a <- parseArg sa opts
-                                   whiteSpace
-                                   b <- parseArg sb opts
-                                   return (a :+: b)
-    optionalParsers (sa :+: sb) = optionalParsers sa ++ optionalParsers sb
+instance Arguments NoArgs where 
+    type Domains NoArgs = ()
+    descriptions NoArgs = []
+
+instance Argument a => Arguments (Arg a) where
+    type Domains (Arg a) = Domain a
+    descriptions a = [ArgDescr { adIsOptional = isOptional_ a
+                               , adName       = name a
+                               , adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
+                               , adDescr      = description a
+                               , adSynopsis   = "<" ++ domainName (Phantom :: Phantom a) ++ ">"}]
+
+instance (ParsableArgument a) => ParsableArguments (Arg a) where
+    parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
+                     | otherwise     = parseArg (Phantom :: Phantom a)
+        where lookupOpt :: Maybe (Domain a)
+              lookupOpt = do (SomeDomainElt e') <- Map.lookup (name a) opts
+                             cast e'
+    optionalParsers a = [ do _ <- string $ ":" ++ name a
+                             whiteSpace
+                             e <- parseArg (Phantom :: Phantom a)
+                             return (name a, SomeDomainElt e) ]
+
+instance (Arguments a, Arguments b) => Arguments (a :+: b) where
+    type Domains (a :+: b) = Domains a :+: Domains b
+    descriptions (a :+: b) = descriptions a ++ descriptions b
 
 
-parseArguments :: ParsableStub a => a -> P.ProcessorParser (A a)
-parseArguments a = do optargs <- Map.fromList `liftM` many (choice $ optparser)
-                      parseArg a (unsafeDebugMsg optargs)
+instance ParsableArguments NoArgs where
+    parseArgs NoArgs _ = return ()
+    optionalParsers NoArgs = []
+
+instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: b) where
+    parseArgs (a :+: b) opts = do e_a <- parseArgs a opts
+                                  whiteSpace
+                                  e_b <- parseArgs b opts
+                                  return (e_a :+: e_b)
+    optionalParsers (a :+: b) = optionalParsers a ++ optionalParsers b
+
+
+parseArguments :: ParsableArguments a => a -> P.ProcessorParser (Domains a)
+parseArguments a = do opts <- Map.fromList `liftM` many (choice $ optparser)
+                      parseArgs a opts
     where optparser = [ try $ do r <- p
                                  whiteSpace
                                  return r 
                         | p <- optionalParsers a]
---    parseLst (sa :+: _) = parseLst sa
-    -- parseLst a = do _ <- string $ ":" ++ argName a
-    --                 whiteSpace
-    --                 a' <- parseArg a
-    --                 return [SomeA a']
--- instance Stub (Arg Bool) where
---     type A (Arg Bool) = Bool
---     syn _ = "<nat>"
---     parseArg _ = do n <- try (string "On") <|> string "Off"
---                     return $ if n == "On" then True else False
-                               
 
--- data Optional stub = Optional { argument :: stub
---                               , defaultValue :: A stub}
-
--- data OptionalArg a = Specified a 
---                    | Default a
-
--- instance (Stub a) => Stub (Optional a) where
---     type A (Optional a) = OptionalArg (A a)
---     syn (Optional a _) = "[" ++ syn a ++ "]"
---     parseArg (Optional a def) = try (Specified `liftM` pa) <|> (return $ Default $ def)
---         where pa = do _ <- char ':' 
---                       _ <- string (argName a)
---                       whiteSpace
---                       parseArg a
+synopsis :: Arguments a => a -> String
+synopsis a = ofList oSyn ++ " " ++ ofList nSyn
+    where oSyn = [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- opts]
+          nSyn = [ adSynopsis d | d <- nonopts]
+          (opts, nonopts) = partition adIsOptional (descriptions a)
+          ofList l = concat $ intersperse " " l
 
 
--- data a :|: b = a :|: b
-
--- instance (Stub a, Stub b) => Stub (a :|: b) where
---     type A (a :|: b) = A a :+: A b
---     syn (sa :|: sb) = syn sa ++ " " ++ syn sb -- TODO
+-- single argument instances 
 
 
+-- constructors
 
--- instance (ParsableStub a, ParsableStub b) => ParsableStub (a :|: b) where
---     parseArg (sa :|: sb) = do a <- parseArg sa
---                               whiteSpace
---                               b <- parseArg sb 
---                               return (a :+: b)
---     parseLst (sa :|: sb) = do es <- many (try (parseLst sa) <|> parseLst sb)
---                               return $ concat es
+arg :: Arg a
+arg = Arg { name         = "unknown"
+          , description  = []
+          , defaultValue = error "no default argument given"
+          , isOptional_  = False}
 
-
-
-
-
-
+opt :: Arg a
+opt = arg { isOptional_ = True }

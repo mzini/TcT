@@ -40,6 +40,7 @@ Library
                     Tct.Encoding.Relative
                     Tct.Encoding.SafeMapping
                     Tct.Method.Combinator
+                    Tct.Method.PopStar
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
  hs-source-dirs:    source

@@ -262,7 +262,8 @@ fastestProcessor :: S.Processor OneOf
 fastestProcessor = S.Processor Fastest
 
 sequentiallyProcessor :: S.Processor OneOf
-sequentiallyProcessor = S.Processor Fastest
+sequentiallyProcessor = S.Processor Sequentially
 
+best :: [P.InstanceOf P.AnyProcessor] -> P.InstanceOf (S.Processor OneOf) -- TODO
+best a = Best `S.calledWith` a
 
--- best :: 

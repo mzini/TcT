@@ -34,6 +34,7 @@ import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
 import Tct.Processor.Standard (Processor (..))
 import qualified Tct.Method.Combinator as Combinator
+import qualified Tct.Method.PopStar as PopStar
 
 data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: Problem -> TCT (Proof SomeProcessor)
@@ -112,6 +113,8 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                <|> Combinator.bestProcessor
                                <|> Combinator.fastestProcessor
                                <|> Combinator.sequentiallyProcessor
+                               <|> PopStar.lmpoProcessor
+                               <|> PopStar.popstarProcessor
                                <|> none
           process_ prob      = do getProc <- askConfig getProcessor
                                   proc <- getProc prob

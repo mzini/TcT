@@ -37,6 +37,11 @@ import Tct.Processor.Standard
 -- * Primitives
 newtype Nat = Nat Int deriving (Typeable)
 
+
+nat :: Int -> Nat
+nat i | i < 0 = error "nat received negative integer"
+      | otherwise = Nat i
+
 instance Show Nat where
     show (Nat i) = show i
 

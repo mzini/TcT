@@ -25,7 +25,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.Bounds 
  ( bounds
- , boundsProcessor)
+ , boundsProcessor
+ , InitialAutomaton (..)
+ , Enrichment (..))
 where
 
 import Data.Typeable

@@ -54,6 +54,7 @@ Library
                     Tct.Method.Bounds.Violations
                     Tct.Method.Bounds.Violations.Find
                     Tct.Method.Bounds.Violations.Fix
+                    Tct.Methods
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
  hs-source-dirs:    source

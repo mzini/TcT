@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,6 +15,8 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -184,24 +185,24 @@ iteProcessor g t e = Ite g t e
 
 -- parallel combinators
 
-data OneOf = Best | Fastest | Sequentially deriving (Eq, Show, Typeable)
+data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show, Typeable)
 
-data OneOfProof = OneOfFailed OneOf
-                | OneOfSucceeded OneOf P.SomeProof (P.InstanceOf P.AnyProcessor)
+data OneOfProof p = OneOfFailed (OneOf p)
+                  | OneOfSucceeded (OneOf p) (P.ProofOf p) (P.InstanceOf p)
 
-instance Answerable OneOfProof where
+instance Answerable (P.ProofOf p) => Answerable (OneOfProof p) where
     answer (OneOfFailed _)        = MaybeAnswer
     answer (OneOfSucceeded _ p _) = answer p
 
-instance PrettyPrintable OneOfProof where
+instance PrettyPrintable (P.ProofOf p) => PrettyPrintable (OneOfProof p) where
     pprint (OneOfFailed _) = text "All processors failed"
     pprint (OneOfSucceeded _ proof _) = pprint proof -- text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "has been applied:"
 --                                           $+$ pprint proof
-instance ComplexityProof OneOfProof
+instance (PrettyPrintable (P.ProofOf p), Answerable (P.ProofOf p)) => ComplexityProof (OneOfProof p)
 
-instance S.StdProcessor OneOf where
-    type S.ArgumentsOf OneOf = Arg [S.Processor P.AnyProcessor]
-    type S.ProofOf OneOf     = OneOfProof
+instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) where
+    type S.ArgumentsOf (OneOf p) = Arg [S.Processor p]
+    type S.ProofOf (OneOf p)     = OneOfProof p
 
     name Fastest      = "fastest"
     name Sequentially = "sequentially"
@@ -250,15 +251,20 @@ instance S.StdProcessor OneOf where
 
 
 
-bestProcessor :: S.Processor OneOf
+bestProcessor :: S.Processor (OneOf P.AnyProcessor)
 bestProcessor = S.Processor Best
 
-fastestProcessor :: S.Processor OneOf
+fastestProcessor :: S.Processor (OneOf P.AnyProcessor)
 fastestProcessor = S.Processor Fastest
 
-sequentiallyProcessor :: S.Processor OneOf
+sequentiallyProcessor :: S.Processor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.Processor Sequentially
 
-best :: [P.InstanceOf P.AnyProcessor] -> P.InstanceOf (S.Processor OneOf) -- TODO
-best a = Best `S.calledWith` a
+best :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+best ps = Best `S.calledWith` ps
 
+fastest :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+fastest ps = Fastest `S.calledWith` ps
+
+sequentially :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+sequentially ps = Sequentially `S.calledWith` ps

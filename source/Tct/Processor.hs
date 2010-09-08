@@ -191,6 +191,9 @@ instance PrettyPrintable SomeProcessor where
               descr = description proc 
               block n d = text n <> text ":" $+$ nest 1 d
 
+instance Show (InstanceOf SomeProcessor) where 
+    show _ = "InstanceOf SomeProcessor"
+
 some :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 some = SomeProcessor
 

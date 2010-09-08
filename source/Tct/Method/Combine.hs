@@ -36,6 +36,7 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
+import qualified Tct.Processor.Args.Instances()
 import Tct.Certificate
 import Tct.Proof
 import Termlib.Utils (($++$), PrettyPrintable (..), paragraph)
@@ -114,3 +115,5 @@ combineProcessor :: S.Processor (Combine P.AnyProcessor)
 combineProcessor = S.Processor Combine
 
 
+combine :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (Combine p))
+combine ps = Combine `S.calledWith` (Random :+: ps)

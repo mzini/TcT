@@ -150,13 +150,20 @@ instance S.StdProcessor PopStar where
 
 
 
-
 popstarProcessor :: S.Processor PopStar
 popstarProcessor = S.Processor (PopStar False)
 
 lmpoProcessor :: S.Processor PopStar
 lmpoProcessor = S.Processor (PopStar True)
 
+popstar :: Bool -> P.InstanceOf (S.Processor PopStar)
+popstar ps = (PopStar False) `S.calledWith` ps
+
+lmpo :: Bool -> P.InstanceOf (S.Processor PopStar)
+lmpo ps = (PopStar True) `S.calledWith` ps
+
+
+-- implementation
 
 quasiConstructorsFor :: Set Symbol -> Trs -> Trs -> Set Symbol
 quasiConstructorsFor constructors strict weak = constructors

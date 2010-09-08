@@ -44,19 +44,12 @@ import Text.PrettyPrint.HughesPJ hiding (parens)
 import Data.List (intersperse)
 import Control.Concurrent.PFold (pfold, fastestSatisfying)
 import Text.Parsec.Prim
-import Text.Parsec.Combinator
 import Text.Parsec.Char
-import Control.Monad (forM, liftM)
+import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
 
-import Tct.Main.Debug
--- import Text.ParserCombinators.Parsec
+import Termlib.Utils (PrettyPrintable(..))
 
-
--- import qualified Termlib.Trs as Trs
-import Termlib.Utils (PrettyPrintable(..) , ($++$))
-
--- import Tct.Certificate
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Proof
@@ -65,6 +58,7 @@ import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Parse
 import qualified Tct.Certificate as C
+
 -- failure and success
 
 data TrivialProof = Succeeded 
@@ -201,7 +195,7 @@ instance Answerable OneOfProof where
 
 instance PrettyPrintable OneOfProof where
     pprint (OneOfFailed _) = text "All processors failed"
-    pprint (OneOfSucceeded _ proof proc) = pprint proof -- text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "has been applied:"
+    pprint (OneOfSucceeded _ proof _) = pprint proof -- text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "has been applied:"
 --                                           $+$ pprint proof
 instance ComplexityProof OneOfProof
 
@@ -226,7 +220,7 @@ instance S.StdProcessor OneOf where
                       , A.description = "a list of subprocessors"}
     solve theproc prob | S.processor theproc == Sequentially = solveSeq (S.processorArgs theproc)
                        | S.processor theproc == Best         = solveBest (S.processorArgs theproc)
-                       | S.processor theproc == Fastest      = solveFast (S.processorArgs theproc)
+                       | otherwise                           = solveFast (S.processorArgs theproc)
 
         where mkActions ps = forM ps $ \ proc -> P.mkIO $ do proof <- P.solve proc prob
                                                              return $ Just (proof, proc)

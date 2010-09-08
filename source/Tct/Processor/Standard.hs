@@ -63,7 +63,7 @@ instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a
     argDescriptions (Processor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
         where descr d = adDescr d ++ argDescrOnDefault mshow d
                   where mshow Nothing    = "" 
-                        mshow (Just def) = "The default is set to '" ++ show def ++ "'."
+                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
     solve (TP theproc) prob       = solve theproc prob
 --    fromInstance (TP theproc) = Processor $ processor theproc
 
@@ -79,71 +79,3 @@ calledWith :: StdProcessor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (Pr
 p `calledWith` a = TP $ TheProcessor { processor = p
                                      , processorArgs = a }
 
-
-
--- tstdata
-
--- data Foo = Foo
-
-
--- instance Answerable (String :+: (Nat :+: Nat)) where
---     answer _ = NoAnswer
-
--- instance PrettyPrintable (String :+: (Nat :+: Nat)) where
---     pprint n = text $ show n
-
--- instance ComplexityProof (String :+: (Nat :+: Nat))
-
--- instance StdProcessor Foo where
---     type ArgumentsOf Foo = (Arg Nat) :+: (Arg Nat)
---     type ProofOf Foo = String :+: (Nat :+: Nat)
---     name Foo = "wdp"
---     description Foo = ["leaf processor"]
---     solve proc _ = return $ "foo" :+: processorArgs proc
---     arguments Foo = opt { A.name = "slisize"
---                         , A.description = ["descr1"]
---                         , A.defaultValue     = Nat 42}
---                     :+: 
---                     arg { A.name = "arg2"
---                         , A.description = ["descr2"]
---                         }
-
-
--- processorFoo :: Processor Foo
--- processorFoo = Processor Foo
-
-
--- data Bar p = Bar
-
--- data BarProof a = BarProof Nat (P.ProofOf a)
--- instance P.Processor a => StdProcessor (Bar a) where
---     type ArgumentsOf (Bar a) = (Arg (Processor a)) :+: (Arg Nat)
---     type ProofOf (Bar a) = BarProof a
---     name Bar = "bar"
---     description Bar = ["i am bar"]
---     solve proc prob = do r <- P.solve proc' prob
---                          return $ BarProof n r
---         where proc' :+: n = processorArgs proc
---     arguments Bar = arg { A.name = "subproc"
---                         , A.description = ["some subprocessor"] }
---                     :+: 
---                     opt { A.name = "natural"
---                         , A.description = ["somenaturalnumber"]
---                         , A.defaultValue = Nat 47}
-
-
--- instance Answerable (P.ProofOf a) => Answerable (BarProof a) where
---     answer (BarProof _ a) = answer a
-
--- instance PrettyPrintable (P.ProofOf a) => PrettyPrintable (BarProof a) where
---     pprint (BarProof n p) = (text $ show n) $$ pprint p
-
--- instance (PrettyPrintable (P.ProofOf a), Answerable (P.ProofOf a)) => ComplexityProof (BarProof a)
-
-
--- bar :: P.Processor p => P.InstanceOf p -> Nat -> P.InstanceOf (Processor (Bar p))
--- bar p n = Bar `calledWith` (p :+: n)
-
-
--- processorBar :: Processor (Bar P.AnyProcessor)
--- processorBar  = Processor Bar

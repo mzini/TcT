@@ -36,6 +36,8 @@ import Tct.Processor.Standard (Processor (..))
 import qualified Tct.Method.Combinator as Combinator
 import qualified Tct.Method.PopStar as PopStar
 import qualified Tct.Method.Combine as Combine
+import qualified Tct.Method.Bounds as Bounds
+import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
 
 data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: Problem -> TCT (Proof SomeProcessor)
@@ -116,6 +118,8 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                <|> Combinator.sequentiallyProcessor
                                <|> PopStar.lmpoProcessor
                                <|> PopStar.popstarProcessor
+                               <|> Bounds.boundsProcessor
+                               <|> NaturalMI.matrixProcessor
                                <|> Combine.combineProcessor
                                <|> none
           process_ prob      = do getProc <- askConfig getProcessor

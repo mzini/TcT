@@ -35,8 +35,6 @@ import qualified Data.Map as Map
 import Data.List (partition, intersperse)
 import Data.Typeable (cast, Typeable)
 import Control.Monad (liftM)
--- import Tct.Main.Debug
--- import Control.Monad (mplus)
 import Data.Maybe (fromMaybe)
 
 -- single argument
@@ -48,7 +46,6 @@ class (Typeable (Domain a), Show (Domain a)) => Argument a where
 
 class Argument a => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
-
 
 -- argument lists
 
@@ -145,11 +142,7 @@ synopsis a = ofList oSyn ++ " " ++ ofList nSyn
           (opts, nonopts) = partition adIsOptional (descriptions a)
           ofList l = concat $ intersperse " " l
 
-
--- single argument instances 
-
-
--- constructors
+-- constructors and helpers
 
 arg :: Arg a
 arg = Arg { name         = "unknown"
@@ -159,3 +152,5 @@ arg = Arg { name         = "unknown"
 
 opt :: Arg a
 opt = arg { isOptional_ = True }
+
+

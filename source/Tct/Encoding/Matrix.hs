@@ -20,7 +20,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Encoding.Matrix where
+module Tct.Encoding.Matrix where
 
 import Prelude hiding ((&&),(||),not)
 import qualified Data.Foldable as F
@@ -140,20 +140,14 @@ diagonalZeroes :: AbstrOrdSemiring a Bool => Matrix a -> Int
 diagonalZeroes m = length $ filter (.==. zero) dia
                    where (Vector dia) = diag m
 
-maximumMatrix :: (F.Foldable t, AbstrOrdSemiring a Bool) => t (Matrix a) -> Matrix a
-maximumMatrix ms = F.foldr maxMatrix (uncurry zeromatrix dim) ms
-                   where dim = case F.toList ms of
-                                 []  -> (0, 0)
-                                 m:_ -> mdim m
+maximumMatrix :: (F.Foldable t, AbstrOrdSemiring a Bool) => (Int, Int) -> t (Matrix a) -> Matrix a
+maximumMatrix dim ms = F.foldr maxMatrix (uncurry zeromatrix dim) ms
 
 maxMatrix :: AbstrOrdSemiring a Bool => Matrix a -> Matrix a -> Matrix a
 maxMatrix (Matrix m) (Matrix n) = Matrix $ zipWith maxVector m n
 
-maximumVector :: (F.Foldable t, AbstrOrdSemiring a Bool) => t (Vector a) -> Vector a
-maximumVector vs = F.foldr maxVector (zerovec dim) vs
-                   where dim = case F.toList vs of
-                                 []  -> 0
-                                 v:_ -> vecdim v
+maximumVector :: (F.Foldable t, AbstrOrdSemiring a Bool) => Int -> t (Vector a) -> Vector a
+maximumVector dim vs = F.foldr maxVector (zerovec dim) vs
 
 maxVector :: AbstrOrdSemiring a Bool => Vector a -> Vector a -> Vector a
 maxVector (Vector v) (Vector w) = Vector $ zipWith amax v w

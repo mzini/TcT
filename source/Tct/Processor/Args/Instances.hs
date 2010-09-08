@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -21,18 +20,25 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 module Tct.Processor.Args.Instances where
 
 import Data.Typeable
 import Control.Monad (liftM)
+import Text.Parsec.Combinator (choice)
+import Text.Parsec.Char (string)
+import Data.List (intersperse)
 import Text.Parsec.Prim (many, try, (<|>))
 import Tct.Processor.Parse
 import Tct.Processor.Args
 import qualified Tct.Processor as P
 import Tct.Processor.Standard
 
-newtype Nat = Nat Int deriving (Typeable, Show)
+-- * Primitives
+newtype Nat = Nat Int deriving (Typeable)
+
+instance Show Nat where
+    show (Nat i) = show i
 
 instance Argument Nat where
     type Domain Nat = Nat
@@ -48,6 +54,8 @@ instance Argument Bool where
 instance ParsableArgument Bool where
     parseArg Phantom = bool
 
+
+-- * Processors
 instance (Typeable (P.InstanceOf a), P.Processor a, Show (P.InstanceOf a)) => Argument (Processor a) where
     type Domain (Processor a) = P.InstanceOf a
     domainName _ = "<processor>"
@@ -55,9 +63,19 @@ instance (Typeable (P.InstanceOf a), P.Processor a, Show (P.InstanceOf a)) => Ar
 instance ParsableArgument (Processor P.AnyProcessor) where
     parseArg Phantom = P.parseAnyProcessor
 
+-- * Compound
+
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
     domainName Phantom =  "<" ++ domainName (Phantom :: Phantom a) ++ " list" ++ ">" 
+
+instance Argument a => Argument (Maybe a) where 
+    type Domain (Maybe a) = Maybe (Domain a)
+    domainName Phantom = "[" ++ domainName (Phantom :: Phantom a) ++ "|none]"
+
+instance ParsableArgument a => ParsableArgument (Maybe a) where 
+    parseArg Phantom = try (string "none" >> return Nothing)
+                       <|> Just `liftM` parseArg (Phantom :: Phantom a)
 
 instance ParsableArgument a => ParsableArgument [a] where
     parseArg Phantom = many p 
@@ -65,4 +83,17 @@ instance ParsableArgument a => ParsableArgument [a] where
               p = do r <- parseArg (Phantom :: Phantom a)
                      try whiteSpace <|> return ()
                      return r
+
+newtype EnumOf a = EnumOf a    
+
+instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
+    type Domain (EnumOf a) = a
+    domainName Phantom = br $ concat $ intersperse "|" [ show e | e <- [(minBound :: a) .. maxBound] ]
+        where br s = "[" ++ s ++ "]"
+
+instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
+    parseArg Phantom = choice [ try $ pa (show e) e | e <- [(minBound :: a) .. maxBound] ]
+        where pa n e = do _ <- string n
+                          return e
+
 

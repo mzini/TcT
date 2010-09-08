@@ -19,7 +19,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Encoding.Natring where
+module Tct.Encoding.Natring where
 
 import qualified Qlogic.Arctic as Arc
 import qualified Qlogic.ArcSat as AS

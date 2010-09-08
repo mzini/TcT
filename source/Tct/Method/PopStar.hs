@@ -55,6 +55,7 @@ import Tct.Certificate (poly, expo, certified, uncertified, unknown)
 import Tct.Proof
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
+import Tct.Processor.Orderings
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances ()
 import qualified Tct.Processor.Args as A
@@ -63,20 +64,6 @@ import qualified Tct.Encoding.ArgumentFiltering as AFEnc
 import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
-
-
-data OrientationProof o = Order o
-                        | Incompatible
-
-instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
-    pprint (Order o) = pprint o
-    pprint Incompatible = text "The input cannot be shown compatible" 
-
-instance Answerable o => Answerable (OrientationProof o) where
-    answer (Order o) = answer o
-    answer Incompatible = MaybeAnswer
-
-instance ComplexityProof o => ComplexityProof (OrientationProof o)
 
 data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popPrecedence        :: Prec.Precedence
@@ -127,11 +114,9 @@ instance ComplexityProof PopStarOrder
 data PopStar = PopStar {isLmpo :: Bool} deriving (Typeable, Show)
 
 instance S.StdProcessor PopStar where
-    type S.ProofOf PopStar = OrientationProof PopStarOrder
-    type S.ArgumentsOf PopStar = Arg Bool
     name p | isLmpo p  = "lmpo"
            | otherwise = "pop*"
-    instanceName inst = S.name $ S.processor inst
+
     description p | isLmpo p  = [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
                                           , "a technique applicable for innermost runtime-complexity analysis."
                                           , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
@@ -148,10 +133,17 @@ instance S.StdProcessor PopStar where
                                           , "http://cl-informatik.uibk.ac.at/~zini/publications/RTA09.pdf ,"
                                           , "where addionally argument filterings are employed." ]
                                 ]
+
+    type S.ArgumentsOf PopStar = Arg Bool
+
+    instanceName inst = S.name $ S.processor inst
+
     arguments _ = opt { A.name = "ps"
                       , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"
                                                  , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders." ]
                       , A.defaultValue = True }
+
+    type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
                      ((BasicTerms _ cs), Innermost) -> orientProblem (isLmpo $ S.processor inst) (S.processorArgs inst) cs prob
                      _                              -> return Incompatible

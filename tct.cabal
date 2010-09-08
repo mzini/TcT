@@ -31,6 +31,7 @@ Library
                     Tct.Processor
                     Tct.Processor.Parse
                     Tct.Processor.Timeout
+                    Tct.Processor.Orderings
                     Tct.Processor.Standard
                     Tct.Processor.Args
                     Tct.Processor.Args.Instances
@@ -39,9 +40,20 @@ Library
                     Tct.Encoding.Precedence
                     Tct.Encoding.Relative
                     Tct.Encoding.SafeMapping
+                    Tct.Encoding.Matrix
+                    Tct.Encoding.Natring
+                    Tct.Encoding.AbstractInterpretation
+                    Tct.Encoding.HomomorphicInterpretation
                     Tct.Method.Combinator
                     Tct.Method.PopStar
                     Tct.Method.Combine
+                    Tct.Method.Matrix.MatrixInterpretation
+                    Tct.Method.Matrix.NaturalMI
+                    Tct.Method.Bounds
+                    Tct.Method.Bounds.Automata
+                    Tct.Method.Bounds.Violations
+                    Tct.Method.Bounds.Violations.Find
+                    Tct.Method.Bounds.Violations.Fix
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
  hs-source-dirs:    source

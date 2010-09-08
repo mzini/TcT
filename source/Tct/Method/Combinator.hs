@@ -201,17 +201,17 @@ instance Answerable OneOfProof where
 
 instance PrettyPrintable OneOfProof where
     pprint (OneOfFailed _) = text "All processors failed"
-    pprint (OneOfSucceeded _ proof proc) = text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "succeeded:"
-                                           $++$ pprint proof
+    pprint (OneOfSucceeded _ proof proc) = pprint proof -- text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "has been applied:"
+--                                           $+$ pprint proof
 instance ComplexityProof OneOfProof
 
 instance S.StdProcessor OneOf where
     type S.ArgumentsOf OneOf = Arg [S.Processor P.AnyProcessor]
     type S.ProofOf OneOf     = OneOfProof
 
-    name Best         = "best"
     name Fastest      = "fastest"
     name Sequentially = "sequentially"
+    name Best         = "best"
 
     instanceName inst = c (S.processor inst) ++ " of " ++  (concat $ intersperse ", " [ "'" ++ P.instanceName p ++ "'" | p <- S.processorArgs inst])
         where c Best         = "Best"

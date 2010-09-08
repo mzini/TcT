@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -52,10 +53,13 @@ class Argument a => ParsableArgument a where
 -- argument lists
 
 data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
-                                             , adName       :: String
-                                             , adDefault    :: Maybe a
-                                             , adDescr      :: String
-                                             , adSynopsis   :: String }
+                                       , adName       :: String
+                                       , adDefault    :: Maybe a
+                                       , adDescr      :: String
+                                       , adSynopsis   :: String }
+
+argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
+argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
 
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
 
@@ -96,7 +100,7 @@ instance Argument a => Arguments (Arg a) where
                                , adName       = name a
                                , adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
                                , adDescr      = description a
-                               , adSynopsis   = "<" ++ domainName (Phantom :: Phantom a) ++ ">"}]
+                               , adSynopsis   = domainName (Phantom :: Phantom a) }]
 
 instance (ParsableArgument a) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 

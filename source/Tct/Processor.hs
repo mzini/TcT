@@ -128,7 +128,7 @@ instance ( P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable 
     pprint p@(Proof inst prob res) = ppheading $++$ ppres
         where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
               pphead    = quotes (text (instanceName inst))
-              ppres     = pt "Details" $+$ nest 2 (pprint res)
+              ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
                           $+$ nest 2 (prettyPrintRelation prob)
               ppanswer  = pt "Answer" <+> pprint (P.answer p)
@@ -179,15 +179,17 @@ instance ParsableProcessor SomeProcessor where
     parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance) `liftM` parseProcessor_ proc
 
 instance PrettyPrintable SomeProcessor where
-    pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppdescr $++$ ppsyn $++$ ppargdescr)
-        where ppheading = (text "Strategy" <+> doubleQuotes (text sname) <> text ":")
+    pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppsyn $++$ ppdescr $++$ ppargdescr)
+        where ppheading = (text "Processor" <+> doubleQuotes (text sname) <> text ":")
               underline = text (take (length $ show ppheading) $ repeat '-')
-              ppdescr = vcat [paragraph s | s <- descr] 
-              ppsyn = text "Usage:" <+> text (synopsis proc)
-              ppargdescr = vcat [text nm <> text ":" <+> paragraph s | (nm, s) <- argDescriptions proc]
+              ppdescr   = block "Description" $ vcat [paragraph s | s <- descr]
+              ppsyn     = block "Usage" $ text (synopsis proc)
+              ppargdescr | length l == 0 = empty
+                         | otherwise     = block "Arguments" $ vcat l
+                  where l = [text nm <> text ":" <+> paragraph s | (nm, s) <- argDescriptions proc]
               sname = name proc 
               descr = description proc 
-
+              block n d = text n <> text ":" $+$ nest 1 d
 
 some :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 some = SomeProcessor

@@ -36,29 +36,28 @@ newtype Nat = Nat Int deriving (Typeable, Show)
 
 instance Argument Nat where
     type Domain Nat = Nat
-    domainName Phantom = "nat"
+    domainName Phantom = "<nat>"
 
 instance ParsableArgument Nat where
     parseArg Phantom = Nat `liftM` natural
 
 instance Argument Bool where
     type Domain Bool = Bool
-    domainName Phantom = "bool"
+    domainName Phantom = "<bool>"
 
 instance ParsableArgument Bool where
     parseArg Phantom = bool
 
-
 instance (Typeable (P.InstanceOf a), P.Processor a, Show (P.InstanceOf a)) => Argument (Processor a) where
     type Domain (Processor a) = P.InstanceOf a
-    domainName _ = "processor"
+    domainName _ = "<processor>"
 
 instance ParsableArgument (Processor P.AnyProcessor) where
     parseArg Phantom = P.parseAnyProcessor
 
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
-    domainName Phantom = domainName (Phantom :: Phantom a) ++ " list"
+    domainName Phantom =  "<" ++ domainName (Phantom :: Phantom a) ++ " list" ++ ">" 
 
 instance ParsableArgument a => ParsableArgument [a] where
     parseArg Phantom = many p 
@@ -66,3 +65,4 @@ instance ParsableArgument a => ParsableArgument [a] where
               p = do r <- parseArg (Phantom :: Phantom a)
                      try whiteSpace <|> return ()
                      return r
+

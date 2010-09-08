@@ -69,11 +69,12 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
 
 putErrorMsg :: [String] -> IO ()
 putErrorMsg str = do putStrLn "MAYBE"
-                     hPutStrLn stderr $ unlines $ "The following error(s) occured:" : "" : str
+                     putStrLn ""
+                     putStrLn $ unlines $ "The following error(s) occured:" : "" : str
 
 putWarnMsg :: [String] -> IO ()
 putWarnMsg []  = return ()
-putWarnMsg str = do hPutStrLn stderr $ unlines $ "The following warning(s) occured:" : "" : str
+putWarnMsg str = do putStrLn $ unlines $ "The following warning(s) occured:" : "" : str
 
 
 exitFail :: ExitCode

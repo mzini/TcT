@@ -60,7 +60,10 @@ instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a
     name (Processor a)            = name a
     instanceName (TP theproc)     = instanceName theproc
     description (Processor a)     = description a
-    argDescriptions (Processor a) = [ (adName d, adDescr d) | d <- descriptions $ arguments a]
+    argDescriptions (Processor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
+        where descr d = adDescr d ++ argDescrOnDefault mshow d
+                  where mshow Nothing    = "" 
+                        mshow (Just def) = "The default is set to '" ++ show def ++ "'."
     solve (TP theproc) prob       = solve theproc prob
 --    fromInstance (TP theproc) = Processor $ processor theproc
 

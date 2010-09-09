@@ -1,4 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -23,8 +22,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-module Tct.Processor.Args 
-where
+{-# LANGUAGE Rank2Types #-}
+
+module Tct.Processor.Args where
 
 import qualified Tct.Processor as P
 import Tct.Processor.Parse
@@ -50,10 +50,10 @@ class Argument a => ParsableArgument a where
 -- argument lists
 
 data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
-                                       , adName       :: String
-                                       , adDefault    :: Maybe a
-                                       , adDescr      :: String
-                                       , adSynopsis   :: String }
+                                             , adName       :: String
+                                             , adDefault    :: Maybe a
+                                             , adDescr      :: String
+                                             , adSynopsis   :: String }
 
 argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
 argDescrOnDefault f (ArgDescr _ _ a _ _) = f a

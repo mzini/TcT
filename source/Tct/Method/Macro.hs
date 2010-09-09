@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,4 +17,32 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Tct.Method.Macro where
+
+import Text.Parsec.Char
+
+import Tct.Processor.Parse
+import qualified Tct.Processor as P
+import qualified Tct.Processor.Args as A
+
+data Defun arg p = Defun { name  :: String
+                         , description :: [String]
+                         , args :: arg
+--                         , argDescription :: String
+                         , defun :: A.Domains arg -> P.InstanceOf p }
+
+instance (P.Processor p) => P.Processor (Defun arg p) where
+  type P.ProofOf (Defun arg p) = P.ProofOf p
+  data P.InstanceOf (Defun arg p) = Inst (P.InstanceOf p)
+  name = name
+  instanceName (Inst p) = P.instanceName p
+  description = description
+  solve (Inst p) = P.solve p
+
+
+instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Defun arg p) where
+    synopsis p = name p ++ " " ++ A.synopsis (args p)
+    parseProcessor_ p = do _ <- string (name p)
+                           whiteSpace
+                           as <- A.parseArguments (args p)
+                           return $ Inst $ (defun p) as
 

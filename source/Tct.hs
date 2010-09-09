@@ -31,8 +31,7 @@ import Tct.Main.Flags
 import Tct.Processor
 import Tct.Proof
 import qualified Tct.Main.Version as Version
-import Tct.Processor.Timeout (timeout)
-import Tct.Processor.Standard (Processor (..))
+import Tct.Processor.Timeout (timeout, timeoutProcessor)
 import qualified Tct.Method.Combinator as Combinator
 import qualified Tct.Method.PopStar as PopStar
 import qualified Tct.Method.Combine as Combine
@@ -110,7 +109,8 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , errorMsg         = []
                        , version          = Version.version
                        }
-    where parsableProcessor_ = Combinator.failProcessor 
+    where parsableProcessor_ = timeoutProcessor parsableProcessor_
+                               <|> Combinator.failProcessor 
                                <|> Combinator.successProcessor
                                <|> Combinator.iteProcessor parsableProcessor_ parsableProcessor_ parsableProcessor_
                                <|> Combinator.bestProcessor
@@ -182,7 +182,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                             Nothing -> do defproc <- askConfig defaultProcessor 
                                                           defproc prob
                                   return $ case to of 
-                                             Just s ->  proc -- TODO someInstance (timeout s proc)
+                                             Just s ->  someInstance (timeout s proc)
                                              Nothing -> proc
 
           getSolver_          =  do slver <- getSlver

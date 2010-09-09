@@ -25,20 +25,27 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Processor.Timeout 
     ( timeout
+    , timeoutProcessor
     , TOProof (..))
 where 
 import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
+import Text.Parsec.Prim
 
-import Tct.Processor hiding (Proof)
+import qualified Tct.Processor.Parse as PP
+import Tct.Processor hiding (Proof, (<|>))
 import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJ hiding (brackets)
 
-data Timeout p = Timeout !Int p
+data Timeout p = Timeout p
 
 timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
 timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
+
+
+timeoutProcessor :: Processor p => p -> Timeout p
+timeoutProcessor = Timeout
 
 toSeconds :: Int -> Double
 toSeconds i = fromIntegral i / (10 ^ (6 :: Int))
@@ -49,9 +56,10 @@ data TOProof p = TimedOut Int
 instance Processor p => Processor (Timeout p) where 
     type ProofOf (Timeout p)         = TOProof p
     data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
-    name  (Timeout _ proc)           = name proc
-    instanceName (TOInstance i inst) = instanceName inst ++ "[" ++ show (toSeconds i) ++ "]"
-    description (Timeout i proc)     = description proc ++ ["The processor aborts after a timeout of " ++ show (toSeconds i) ++ " seconds."]
+    name  (Timeout _)                = "timeout"
+    instanceName (TOInstance i inst) = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
+    description (Timeout proc)     = description proc ++ ["The processor either returns the result of the given processor"
+                                                         , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     argDescriptions _                = []
     solve (TOInstance t inst) prob = 
         do io <- mkIO $ apply inst prob 
@@ -61,6 +69,16 @@ instance Processor p => Processor (Timeout p) where
                       Nothing -> TimedOut t
 --    fromInstance (TOInstance i proc _) = Timeout i proc
     
+instance ParsableProcessor p => ParsableProcessor (Timeout p) where
+    synopsis (Timeout p) = "[<seconds>]" ++ synopsis p
+    parseProcessor_ (Timeout p)  = do to <- parseTimeout
+                                      i <- parseProcessor p
+                                      return $ timeout to i
+        where parseTimeout = (PP.brackets spec <?> "[<seconds>]")
+              spec  = do n <-  number
+                         return $ n
+              number = try (PP.double >>= return . round) <|> PP.natural
+
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
     pprint (TOProof p)  = pprint p

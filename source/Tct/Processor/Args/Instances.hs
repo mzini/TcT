@@ -72,7 +72,7 @@ instance ParsableArgument (Processor P.AnyProcessor) where
 
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
-    domainName Phantom =  "<" ++ domainName (Phantom :: Phantom a) ++ " list" ++ ">" 
+    domainName Phantom =  "[" ++ domainName (Phantom :: Phantom a) ++ "...]"
 
 instance Argument a => Argument (Maybe a) where 
     type Domain (Maybe a) = Maybe (Domain a)

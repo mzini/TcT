@@ -30,6 +30,7 @@ import Control.Concurrent (killThread, forkOS)
 import Control.Concurrent.MVar (putMVar, readMVar, newEmptyMVar)
 import Control.Monad.Trans (liftIO)
 import Data.Maybe (isJust, fromMaybe)
+import Data.List (sortBy)
 import System
 import System.IO
 import System.Posix.Signals (Handler(..), installHandler, sigTERM)
@@ -42,7 +43,7 @@ import Termlib.Utils (PrettyPrintable (..))
 
 import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Processor (Processor (..), processors)
+import Tct.Processor (Processor (..), processors, name)
 import qualified Tct.Main.Version as V
 
 showError :: Config -> String -> Config
@@ -54,11 +55,13 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                 | showHelp flgs                     = do putStrLn $ unlines helpMessage
                                                          return ExitSuccess
                 | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
+                                                             p1 `ord` p2 = name p1 `compare` name p2
                                                              procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
-                                                                       Just reg -> [proc | proc <- processors (parsableProcessor cfg)
-                                                                                   , matches reg (name proc) || matches reg (unlines (description proc))]
+                                                                       Just reg ->[ proc | proc <- processors (parsableProcessor cfg)
+                                                                                         , matches reg (name proc) 
+                                                                                                       || matches reg (unlines (description proc))]
                                                                        Nothing  -> processors (parsableProcessor cfg)
-                                                         putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- procs]
+                                                         putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
                                                          return ExitSuccess
                 | otherwise        = do (r,warns) <- liftIO $ run flgs cfg (readProblem >>= check >>= putProof)
                                         putWarnMsg [show $ pprint warn | warn <- warns]

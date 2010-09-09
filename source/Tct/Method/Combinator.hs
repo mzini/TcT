@@ -211,11 +211,11 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
     instanceName inst = c (S.processor inst) ++ " of " ++  (concat $ intersperse ", " [ "'" ++ P.instanceName p ++ "'" | p <- S.processorArgs inst])
         where c Best         = "Best"
               c Fastest      = "Fastest"
-              c Sequentially = "First successful"
+              c Sequentially = "Sequentially"
 
     description Best         = ["Processor 'Best' applies the given list of processors in parallel and returns the proof admitting the lowest complexity certificate."]
     description Fastest      = ["Processor 'Fastest' applies the given list of processors in parallel and returns the first successful proof."]
-    description Sequentially = ["Processor 'Fastest' applies the given list of processors sequentially and returns the first successful proof."]
+    description Sequentially = ["Processor 'Sequentially' applies the given list of processors sequentially and returns the first successful proof."]
 
     arguments _ = arg { A.name        = "subprocessors"
                       , A.description = "a list of subprocessors"}

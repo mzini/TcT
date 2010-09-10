@@ -47,7 +47,9 @@ class StdProcessor a where
     type ProofOf a
     name         :: a -> String
     instanceName :: TheProcessor a -> String
+    instanceName = name . processor
     description  :: a -> [String]
+    description  = const []
     arguments    :: a -> (ArgumentsOf a)
     solve        :: TheProcessor a -> Problem -> P.SolverM (ProofOf a)
 

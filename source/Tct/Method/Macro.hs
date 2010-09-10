@@ -19,30 +19,36 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Macro where
 
 import Text.Parsec.Char
+import Text.Parsec.Prim
 
 import Tct.Processor.Parse
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 
-data Defun arg p = Defun { name  :: String
+data Defun arg p = Defun { as  :: String
                          , description :: [String]
                          , args :: arg
 --                         , argDescription :: String
-                         , defun :: A.Domains arg -> P.InstanceOf p }
+                         , fn :: A.Domains arg -> P.InstanceOf p }
 
 instance (P.Processor p) => P.Processor (Defun arg p) where
   type P.ProofOf (Defun arg p) = P.ProofOf p
   data P.InstanceOf (Defun arg p) = Inst (P.InstanceOf p)
-  name = name
+  name = as
   instanceName (Inst p) = P.instanceName p
   description = description
   solve (Inst p) = P.solve p
 
 
 instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Defun arg p) where
-    synopsis p = name p ++ " " ++ A.synopsis (args p)
-    parseProcessor_ p = do _ <- string (name p)
+    synopsis p = as p ++ " " ++ A.synopsis (args p)
+    parseProcessor_ p = do _ <- string (as p) <?> "name (as p)"
                            whiteSpace
                            as <- A.parseArguments (args p)
-                           return $ Inst $ (defun p) as
+                           return $ Inst $ (fn p) as
 
+custom :: Defun arg p
+custom = Defun { as = "unknown"
+               , fn = error "fn must be specified when adding custom processor"
+               , args = error "args must be specified when adding custom processor"
+               , description = [] }

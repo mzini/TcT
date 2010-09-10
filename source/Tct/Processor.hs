@@ -60,7 +60,7 @@ import Data.Typeable
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
-import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice, try)
+import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice, try, (<?>))
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
@@ -151,7 +151,7 @@ fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
 
 data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
-data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeInstance (InstanceOf p) deriving Typeable
+data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => SomeInstance (InstanceOf p) deriving Typeable
 
 instance PrettyPrintable SomeProof where
     pprint (SomeProof p) = pprint p
@@ -197,8 +197,9 @@ instance Show (InstanceOf SomeProcessor) where
 some :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 some = SomeProcessor
 
-someInstance :: forall p. (P.ComplexityProof (ProofOf p), ParsableProcessor p) => InstanceOf p -> InstanceOf SomeProcessor
+someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 someInstance inst = SPI (SomeInstance inst)
+
 
 data AnyProcessor = OO String [SomeProcessor] deriving Typeable
 

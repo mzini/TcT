@@ -47,6 +47,8 @@ class (Typeable (Domain a), Show (Domain a)) => Argument a where
 class Argument a => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
 
+type family CoDomain a
+
 -- argument lists
 
 data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
@@ -145,7 +147,7 @@ synopsis a = ofList oSyn ++ " " ++ ofList nSyn
 -- constructors and helpers
 
 arg :: Arg a
-arg = Arg { name         = "unknown"
+arg = Arg { name         = "unspecified"
           , description  = []
           , defaultValue = error "no default argument given"
           , isOptional_  = False}

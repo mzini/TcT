@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -35,7 +36,7 @@ import qualified Tct.Processor as P
 import Tct.Processor.Standard
 
 -- * Primitives
-newtype Nat = Nat Int deriving (Typeable)
+newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Num, Enum)
 
 
 nat :: Int -> Nat
@@ -102,3 +103,16 @@ instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) 
                           return e
 
 
+type instance CoDomain Nat = Nat
+
+
+class Parsable a where
+    syn   :: a -> String
+    parse :: P.ProcessorParser a
+
+instance (ParsableArgument (CoDomain a), Domain (CoDomain a) ~ a) => Parsable a where
+    parse = parseArg (Phantom :: Phantom (CoDomain a))
+    syn   = const $ domainName (Phantom :: Phantom (CoDomain a))
+
+foo :: P.ProcessorParser Nat
+foo = parse 

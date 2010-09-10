@@ -71,7 +71,7 @@ instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a
 
 instance (StdProcessor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (Processor a) where
     synopsis (Processor a) = name a ++ " " ++ A.synopsis (arguments a) 
-    parseProcessor_ (Processor a) = do _ <- string (name a)
+    parseProcessor_ (Processor a) = do _ <- try $ string (name a)
                                        whiteSpace
                                        args <- parseArguments (arguments a)
                                        return $ TP $ TheProcessor { processor = a

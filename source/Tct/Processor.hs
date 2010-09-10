@@ -218,7 +218,7 @@ instance Typeable (InstanceOf AnyProcessor) where
 
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "<processor>"
-    parseProcessor_ (OO _ ps) = do inst <- choice [ try $ parseProcessor p' | p' <- ps]
+    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps] -- look ahead to long...
                                    return $ OOI inst
 
 instance Show (InstanceOf AnyProcessor) where

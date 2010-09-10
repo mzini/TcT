@@ -107,10 +107,11 @@ instance (ParsableArgument a) => ParsableArguments (Arg a) where
         where lookupOpt :: Maybe (Domain a)
               lookupOpt = do (SomeDomainElt e') <- Map.lookup (name a) opts
                              cast e'
-    optionalParsers a = [ do _ <- string $ ":" ++ name a
-                             whiteSpace
-                             e <- parseArg (Phantom :: Phantom a)
-                             return (name a, SomeDomainElt e) ]
+    optionalParsers a | isOptional_ a = [ do _ <- string $ name a
+                                             whiteSpace
+                                             e <- parseArg (Phantom :: Phantom a)
+                                             return (name a, SomeDomainElt e) ]
+                      | otherwise     = []
 
 instance (Arguments a, Arguments b) => Arguments (a :+: b) where
     type Domains (a :+: b) = Domains a :+: Domains b
@@ -130,8 +131,8 @@ instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: 
 
 
 parseArguments :: ParsableArguments a => a -> P.ProcessorParser (Domains a)
-parseArguments a = do opts <- Map.fromList `liftM` many (choice $ optparser)
-                      parseArgs a opts
+parseArguments a = do opts <- Map.fromList `liftM` many (string ":" >> choice optparser)
+                      parseArgs a opts <?> ("processor arguments: \"" ++ synopsis a ++ "\"")
     where optparser = [ try $ do r <- p
                                  whiteSpace
                                  return r 

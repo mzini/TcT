@@ -130,9 +130,9 @@ instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: 
     optionalParsers (a :+: b) = optionalParsers a ++ optionalParsers b
 
 
-parseArguments :: ParsableArguments a => a -> P.ProcessorParser (Domains a)
-parseArguments a = do opts <- Map.fromList `liftM` many (string ":" >> choice optparser)
-                      parseArgs a opts <?> ("processor arguments: \"" ++ synopsis a ++ "\"")
+parseArguments :: ParsableArguments a => String -> a -> P.ProcessorParser (Domains a)
+parseArguments hlp a = do opts <- Map.fromList `liftM` many (string ":" >> choice optparser)
+                          parseArgs a opts <?> ("arguments for '" ++ hlp ++ "' of shape: \"" ++ synopsis a ++ "\"")
     where optparser = [ try $ do r <- p
                                  whiteSpace
                                  return r 

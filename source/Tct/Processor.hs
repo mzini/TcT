@@ -30,6 +30,7 @@ module Tct.Processor
     , Proof (..)
     , SolverM (..)
     , ProcessorParser
+    , solve
     , apply
     , mkIO
     , runSolver 
@@ -60,7 +61,7 @@ import Data.Typeable
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
-import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice, try, (<?>))
+import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
@@ -74,6 +75,11 @@ import qualified Tct.Proof as P
 type ProcessorParser a = CharParser AnyProcessor a 
 data SolverState = SolverState SatSolver
 data SatSolver = MiniSat FilePath
+
+
+-- class SolverM r where
+
+
 newtype SolverM r = S {runS :: ReaderT SolverState IO r }
     deriving (Monad, MonadIO, MonadReader SolverState)
 
@@ -86,7 +92,10 @@ class Processor a where
     argDescriptions :: a -> [(String, String)]
     argDescriptions _ = []
 --    fromInstance :: (InstanceOf a) -> a
-    solve           :: InstanceOf a -> Problem -> SolverM (ProofOf a)
+    solve_          :: InstanceOf a -> Problem -> SolverM (ProofOf a)
+
+solve :: Processor a => InstanceOf a -> Problem -> SolverM (ProofOf a)
+solve = solve_ -- TODO
 
 class Processor a => ParsableProcessor a where
     synopsis :: a -> String
@@ -112,6 +121,7 @@ mkIO :: SolverM a -> SolverM (IO a)
 mkIO m = do s <- ask
             return $ runSolver_ s m
 
+-- TODO needs to be redone after qlogic-update, allow generic solvers
 minisatValue :: (Decoder e a) => MiniSat () -> e -> SolverM (Maybe e)
 minisatValue m e =  do slver <- getSatSolver
                        r <- liftIO $ val slver
@@ -124,7 +134,10 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
                         , result           :: ProofOf proc}
 
-instance ( P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (Proof proc) where
+instance (Show (InstanceOf proc), Show (ProofOf proc)) => Show (Proof proc) where
+    show (Proof proc prob res) = "Proof (" ++ show proc ++ ") (" ++ show prob ++ ") (" ++ show res ++ ")"
+
+instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (Proof proc) where
     pprint p@(Proof inst prob res) = ppheading $++$ ppres
         where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
               pphead    = quotes (text (instanceName inst))
@@ -139,7 +152,8 @@ instance ( P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable 
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
-instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
+instance (P.ComplexityProof (ProofOf proc), Processor proc, Show (InstanceOf proc)) 
+    => P.ComplexityProof (Proof proc)
 
 apply :: Processor proc => (InstanceOf proc) -> Problem -> SolverM (Proof proc)
 apply proc prob = solve proc prob >>= mkProof
@@ -153,11 +167,10 @@ data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcesso
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
 data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => SomeInstance (InstanceOf p) deriving Typeable
 
-instance PrettyPrintable SomeProof where
-    pprint (SomeProof p) = pprint p
 
-instance P.Answerable SomeProof where
-    answer (SomeProof p) = P.answer p
+-- instance Show SomeProof where show (SomeProof p) = "SomeProof (" ++ show p ++ ")"
+instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
+instance P.Answerable SomeProof where answer (SomeProof p) = P.answer p
 
 instance P.ComplexityProof SomeProof
 
@@ -171,7 +184,7 @@ instance Processor SomeProcessor where
     instanceName (SPI (SomeInstance inst))   = instanceName inst
     description (SomeProcessor proc)         = description proc
     argDescriptions (SomeProcessor proc)     = argDescriptions proc
-    solve (SPI (SomeInstance inst)) prob     = SomeProof `liftM` solve inst prob
+    solve_ (SPI (SomeInstance inst)) prob    = SomeProof `liftM` solve_ inst prob
 --    fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
 
 instance ParsableProcessor SomeProcessor where
@@ -210,7 +223,7 @@ instance Processor AnyProcessor where
     instanceName (OOI inst) = instanceName inst
     description _           = []
     argDescriptions _       = []
-    solve (OOI inst) prob   = solve inst prob
+    solve_ (OOI inst) prob  = solve_ inst prob
 --     fromInstance (OOI inst (OO _ l)) = OO (name $ fromInstance inst) l
 
 instance Typeable (InstanceOf AnyProcessor) where 

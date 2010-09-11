@@ -154,10 +154,10 @@ instance ( P.Processor g
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
         description  _   = ["This processor implements conditional branching."]
 --        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
-        solve (IteInstance g t e) prob = do gproof <- P.solve g prob
-                                            if succeeded gproof 
-                                             then finish gproof Left t
-                                             else finish gproof Right e
+        solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
+                                             if succeeded gproof 
+                                              then finish gproof Left t
+                                              else finish gproof Right e
             where finish gproof d p = do bproof <- P.solve p prob
                                          return $ IteProof { guardProof  = gproof
                                                            , branchProof = d bproof }

@@ -66,16 +66,18 @@ instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a
         where descr d = adDescr d ++ argDescrOnDefault mshow d
                   where mshow Nothing    = "" 
                         mshow (Just def) = " The default is set to '" ++ show def ++ "'."
-    solve (TP theproc) prob       = solve theproc prob
+    solve_ (TP theproc) prob      = solve theproc prob
 --    fromInstance (TP theproc) = Processor $ processor theproc
 
 instance (StdProcessor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (Processor a) where
     synopsis (Processor a) = name a ++ " " ++ A.synopsis (arguments a) 
-    parseProcessor_ (Processor a) = do _ <- try $ string (name a)
-                                       whiteSpace
-                                       args <- parseArguments (arguments a)
+    parseProcessor_ (Processor a) = do args <- mkParseProcessor (name a) (arguments a)
                                        return $ TP $ TheProcessor { processor = a
                                                                   , processorArgs = args}
+
+mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
+mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace
+                              parseArguments nm args
 
 calledWith :: StdProcessor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (Processor a)
 p `calledWith` a = TP $ TheProcessor { processor = p

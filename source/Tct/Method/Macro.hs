@@ -18,13 +18,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.Macro where
 
-import Text.Parsec.Char
-import Text.Parsec.Prim
-
-import Tct.Processor.Parse
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-
+import Tct.Processor.Standard (mkParseProcessor)
 data Defun arg p = Defun { as  :: String
                          , description :: [String]
                          , args :: arg
@@ -34,18 +30,16 @@ data Defun arg p = Defun { as  :: String
 instance (P.Processor p) => P.Processor (Defun arg p) where
   type P.ProofOf (Defun arg p) = P.ProofOf p
   data P.InstanceOf (Defun arg p) = Inst (P.InstanceOf p)
-  name = as
+  name                  = as
   instanceName (Inst p) = P.instanceName p
-  description = description
-  solve (Inst p) = P.solve p
+  description           = description
+  solve_ (Inst p)       = P.solve p
 
 
 instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Defun arg p) where
     synopsis p = as p ++ " " ++ A.synopsis (args p)
-    parseProcessor_ p = do _ <- string (as p) <?> "name (as p)"
-                           whiteSpace
-                           as <- A.parseArguments (args p)
-                           return $ Inst $ (fn p) as
+    parseProcessor_ p = do args <- mkParseProcessor (as p) (args p)
+                           return $ Inst $ (fn p) args
 
 custom :: Defun arg p
 custom = Defun { as = "unknown"

@@ -57,6 +57,6 @@ Library
                     Tct.Method.Macro
                     Tct.Methods
 
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, cmdargs
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

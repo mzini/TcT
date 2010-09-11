@@ -65,6 +65,7 @@ instance Read AnswerType where
 data Flags = Flags
   { input          :: FilePath
   , strategy       :: Maybe String
+  , strategyFile   :: Maybe FilePath
   , proofOutput    :: Bool
   , time           :: Maybe Int
   , solver         :: Maybe String
@@ -76,8 +77,9 @@ data Flags = Flags
 
 defaultFlags :: Flags
 defaultFlags = Flags { strategy         = Nothing
+                     , strategyFile     = Nothing
                      , input            = ""
-                     , proofOutput      = False
+                     , proofOutput      = True
                      , time             = Nothing
                      , answerType       = Nothing
                      , solver           = Nothing
@@ -106,8 +108,8 @@ options =
   , Option
     { long    = "proof"
     , short    = "p"
-    , meaning = unit (\f -> f{ proofOutput = True })
-    , help    = [ "Show proof output."]
+    , meaning = unit (\f -> f{ proofOutput = False })
+    , help    = [ "Hide proof output."]
     }
   , Option
     { long    = "answer"
@@ -130,7 +132,13 @@ options =
     { long    = "strategy"
     , short    = "s"
     , meaning = (\n f -> f{ strategy = Just n }) <$> argString
-    , help    = [ "Specifies the strategy. For a list of strategies see '-l'"]
+    , help    = [ "Specifies the strategy. For a list of strategies see '-l'."]
+    }
+  , Option
+    { long    = "strategyfile"
+    , short    = "S"
+    , meaning = (\n f -> f{ strategyFile = Just n }) <$> argFile
+    , help    = [ "Like '-s', but reads the strategy from the given file."]
     }
   , Option
     { long    = "strategies"

@@ -57,9 +57,9 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                 | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
                                                              p1 `ord` p2 = name p1 `compare` name p2
                                                              procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
-                                                                       Just reg ->[ proc | proc <- processors (parsableProcessor cfg)
-                                                                                         , matches reg (name proc) 
-                                                                                                       || matches reg (unlines (description proc))]
+                                                                       Just reg -> [ proc | proc <- processors (parsableProcessor cfg)
+                                                                                          , matches reg (name proc) 
+                                                                                                        || matches reg (unlines (description proc))]
                                                                        Nothing  -> processors (parsableProcessor cfg)
                                                          putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
                                                          return ExitSuccess

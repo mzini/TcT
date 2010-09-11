@@ -12,12 +12,14 @@ module Tct
 where 
 
 import Control.Monad.Error
+import Control.Exception (evaluate)
 import Control.Monad.RWS.Lazy
 import System.Directory
 import System.FilePath ((</>))
 import System.Posix.Types (EpochTime)
 import Text.PrettyPrint.HughesPJ
 import qualified Control.Exception as C
+import qualified Control.Monad.Error as E
 import System.Posix.Time (epochTime)
 
 import Termlib.Problem (Problem, onProblem, standardProblem, dpProblem, relativeProblem, wellFormed)
@@ -45,7 +47,6 @@ data Config = Config { parsableProcessor :: AnyProcessor
                      , getProblem        :: TCT Problem
                      , getSolver         :: TCT SatSolver
                      , showProof         :: (Proof SomeProcessor) -> TCT String
-                     , timeoutAfter      :: Float
                      , satSolver         :: SatSolver
                      , configDir         :: IO FilePath
                      , errorMsg          :: [String]
@@ -91,18 +92,28 @@ readProblem = do r <- askConfig getProblem
 
 putProof :: Proof SomeProcessor -> TCT ()
 putProof proof = do r <- askConfig showProof 
-                    s <- r proof
+                    s <- r proof >>= liftIO . evaluate
                     liftIO $ putStrLn s
 
+
+getStrategyString :: TCT (Maybe String)
+getStrategyString = do mstr <- askFlag strategy
+                       mfn <- askFlag strategyFile
+                       case (mstr, mfn) of 
+                         (Just _, _)        -> return $ mstr
+                         (Nothing, Just fn) -> liftIO $ (Just `liftM` readFile fn) `catch` (const $ return Nothing)
+                         _                  -> return Nothing
+
+
+-- TODO are those fields in the config really interesting, what are interesting fields?
 defaultConfig :: Config
-defaultConfig = Config { parsableProcessor = parsableProcessor_
+defaultConfig = Config { parsableProcessor = parsableProcessor_ 
                        , process          = process_
                        , defaultProcessor = defaultProcessor_
                        , getProcessor     = getProcessor_
                        , getProblem       = getProblem_
                        , getSolver        = getSolver_
                        , showProof        = showProof_ 
-                       , timeoutAfter     = 60.0
                        , satSolver        = MiniSat "minisat" -- TODO pfad und exe unterscheiden
                        , configDir        = do home <- getHomeDirectory 
                                                return $ home </> ".tct"
@@ -174,7 +185,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
           defaultProcessor_  = undefined --TODO
           getProcessor_ prob = do anyproc <- askConfig parsableProcessor
                                   to <- askFlag time
-                                  str <- askFlag strategy
+                                  str <- getStrategyString
                                   proc <- case str of 
                                             Just s -> case fromString anyproc anyproc s of 
                                                         Left err    -> throwError $ StrategyParseError $ show err

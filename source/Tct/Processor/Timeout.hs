@@ -58,10 +58,10 @@ instance Processor p => Processor (Timeout p) where
     data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
     name  (Timeout _)                = "timeout"
     instanceName (TOInstance i inst) = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
-    description (Timeout proc)     = description proc ++ ["The processor either returns the result of the given processor"
-                                                         , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
+    description (Timeout proc)      = description proc ++ ["The processor either returns the result of the given processor"
+                                                          , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     argDescriptions _                = []
-    solve (TOInstance t inst) prob = 
+    solve_ (TOInstance t inst) prob  = 
         do io <- mkIO $ apply inst prob 
            r <- liftIO $ timedKill t io
            return $ case r of 

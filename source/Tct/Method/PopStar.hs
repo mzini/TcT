@@ -21,7 +21,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Tct.Method.PopStar where
+module Tct.Method.PopStar 
+    ( popstarProcessor
+    , lmpoProcessor
+    , popstar
+    , lmpo
+    , PopStarOrder (..))
+where
 
 import Control.Monad (liftM2, liftM)
 import Data.Set (Set, (\\))
@@ -64,6 +70,10 @@ import qualified Tct.Encoding.ArgumentFiltering as AFEnc
 import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
+
+
+--------------------------------------------------------------------------------
+--- proof object
 
 data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popPrecedence        :: Prec.Precedence
@@ -110,6 +120,10 @@ instance Answerable PopStarOrder where
                  | otherwise                                     = CertAnswer $ certified (unknown, poly Nothing)
 
 instance ComplexityProof PopStarOrder
+
+
+--------------------------------------------------------------------------------
+--- processor 
 
 data PopStar = PopStar {isLmpo :: Bool} deriving (Typeable, Show)
 
@@ -163,7 +177,8 @@ lmpo :: Bool -> P.InstanceOf (S.Processor PopStar)
 lmpo ps = (PopStar True) `S.calledWith` ps
 
 
--- implementation
+--------------------------------------------------------------------------------
+-- encoding
 
 quasiConstructorsFor :: Set Symbol -> Trs -> Trs -> Set Symbol
 quasiConstructorsFor constructors strict weak = constructors

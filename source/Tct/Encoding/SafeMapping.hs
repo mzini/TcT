@@ -25,6 +25,8 @@ module Tct.Encoding.SafeMapping
   , SafePosition
   , isSafe
   , isSafeP
+  , setSafe
+  , setSafes
   , safeArgumentPositions
   , empty
   , validSafeMapping
@@ -85,10 +87,12 @@ setSafe sym i (SM (sig,m)) = SM (sig, Map.alter alter sym m)
   where alter (Just s) = Just $ IntSet.insert i s
         alter Nothing = Just $ IntSet.singleton i
 
+setSafes :: Symbol -> [Int] -> SafeMapping -> SafeMapping
+setSafes sym is sm = foldl (\ sm' i -> setSafe sym i sm') sm is
+
 
 instance Decoder SafeMapping SafePosition where 
   add (SP (f, i)) = setSafe f i
-
 
 validSafeMapping :: Eq l => [Symbol] -> Signature -> PropFormula l
 validSafeMapping constructors sig = bigAnd [ isSafeP con i | con <- constructors, i <- argumentPositions sig con]
@@ -109,7 +113,8 @@ instance PrettyPrintable (Trs, Signature, Variables, SafeMapping) where
 
             ppt (Var x)      = text $ V.variableName x var
             ppt (Fun f [])   = pprint (f,sig) <> parens ( text "" )
-            ppt t@(Fun f _)  = pprint (f,sig) <> parens ( ppa nrm <> text ";" <> ppa sf )
+            ppt t@(Fun f _)  = pprint (f,sig) <> parens ( ppa nrm <> text ";" `sa` ppa sf )
                 where (sf,nrm) = partitionArguments t sm
-
+                      sa | length sf == 0 = (<>)
+                         | otherwise      = (<+>)
             ppa ts           = sep $ punctuate (text ",") [ppt t_i | t_i <- ts]

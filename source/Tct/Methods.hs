@@ -18,28 +18,32 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Methods 
     (  -- *  Parsable Processors
      failProcessor
-    , successProcessor
-    , iteProcessor
     , bestProcessor
-    , fastestProcessor
-    , sequentiallyProcessor
-    , combineProcessor
-    , matrixProcessor
     , boundsProcessor
-    , popstarProcessor
+    , combineProcessor
+    , epostarProcessor
+    , fastestProcessor
+    , iteProcessor
     , lmpoProcessor
-      
+    , matrixProcessor
+    , popstarProcessor
+    , sequentiallyProcessor
+    , successProcessor
+    , timeoutProcessor
+ 
     -- * Processors
-    , fail
-    , success
-    , ite
     , best
-    , fastest
-    , sequentially
-    , combine
-    , matrix
     , bounds
+    , combine
+    , epostar
+    , fail
+    , fastest
+    , ite
+    , matrix
     , popstar
+    , sequentially
+    , success
+    , timeout
 
     -- ** Argument Construction
     , NaturalMIKind (..)
@@ -47,14 +51,37 @@ module Tct.Methods
     , nat
     , Enrichment (..)
     , InitialAutomaton (..)
+
+    -- ** The Default Processor Used by TCT
+    , defaultProcessor
     )
 where
 import Prelude()
 
 import Tct.Method.Combinator
 import Tct.Method.PopStar
+import Tct.Method.EpoStar
 import Tct.Method.Combine
 import Tct.Method.Bounds
 import Tct.Method.Matrix.NaturalMI
 import Qlogic.NatSat (Size (..))
 import Tct.Processor.Args.Instances
+
+import Tct.Processor.Timeout
+import Tct.Processor (none, (<|>), AnyProcessor)
+
+defaultProcessor :: AnyProcessor
+defaultProcessor = timeoutProcessor defaultProcessor
+                   <|> failProcessor 
+                   <|> successProcessor
+                   <|> iteProcessor defaultProcessor defaultProcessor defaultProcessor
+                   <|> bestProcessor
+                   <|> fastestProcessor
+                   <|> sequentiallyProcessor
+                   <|> lmpoProcessor
+                   <|> popstarProcessor
+                   <|> epostarProcessor
+                   <|> boundsProcessor
+                   <|> matrixProcessor
+                   <|> combineProcessor
+                   <|> none

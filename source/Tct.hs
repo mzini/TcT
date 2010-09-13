@@ -34,12 +34,8 @@ import Tct.Main.Flags
 import Tct.Processor
 import Tct.Proof
 import qualified Tct.Main.Version as Version
-import Tct.Processor.Timeout (timeout, timeoutProcessor)
-import qualified Tct.Method.Combinator as Combinator
-import qualified Tct.Method.PopStar as PopStar
-import qualified Tct.Method.Combine as Combine
-import qualified Tct.Method.Bounds as Bounds
-import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
+import Tct.Processor.Timeout (timeout)
+import qualified Tct.Methods as Methods
 
 data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: InstanceOf SomeProcessor -> Problem -> TCT (Proof SomeProcessor)
@@ -107,19 +103,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , version          = Version.version
                        }
 
-    where parsableProcessor_ = timeoutProcessor parsableProcessor_
-                               <|> Combinator.failProcessor 
-                               <|> Combinator.successProcessor
-                               <|> Combinator.iteProcessor parsableProcessor_ parsableProcessor_ parsableProcessor_
-                               <|> Combinator.bestProcessor
-                               <|> Combinator.fastestProcessor
-                               <|> Combinator.sequentiallyProcessor
-                               <|> PopStar.lmpoProcessor
-                               <|> PopStar.popstarProcessor
-                               <|> Bounds.boundsProcessor
-                               <|> NaturalMI.matrixProcessor
-                               <|> Combine.combineProcessor
-                               <|> none
+    where parsableProcessor_ = Methods.defaultProcessor
 
           process_ proc prob  = do gs <- askConfig getSolver
                                    slver <- gs

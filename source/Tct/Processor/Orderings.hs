@@ -32,4 +32,4 @@ instance Answerable o => Answerable (OrientationProof o) where
     answer (Order o) = answer o
     answer Incompatible = MaybeAnswer
 
-instance ComplexityProof o => ComplexityProof (OrientationProof o)
+instance (PrettyPrintable o, Answerable o) => ComplexityProof (OrientationProof o)

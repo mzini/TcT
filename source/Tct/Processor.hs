@@ -293,7 +293,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                                            hFlush handle
                                            logThread
                             run = const $ C.unblock $ runSolver (subState st) $ runReaderT (runLS m) chan
-                        C.bracket (forkIO logThread) (\ pid -> putStrLn "killing" ) run
+                        C.bracket (forkIO logThread) killThread run
 
     minisatValue m e = lift $ minisatValue m e 
                        

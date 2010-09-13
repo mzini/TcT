@@ -56,8 +56,8 @@ instance Show AnswerType where
 
 instance Read AnswerType where
   readsPrec _ s = [(AT rd (last s == '!'),"")]
-    where rd | "dc" `isPrefixOf` s  = DC
-             | "rc" `isPrefixOf` s  = RC
+    where rd | "dc"  `isPrefixOf` s = DC
+             | "rc"  `isPrefixOf` s = RC
              | "irc" `isPrefixOf` s = IRC
              | "idc" `isPrefixOf` s = IDC
              | otherwise            = error "error reading answer type"
@@ -71,6 +71,7 @@ data Flags = Flags
   , solver         :: Maybe String
   , answerType     :: Maybe AnswerType
   , listStrategies :: Maybe (Maybe String)
+  , logFile        :: Maybe FilePath
   , showHelp       :: Bool
   , showVersion    :: Bool
   } deriving (Eq, Show)
@@ -84,9 +85,9 @@ defaultFlags = Flags { strategy         = Nothing
                      , answerType       = Nothing
                      , solver           = Nothing
                      , listStrategies   = Nothing
+                     , logFile          = Nothing
                      , showHelp         = False
                      , showVersion      = False}
-
 
 data Option a
   = Option
@@ -106,7 +107,7 @@ options =
                 ]
     }
   , Option
-    { long    = "proof"
+    { long    = "noproof"
     , short    = "p"
     , meaning = unit (\f -> f{ proofOutput = False })
     , help    = [ "Hide proof output."]
@@ -147,18 +148,22 @@ options =
     , help    = [ "Prints a full list of strategies."]
     }
   , Option
+    { long    = "logfile"
+    , short    = "g"
+    , meaning = (\n f -> f{ logFile = Just n }) <$> argFile
+    , help    = [ "Enable logging. Logging output is sent to specified file."]
+    }
+  , Option
     { long    = "help"
     , short    = "h"
     , meaning = (\_ f -> f{ showHelp = True }) <$> argNone
-    , help    = [ "Displays this help message."
-                ]
+    , help    = [ "Displays this help message."]
     }
   , Option
     { long    = "version"
     , short    = "v"
     , meaning = (\_ f -> f{ showVersion = True }) <$> argNone
-    , help    = [ "Displays the version number."
-                ]
+    , help    = [ "Displays the version number."]
     }
 
   ]

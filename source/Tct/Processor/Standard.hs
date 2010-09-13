@@ -51,7 +51,7 @@ class StdProcessor a where
     description  :: a -> [String]
     description  = const []
     arguments    :: a -> (ArgumentsOf a)
-    solve        :: TheProcessor a -> Problem -> P.SolverM (ProofOf a)
+    solve        :: P.SolverM m => TheProcessor a -> Problem -> m (ProofOf a)
 
 
 data Processor a = Processor a deriving (Typeable, Show)

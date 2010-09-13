@@ -40,7 +40,7 @@ makeRuleCompatible r !e !str !wb !ml !a = case null violations of
                                        False -> Left $ foldl fixViolation a violations
     where violations = Set.toList $ findViolations a e str wb ml r
 
-compatibleAutomaton :: Trs -> Trs -> Enrichment -> Automaton -> SolverM Automaton
+compatibleAutomaton :: SolverM m => Trs -> Trs -> Enrichment -> Automaton -> m Automaton
 compatibleAutomaton strict weak e a = eitherVal `liftM` (iter a (1 :: Int))
     where iter a' i = do r' <- foldM (f i WeakRule $ maxlabel a') (Right a') wrs
                          r <- foldM (f i StrictRule $ maxlabel a') r' srs

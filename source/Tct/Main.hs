@@ -41,7 +41,7 @@ import qualified Control.Exception as C
 
 import Termlib.Utils (PrettyPrintable (..))
 
-import Tct (Config (..), defaultConfig, check, run, readProblem, putProof)
+import Tct (Config (..), defaultConfig, run)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
 import Tct.Processor (Processor (..), processors, name)
 import qualified Tct.Main.Version as V
@@ -63,11 +63,11 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                                                                        Nothing  -> processors (parsableProcessor cfg)
                                                          putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
                                                          return ExitSuccess
-                | otherwise        = do (r,warns) <- liftIO $ run flgs cfg (readProblem >>= check >>= putProof)
+                | otherwise        = do (r,warns) <- liftIO $ run flgs cfg
                                         putWarnMsg [show $ pprint warn | warn <- warns]
                                         case r of 
-                                          Left e -> putErrorMsg [(show $ pprint e)] >> return exitFail
-                                          Right _ -> return ExitSuccess
+                                          Just e  -> putErrorMsg [(show $ pprint e)] >> return exitFail
+                                          Nothing -> return ExitSuccess
 
 
 putErrorMsg :: [String] -> IO ()

@@ -38,8 +38,8 @@ instance (P.Processor p) => P.Processor (Defun arg p) where
 
 instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Defun arg p) where
     synopsis p = as p ++ " " ++ A.synopsis (args p)
-    parseProcessor_ p = do args <- mkParseProcessor (as p) (args p)
-                           return $ Inst $ (fn p) args
+    parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
+                           return $ Inst $ (fn p) aa
 
 custom :: Defun arg p
 custom = Defun { as = "unknown"

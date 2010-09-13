@@ -182,17 +182,17 @@ dim :: S.TheProcessor NaturalMI -> Int
 dim inst = d where (_ :+: Nat d :+: _ :+: _ :+: _) = S.processorArgs inst
 
 
-orientDirect :: Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> P.SolverM (S.ProofOf NaturalMI)
+orientDirect :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
 orientDirect st trs = orientMatrix relativeConstraints st trs Trs.empty
 
-orientRelative :: Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> P.SolverM (S.ProofOf NaturalMI)
+orientRelative :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
 orientRelative = orientMatrix relativeConstraints
 
-orientDp :: Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> P.SolverM (S.ProofOf NaturalMI)
+orientDp :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
 orientDp = orientMatrix dpConstraints
 
-orientMatrix :: (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula MiniSatLiteral DioVar Int) 
-             -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> P.SolverM (S.ProofOf NaturalMI)
+orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula MiniSatLiteral DioVar Int) 
+             -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
 orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                       return $ case theMI of
                                                  Nothing -> Incompatible

@@ -5,16 +5,17 @@ module Tct
     , TCTError (..)
     , TCTWarning (..)
     , defaultConfig
-    , run
-    , readProblem
-    , check
-    , putProof)
+    , run)
+    -- , readProblem
+    -- , check
+    -- , putProof)
 where 
 
 import Control.Monad.Error
 import Control.Exception (evaluate)
 import Control.Monad.RWS.Lazy
 import System.Directory
+import System.IO
 import System.FilePath ((</>))
 import System.Posix.Types (EpochTime)
 import Text.PrettyPrint.HughesPJ
@@ -41,7 +42,7 @@ import qualified Tct.Method.Bounds as Bounds
 import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
 
 data Config = Config { parsableProcessor :: AnyProcessor
-                     , process           :: Problem -> TCT (Proof SomeProcessor)
+                     , process           :: InstanceOf SomeProcessor -> Problem -> TCT (Proof SomeProcessor)
                      , defaultProcessor  :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProblem        :: TCT Problem
@@ -53,7 +54,7 @@ data Config = Config { parsableProcessor :: AnyProcessor
                      , version           :: String}
 
 
-data TCTError = StrategyParseError String -- ==> stdout
+data TCTError = StrategyParseError String
               | ProblemParseError ProblemPEs.ParseError
               | ProblemUnknownFileError String
               | ProblemNotWellformed Problem
@@ -63,7 +64,7 @@ data TCTError = StrategyParseError String -- ==> stdout
               | SomeExceptionRaised C.SomeException
               | UnknownError String
 
-data TCTWarning = ProblemParseWarning ProblemPEs.ParseWarning deriving Show -- ==> stdout
+data TCTWarning = ProblemParseWarning ProblemPEs.ParseWarning deriving Show
 
 data TCTState = TCTState
 
@@ -80,21 +81,6 @@ instance Error TCTError where
 newtype TCT r = TCT { 
     tct :: ErrorT TCTError (RWST TCTROState [TCTWarning] TCTState IO) r
   } deriving (Monad, MonadIO, MonadError TCTError, MonadReader TCTROState)
-
-
-check :: Problem -> TCT (Proof SomeProcessor)
-check prob = do p <- askConfig process
-                p prob
-
-readProblem :: TCT Problem
-readProblem = do r <- askConfig getProblem
-                 r
-
-putProof :: Proof SomeProcessor -> TCT ()
-putProof proof = do r <- askConfig showProof 
-                    s <- r proof >>= liftIO . evaluate
-                    liftIO $ putStrLn s
-
 
 getStrategyString :: TCT (Maybe String)
 getStrategyString = do mstr <- askFlag strategy
@@ -120,6 +106,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , errorMsg         = []
                        , version          = Version.version
                        }
+
     where parsableProcessor_ = timeoutProcessor parsableProcessor_
                                <|> Combinator.failProcessor 
                                <|> Combinator.successProcessor
@@ -133,11 +120,18 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                <|> NaturalMI.matrixProcessor
                                <|> Combine.combineProcessor
                                <|> none
-          process_ prob      = do getProc <- askConfig getProcessor
-                                  proc <- getProc prob
-                                  gs <- askConfig getSolver
-                                  slver <- gs
-                                  liftIO $ runSolver slver (apply proc prob)
+
+          process_ proc prob  = do gs <- askConfig getSolver
+                                   slver <- gs
+                                   lf <- askFlag logFile
+                                   liftIO $ case lf of
+                                              Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
+                                              Just f  -> do h <- openFile f WriteMode  -- TODO error handling
+                                                            let st = LSolverState { subState = SolverState slver
+                                                                                  , logHandle = h }
+                                                            r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
+                                                            hFlush h >> hClose h
+                                                            return r 
 
           getProblem_        = do inputFile <- input `liftM` askFlags
                                   parseResult <- liftIO $ ProblemParser.problemFromFile inputFile
@@ -224,12 +218,28 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                                                               else empty
                                      
 
-run :: Flags -> Config -> TCT a -> IO (Either TCTError a, [TCTWarning])
-run flg cfg m = do t <- epochTime 
-                   let rostate = TCTROState { config    = cfg
-                                            , flags     = flg
-                                            , startTime = t}
-                   evalRWST (runErrorT (tct m)) rostate TCTState 
+run :: Flags -> Config -> IO (Maybe TCTError, [TCTWarning])
+run flg cfg = do t <- epochTime 
+                 let rostate = TCTROState { config    = cfg
+                                          , flags     = flg
+                                          , startTime = t}
+                 mk `liftM` evalRWST (runErrorT (tct $ readProblem >>= check >>= putProof)) rostate TCTState 
+    where mk (Left e,r) = (Just e, r)
+          mk (_     ,r) = (Nothing, r)
+check :: Problem -> TCT (Proof SomeProcessor)
+check prob = do fn <- askConfig process
+                getProc <- askConfig getProcessor
+                proc <- getProc prob
+                fn proc prob
+
+readProblem :: TCT Problem
+readProblem = do r <- askConfig getProblem
+                 r
+
+putProof :: Proof SomeProcessor -> TCT ()
+putProof proof = do r <- askConfig showProof 
+                    s <- r proof >>= liftIO . evaluate
+                    liftIO $ putStrLn s
 
 liftS :: RWST TCTROState [TCTWarning] TCTState IO r -> TCT r
 liftS m = TCT $ lift m
@@ -250,7 +260,6 @@ askConfigs = ask >>= return . config
 askConfig :: (Config -> a) -> TCT a
 askConfig f = do c <- askConfigs
                  return $ f c
-
 
 pprintErr :: String -> Doc -> Doc
 pprintErr m e = nest 1 $ paragraph m <> text ":" $$ (nest 2 $ e)

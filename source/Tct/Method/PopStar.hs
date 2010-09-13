@@ -193,12 +193,12 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: Bool -> Bool -> Set Symbol -> Problem -> P.SolverM (OrientationProof PopStarOrder)
-orientProblem lmpo ps cs prob = maybe Incompatible Order `liftM` slv (Prob.relation prob)
+orientProblem :: P.SolverM m => Bool -> Bool -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem lmpop ps cs prob = maybe Incompatible Order `liftM` slv (Prob.relation prob)
                                     
     where slv (Standard trs) = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpo ps
-                    form                = directConstraint lmpo ps quasiConstrs trs Trs.empty sig 
+              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
+                    form                = directConstraint lmpop ps quasiConstrs trs Trs.empty sig 
                                           && bigAnd [atom $ strictlyOriented r | r <- rules trs]
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
                     quasiConstrs        = quasiConstructorsFor cs trs Trs.empty
@@ -211,8 +211,8 @@ orientProblem lmpo ps cs prob = maybe Incompatible Order `liftM` slv (Prob.relat
                     quasiConstrs        = quasiConstructorsFor cs strict weak
 
           slv (Relative strict weak) = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpo ps
-                    form                = directConstraint lmpo ps quasiConstrs strict weak sig 
+              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
+                    form                = directConstraint lmpop ps quasiConstrs strict weak sig 
                                           && bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
                                           && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
@@ -220,7 +220,7 @@ orientProblem lmpo ps cs prob = maybe Incompatible Order `liftM` slv (Prob.relat
 
           sig  = Prob.signature prob
  
-solveConstraint:: (S.Decoder e a) => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> P.SolverM (Maybe b)
+solveConstraint:: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
 solveConstraint constraint initial makeResult = 
     do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
        return $ makeResult `liftM` r

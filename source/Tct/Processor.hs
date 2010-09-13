@@ -29,14 +29,13 @@ module Tct.Processor
     , ParsableProcessor (..)
     , Proof (..)
     , SolverM (..)
+    , SolverState (..)
+    , LSolverState (..)
+    , StdSolverM
+    , LoggingSolverM (..)
     , ProcessorParser
-    , solve
     , apply
-    , mkIO
-    , runSolver 
     , parseProcessor
-    , minisatValue
-    , getSatSolver
     , fromString
     -- * Some Processor
     , SomeProcessor
@@ -55,6 +54,11 @@ module Tct.Processor
 where
 
 import Control.Monad.Error
+import Control.Concurrent.Chan
+import System.CPUTime (getCPUTime)
+import System.IO (Handle, hPutStrLn, hFlush)
+import Control.Concurrent (ThreadId, forkIO, killThread, myThreadId)
+import qualified Control.Exception as C
 import Control.Monad.Reader
 import Data.Typeable
 
@@ -72,16 +76,20 @@ import qualified Tct.Processor.Parse as Parse
 import qualified Tct.Proof as P
 
 
-type ProcessorParser a = CharParser AnyProcessor a 
-data SolverState = SolverState SatSolver
+
 data SatSolver = MiniSat FilePath
 
+-- solver
 
--- class SolverM r where
-
-
-newtype SolverM r = S {runS :: ReaderT SolverState IO r }
-    deriving (Monad, MonadIO, MonadReader SolverState)
+class MonadIO m => SolverM m where
+    type St m
+    mkIO :: m a -> m (IO a)
+    runSolver :: St m -> m a -> IO a
+    minisatValue :: (Decoder e a) => MiniSat () -> e -> m (Maybe e)
+    solve :: (SolverM m, Processor a) => InstanceOf a -> Problem -> m (ProofOf a)
+-- TODO needs to be redone after qlogic-update, allow generic solvers
+                                
+-- processor
 
 class Processor a where
     type ProofOf a                  
@@ -92,10 +100,9 @@ class Processor a where
     argDescriptions :: a -> [(String, String)]
     argDescriptions _ = []
 --    fromInstance :: (InstanceOf a) -> a
-    solve_          :: InstanceOf a -> Problem -> SolverM (ProofOf a)
+    solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
 
-solve :: Processor a => InstanceOf a -> Problem -> SolverM (ProofOf a)
-solve = solve_ -- TODO
+type ProcessorParser a = CharParser AnyProcessor a 
 
 class Processor a => ParsableProcessor a where
     synopsis :: a -> String
@@ -107,28 +114,7 @@ parseProcessor a = parens parse Parsec.<|> parse
     where parse = parseProcessor_ a
 
 
-getSatSolver :: SolverM SatSolver
-getSatSolver = do SolverState ss <- ask
-                  return ss
-
-runSolver_ :: SolverState -> SolverM a -> IO a
-runSolver_ slver m = runReaderT (runS m) slver
-
-runSolver :: SatSolver -> SolverM a -> IO a
-runSolver s = runSolver_ (SolverState s)
-
-mkIO :: SolverM a -> SolverM (IO a)
-mkIO m = do s <- ask
-            return $ runSolver_ s m
-
--- TODO needs to be redone after qlogic-update, allow generic solvers
-minisatValue :: (Decoder e a) => MiniSat () -> e -> SolverM (Maybe e)
-minisatValue m e =  do slver <- getSatSolver
-                       r <- liftIO $ val slver
-                       case r of 
-                         Right v -> return $ Just v
-                         Left  _ -> return Nothing
-    where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
+-- proof
 
 data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
@@ -155,7 +141,7 @@ instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
 instance (P.ComplexityProof (ProofOf proc), Processor proc, Show (InstanceOf proc)) 
     => P.ComplexityProof (Proof proc)
 
-apply :: Processor proc => (InstanceOf proc) -> Problem -> SolverM (Proof proc)
+apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof proc)
 apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
@@ -256,3 +242,67 @@ parseAnyProcessor = do a <- getState
 
 -- toSomeInstance :: InstanceOf AnyProcessor -> SomeInstance
 -- toSomeInstance (OOI (SPI p)) = p
+
+-- basic solver monad
+data SolverState = SolverState SatSolver
+newtype StdSolverM r = S {runS :: ReaderT SolverState IO r }
+    deriving (Monad, MonadIO, MonadReader SolverState)
+
+instance SolverM StdSolverM where 
+    type St StdSolverM = SolverState
+    mkIO m = do s <- ask
+                return $ runSolver s m
+
+    runSolver slver m = runReaderT (runS m) slver
+
+    minisatValue m e =  do SolverState slver <- ask
+                           r <- liftIO $ val slver
+                           case r of 
+                             Right v -> return $ Just v
+                             Left  _ -> return Nothing
+        where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
+
+    solve = solve_
+
+-- add logging to solver monad
+data LoggingSig = LMStart | LMFin
+data LoggingMsg = LoggingMsg LoggingSig Integer String ThreadId 
+
+instance Show LoggingMsg where 
+    show (LoggingMsg m t n pid) = "[" ++ show t ++ "]@" ++ show pid ++ ": Processor " ++ n ++ " " ++ sig m
+        where sig LMStart = "started"
+              sig LMFin   = "finished"
+
+newtype LoggingSolverM m r = LS { runLS :: ReaderT (Chan LoggingMsg) m r}
+    deriving (Monad, MonadIO, MonadReader (Chan LoggingMsg), MonadTrans)
+
+
+data LSolverState st = LSolverState { subState  :: st
+                                    , logHandle :: Handle }
+
+instance SolverM m => SolverM (LoggingSolverM m) where 
+    type St (LoggingSolverM m) = LSolverState (St m)
+
+    mkIO m = do chan <- ask
+                lift $ mkIO $ runReaderT (runLS m) chan
+
+    runSolver st m = do chan <- liftIO $ newChan
+                        let logThread = do msg <- readChan chan
+                                           let handle = logHandle st
+                                           hPutStrLn handle (show msg)
+                                           hFlush handle
+                                           logThread
+                            run = const $ C.unblock $ runSolver (subState st) $ runReaderT (runLS m) chan
+                        C.bracket (forkIO logThread) (\ pid -> putStrLn "killing" ) run
+
+    minisatValue m e = lift $ minisatValue m e 
+                       
+    solve proc prob = do sendMsg LMStart
+                         r <- solve_ proc prob -- HMN
+                         sendMsg LMFin
+                         return r
+        where sendMsg sig = do t <- liftIO getCPUTime
+                               let n = instanceName proc
+                               pid <- liftIO $ myThreadId
+                               chan <- ask
+                               liftIO $ writeChan chan (LoggingMsg sig t n pid)

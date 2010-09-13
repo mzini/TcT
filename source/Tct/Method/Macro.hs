@@ -21,28 +21,28 @@ module Tct.Method.Macro where
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Standard (mkParseProcessor)
-data Defun arg p = Defun { as  :: String
-                         , description :: [String]
-                         , args :: arg
---                         , argDescription :: String
-                         , fn :: A.Domains arg -> P.InstanceOf p }
+data Custom arg p = Custom { as  :: String
+                           , description :: [String]
+                           , args :: arg
+                           --                         , argDescription :: String
+                           , fn :: A.Domains arg -> P.InstanceOf p }
 
-instance (P.Processor p) => P.Processor (Defun arg p) where
-  type P.ProofOf (Defun arg p) = P.ProofOf p
-  data P.InstanceOf (Defun arg p) = Inst (P.InstanceOf p)
+instance (P.Processor p) => P.Processor (Custom arg p) where
+  type P.ProofOf (Custom arg p) = P.ProofOf p
+  data P.InstanceOf (Custom arg p) = Inst (P.InstanceOf p)
   name                  = as
   instanceName (Inst p) = P.instanceName p
   description           = description
   solve_ (Inst p)       = P.solve p
 
 
-instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Defun arg p) where
+instance (A.ParsableArguments arg, P.Processor p) => P.ParsableProcessor (Custom arg p) where
     synopsis p = as p ++ " " ++ A.synopsis (args p)
     parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
                            return $ Inst $ (fn p) aa
 
-custom :: Defun arg p
-custom = Defun { as = "unknown"
-               , fn = error "fn must be specified when adding custom processor"
-               , args = error "args must be specified when adding custom processor"
-               , description = [] }
+custom :: Custom arg p
+custom = Custom { as = "unknown"
+                , fn = error "fn must be specified when adding custom processor"
+                , args = error "args must be specified when adding custom processor"
+                , description = [] }

@@ -15,6 +15,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Tct.Methods 
     (  -- *  Parsable Processors
      failProcessor
@@ -30,7 +33,7 @@ module Tct.Methods
     , sequentiallyProcessor
     , successProcessor
     , timeoutProcessor
- 
+    , (<|>)
     -- * Processors
     , best
     , bounds
@@ -44,6 +47,19 @@ module Tct.Methods
     , sequentially
     , success
     , timeout
+    , custom
+    , Custom(..)
+
+    -- * Processor Combinators and Utilities
+    , call -- ^ this function translates processor instances to SomeInstances
+    , upto -- ^ 'apply processors iteratively
+
+    -- ** Argument Types
+    , Arg
+    , (:+:)(..)
+    , natural
+    , bool
+    , optional
 
     -- ** Argument Construction
     , NaturalMIKind (..)
@@ -56,7 +72,7 @@ module Tct.Methods
     , defaultProcessor
     )
 where
-import Prelude()
+import Prelude hiding (fail)
 
 import Tct.Method.Combinator
 import Tct.Method.PopStar
@@ -64,7 +80,13 @@ import Tct.Method.EpoStar
 import Tct.Method.Combine
 import Tct.Method.Bounds
 import Tct.Method.Matrix.NaturalMI
+import Tct.Method.Macro
 import Qlogic.NatSat (Size (..))
+import qualified Tct.Processor as P
+import qualified Tct.Processor.Standard as S
+import Data.Typeable
+import Tct.Proof
+import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 
 import Tct.Processor.Timeout
@@ -85,3 +107,30 @@ defaultProcessor = timeoutProcessor defaultProcessor
                    <|> matrixProcessor
                    <|> combineProcessor
                    <|> none
+
+-- combinators
+
+call :: (ComplexityProof (P.ProofOf p), P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
+call = P.someInstance
+
+upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p, Show (P.InstanceOf p), Typeable (P.InstanceOf p)) => 
+        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.Processor (OneOf p))
+upto proc (fast :+: l :+: u) | l > u     = fastest []
+                             | fast      = fastest subs 
+                             | otherwise = sequentially subs
+    where subs = [ proc i | i <- [l..u] ]
+
+
+-- argument types
+
+natural :: Arg Nat
+natural = arg
+
+bool :: Arg Bool
+bool = arg
+
+optional :: Arg t -> String -> Domain t -> Arg t
+optional tpe nm def = tpe { name = nm
+                          , defaultValue = def
+                          , isOptional_ = True}
+

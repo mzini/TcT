@@ -103,16 +103,15 @@ instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) 
                           return e
 
 
-type instance CoDomain Nat = Nat
+-- type instance CoDomain Nat = Nat
 
+-- class Parsable a where
+--     syn   :: a -> String
+--     parse :: P.ProcessorParser a
 
-class Parsable a where
-    syn   :: a -> String
-    parse :: P.ProcessorParser a
+-- instance (ParsableArgument (CoDomain a), Domain (CoDomain a) ~ a) => Parsable a where
+--     parse = parseArg (Phantom :: Phantom (CoDomain a))
+--     syn   = const $ domainName (Phantom :: Phantom (CoDomain a))
 
-instance (ParsableArgument (CoDomain a), Domain (CoDomain a) ~ a) => Parsable a where
-    parse = parseArg (Phantom :: Phantom (CoDomain a))
-    syn   = const $ domainName (Phantom :: Phantom (CoDomain a))
-
-foo :: P.ProcessorParser Nat
-foo = parse 
+-- foo :: P.ProcessorParser Nat
+-- foo = parse 

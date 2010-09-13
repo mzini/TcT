@@ -148,7 +148,7 @@ instance S.StdProcessor PopStar where
                                           , "where addionally argument filterings are employed." ]
                                 ]
 
-    type S.ArgumentsOf PopStar = Arg Bool
+    type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool
 
     instanceName inst = S.name $ S.processor inst
 
@@ -156,10 +156,16 @@ instance S.StdProcessor PopStar where
                       , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"
                                                  , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders." ]
                       , A.defaultValue = True }
+                  :+:
+                  opt { A.name = "wsc"
+                      , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
+                                                 , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
+                      , A.defaultValue = True }
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
-                     ((BasicTerms _ cs), Innermost) -> orientProblem (isLmpo $ S.processor inst) (S.processorArgs inst) cs prob
+                     ((BasicTerms _ cs), Innermost) -> orientProblem (isLmpo $ S.processor inst) ps wsc cs prob
+                         where ps :+: wsc = S.processorArgs inst
                      _                              -> return Incompatible
 
 
@@ -171,10 +177,10 @@ lmpoProcessor :: S.Processor PopStar
 lmpoProcessor = S.Processor (PopStar True)
 
 popstar :: Bool -> P.InstanceOf (S.Processor PopStar)
-popstar ps = (PopStar False) `S.calledWith` ps
+popstar ps = (PopStar False) `S.calledWith` (ps :+: False)
 
 lmpo :: Bool -> P.InstanceOf (S.Processor PopStar)
-lmpo ps = (PopStar True) `S.calledWith` ps
+lmpo ps = (PopStar True) `S.calledWith` (ps :+: False)
 
 
 --------------------------------------------------------------------------------
@@ -199,6 +205,7 @@ data Predicates l = Predicates {
     , precEqP :: Symbol -> Symbol -> PropFormula l
     , allowMulRecP :: PropFormula l
     , allowPsP :: PropFormula l
+    , weakSafeCompP :: PropFormula l
   }
 
 
@@ -208,18 +215,18 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: P.SolverM m => Bool -> Bool -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem lmpop ps cs prob = maybe Incompatible Order `liftM` slv (Prob.relation prob)
+orientProblem :: P.SolverM m => Bool -> Bool -> Bool -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv (Prob.relation prob)
                                     
     where slv (Standard trs) = solveConstraint form initial mkOrd
               where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
-                    form                = directConstraint lmpop ps quasiConstrs trs Trs.empty sig 
+                    form                = directConstraint lmpop ps wsc quasiConstrs trs Trs.empty sig 
                                           && bigAnd [atom $ strictlyOriented r | r <- rules trs]
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
                     quasiConstrs        = quasiConstructorsFor cs trs Trs.empty
           slv (DP strict weak) = solveConstraint form initial mkOrd
               where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob False ps
-                    form                = dpConstraint ps quasiConstrs strict weak sig 
+                    form                = dpConstraint ps wsc quasiConstrs strict weak sig 
                                           && bigAnd [atom $ strictlyOriented r | r <- rules strict]
                                           && bigAnd [atom $ weaklyOriented r | r <- rules weak]
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig :&: AFEnc.initial sig
@@ -227,7 +234,7 @@ orientProblem lmpop ps cs prob = maybe Incompatible Order `liftM` slv (Prob.rela
 
           slv (Relative strict weak) = solveConstraint form initial mkOrd
               where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
-                    form                = directConstraint lmpop ps quasiConstrs strict weak sig 
+                    form                = directConstraint lmpop ps wsc quasiConstrs strict weak sig 
                                           && bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
                                           && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
@@ -241,11 +248,11 @@ solveConstraint constraint initial makeResult =
        return $ makeResult `liftM` r
 
 
-directConstraint :: (S.Solver s l, Eq l, Show l) => Bool -> Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
-directConstraint allowMR allowPS quasiConstrs strict weak _ = fm maybeOrientable && 
-                                                              strict `orientStrictBy` pop 
-                                                              && weak `orientWeakBy` popEq
-                                                              && validPrecedence
+directConstraint :: (S.Solver s l, Eq l, Show l) => Bool -> Bool -> Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
+directConstraint allowMR allowPS weakSafeComposition quasiConstrs strict weak _ = fm maybeOrientable && 
+                                                                                  strict `orientStrictBy` pop 
+                                                                                  && weak `orientWeakBy` popEq
+                                                                                  && validPrecedence
 
   where maybeOrientable     = allowMR || (all maybeOrientableRule $ rules both)
             where maybeOrientableRule r = case rtl of 
@@ -266,14 +273,15 @@ directConstraint allowMR allowPS quasiConstrs strict weak _ = fm maybeOrientable
                               , precEqP     = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
                               , allowMulRecP = fm allowMR
                               , allowPsP     = fm allowPS
+                              , weakSafeCompP = fm weakSafeComposition
                               } where defP f = fm $ f `Set.member` quasiDefinedSymbols
         validPrecedence     = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefinedSymbols)
 
-dpConstraint :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
-dpConstraint allowPS quasiConstrs strict weak sig = strict `orientStrictBy` pop 
-                                                    && weak `orientWeakBy` popEq
-                                                    && validPrecedence 
-                                                    && validArgumentFiltering
+dpConstraint :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
+dpConstraint allowPS weakSafeComposition quasiConstrs strict weak sig = strict `orientStrictBy` pop 
+                                                                        && weak `orientWeakBy` popEq
+                                                                        && validPrecedence 
+                                                                        && validArgumentFiltering
     where both                = strict `Trs.union` weak
           allSymbols          = Trs.functionSymbols both
           quasiDefinedSymbols = Trs.definedSymbols both \\ quasiConstrs
@@ -290,6 +298,7 @@ dpConstraint allowPS quasiConstrs strict weak sig = strict `orientStrictBy` pop
                                                           || defP f && defP g && f `PrecEnc.precEq` g)
                                 , allowMulRecP = bot
                                 , allowPsP     = fm allowPS
+                                , weakSafeCompP = fm weakSafeComposition
                             } where defP f = fm $ f `Set.member` quasiDefinedSymbols
           validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList allSymbols) sig
           validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefinedSymbols)
@@ -377,11 +386,11 @@ orient p = memoized $ \ a ->
                                    | (s_i, i) <- iss]
                        case2 = tNonCollapsingOrVar && not (isCollapsing f) 
                                && bigOr [ (s_i `equiv` t) && fWhenDefinedNormal i && inFilter f i | (s_i,i) <- iss]
-                       case3 = case t of 
-                                 (Fun g ts) -> not (isCollapsing f) 
-                                              && (isCollapsing g || (isDefined f && f `pGt` g))
-                                              && bigAnd [inFilter g j --> s `gsq` t_j | (t_j, j) <- indexed ts] 
-                                 _          -> bot
+                       case3 = not wsc && case t of 
+                                            (Fun g ts) -> not (isCollapsing f) 
+                                                          && (isCollapsing g || (isDefined f && f `pGt` g))
+                                                         && bigAnd [inFilter g j --> s `gsq` t_j | (t_j, j) <- indexed ts] 
+                                            _          -> bot
 
              Eq (Var v1)     (Var v2)     -> fm $ v1 == v2
              Eq v@(Var _)    t@(Fun _ _)  -> t `equiv` v
@@ -417,6 +426,7 @@ orient p = memoized $ \ a ->
           isSafe f i       = return $ safeP p f i
           isCollapsing f   = return $ collapsingP p f
           isDefined f      = return $ definedP p f
+          wsc              = return $ weakSafeCompP p
 
 
 indexed :: [a] -> [(a, Int)]

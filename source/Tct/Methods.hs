@@ -80,7 +80,7 @@ import Tct.Method.EpoStar
 import Tct.Method.Combine
 import Tct.Method.Bounds
 import Tct.Method.Matrix.NaturalMI
-import Tct.Method.Macro
+import Tct.Method.Custom
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S

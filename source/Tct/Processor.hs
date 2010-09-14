@@ -120,8 +120,6 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
                         , result           :: ProofOf proc}
 
-instance (Show (InstanceOf proc), Show (ProofOf proc)) => Show (Proof proc) where
-    show (Proof proc prob res) = "Proof (" ++ show proc ++ ") (" ++ show prob ++ ") (" ++ show res ++ ")"
 
 instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (Proof proc) where
     pprint p@(Proof inst prob res) = ppheading $++$ ppres
@@ -138,7 +136,7 @@ instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
-instance (P.ComplexityProof (ProofOf proc), Processor proc, Show (InstanceOf proc)) 
+instance (P.ComplexityProof (ProofOf proc), Processor proc) 
     => P.ComplexityProof (Proof proc)
 
 apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof proc)
@@ -171,7 +169,6 @@ instance Processor SomeProcessor where
     description (SomeProcessor proc)         = description proc
     argDescriptions (SomeProcessor proc)     = argDescriptions proc
     solve_ (SPI (SomeInstance inst)) prob    = SomeProof `liftM` solve_ inst prob
---    fromInstance (SPI (SomeInstance proc _)) = SomeProcessor proc
 
 instance ParsableProcessor SomeProcessor where
     synopsis (SomeProcessor proc) = synopsis proc
@@ -210,14 +207,13 @@ instance Processor AnyProcessor where
     description _           = []
     argDescriptions _       = []
     solve_ (OOI inst) prob  = solve_ inst prob
---     fromInstance (OOI inst (OO _ l)) = OO (name $ fromInstance inst) l
 
 instance Typeable (InstanceOf AnyProcessor) where 
     typeOf (OOI i) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [typeOf i]
 
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "<processor>"
-    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps] -- look ahead to long...
+    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
 instance Show (InstanceOf AnyProcessor) where
@@ -230,8 +226,6 @@ p <|> OO s l = OO s $ some p : l
 
 none :: AnyProcessor
 none = OO "any processor" []
--- anyOf :: [SomeProcessor] -> AnyProcessor
--- anyOf = OO
 
 processors :: AnyProcessor -> [SomeProcessor]
 processors (OO _ l) = l
@@ -240,8 +234,6 @@ parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = do a <- getState
                        parseProcessor a
 
--- toSomeInstance :: InstanceOf AnyProcessor -> SomeInstance
--- toSomeInstance (OOI (SPI p)) = p
 
 -- basic solver monad
 data SolverState = SolverState SatSolver

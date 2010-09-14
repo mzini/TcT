@@ -26,7 +26,8 @@ module Tct.Method.PopStar
     , lmpoProcessor
     , popstar
     , lmpo
-    , PopStarOrder (..))
+    , PopStarOrder (..)
+    , PopStar)
 where
 
 import Control.Monad (liftM2, liftM)

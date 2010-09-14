@@ -139,12 +139,14 @@ parseArguments hlp a = do opts <- Map.fromList `liftM` many (string ":" >> choic
                         | p <- optionalParsers a]
 
 synopsis :: Arguments a => a -> String
-synopsis a = ofList oSyn ++ " " ++ ofList nSyn
+synopsis a = ofList oSyn `app` ofList nSyn
     where oSyn = [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- opts]
           nSyn = [ adSynopsis d | d <- nonopts]
           (opts, nonopts) = partition adIsOptional (descriptions a)
           ofList l = concat $ intersperse " " l
-
+          "" `app` n = n
+          n `app` "" = n
+          n `app` m  = n ++ " " ++ m
 -- constructors and helpers
 
 arg :: Arg a

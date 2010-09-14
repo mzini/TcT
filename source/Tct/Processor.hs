@@ -41,7 +41,8 @@ module Tct.Processor
     , SomeProcessor
     , SomeProof
     , SomeInstance
-    , some
+    , someProof
+    , someProcessor
     , someInstance
     -- * Any Processor
     , AnyProcessor
@@ -190,8 +191,11 @@ instance PrettyPrintable SomeProcessor where
 instance Show (InstanceOf SomeProcessor) where 
     show _ = "InstanceOf SomeProcessor"
 
-some :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
-some = SomeProcessor
+someProof :: (P.ComplexityProof p) => p -> SomeProof
+someProof = SomeProof
+
+someProcessor :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
+someProcessor = SomeProcessor
 
 someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 someInstance inst = SPI (SomeInstance inst)
@@ -221,7 +225,7 @@ instance Show (InstanceOf AnyProcessor) where
 
 infixr 5 <|>
 (<|>) :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
-p <|> OO s l = OO s $ some p : l
+p <|> OO s l = OO s $ someProcessor p : l
 
 
 none :: AnyProcessor

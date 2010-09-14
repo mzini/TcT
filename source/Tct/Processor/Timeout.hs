@@ -38,13 +38,13 @@ import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ hiding (brackets)
 
-data Timeout p = Timeout p
+data Timeout p = Timeout
 
 timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
 timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
 
 
-timeoutProcessor :: Processor p => p -> Timeout p
+timeoutProcessor :: Timeout AnyProcessor
 timeoutProcessor = Timeout
 
 toSeconds :: Int -> Double
@@ -56,10 +56,10 @@ data TOProof p = TimedOut Int
 instance Processor p => Processor (Timeout p) where 
     type ProofOf (Timeout p)         = TOProof p
     data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
-    name  (Timeout _)                = "timeout"
+    name  Timeout                    = "timeout"
     instanceName (TOInstance i inst) = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
-    description (Timeout proc)      = description proc ++ ["The processor either returns the result of the given processor"
-                                                          , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
+    description Timeout              = ["The processor either returns the result of the given processor"
+                                       , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     argDescriptions _                = []
     solve_ (TOInstance t inst) prob  = 
         do io <- mkIO $ apply inst prob 
@@ -69,11 +69,11 @@ instance Processor p => Processor (Timeout p) where
                       Nothing -> TimedOut t
 --    fromInstance (TOInstance i proc _) = Timeout i proc
     
-instance ParsableProcessor p => ParsableProcessor (Timeout p) where
-    synopsis (Timeout p) = "[<seconds>]" ++ synopsis p
-    parseProcessor_ (Timeout p)  = do to <- parseTimeout
-                                      i <- parseProcessor p
-                                      return $ timeout to i
+instance ParsableProcessor (Timeout AnyProcessor) where
+    synopsis Timeout = "[<seconds>]<processor>"
+    parseProcessor_ Timeout  = do to <- parseTimeout
+                                  i <- parseAnyProcessor
+                                  return $ timeout to i
         where parseTimeout = (PP.brackets spec <?> "[<seconds>]")
               spec  = do n <-  number
                          return $ n

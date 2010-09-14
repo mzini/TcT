@@ -113,7 +113,7 @@ success = Success `S.calledWith` ()
 
 -- if-then-else
 
-data Ite g t e = Ite g t e
+data Ite g t e = Ite
 
 data IteProof g t e = IteProof { guardProof  :: P.ProofOf g
                                , branchProof :: Either (P.ProofOf t) (P.ProofOf e) }
@@ -150,7 +150,7 @@ instance ( P.Processor g
     => P.Processor (Ite g t e) where
         type P.ProofOf (Ite g t e)    = IteProof g t e 
         data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
-        name (Ite _ _ _) = "if-then-else processor"
+        name Ite = "if-then-else processor"
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
         description  _   = ["This processor implements conditional branching."]
 --        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
@@ -162,25 +162,21 @@ instance ( P.Processor g
                                          return $ IteProof { guardProof  = gproof
                                                            , branchProof = d bproof }
 
-instance ( P.ParsableProcessor g
-         , Answerable (P.ProofOf g)
-         , P.ParsableProcessor t
-         , P.ParsableProcessor e) 
-    => P.ParsableProcessor (Ite g t e) where
-        synopsis        (Ite g t e) = "if " ++ P.synopsis g ++ " then " ++ P.synopsis t ++ " else " ++ P.synopsis e
-        parseProcessor_ (Ite g t e) = do let pb s p = try (string s) >> whiteSpace >> P.parseProcessor p
-                                         ginst <- pb "if" g
-                                         whiteSpace
-                                         tinst <- pb "then" t
-                                         whiteSpace
-                                         einst <- pb "else" e
-                                         return $ IteInstance ginst tinst einst
+instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) where
+    synopsis        Ite = "if <processor> then <processor> else <processor>"
+    parseProcessor_ Ite = do let pb s = try (string s) >> whiteSpace >> P.parseAnyProcessor
+                             ginst <- pb "if"
+                             whiteSpace
+                             tinst <- pb "then"
+                             whiteSpace
+                             einst <- pb "else"
+                             return $ IteInstance ginst tinst einst
 
 ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
 ite = IteInstance
 
-iteProcessor :: g -> t -> e -> (Ite g t e)
-iteProcessor g t e = Ite g t e
+iteProcessor :: Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor
+iteProcessor = Ite
 
 
 -- parallel combinators

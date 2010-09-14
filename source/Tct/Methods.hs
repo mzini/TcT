@@ -51,8 +51,8 @@ module Tct.Methods
     , Custom(..)
 
     -- * Processor Combinators and Utilities
-    , call -- ^ this function translates processor instances to SomeInstances
-    , upto -- ^ 'apply processors iteratively
+    , call
+    , upto
 
     -- ** Argument Types
     , Arg
@@ -93,10 +93,10 @@ import Tct.Processor.Timeout
 import Tct.Processor (none, (<|>), AnyProcessor)
 
 defaultProcessor :: AnyProcessor
-defaultProcessor = timeoutProcessor defaultProcessor
+defaultProcessor = timeoutProcessor
                    <|> failProcessor 
                    <|> successProcessor
-                   <|> iteProcessor defaultProcessor defaultProcessor defaultProcessor
+                   <|> iteProcessor
                    <|> bestProcessor
                    <|> fastestProcessor
                    <|> sequentiallyProcessor

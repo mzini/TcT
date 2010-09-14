@@ -60,6 +60,7 @@ module Tct.Methods
     , natural
     , bool
     , optional
+    , processor
 
     -- ** Argument Construction
     , NaturalMIKind (..)
@@ -128,6 +129,9 @@ natural = arg
 
 bool :: Arg Bool
 bool = arg
+
+processor :: Arg (S.Processor P.AnyProcessor)
+processor = arg
 
 optional :: Arg t -> String -> Domain t -> Arg t
 optional tpe nm def = tpe { name = nm

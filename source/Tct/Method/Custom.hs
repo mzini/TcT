@@ -23,8 +23,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Custom 
     ( Custom (..)
     , custom
-    , processor
-    , pure)
+    , proc
+    , pure
+    , withArgs)
 where
 
 import qualified Tct.Processor as P
@@ -55,7 +56,8 @@ instance (A.ParsableArguments arg, ComplexityProof res) => P.ParsableProcessor (
     parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
                            return $ Inst p aa
 
-
+withArgs :: Custom arg res -> (A.Domains arg) -> P.InstanceOf (Custom arg res)
+c `withArgs` a = Inst c a
 --------------------------------------------------------------------------------
 -- convenience
 
@@ -65,8 +67,8 @@ custom = Custom { as = "unknown"
                 , args = error "args must be specified when adding custom processor"
                 , description = [] }
 
-processor :: (P.SolverM m, P.Processor p) => (t -> P.InstanceOf p) -> t-> Problem -> m (P.ProofOf p)
-processor p aa prob = P.solve (p aa) prob
+proc :: (P.SolverM m, P.Processor p) => (t -> P.InstanceOf p) -> t-> Problem -> m (P.ProofOf p)
+proc p aa prob = P.solve (p aa) prob
 
 pure :: (P.SolverM m, ComplexityProof res) => (t -> Problem -> res) -> (t -> Problem -> m res)
 pure f aa prob = return $ f aa prob

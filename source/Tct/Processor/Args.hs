@@ -147,6 +147,7 @@ synopsis a = ofList oSyn `app` ofList nSyn
           "" `app` n = n
           n `app` "" = n
           n `app` m  = n ++ " " ++ m
+
 -- constructors and helpers
 
 arg :: Arg a

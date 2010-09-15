@@ -43,7 +43,7 @@ import Termlib.Utils (PrettyPrintable (..))
 
 import Tct (Config (..), defaultConfig, run)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Processor (Processor (..), processors, name)
+import Tct.Processor (Processor (..), ParsableProcessor (..), processors, name)
 import qualified Tct.Main.Version as V
 
 showError :: Config -> String -> Config

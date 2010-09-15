@@ -19,7 +19,6 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Standard 
@@ -34,7 +33,6 @@ import Text.ParserCombinators.Parsec
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
-import Data.Typeable 
 import Termlib.Problem (Problem)
 
 import Tct.Processor.Parse
@@ -54,18 +52,13 @@ class StdProcessor a where
     solve        :: P.SolverM m => TheProcessor a -> Problem -> m (ProofOf a)
 
 
-data Processor a = Processor a deriving (Typeable, Show)
+data Processor a = Processor a
 
 instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a) where
     type P.ProofOf (Processor a)    = ProofOf a
     data P.InstanceOf (Processor a) = TP (TheProcessor a)
     name (Processor a)            = name a
     instanceName (TP theproc)     = instanceName theproc
-    description (Processor a)     = description a
-    argDescriptions (Processor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
-        where descr d = adDescr d ++ argDescrOnDefault mshow d
-                  where mshow Nothing    = "" 
-                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
     solve_ (TP theproc) prob      = solve theproc prob
 --    fromInstance (TP theproc) = Processor $ processor theproc
 
@@ -74,6 +67,11 @@ instance (StdProcessor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProces
     parseProcessor_ (Processor a) = do args <- mkParseProcessor (name a) (arguments a)
                                        return $ TP $ TheProcessor { processor = a
                                                                   , processorArgs = args}
+    description (Processor a)     = description a
+    argDescriptions (Processor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
+        where descr d = adDescr d ++ argDescrOnDefault mshow d
+                  where mshow Nothing    = "" 
+                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
 mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace

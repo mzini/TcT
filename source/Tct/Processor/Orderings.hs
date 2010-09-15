@@ -23,7 +23,7 @@ import Text.PrettyPrint.HughesPJ
 
 data OrientationProof o = Order o
                         | Incompatible
-                          deriving Show
+
 instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
     pprint (Order o) = pprint o
     pprint Incompatible = text "The input cannot be shown compatible" 

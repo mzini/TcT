@@ -21,7 +21,6 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 
 module Tct.Method.Combinator 
     -- ( bestStrategy
@@ -40,7 +39,6 @@ module Tct.Method.Combinator
     -- )
 where
 import Prelude hiding (fail)
-import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Data.List (intersperse)
 import Control.Concurrent.PFold (pfold, fastestSatisfying)
@@ -75,7 +73,7 @@ instance PrettyPrintable TrivialProof where
 
 instance ComplexityProof TrivialProof
 
-data Fail = Fail deriving (Show, Typeable)
+data Fail = Fail deriving (Show)
 
 instance S.StdProcessor Fail where
     type S.ArgumentsOf Fail = NoArgs
@@ -86,7 +84,7 @@ instance S.StdProcessor Fail where
     description Fail        = ["Processor 'fail' always returns the answer 'No'."]
     arguments Fail          = NoArgs
 
-data Success = Success deriving (Show, Typeable)
+data Success = Success deriving (Show)
 
 instance S.StdProcessor Success where
     type S.ArgumentsOf Success = NoArgs
@@ -152,7 +150,6 @@ instance ( P.Processor g
         data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
         name Ite = "if-then-else processor"
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
-        description  _   = ["This processor implements conditional branching."]
 --        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
         solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
                                              if succeeded gproof 
@@ -171,6 +168,7 @@ instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) 
                              whiteSpace
                              einst <- pb "else"
                              return $ IteInstance ginst tinst einst
+    description  _   = ["This processor implements conditional branching."]
 
 ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
 ite = IteInstance
@@ -181,7 +179,7 @@ iteProcessor = Ite
 
 -- parallel combinators
 
-data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show, Typeable)
+data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show)
 
 data OneOfProof p = OneOfFailed (OneOf p)
                   | OneOfSucceeded (OneOf p) (P.ProofOf p) (P.InstanceOf p)

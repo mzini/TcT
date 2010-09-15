@@ -15,7 +15,6 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -97,9 +96,6 @@ class Processor a where
     data InstanceOf a 
     name            :: a -> String
     instanceName    :: (InstanceOf a) -> String
-    description     :: a -> [String]
-    argDescriptions :: a -> [(String, String)]
-    argDescriptions _ = []
 --    fromInstance :: (InstanceOf a) -> a
     solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
 
@@ -107,6 +103,9 @@ type ProcessorParser a = CharParser AnyProcessor a
 
 class Processor a => ParsableProcessor a where
     synopsis :: a -> String
+    description     :: a -> [String]
+    argDescriptions :: a -> [(String, String)]
+    argDescriptions _ = []
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
 
 
@@ -150,30 +149,29 @@ fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
 
 data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
-data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => SomeInstance (InstanceOf p) deriving Typeable
+data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => SomeInstance (InstanceOf p)
 
 
--- instance Show SomeProof where show (SomeProof p) = "SomeProof (" ++ show p ++ ")"
 instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
 instance P.Answerable SomeProof where answer (SomeProof p) = P.answer p
 
 instance P.ComplexityProof SomeProof
 
 instance Typeable (InstanceOf SomeProcessor) where 
-    typeOf (SPI i) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [typeOf i]
+    typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]
 
 instance Processor SomeProcessor where
     type ProofOf    SomeProcessor = SomeProof
     data InstanceOf SomeProcessor = SPI SomeInstance
     name (SomeProcessor proc)                = name proc
     instanceName (SPI (SomeInstance inst))   = instanceName inst
-    description (SomeProcessor proc)         = description proc
-    argDescriptions (SomeProcessor proc)     = argDescriptions proc
     solve_ (SPI (SomeInstance inst)) prob    = SomeProof `liftM` solve_ inst prob
 
 instance ParsableProcessor SomeProcessor where
     synopsis (SomeProcessor proc) = synopsis proc
     parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance) `liftM` parseProcessor_ proc
+    description (SomeProcessor proc)         = description proc
+    argDescriptions (SomeProcessor proc)     = argDescriptions proc
 
 instance PrettyPrintable SomeProcessor where
     pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppsyn $++$ ppdescr $++$ ppargdescr)
@@ -201,27 +199,27 @@ someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => Instan
 someInstance inst = SPI (SomeInstance inst)
 
 
-data AnyProcessor = OO String [SomeProcessor] deriving Typeable
+data AnyProcessor = OO String [SomeProcessor]
 
 instance Processor AnyProcessor where
     type ProofOf AnyProcessor    = SomeProof
     data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor)
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
-    description _           = []
-    argDescriptions _       = []
     solve_ (OOI inst) prob  = solve_ inst prob
 
 instance Typeable (InstanceOf AnyProcessor) where 
-    typeOf (OOI i) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [typeOf i]
+    typeOf (OOI _) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
 
 instance ParsableProcessor AnyProcessor where
     synopsis _    = "<processor>"
+    description _           = []
+    argDescriptions _       = []
     parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
 instance Show (InstanceOf AnyProcessor) where
-    show _ = "InstanceOf <anyprocessor>"
+    show _ = "InstanceOf AnyProcessor"
 
 infixr 5 <|>
 (<|>) :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor

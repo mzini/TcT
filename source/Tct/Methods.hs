@@ -61,6 +61,7 @@ module Tct.Methods
     , bool
     , optional
     , processor
+    , unit
 
     -- ** Argument Construction
     , NaturalMIKind (..)
@@ -85,7 +86,6 @@ import Tct.Method.Custom
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
-import Data.Typeable
 import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
@@ -114,7 +114,7 @@ defaultProcessor = timeoutProcessor
 call :: (ComplexityProof (P.ProofOf p), P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
 call = P.someInstance
 
-upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p, Show (P.InstanceOf p), Typeable (P.InstanceOf p)) => 
+upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) => 
         (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.Processor (OneOf p))
 upto proc (fast :+: l :+: u) | l > u     = fastest []
                              | fast      = fastest subs 

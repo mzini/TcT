@@ -48,13 +48,13 @@ instance (ComplexityProof res) => P.Processor (Custom arg res) where
   data P.InstanceOf (Custom arg res) = Inst (Custom arg res) (A.Domains arg)
   name                    = as
   instanceName (Inst p _) = as p
-  description             = description
   solve_ (Inst p aa) prob = (code p) aa prob
 
 instance (A.ParsableArguments arg, ComplexityProof res) => P.ParsableProcessor (Custom arg res) where
     synopsis p = as p ++ " " ++ A.synopsis (args p)
     parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
                            return $ Inst p aa
+    description             = description
 
 withArgs :: Custom arg res -> (A.Domains arg) -> P.InstanceOf (Custom arg res)
 c `withArgs` a = Inst c a

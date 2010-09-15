@@ -58,9 +58,6 @@ instance Processor p => Processor (Timeout p) where
     data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
     name  Timeout                    = "timeout"
     instanceName (TOInstance i inst) = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
-    description Timeout              = ["The processor either returns the result of the given processor"
-                                       , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
-    argDescriptions _                = []
     solve_ (TOInstance t inst) prob  = 
         do io <- mkIO $ apply inst prob 
            r <- liftIO $ timedKill t io
@@ -78,6 +75,9 @@ instance ParsableProcessor (Timeout AnyProcessor) where
               spec  = do n <-  number
                          return $ n
               number = try (PP.double >>= return . round) <|> PP.natural
+    description Timeout              = ["The processor either returns the result of the given processor"
+                                       , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
+    argDescriptions _                = []
 
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where

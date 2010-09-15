@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -40,11 +41,11 @@ import Data.Maybe (fromMaybe)
 -- single argument
 data Phantom k = Phantom
 
-class (Typeable (Domain a), Show (Domain a)) => Argument a where
+class Argument a where
     type Domain a
     domainName :: Phantom a -> String
 
-class Argument a => ParsableArgument a where
+class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
 
 type family CoDomain a
@@ -61,19 +62,15 @@ argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
 argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
 
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
-
 instance Show SomeDomainElt where show (SomeDomainElt e) = show e
-
 type ParsedOptionals = Map.Map String SomeDomainElt
-
 type OptionalParser = P.ProcessorParser (String, SomeDomainElt)
-
 
 class Arguments a where
     type Domains a 
-    descriptions :: a -> [ArgDescr]
 
 class Arguments a => ParsableArguments a where
+    descriptions :: a -> [ArgDescr]
     parseArgs :: a -> ParsedOptionals -> P.ProcessorParser (Domains a)
     optionalParsers :: a -> [OptionalParser]
 
@@ -91,44 +88,50 @@ data a :+: b = a :+: b deriving (Typeable, Show)
 
 instance Arguments NoArgs where 
     type Domains NoArgs = ()
+
+
+instance (Argument a) => Arguments (Arg a) where
+    type Domains (Arg a) = Domain a
+
+instance (Arguments a, Arguments b) => Arguments (a :+: b) where
+    type Domains (a :+: b) = Domains a :+: Domains b
+
+
+instance ParsableArguments NoArgs where
+    parseArgs NoArgs _ = return ()
+    optionalParsers NoArgs = []
     descriptions NoArgs = []
 
-instance Argument a => Arguments (Arg a) where
-    type Domains (Arg a) = Domain a
-    descriptions a = [ArgDescr { adIsOptional = isOptional_ a
-                               , adName       = name a
-                               , adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
-                               , adDescr      = description a
-                               , adSynopsis   = domainName (Phantom :: Phantom a) }]
-
-instance (ParsableArgument a) => ParsableArguments (Arg a) where
+instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
                      | otherwise     = parseArg (Phantom :: Phantom a)
         where lookupOpt :: Maybe (Domain a)
               lookupOpt = do (SomeDomainElt e') <- Map.lookup (name a) opts
                              cast e'
+
     optionalParsers a | isOptional_ a = [ do _ <- string $ name a
                                              whiteSpace
                                              e <- parseArg (Phantom :: Phantom a)
                                              return (name a, SomeDomainElt e) ]
                       | otherwise     = []
 
-instance (Arguments a, Arguments b) => Arguments (a :+: b) where
-    type Domains (a :+: b) = Domains a :+: Domains b
-    descriptions (a :+: b) = descriptions a ++ descriptions b
-
-
-instance ParsableArguments NoArgs where
-    parseArgs NoArgs _ = return ()
-    optionalParsers NoArgs = []
+    descriptions a = [ArgDescr { adIsOptional = isOptional_ a
+                               , adName       = name a
+                               , adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
+                               , adDescr      = description a
+                               , adSynopsis   = domainName (Phantom :: Phantom a) }]
 
 instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: b) where
     parseArgs (a :+: b) opts = do e_a <- parseArgs a opts
                                   whiteSpace
                                   e_b <- parseArgs b opts
                                   return (e_a :+: e_b)
+
     optionalParsers (a :+: b) = optionalParsers a ++ optionalParsers b
 
+    descriptions (a :+: b) = descriptions a ++ descriptions b
+
+-- operations on arguments
 
 parseArguments :: ParsableArguments a => String -> a -> P.ProcessorParser (Domains a)
 parseArguments hlp a = do opts <- Map.fromList `liftM` many (string ":" >> choice optparser)
@@ -138,7 +141,7 @@ parseArguments hlp a = do opts <- Map.fromList `liftM` many (string ":" >> choic
                                  return r 
                         | p <- optionalParsers a]
 
-synopsis :: Arguments a => a -> String
+synopsis :: ParsableArguments a => a -> String
 synopsis a = ofList oSyn `app` ofList nSyn
     where oSyn = [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- opts]
           nSyn = [ adSynopsis d | d <- nonopts]
@@ -159,4 +162,6 @@ arg = Arg { name         = "unspecified"
 opt :: Arg a
 opt = arg { isOptional_ = True }
 
+unit :: NoArgs
+unit = NoArgs
 

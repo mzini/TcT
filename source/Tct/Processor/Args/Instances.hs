@@ -62,7 +62,7 @@ instance ParsableArgument Bool where
 
 
 -- * Processors
-instance (Typeable (P.InstanceOf a), P.Processor a, Show (P.InstanceOf a)) => Argument (Processor a) where
+instance (P.Processor a) => Argument (Processor a) where
     type Domain (Processor a) = P.InstanceOf a
     domainName _ = "<processor>"
 

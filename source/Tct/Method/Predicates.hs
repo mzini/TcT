@@ -81,7 +81,7 @@ instance S.StdProcessor Predicate where
 isDuplicating :: Predicate
 isDuplicating = Predicate "duplicating" Trs.isDuplicating
 isConstructor :: Predicate
-isConstructor = Predicate "constructor" Trs.isDuplicating
+isConstructor = Predicate "constructor" Trs.isConstructor
 isCollapsing :: Predicate
 isCollapsing = Predicate "collapsing" Trs.isCollapsing
 isGround :: Predicate

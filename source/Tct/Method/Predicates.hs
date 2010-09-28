@@ -24,9 +24,9 @@ import Data.Typeable
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 import Termlib.Utils (PrettyPrintable (..))
-import Termlib.Problem (Problem,strictTrs, weakTrs)
+import Termlib.Problem (strictTrs, weakTrs)
 import Tct.Proof
-import qualified Tct.Processor as P
+import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import qualified Tct.Processor.Standard as S
@@ -64,8 +64,8 @@ instance S.StdProcessor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
     type S.ProofOf Predicate = PredicateProof
     name (Predicate n _) = n
-    solve inst prob = return $ PredicateProof name ans
-        where Predicate name p = S.processor inst
+    solve inst prob = return $ PredicateProof n ans
+        where Predicate n p = S.processor inst
               holds = case S.processorArgs inst of 
                         Strict -> p $ strictTrs prob
                         Weak   -> p $ weakTrs prob
@@ -73,6 +73,9 @@ instance S.StdProcessor Predicate where
                         Both   -> p (strictTrs prob) &&  p (weakTrs prob)
               ans | holds     = YesAnswer
                   | otherwise = NoAnswer
+    arguments _ = opt { A.name = "on"
+                      , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied,"]
+                      , A.defaultValue = Strict}
               
 
 isDuplicating :: Predicate

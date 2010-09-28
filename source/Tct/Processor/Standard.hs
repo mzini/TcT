@@ -60,7 +60,6 @@ instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a
     name (Processor a)            = name a
     instanceName (TP theproc)     = instanceName theproc
     solve_ (TP theproc) prob      = solve theproc prob
---    fromInstance (TP theproc) = Processor $ processor theproc
 
 instance (StdProcessor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (Processor a) where
     synopsis (Processor a) = name a ++ " " ++ A.synopsis (arguments a) 

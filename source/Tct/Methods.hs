@@ -33,6 +33,7 @@ module Tct.Methods
     , sequentiallyProcessor
     , successProcessor
     , timeoutProcessor
+    , predicateProcessors
     , (<|>)
     -- * Processors
     , best
@@ -49,6 +50,13 @@ module Tct.Methods
     , timeout
     , custom
     , Custom(..)
+    -- * Predicates
+    , isDuplicating
+    , isConstructor
+    , isCollapsing
+    , isLeftLinear
+    , isRightLinear
+    , isWellFormed
 
     -- * Processor Combinators and Utilities
     , call
@@ -83,6 +91,7 @@ import Tct.Method.Combine
 import Tct.Method.Bounds
 import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Custom
+import Tct.Method.Predicates
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -107,7 +116,7 @@ defaultProcessor = timeoutProcessor
                    <|> boundsProcessor
                    <|> matrixProcessor
                    <|> combineProcessor
-                   <|> none
+                   <|> foldr (<|>) none predicateProcessors
 
 -- combinators
 

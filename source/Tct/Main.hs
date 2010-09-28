@@ -32,7 +32,6 @@ import Control.Monad.Trans (liftIO)
 import Data.Maybe (isJust, fromMaybe)
 import Data.List (sortBy)
 import System
-import System.IO
 import System.Posix.Signals (Handler(..), installHandler, sigTERM)
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
@@ -92,7 +91,7 @@ tct conf = flip Dyre.wrapMain conf params
                    , Dyre.showError   = showError
                    , Dyre.configDir   = Just $ configDir conf
                    , Dyre.cacheDir    = Just $ configDir conf
-                   , Dyre.statusOut   = hPutStrLn stderr
+                   , Dyre.statusOut   = const $ return ()
                    , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version]
                    } 
           realMain cfg | errorMsg cfg /= [] = putErrorMsg (errorMsg cfg) >> exitWith exitFail

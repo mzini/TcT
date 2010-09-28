@@ -332,8 +332,8 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
           s `equiv` t  = orient allowEcomp sign prec safe mu (Eq s t)
 
           -- epo
-          u `epoimp` v | u isProperSupertermOf v = constant True 
-                       | otherwise               = orM [u `epo1` v, u `epo23` v]
+          u `epoimp` v | u `isProperSupertermOf` v = constant True 
+                       | otherwise                 = orM [u `epo1` v, u `epo23` v]
               where epo1 (Fun _ ss) t = orM [ orM [ si `equiv` t, si `epo` t] | si <- ss]
                     epo1 _          _ = constant False
 

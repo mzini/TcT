@@ -36,6 +36,7 @@ module Tct.Methods
     , predicateProcessors
     , (<|>)
     -- * Processors
+    , arctic
     , best
     , bounds
     , combine

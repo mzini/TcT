@@ -20,7 +20,6 @@ import System.FilePath ((</>))
 import System.Posix.Types (EpochTime)
 import Text.PrettyPrint.HughesPJ
 import qualified Control.Exception as C
-import qualified Control.Monad.Error as E
 import System.Posix.Time (epochTime)
 
 import Termlib.Problem (Problem, onProblem, standardProblem, dpProblem, relativeProblem, wellFormed)

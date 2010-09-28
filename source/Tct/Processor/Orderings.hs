@@ -23,13 +23,16 @@ import Text.PrettyPrint.HughesPJ
 
 data OrientationProof o = Order o
                         | Incompatible
+                        | Inapplicable String
 
 instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
     pprint (Order o) = pprint o
-    pprint Incompatible = text "The input cannot be shown compatible" 
+    pprint Incompatible = text "The input cannot be shown compatible"
+    pprint (Inapplicable s) = text s
 
 instance Answerable o => Answerable (OrientationProof o) where
     answer (Order o) = answer o
     answer Incompatible = MaybeAnswer
+    answer (Inapplicable _) = MaybeAnswer
 
 instance (PrettyPrintable o, Answerable o) => ComplexityProof (OrientationProof o)

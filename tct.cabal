@@ -50,6 +50,7 @@ Library
                     Tct.Method.Combine
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI
+                    Tct.Method.Matrix.ArcticMI
                     Tct.Method.Bounds
                     Tct.Method.Bounds.Automata
                     Tct.Method.Bounds.Violations

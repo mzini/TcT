@@ -89,6 +89,7 @@ import Tct.Method.PopStar
 import Tct.Method.EpoStar
 import Tct.Method.Combine
 import Tct.Method.Bounds
+import Tct.Method.Matrix.ArcticMI
 import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
@@ -115,6 +116,7 @@ defaultProcessor = timeoutProcessor
                    <|> epostarProcessor
                    <|> boundsProcessor
                    <|> matrixProcessor
+                   <|> arcticProcessor
                    <|> combineProcessor
                    <|> foldr (<|>) none predicateProcessors
 
@@ -123,12 +125,12 @@ defaultProcessor = timeoutProcessor
 call :: (ComplexityProof (P.ProofOf p), P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
 call = P.someInstance
 
-upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) => 
+upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) =>
         (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.Processor (OneOf p))
-upto proc (fast :+: l :+: u) | l > u     = fastest []
-                             | fast      = fastest subs 
-                             | otherwise = sequentially subs
-    where subs = [ proc i | i <- [l..u] ]
+upto prc (fast :+: l :+: u) | l > u     = fastest []
+                            | fast      = fastest subs
+                            | otherwise = sequentially subs
+    where subs = [ prc i | i <- [l..u] ]
 
 
 -- argument types

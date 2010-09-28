@@ -161,7 +161,7 @@ instance S.StdProcessor PopStar where
                   opt { A.name = "wsc"
                       , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
                                                  , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
-                      , A.defaultValue = True }
+                      , A.defaultValue = False }
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 

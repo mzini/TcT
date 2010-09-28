@@ -198,6 +198,8 @@ someProcessor = SomeProcessor
 someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 someInstance inst = SPI (SomeInstance inst)
 
+-- anyInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> SomeInstance
+-- anyInstance inst = SPI (SomeInstance inst)
 
 data AnyProcessor = OO String [SomeProcessor]
 

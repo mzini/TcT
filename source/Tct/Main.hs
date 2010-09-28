@@ -101,7 +101,9 @@ tct conf = flip Dyre.wrapMain conf params
                                                  let main pid = do e <- readMVar mv
                                                                    killThread pid
                                                                    return e
-                                                     child = runTct cfg flgs >>= putMVar mv
+                                                     child = (runTct cfg flgs >>= putMVar mv) 
+                                                             `C.catch` \ e -> do putErrorMsg $ ["TCT caught: " ++  show (e :: C.SomeException)]
+                                                                                 putMVar mv exitFail
                                                      handler pid (e :: C.SomeException) = do {killThread pid;
                                                                                              putErrorMsg $ [show e];
                                                                                              exitWith exitFail}

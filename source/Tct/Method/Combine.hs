@@ -107,7 +107,7 @@ instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdPr
                           :+: arg { A.name = "subprocessors"
                                   , A.description = unlines ["The list of processors used to handle the (relative) problem R_i modulo R\\R_i."]}
 
-    solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob')
+    solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob') -- TODO sequentially ! 
         where split :+: insts = S.processorArgs inst
               assigned = assign split insts prob
 

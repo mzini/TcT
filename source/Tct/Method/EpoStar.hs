@@ -37,7 +37,7 @@ where
 import Data.Set as Set
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Control.Monad (foldM, liftM, liftM2, liftM3, join)
+import Control.Monad (foldM, liftM, liftM2, join)
 import Control.Monad.Trans (liftIO)
 import qualified Control.Monad.State.Lazy as State
 import qualified Control.Monad.State.Class as StateClass
@@ -87,8 +87,8 @@ find e = fromMaybe (error "EpoStar.find") . Map.lookup e
 monadic2 :: Monad m => (a -> b -> m c) -> (m a -> m b -> m c)
 monadic2 f a b = join $ liftM2 f a b
 
-monadic3 :: Monad m => (a -> b -> c -> m d) -> (m a -> m b -> m c -> m d)
-monadic3 f a b c = join $ liftM3 f a b c
+-- monadic3 :: Monad m => (a -> b -> c -> m d) -> (m a -> m b -> m c -> m d)
+-- monadic3 f a b c = join $ liftM3 f a b c
 
 --------------------------------------------------------------------------------
 -- satchmo stuff
@@ -113,8 +113,8 @@ orM = monadic or
 impM :: MonadSAT m => m Boolean -> m Boolean -> m Boolean
 impM = monadic2 imp
 
-iffM :: MonadSAT m => m Boolean -> m Boolean -> m Boolean
-iffM = monadic2 iff
+-- iffM :: MonadSAT m => m Boolean -> m Boolean -> m Boolean
+-- iffM = monadic2 iff
 
 bijection :: (MonadSAT m, A.Ix a, A.Ix b) => ((a,b),(a,b)) -> m (Relation a b)
 -- stolen from http://hackage.haskell.org/package/satchmo-examples
@@ -137,7 +137,7 @@ newtype Memo arg m r = Memo {
     } deriving (Monad, Functor, StateClass.MonadState (Map.Map arg Boolean), MonadSAT)
 
 run :: Monad m => Memo arg m r -> m r
-run (Memo m) = fst `liftM` State.runStateT m Map.empty
+run m = fst `liftM` State.runStateT (runMemo m) Map.empty
 
 
 memoized :: (MonadSAT m, Ord arg) => (arg -> Memo arg m Boolean) -> (arg -> Memo arg m Boolean)
@@ -244,6 +244,9 @@ isDefined sign f = Set.member f $ defineds sign
 isConstructor :: Sig -> Symbol -> Bool
 isConstructor sign f = Set.member f $ constructors sign
 
+isConstructorTerm :: Sig -> Term -> Bool
+isConstructorTerm sign t = functionSymbols t `Set.isSubsetOf` constructors sign
+
 ar :: Sig -> Symbol -> Int
 ar sign f = arity (sig sign) f
 
@@ -320,6 +323,9 @@ instance Decode MuMappingDecoder ArgumentPermutation where
                                      fnd k = head [i | i <- [l..r],  (A.!) arr (i,k) ]
                                  return $ Map.insert f (Prelude.map fnd [u..o]) m'
 
+unorientable :: Sig -> Term -> Term -> Bool
+unorientable sign u v = variables u `Set.isProperSubsetOf` variables v 
+                        || (isConstructorTerm sign u && Prelude.not (isConstructorTerm sign v))
 
 orient :: Bool -> Sig -> Precedence -> SafeMapping -> MuMapping -> (EpoOrder -> EpoSAT Boolean)
 orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of 
@@ -333,17 +339,17 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
 
           -- epo
           u `epoimp` v | u `isProperSupertermOf` v = constant True 
+                       | unsatisfiable             = constant False 
                        | otherwise                 = orM [u `epo1` v, u `epo23` v]
-              where epo1 (Fun _ ss) t = orM [ orM [ si `equiv` t, si `epo` t] | si <- ss]
+              where unsatisfiable = unorientable sign u v 
+                    epo1 (Fun _ ss) t = orM [ orM [ si `equiv` t, si `epo` t] | si <- ss]
                     epo1 _          _ = constant False
 
-                    epo23 s@(Fun f ss) (Fun g ts) 
-                        | isDefined sign f = do andM [ andM [ do epoorient <- s `epo` ti
-                                                                 eposuborient <- s `eposub` ti
-                                                                 ite (safe g i) epoorient eposuborient
-                                                              | (i,ti) <- tsi ]
-                                                     , orM [ precM $ f :>: g, epo3]]
-
+                    epo23 s@(Fun f ss) (Fun g ts) = do andM [ andM [ do epoorient <- s `epo` ti
+                                                                        eposuborient <- s `eposub` ti
+                                                                        ite (safe g i) epoorient eposuborient
+                                                                            | (i,ti) <- tsi ]
+                                                            , orM [ precM $ f :>: g, epo3]]
                         where ssi = [ (i, si) | i <- [1..] | si <- ss]
                               tsi = [ (i, ti) | i <- [1..] | ti <- ts]
                               epo3 | isDefined sign g && length ss == length ts && length ss > 0 = andM [ precM $ f :~: g , epolex 1]
@@ -356,12 +362,14 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
                                                                     concl <- ite (safe g j) rec comp
                                                                     cond `imp` concl
                                                                  | (i, si) <- ssi, (j, tj) <- tsi]
-
                     epo23 _ _ = constant False
 
           -- eposub
-          u `eposubimp` v = orM [u `eposub1` v, u `eposub2` v] 
-              where (Fun f ss) `eposub1` t = orM [ andM [maybeNormal i, orM [si `eposub` t, si `equiv` t]] | i <- [1..] | si <- ss]
+          u `eposubimp` v | unsatisfiable = constant False
+                          | otherwise     = orM [u `eposub1` v, u `eposub2` v] 
+              where unsatisfiable = unorientable sign u v 
+                    
+                    (Fun f ss) `eposub1` t = orM [ andM [maybeNormal i, orM [si `eposub` t, si `equiv` t]] | i <- [1..] | si <- ss]
                         where maybeNormal i | isDefined sign f = return $ not $ safe f i
                                             | otherwise        = constant True
                     _ `eposub1` _ = constant False
@@ -370,18 +378,19 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
                     _ `eposub2` _ = constant False
 
           -- equivalence
-          (Var x) `equivimp` (Var y) 
-              | x == y    = constant True
-              | otherwise = constant False
-          s@(Fun f ss) `equivimp` t@(Fun g ts) 
-              | s == t                 = constant True
-              | length ss == length ts = monadic and [ return $ prec $ f :~: g 
-                                                     , andM [ and [mu f ! (i,k), mu g ! (j,k)] `impM` (si `equiv` tj)
-                                                              | (i,si) <- zip [1..] ss
-                                                            , (j,tj) <- zip [1..] ts
-                                                            , k <- [1..length ss]]]
-              | otherwise              = constant False
-          _ `equivimp` _  = constant False
+          u `equivimp` v | u == v    = constant True
+                         | unsatisfiable = constant False
+                         | otherwise = case (u,v) of
+                                         (Var _, Var _) -> constant False -- u != v assumed
+                                         (Fun f ss, Fun g ts) | unsat     -> constant False 
+                                                              | otherwise -> monadic and [ return $ prec $ f :~: g
+                                                                                        , andM [ and [mu f ! (i,k), mu g ! (j,k)] `impM` (si `equiv` tj)
+                                                                                                 | (i,si) <- zip [1..] ss
+                                                                                               , (j,tj) <- zip [1..] ts
+                                                                                               , k <- [1..length ss]]]
+                                                              where unsat = (length ss /= length ts) || (isConstructor sign f /= isConstructor sign g)
+                                         _              -> constant False
+              where unsatisfiable = unorientable sign u v 
 
 
 orientTrs :: Sig -> Bool -> Trs -> IO (Maybe (SM.SafeMapping, (Prec.Precedence, ArgumentPermutation)))

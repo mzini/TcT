@@ -27,7 +27,7 @@ import System.IO.Unsafe
 import Termlib.Utils (PrettyPrintable (..))
 
 debugEnabled :: Bool
-debugEnabled = True
+debugEnabled = False
 
 putErrLn :: String -> IO ()
 putErrLn s = hPutStr stderr (s ++ "\n")
@@ -63,6 +63,7 @@ timedLogCatchErr s m = whenDebug dm m
 
 debugMsg :: MonadIO m => String -> m ()
 debugMsg = whenDebug (liftIO . putErrLn) (const $ return ())
+
 
 unsafeDebugMsg :: Show a => a -> a
 unsafeDebugMsg a = unsafePerformIO (debugMsg (show a) >> return a)

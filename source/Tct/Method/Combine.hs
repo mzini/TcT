@@ -30,16 +30,16 @@ import Data.Typeable (Typeable)
 import Control.Monad (liftM, forM)
 import Data.Either (partitionEithers)
 import Text.PrettyPrint.HughesPJ
-import Text.Parsec.Char (string)
 
 import qualified Tct.Processor as P
+import Tct.Processor.PPrint
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Certificate
 import Tct.Proof
-import Termlib.Utils (($++$), PrettyPrintable (..), paragraph, underline, enumerated, pprintInt)
+import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), rules, union)
 import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem, prettyPrintRelation)
 
@@ -69,24 +69,19 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (Comb
     pprint (CombineProof split ps) = paragraph (unlines [ "We have partition the input TRS R into TRSs R_1, ...,R_" ++ (show n) ++ " as depicted below using the function "
                                                         , "'" ++ show split ++ "'" 
                                                         , "and apply the i-th given subprocessor on the relative problem R_i modulo R\\R_i."])
-                                     $+$ (if succ then empty else text "Unfortunately one of the subprocessors failed.")
+                                     $+$ (if success then empty else text "Unfortunately one of the subprocessors failed.")
                                      $+$ text ""
-                                     $+$ underline (text "Overview:")
-                                     $+$ vcat [overview i p $+$ text "" | p <- ps | i <- [(1 :: Int)..]]
+                                     $+$ overview [ppOverview p | p <- ps]
                                      $+$ text ""
-                                     $+$ details
+                                     $+$ details (if success then ps else [ p | p <- ps , not (succeeded p)])
         where n = length ps
-              succ = all succeeded ps
-              overview i p = text (show i ++ ")") <+> procname p <+> status <+> text "on the subproblem" <+> probname i <+> text "defined as:"
+              success = all succeeded ps
+              ppOverview p = procname p <+> status <+> text "on the subproblem defined by:"
                              $+$ nest 2 (prettyPrintRelation (P.inputProblem p))
                            where status | succeeded p = text "reports bound" <+> pprint (answer p)
                                         | otherwise   = text "FAILED"
-              details | succ      = underline $ text "Details:"
-                                    $+$ enumerated [pprintInt i | i <- [1..]] [pprint p $+$ text "" | p <- ps]
-                      | otherwise = underline $ text "Details (of failed Attempts):"
-                                    $+$ enumerated [pprintInt i | i <- [1..]] [pprint p $+$ text "" | p <- ps, not (succeeded p)]
               procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
-              probname i = text $ "R_" ++ show i ++ " modulo R\\R_" ++ show i
+--              probname i = text $ "R_" ++ show i ++ " modulo R\\R_" ++ show i
 
 instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
     answer (CombineProof _ ps) | allcerts  = CertAnswer $ certified (unknown, ub [upperBound (certificate p) | p <- ps])

@@ -35,6 +35,7 @@ Library
                     Tct.Processor.Standard
                     Tct.Processor.Args
                     Tct.Processor.Args.Instances
+                    Tct.Processor.PPrint
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence

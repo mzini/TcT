@@ -44,12 +44,13 @@ import Data.List (intersperse)
 import Control.Concurrent.PFold (pfold, fastestSatisfying)
 import Text.Parsec.Prim
 import Text.Parsec.Char
-import Control.Monad (forM)
+import Control.Monad (forM, liftM)
 import Control.Monad.Trans (liftIO)
 
-import Termlib.Utils (PrettyPrintable(..))
+import Termlib.Utils (PrettyPrintable(..), enumerated, pprintInt)
 
 import qualified Tct.Processor as P
+import Tct.Processor.PPrint
 import qualified Tct.Processor.Standard as S
 import Tct.Proof
 import Tct.Processor.Args
@@ -181,18 +182,27 @@ iteProcessor = Ite
 
 data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show)
 
-data OneOfProof p = OneOfFailed (OneOf p)
-                  | OneOfSucceeded (OneOf p) (P.ProofOf p) (P.InstanceOf p)
+data OneOfProof p = OneOfFailed (OneOf p) [P.Proof p]
+                  | OneOfSucceeded (OneOf p) (P.Proof p)
 
-instance Answerable (P.ProofOf p) => Answerable (OneOfProof p) where
-    answer (OneOfFailed _)        = MaybeAnswer
-    answer (OneOfSucceeded _ p _) = answer p
+instance Answerable (P.Proof p) => Answerable (OneOfProof p) where
+    answer (OneOfFailed _ _)    = MaybeAnswer
+    answer (OneOfSucceeded _ p) = answer p
 
-instance PrettyPrintable (P.ProofOf p) => PrettyPrintable (OneOfProof p) where
-    pprint (OneOfFailed _) = text "All processors failed"
-    pprint (OneOfSucceeded _ proof _) = pprint proof -- text "Processor" <+> quotes (text $ P.instanceName proc) <+> text "has been applied:"
---                                           $+$ pprint proof
-instance (PrettyPrintable (P.ProofOf p), Answerable (P.ProofOf p)) => ComplexityProof (OneOfProof p)
+instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneOfProof p) where
+    pprint proof = case proof of 
+                     (OneOfFailed _ failures) -> text "None of the processors succeeded."
+                                                $+$ text "" 
+                                                $+$ details [procname p $+$ pprint (P.result p) | p <- failures]
+                     (OneOfSucceeded o proof) -> descr o
+                                                $+$ text ""
+                                                $+$ details [proof]
+                                                    where descr Sequentially = procname proof <+> text "succeeded"
+                                                          descr Fastest      = procname proof <+> text "proved the goal fastest:"
+                                                          descr Best         = procname proof <+> text "proved the best result:"
+        where procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+
+instance (P.Processor p, ComplexityProof (P.ProofOf p)) => ComplexityProof (OneOfProof p)
 
 instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) where
     type S.ArgumentsOf (OneOf p) = Arg [S.Processor p]
@@ -213,33 +223,32 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
 
     arguments _ = arg { A.name        = "subprocessors"
                       , A.description = "a list of subprocessors"}
-    solve theproc prob | S.processor theproc == Sequentially = solveSeq (S.processorArgs theproc)
+    solve theproc prob | S.processor theproc == Sequentially = solveSeq (S.processorArgs theproc) []
                        | S.processor theproc == Best         = solveBest (S.processorArgs theproc)
                        | otherwise                           = solveFast (S.processorArgs theproc)
 
-        where mkActions ps = forM ps $ \ proc -> P.mkIO $ do proof <- P.solve proc prob
-                                                             return $ Just (proof, proc)
-              ofResult o Nothing = OneOfFailed o
-              ofResult o (Just (proof, proc)) = OneOfSucceeded o proof proc
+        where mkActions ps = forM ps $ \ proc -> P.mkIO $ Right `liftM` P.apply proc prob
+              ofResult o (Left faileds) = OneOfFailed o faileds
+              ofResult o (Right proof) = OneOfSucceeded o proof
               
-              solveSeq [] = return $ OneOfFailed Sequentially
-              solveSeq (p:ps) = do r <- P.solve p prob
-                                   if succeeded r
-                                    then return $ OneOfSucceeded Sequentially r p
-                                    else solveSeq ps
+              solveSeq []     failures = return $ OneOfFailed Sequentially (reverse failures)
+              solveSeq (p:ps) failures = do r <- P.apply p prob
+                                            if succeeded r
+                                             then return $ OneOfSucceeded Sequentially r
+                                             else solveSeq ps (r:failures)
               
               solveFast ps = do actions <- mkActions ps
-                                let msucceeded Nothing = False
-                                    msucceeded (Just (proof, _)) = succeeded proof
-                                r <- liftIO $ fastestSatisfying msucceeded Nothing actions
+                                let esucceeded (Left _)      = False
+                                    esucceeded (Right proof) = succeeded proof
+                                r <- liftIO $ fastestSatisfying esucceeded (Left []) actions
                                 return $ ofResult Fastest r
                                 
               solveBest ps = do actions <- mkActions ps
-                                let mcertificate Nothing           = C.uncertified 
-                                    mcertificate (Just (proof, _)) = certificate proof 
-                                    select mpr1 mpr2 | mcertificate mpr1 > mcertificate mpr2 = mpr2
+                                let ecertificate (Left _)      = C.uncertified 
+                                    ecertificate (Right proof) = certificate proof 
+                                    select mpr1 mpr2 | ecertificate mpr1 > ecertificate mpr2 = mpr2
                                                      | otherwise                             = mpr1
-                                r <- liftIO $ pfold select Nothing $ actions
+                                r <- liftIO $ pfold select (Left [])  $ actions
                                 return $ ofResult Best r
 
 

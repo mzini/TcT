@@ -94,22 +94,23 @@ tct conf = flip Dyre.wrapMain conf params
                    , Dyre.statusOut   = const $ return ()
                    , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version]
                    } 
-          realMain cfg | errorMsg cfg /= [] = putErrorMsg (errorMsg cfg) >> exitWith exitFail
-                       | otherwise          = do flgs <- readFlags
-                                                 mv   <- newEmptyMVar
-                                                 _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
-                                                 let main pid = do e <- readMVar mv
-                                                                   killThread pid
-                                                                   return e
-                                                     child = (runTct cfg flgs >>= putMVar mv) 
-                                                             `C.catch` \ e -> do putErrorMsg $ ["TCT caught: " ++  show (e :: C.SomeException)]
-                                                                                 putMVar mv exitFail
-                                                     handler pid (e :: C.SomeException) = do {killThread pid;
-                                                                                             putErrorMsg $ [show e];
-                                                                                             exitWith exitFail}
-                                                 pid <- C.unblock $ forkOS $ child
-                                                 e <- main pid `C.catch` handler pid
-                                                 exitWith e
+
+          realMain cfg | errorMsg cfg /= [] = C.block $ putErrorMsg (errorMsg cfg) >> exitWith exitFail
+                       | otherwise          = C.block $ do flgs <- readFlags
+                                                           mv   <- newEmptyMVar
+                                                           _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
+                                                           let main pid = do e <- readMVar mv
+                                                                             killThread pid
+                                                                             return e
+                                                               child = (C.unblock (runTct cfg flgs) >>= putMVar mv) 
+                                                                       `C.catch` \ e -> do putErrorMsg $ ["TCT caught: " ++  show (e :: C.SomeException)]
+                                                                                           putMVar mv exitFail
+                                                               handler pid (e :: C.SomeException) = do { killThread pid;
+                                                                                                        putErrorMsg $ [show e];
+                                                                                                        exitWith exitFail}
+                                                           pid <- forkOS $ child
+                                                           e <- main pid `C.catch` handler pid
+                                                           exitWith e
 
           
           readFlags = do fl <- getFlags

@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -15,7 +14,7 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Tct.Main 
@@ -28,6 +27,7 @@ where
 
 import Control.Concurrent (killThread, forkOS)
 import Control.Concurrent.MVar (putMVar, readMVar, newEmptyMVar)
+import Control.Exception (throw)
 import Control.Monad.Trans (liftIO)
 import Data.Maybe (isJust, fromMaybe)
 import Data.List (sortBy)
@@ -40,19 +40,22 @@ import qualified Control.Exception as C
 
 import Termlib.Utils (PrettyPrintable (..))
 
-import Tct (Config (..), defaultConfig, run)
+import Tct (Config (..), defaultConfig, run, TCTError)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
 import Tct.Processor (Processor (..), ParsableProcessor (..), processors, name)
 import qualified Tct.Main.Version as V
 
+
+
+instance C.Exception Tct.TCTError where
+
+
 showError :: Config -> String -> Config
 showError cfg msg = cfg { errorMsg = msg : errorMsg cfg }
 
-runTct :: Config -> Flags -> IO ExitCode
+runTct :: Config -> Flags -> IO ()
 runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolean Complexity Tool, Version " ++ version cfg
-                                                         return ExitSuccess
                 | showHelp flgs                     = do putStrLn $ unlines helpMessage
-                                                         return ExitSuccess
                 | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
                                                              p1 `ord` p2 = name p1 `compare` name p2
                                                              procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
@@ -61,12 +64,11 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                                                                                                         || matches reg (unlines (description proc))]
                                                                        Nothing  -> processors (parsableProcessor cfg)
                                                          putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
-                                                         return ExitSuccess
                 | otherwise        = do (r,warns) <- liftIO $ run flgs cfg
                                         putWarnMsg [show $ pprint warn | warn <- warns]
                                         case r of 
-                                          Just e  -> putErrorMsg [(show $ pprint e)] >> return exitFail
-                                          Nothing -> return ExitSuccess
+                                          Just e  -> throw $ C.SomeException e
+                                          Nothing -> return ()
 
 
 putErrorMsg :: [String] -> IO ()
@@ -102,9 +104,8 @@ tct conf = flip Dyre.wrapMain conf params
                                                            let main pid = do e <- readMVar mv
                                                                              killThread pid
                                                                              return e
-                                                               child = (C.unblock (runTct cfg flgs) >>= putMVar mv) 
-                                                                       `C.catch` \ e -> do putErrorMsg $ ["TCT caught: " ++  show (e :: C.SomeException)]
-                                                                                           putMVar mv exitFail
+                                                               child = (C.unblock (runTct cfg flgs) >> putMVar mv ExitSuccess) 
+                                                                       `C.catch` \ (e :: C.SomeException) -> putErrorMsg [show e] >> putMVar mv exitFail
                                                                handler pid (e :: C.SomeException) = do { killThread pid;
                                                                                                         putErrorMsg $ [show e];
                                                                                                         exitWith exitFail}

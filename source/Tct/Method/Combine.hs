@@ -36,23 +36,16 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
-import qualified Tct.Processor.Args.Instances()
+import Tct.Processor.Args.Instances
 import Tct.Certificate
 import Tct.Proof
-import Termlib.Utils (($++$), PrettyPrintable (..), paragraph)
+import Termlib.Utils (($++$), PrettyPrintable (..), paragraph, underline, enumerated, pprintInt)
 import Termlib.Trs (Trs(..), rules, union)
-import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem)
+import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem, prettyPrintRelation)
 
 
-data PartitionFn = Random deriving (Show, Typeable)
+data PartitionFn = Random deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
 
-instance Argument PartitionFn where
-    type Domain PartitionFn = PartitionFn
-    domainName Phantom = "[random]"
-
-instance ParsableArgument PartitionFn where
-    parseArg Phantom = do _  <- string "random"
-                          return Random
 
 assign :: PartitionFn -> [a] -> Problem -> [(a, Problem)]
 assign Random processors problem = [(proc, problem {relation = mkrel mask}) | (proc, mask) <- take l (zip processors masks)]
@@ -72,24 +65,40 @@ data Combine p = Combine
 
 data CombineProof p = CombineProof PartitionFn [P.Proof p]
 
-instance PrettyPrintable (P.Proof p) => PrettyPrintable (CombineProof p) where
-    pprint (CombineProof split ps) = paragraph (unlines [ "We split the input TRS R into TRSs R_1, ...,R_n using the function "
+instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (CombineProof p) where
+    pprint (CombineProof split ps) = paragraph (unlines [ "We have partition the input TRS R into TRSs R_1, ...,R_" ++ (show n) ++ " as depicted below using the function "
                                                         , "'" ++ show split ++ "'" 
-                                                        , "and apply the given processor p_i on the relative problem R_i modulo R\\R_i."])
-                                    $++$ vcat [pp i p | p <- ps | i <- [(1 :: Int)..]]
-        where pp _ p = pprint p $+$ text "" -- TODO
+                                                        , "and apply the i-th given subprocessor on the relative problem R_i modulo R\\R_i."])
+                                     $+$ (if succ then empty else text "Unfortunately one of the subprocessors failed.")
+                                     $+$ text ""
+                                     $+$ underline (text "Overview:")
+                                     $+$ vcat [overview i p $+$ text "" | p <- ps | i <- [(1 :: Int)..]]
+                                     $+$ text ""
+                                     $+$ details
+        where n = length ps
+              succ = all succeeded ps
+              overview i p = text (show i ++ ")") <+> procname p <+> status <+> text "on the subproblem" <+> probname i <+> text "defined as:"
+                             $+$ nest 2 (prettyPrintRelation (P.inputProblem p))
+                           where status | succeeded p = text "reports bound" <+> pprint (answer p)
+                                        | otherwise   = text "FAILED"
+              details | succ      = underline $ text "Details:"
+                                    $+$ enumerated [pprintInt i | i <- [1..]] [pprint p $+$ text "" | p <- ps]
+                      | otherwise = underline $ text "Details (of failed Attempts):"
+                                    $+$ enumerated [pprintInt i | i <- [1..]] [pprint p $+$ text "" | p <- ps, not (succeeded p)]
+              procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+              probname i = text $ "R_" ++ show i ++ " modulo R\\R_" ++ show i
 
-instance Answerable (P.Proof p) => Answerable (CombineProof p) where
+instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
     answer (CombineProof _ ps) | allcerts  = CertAnswer $ certified (unknown, ub [upperBound (certificate p) | p <- ps])
                                | otherwise = MaybeAnswer
         where ub []     = poly $ Just 0
               ub (p':ps') = foldl add p' ps'
               allcerts = all (succeeded . answer) $ ps
 
-instance (PrettyPrintable (P.Proof p), Answerable (P.Proof p)) => ComplexityProof (CombineProof p)
+instance (P.Processor p, ComplexityProof (P.ProofOf p)) => ComplexityProof (CombineProof p)
 
 instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdProcessor (Combine p) where
-    type S.ArgumentsOf (Combine p) = Arg PartitionFn :+: Arg [S.Processor p]
+    type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [S.Processor p]
     type S.ProofOf (Combine p)     = CombineProof p
 
     name Combine        = "combine"
@@ -110,7 +119,6 @@ instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdPr
     solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob') -- TODO sequentially ! 
         where split :+: insts = S.processorArgs inst
               assigned = assign split insts prob
-
 combineProcessor :: S.Processor (Combine P.AnyProcessor)
 combineProcessor = S.Processor Combine
 

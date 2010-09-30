@@ -199,11 +199,11 @@ orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                                  Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk
                                     where addAct :: MiniSat ()
                                           addAct = toFormula (liftM N.bound cb) (N.bound n) (f st dps trs sig mp) >>= SatSolver.addFormula
-                                          mi     = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
+                                          mi     = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (dps `Trs.union` trs)) :: MatrixInter (N.Size -> Int)
                                           n      = bound mp
                                           cb     = cbits mp
                                           d      = dim mp
-                                          mk     = kind mp st 
+                                          mk     = kind mp st
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative | MWeightGap deriving Show
@@ -221,10 +221,7 @@ weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 matrixConstraints mrel mdp st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
-  where extabsmi   = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
-        absmi      = extabsmi{interpretations = filterTrss $ interpretations extabsmi}
-        filterTrss = Map.filterWithKey (\f _ -> f `Set.member` trsFuns)
-        trsFuns    = Trs.functionSymbols weak `Set.union` Trs.functionSymbols strict
+  where absmi      = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         otherConstraints UnrestrictedMatrix mi = dpChoice mdp mi

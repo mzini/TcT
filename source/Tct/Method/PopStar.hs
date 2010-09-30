@@ -167,7 +167,7 @@ instance S.StdProcessor PopStar where
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
                      ((BasicTerms _ cs), Innermost) -> orientProblem (isLmpo $ S.processor inst) ps wsc cs prob
                          where ps :+: wsc = S.processorArgs inst
-                     _                              -> return Incompatible
+                     _                              -> return (Inapplicable "POP* only applicable for innermost runtime complexity analysis")
 
 
 

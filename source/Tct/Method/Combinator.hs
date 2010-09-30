@@ -193,11 +193,11 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneO
     pprint proof = case proof of 
                      (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                                 $+$ text "" 
-                                                $+$ details [procname p $+$ pprint (P.result p) | p <- failures]
+                                                $+$ details [procname p $+$ (nest 1 $ pprint $ P.result p) | p <- failures]
                      (OneOfSucceeded o proof) -> descr o
                                                 $+$ text ""
-                                                $+$ details [proof]
-                                                    where descr Sequentially = procname proof <+> text "succeeded"
+                                                $+$ details [nest 1 $ pprint $ P.result proof]
+                                                    where descr Sequentially = procname proof <+> text "succeeded:"
                                                           descr Fastest      = procname proof <+> text "proved the goal fastest:"
                                                           descr Best         = procname proof <+> text "proved the best result:"
         where procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
@@ -227,7 +227,7 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
                        | S.processor theproc == Best         = solveBest (S.processorArgs theproc)
                        | otherwise                           = solveFast (S.processorArgs theproc)
 
-        where mkActions ps = forM ps $ \ proc -> P.mkIO $ Right `liftM` P.apply proc prob
+        where mkActions ps = forM ps $ \ proc -> P.mkIO $ P.apply proc prob
               ofResult o (Left faileds) = OneOfFailed o faileds
               ofResult o (Right proof) = OneOfSucceeded o proof
               
@@ -236,19 +236,22 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
                                             if succeeded r
                                              then return $ OneOfSucceeded Sequentially r
                                              else solveSeq ps (r:failures)
+
+              esucceeded (Left _)      = False
+              esucceeded (Right proof) = succeeded proof
+              ecertificate (Left _)      = C.uncertified 
+              ecertificate (Right proof) = certificate proof 
               
               solveFast ps = do actions <- mkActions ps
-                                let esucceeded (Left _)      = False
-                                    esucceeded (Right proof) = succeeded proof
-                                r <- liftIO $ fastestSatisfying esucceeded (Left []) actions
+                                r <- liftIO $ fastestSatisfying esucceeded (Left []) [Right `liftM` m | m <- actions]
                                 return $ ofResult Fastest r
                                 
               solveBest ps = do actions <- mkActions ps
-                                let ecertificate (Left _)      = C.uncertified 
-                                    ecertificate (Right proof) = certificate proof 
-                                    select mpr1 mpr2 | ecertificate mpr1 > ecertificate mpr2 = mpr2
-                                                     | otherwise                             = mpr1
-                                r <- liftIO $ pfold select (Left [])  $ actions
+                                let select (Left ps) proof | succeeded proof = Right proof
+                                                           | otherwise       = Left (proof : ps)
+                                    select (Right p1) p2 | certificate p2 < certificate p1 = Right p2
+                                                         | otherwise                       = Right p1
+                                r <- liftIO $ pfold select (Left []) actions
                                 return $ ofResult Best r
 
 

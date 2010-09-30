@@ -208,7 +208,7 @@ instance S.StdProcessor EpoStar where
                                                                                             , sig = Prob.signature prob
                                                                                             , vars = Prob.variables prob}
                                                                                  ec   = S.processorArgs inst
-                        _                                                            -> return Incompatible
+                        _                                                            -> return (Inapplicable "EPO* only applicable for innermost runtime complexity analysis of constructor TRSs")
 
 epostarProcessor :: S.Processor EpoStar
 epostarProcessor = S.Processor EpoStar

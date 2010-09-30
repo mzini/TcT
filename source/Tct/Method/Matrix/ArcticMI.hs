@@ -171,7 +171,7 @@ orientMatrix f dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                               Just mv -> Order $ ArcticOrder $ fmap (\x -> x n) mv
                                 where addAct :: MiniSat ()
                                       addAct = toFormula (liftM AS.bound cb) (AS.bound n) (f dps trs sig mp) >>= SatSolver.addFormula
-                                      mi     = abstractInterpretation UnrestrictedMatrix d sig :: MatrixInter (AS.Size -> ArcInt)
+                                      mi     = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (dps `Trs.union` trs)) :: MatrixInter (AS.Size -> ArcInt)
                                       n      = bound mp
                                       cb     = cbits mp
                                       d      = dim mp
@@ -184,10 +184,7 @@ dpConstraints = matrixConstraints MDirect MWithDP
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 matrixConstraints mrel mdp strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints absmi
-  where extabsmi   = abstractInterpretation UnrestrictedMatrix d sig :: MatrixInter (DioPoly DioVar ArcInt)
-        absmi      = extabsmi{interpretations = filterTrss $ interpretations extabsmi}
-        filterTrss = Map.filterWithKey (\f _ -> f `Set.member` trsFuns)
-        trsFuns    = Trs.functionSymbols weak `Set.union` Trs.functionSymbols strict
+  where absmi   = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar ArcInt)
         d          = dim mp
         otherConstraints mi = dpChoice mdp mi
         strictChoice MDirect   = strictTrsConstraints

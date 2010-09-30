@@ -1,0 +1,17 @@
+(VAR x y xs ys)
+(RULES
+leq(0,x) -> tt
+leq(s(x),0) -> ff
+leq(s(x),s(y)) -> leq(x,y)
+split(nil) -> app(nil,nil)
+split(cons(x,nil)) -> app(cons(x,nil),nil)
+split(cons(x,cons(y,xs))) -> split1(x,y,split(xs))
+split1(x,y,app(xs,ys)) -> app(cons(x,xs),cons(y,ys))
+merge([],xs) -> xs
+merge(xs,[]) -> xs
+merge(cons(x,xs),cons(y,ys)) -> ifmerge(leq(x,y),x,y,xs,ys)
+ifmerge(tt,x,y,xs,ys) -> cons(x,merge(xs,cons(y,ys)))
+ifmerge(ff,x,y,xs,ys) -> cons(y,merge(cons(x,xs),ys))
+mergesort(xs) -> mergesort1(split(xs))
+mergesort1(app(xs,ys)) -> merge(mergesort(xs),mergesort(ys))
+)

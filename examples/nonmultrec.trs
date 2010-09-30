@@ -1,0 +1,8 @@
+(VAR n x y z)
+(RULES
+battle(H(0,x),n) -> battle(x,s(n))
+battle(H(H(0,x),y),n) -> battle(f(x,y,n),s(n))
+battle(H(H(H(0,x),y),z),n) -> battle(H(f(x,y,n),z),s(n))
+f(x,y,o) -> y
+f(x,y,s(n)) -> H(x,f(x,y,n))
+)

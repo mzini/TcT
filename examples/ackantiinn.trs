@@ -1,0 +1,13 @@
+(VAR m n)
+(RULES
+acka(y,n) -> s(n)
+acka(a(m),y) -> acka(m,s(0))
+acka(a(m),a(n)) -> acka(m,ackb(s(m),n))
+ackb(z,n) -> s(n)
+ackb(b(m),z) -> ackb(m,s(0))
+ackb(b(m),b(n)) -> acka(m,ackb(s(m),n))
+s(n) -> a(n)
+s(n) -> b(n)
+0 -> y
+0 -> z
+)

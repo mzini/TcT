@@ -1,0 +1,8 @@
+(VAR x)
+(RULES
+half(0) -> 0
+half(s(0)) -> 0
+half(s(s(x))) -> s(half(x))
+bits(0) -> 0
+bits(s(x)) -> s(bits(half(s(x))))
+)

@@ -1,0 +1,6 @@
+(VAR x xs ys)
+(RULES
+ rev(xs) -> revtl(xs,nil)
+ revtl(nil,ys) -> ys
+ revtl(cons(x,xs), ys) -> revtl(xs, cons(x,ys))
+)

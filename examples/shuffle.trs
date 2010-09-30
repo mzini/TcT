@@ -1,0 +1,9 @@
+(VAR x xs ys)
+(RULES
+app(nil, xs) -> nil
+app(cons(x, xs), ys) -> cons(x, app(xs, ys))
+rev(nil) -> nil
+rev(cons(x, xs)) -> append(xs, rev(cons(x, nil)))
+shuffle(nil) -> nil
+shuffle(cons(x,xs)) -> cons(x,shuffle(rev(xs)))
+)

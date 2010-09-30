@@ -1,0 +1,12 @@
+(VAR x y a b l)
+(RULES
+ite(tt,x,y) -> x
+ite(ff,x,y) -> y
+lt(0,s(y)) -> tt
+lt(x,0) -> ff
+lt(s(x),s(y)) -> lt(x,y)
+insert(a,nil) -> cons(a,nil)
+insert(a,cons(b,l)) -> ite(lt(a,b),cons(a,cons(b,l)),cons(b,insert(a,l)))
+sort(nil) -> nil
+sort(cons(a,l)) -> insert(a,sort(l))
+)

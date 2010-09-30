@@ -1,0 +1,7 @@
+(VAR x y)
+(RULES
+d(0) -> 0
+d(s(x)) -> s(s(d(x)))
+e(0,x) -> x
+e(s(x),y) -> e(x,d(y))
+)

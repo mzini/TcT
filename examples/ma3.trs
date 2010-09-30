@@ -1,0 +1,7 @@
+(VAR x y)
+(RULES
+ p(0) -> 0
+ p(s(x)) -> x
+ minus(x,0) -> x
+ minus(x,s(y)) -> minus(p(x), y)
+)

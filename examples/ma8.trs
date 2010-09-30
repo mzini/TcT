@@ -1,0 +1,9 @@
+(VAR m n o p)
+
+(RULES
+ f(0,n) -> g(0,n)
+ f(m,0) -> g(m,0)
+ f(s(m), s(n)) -> h(m,n,f(m,p(m,n)), f(s(m),n))
+ g(n,m) -> bot
+ h(m,n,o,p) -> bot
+)

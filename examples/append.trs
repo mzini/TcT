@@ -1,0 +1,5 @@
+(VAR x xs ys)
+(RULES
+app(nil, xs) -> nil
+app(cons(x, xs), ys) -> cons(x, app(xs, ys))
+)

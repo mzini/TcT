@@ -1,0 +1,9 @@
+(VAR x y)
+(RULES
+ plus(x,0) -> x
+ plus(x,s(y)) -> s(plus(x,y))
+ d(0) -> 0
+ d(s(x)) -> s(s(d(x)))
+ q(0) -> 0
+ q(s(x)) -> s(plus(q(x), d(x)))
+)

@@ -5,7 +5,3 @@ die pfadanalyse ist sub-optimal, siehe email; eigentlich müssten wir CaT auf de
 *) 10.9.2010
 
 die strategie, bezeichnung 'weight gap principle' ist irreführend, hier wird das 'derivational gap principle' verwendet, dass sich direkt auf relative rewriting bezieht; das 'weight gap principle' bezieht sich auf runtime complexity und hier soll eine neue technik implementiert werden.
-
-*) 30.9.2010
-
-Unnötige Interpretationsfunktionen auf WDG-Pfaden sollten nun verhindert sein, das muss aber noch getestet werden.

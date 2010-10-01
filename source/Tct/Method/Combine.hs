@@ -41,7 +41,7 @@ import Tct.Certificate
 import Tct.Proof
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), rules, union)
-import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem, prettyPrintRelation)
+import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem)
 
 
 data PartitionFn = Random deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
@@ -71,16 +71,12 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (Comb
                                                         , "and apply the i-th given subprocessor on the relative problem R_i modulo R\\R_i."])
                                      $+$ (if success then empty else text "Unfortunately one of the subprocessors failed.")
                                      $+$ text ""
-                                     $+$ overview [ppOverview p | p <- ps]
+                                     $+$ overview ps
                                      $+$ text ""
-                                     $+$ details (if success then ps else [ p | p <- ps , not (succeeded p)])
+                                     $+$ (if success then detailsSuccess ps else detailsFailed ps)
         where n = length ps
               success = all succeeded ps
-              ppOverview p = procname p <+> status <+> text "on the subproblem defined by:"
-                             $+$ nest 2 (prettyPrintRelation (P.inputProblem p))
-                           where status | succeeded p = text "reports bound" <+> pprint (answer p)
-                                        | otherwise   = text "FAILED"
-              procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+
 --              probname i = text $ "R_" ++ show i ++ " modulo R\\R_" ++ show i
 
 instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where

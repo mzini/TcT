@@ -31,6 +31,7 @@ where
 import Text.ParserCombinators.Parsec
 
 import qualified Tct.Processor as P
+import Tct.Proof
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
 import Termlib.Problem (Problem)

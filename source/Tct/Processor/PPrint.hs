@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -18,7 +19,10 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Processor.PPrint where
 
 import Text.PrettyPrint.HughesPJ
-import Termlib.Utils (($++$), PrettyPrintable (..), underline, enumerated, pprintInt)
+import Termlib.Utils (PrettyPrintable (..), underline, enumerated, pprintInt)
+import Termlib.Problem (prettyPrintRelation)
+import Tct.Proof
+import qualified Tct.Processor as P
 
 heading :: String -> Doc
 heading n = underline (text $ n ++ ":")
@@ -26,13 +30,29 @@ heading n = underline (text $ n ++ ":")
 enum :: (PrettyPrintable t) => [t] -> Doc
 enum ps = enumerated [pprintInt i | i <- [1..]] [pprint p $+$ text "" | p <- ps]
 
-overview :: (PrettyPrintable t) => [t] -> Doc
-overview [] = empty
-overview [d] = heading "Overview" $+$ (nest 2 $ pprint d)
-overview ds = heading "Overview" $+$ (nest 2 $ enum ds)
 
-details :: (PrettyPrintable t) => [t] -> Doc
-details [] = empty
-details [d] = heading "Details" $+$ (nest 2 $ pprint d)
-details ds = heading "Details" $+$ (nest 2 $ enum ds)
+block :: (PrettyPrintable t) => String -> [t] -> Doc
+block _ [] = empty
+block h [d] = heading h $+$ (nest 2 $ pprint d)
+block h ds = heading h $+$ (nest 2 $ enum ds)
 
+procName :: (P.Processor a) => P.Proof a -> Doc
+procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+
+
+details :: (P.Processor a, Answerable (P.ProofOf a), PrettyPrintable (P.ProofOf a)) => [P.Proof a] -> Doc
+details ps | any failed ps = detailsFailed ps
+           | otherwise     = detailsSuccess ps
+
+detailsFailed :: (P.Processor a, Answerable (P.ProofOf a), PrettyPrintable (P.ProofOf a)) => [P.Proof a] -> Doc
+detailsFailed ps = block "Details (of failed attempts)" [procName p $+$ (nest 1 $ pprint $ P.result p) | p <- ps, failed p]
+
+detailsSuccess :: (P.Processor a, PrettyPrintable (P.ProofOf a)) => [P.Proof a] -> Doc
+detailsSuccess ps = block "Details" [procName p $+$ (nest 1 $ pprint $ P.result p) | p <- ps]
+
+overview :: (P.Processor a, Answerable (P.ProofOf a)) => [P.Proof a] -> Doc
+overview ps = block "Overview" [ppOverview p | p <- ps]
+    where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
+                         $+$ nest 2 (prettyPrintRelation (P.inputProblem p))
+                           where status | succeeded p = text "reports bound" <+> pprint (answer p)
+                                        | otherwise   = text "FAILED"

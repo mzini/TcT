@@ -47,7 +47,7 @@ import Text.Parsec.Char
 import Control.Monad (forM, liftM)
 import Control.Monad.Trans (liftIO)
 
-import Termlib.Utils (PrettyPrintable(..), enumerated, pprintInt)
+import Termlib.Utils (PrettyPrintable(..))
 
 import qualified Tct.Processor as P
 import Tct.Processor.PPrint
@@ -57,7 +57,6 @@ import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Parse
-import qualified Tct.Certificate as C
 
 -- failure and success
 
@@ -193,14 +192,13 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneO
     pprint proof = case proof of 
                      (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                                 $+$ text "" 
-                                                $+$ details [procname p $+$ (nest 1 $ pprint $ P.result p) | p <- failures]
-                     (OneOfSucceeded o proof) -> descr o
+                                                $+$ detailsFailed failures 
+                     (OneOfSucceeded o p)     -> descr o
                                                 $+$ text ""
-                                                $+$ details [nest 1 $ pprint $ P.result proof]
-                                                    where descr Sequentially = procname proof <+> text "succeeded:"
-                                                          descr Fastest      = procname proof <+> text "proved the goal fastest:"
-                                                          descr Best         = procname proof <+> text "proved the best result:"
-        where procname p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+                                                $+$ detailsSuccess [p]
+                                                    where descr Sequentially = procName p <+> text "succeeded:"
+                                                          descr Fastest      = procName p <+> text "proved the goal fastest:"
+                                                          descr Best         = procName p <+> text "proved the best result:"
 
 instance (P.Processor p, ComplexityProof (P.ProofOf p)) => ComplexityProof (OneOfProof p)
 
@@ -239,16 +237,14 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
 
               esucceeded (Left _)      = False
               esucceeded (Right proof) = succeeded proof
-              ecertificate (Left _)      = C.uncertified 
-              ecertificate (Right proof) = certificate proof 
               
               solveFast ps = do actions <- mkActions ps
                                 r <- liftIO $ fastestSatisfying esucceeded (Left []) [Right `liftM` m | m <- actions]
                                 return $ ofResult Fastest r
                                 
               solveBest ps = do actions <- mkActions ps
-                                let select (Left ps) proof | succeeded proof = Right proof
-                                                           | otherwise       = Left (proof : ps)
+                                let select (Left ps') proof | succeeded proof = Right proof
+                                                            | otherwise       = Left (proof : ps')
                                     select (Right p1) p2 | certificate p2 < certificate p1 = Right p2
                                                          | otherwise                       = Right p1
                                 r <- liftIO $ pfold select (Left []) actions

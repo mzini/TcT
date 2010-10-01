@@ -43,6 +43,7 @@ instance Show WhichTrs where
     show Both = "both"
     show Union = "union"
 
+
 whichTrs :: Arg (EnumOf WhichTrs)
 whichTrs = arg
 

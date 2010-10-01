@@ -49,8 +49,8 @@ module Tct.Methods
     , sequentially
     , success
     , timeout
-    , custom
-    , Custom(..)
+    , customProcessor
+    , CustomProcessor(..)
     -- * Predicates
     , isDuplicating
     , isConstructor

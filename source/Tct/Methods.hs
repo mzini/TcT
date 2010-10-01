@@ -34,6 +34,7 @@ module Tct.Methods
     , successProcessor
     , timeoutProcessor
     , predicateProcessors
+    , uncurryProcessor
     , (<|>)
     -- * Processors
     , arctic
@@ -49,6 +50,7 @@ module Tct.Methods
     , sequentially
     , success
     , timeout
+    , uncurry
     , customProcessor
     , CustomProcessor(..)
     -- * Predicates
@@ -83,7 +85,7 @@ module Tct.Methods
     , defaultProcessor
     )
 where
-import Prelude hiding (fail)
+import Prelude hiding (fail, uncurry)
 
 import Tct.Method.Combinator
 import Tct.Method.PopStar
@@ -94,6 +96,7 @@ import Tct.Method.Matrix.ArcticMI
 import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
+import Tct.Method.Uncurry
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -116,6 +119,7 @@ defaultProcessor = timeoutProcessor
                    <|> popstarProcessor
                    <|> epostarProcessor
                    <|> boundsProcessor
+                   <|> uncurryProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
                    <|> combineProcessor

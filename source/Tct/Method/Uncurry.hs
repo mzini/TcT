@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -20,6 +19,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Tct.Method.Uncurry
 where
@@ -34,15 +34,17 @@ import Data.Maybe (fromMaybe)
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
-import Termlib.Variable (canonical)
+import Termlib.Variable (canonical, Variables)
 import Termlib.FunctionSymbol (Signature, Symbol, SignatureMonad, Attributes(..))
 import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Variable as V
 import Termlib.Signature (runSignature )
 import Termlib.Term (Term(..))
-import Termlib.Utils (PrettyPrintable(..))
+import Termlib.Utils (PrettyPrintable(..),Enumerateable(..))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Term as T
 import Termlib.Trs (Trs(..))
+import Tct.Main.Debug
 
 import Tct.Proof
 import Tct.Processor.Transformations as T
@@ -53,6 +55,7 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 data Uncurry = Uncurry deriving (Show,Typeable)
 
 data UncurryProof = UncurryProof { inputProblem :: Problem
+                                 , newSignature :: Signature
                                  , uncurryTrs   :: Trs 
                                  , uncurriedTrs :: Trs}
                   | NotUncurryable { reason :: String }
@@ -65,8 +68,8 @@ instance PrettyPrintable UncurryProof where
                    $+$ (nest 2 $ pptrs $ uncurriedTrs proof)
              where pptrs trs = pprint (trs,sig,vars)
                    prob = inputProblem proof
-                   sig = Prob.signature prob
-                   vars = Prob.variables prob
+                   sig = newSignature proof
+                   vars = Prob.variables $ inputProblem proof
 
 
 instance Answerable (P.ProofOf sp) => Answerable (T.TProof Uncurry sp) where
@@ -76,7 +79,7 @@ instance Answerable (P.ProofOf sp) => Answerable (T.TProof Uncurry sp) where
 instance T.Transformer Uncurry where
     type T.ArgumentsOf Uncurry = A.NoArgs
     type T.ProofOf     Uncurry = UncurryProof
-    name Uncurry = "Uncurrying"
+    name Uncurry = "uncurry"
     description Uncurry = [ "This processor implements 'Uncurrying' for left-head-variable-free ATRSs"]
     arguments Uncurry = A.NoArgs
     transform _ prob =
@@ -84,7 +87,8 @@ instance T.Transformer Uncurry where
                    (Standard (Trs []))  -> T.Success p [prob]
                        where p = UncurryProof { inputProblem = prob
                                               , uncurryTrs   = Trs.empty
-                                              , uncurriedTrs = Trs.empty }
+                                              , uncurriedTrs = Trs.empty 
+                                              , newSignature = F.emptySignature}
 
                    (Standard trs) -> case applicativeSignature (Prob.signature prob) trs of 
                                        Nothing   -> T.Failure $ NotUncurryable {reason = "non applicative"}
@@ -93,7 +97,8 @@ instance T.Transformer Uncurry where
                                                     else T.Success p [prob'] 
                                            where p = UncurryProof { inputProblem = prob
                                                                   , uncurryTrs   = ucTrs
-                                                                  , uncurriedTrs = uncurried }
+                                                                  , uncurriedTrs = uncurried 
+                                                                  , newSignature = sig}
                                                  ((ucTrs,uncurried), sig) = runSignature (mkUncurry asig (etaSaturate asig trs)) $ F.emptySignature
                                                  prob' = prob{relation=Standard (uncurried `Trs.union` ucTrs), signature=sig}
 
@@ -112,7 +117,7 @@ applicativeSignature sig trs = case Trs.foldlRules f (Just (Nothing, M.empty)) t
                                  Just (Just appsym, asig) -> Just $ AppSignature (appsym, attribs) asig
                                      where Just attribs = F.lookup appsym sig
                                  Nothing         -> Nothing
-                                 Just _          -> error "Uncurry.applicativeSignature: weird things happened"
+                                 Just _          -> Nothing
     where f Nothing     _                 = Nothing
           f (Just (mapp,syms))  (R.Rule lhs rhs)  = fTerm lhs (mapp,syms) >>= fTerm rhs
 
@@ -210,11 +215,11 @@ mkUncurry asig trs = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
                         let asig' = case asig of AppSignature (_,attribs) cs -> AppSignature (appsym,attribs) cs
                         us <- mkUncurrySystem asig'
                         uc <- mkUncurryTrs asig' trs
-                        return (us,uc)
+                        return $ (us,uc)
     where appName = case asig of AppSignature (_,attribs) _ -> F.symIdent attribs
 
 
-uncurryProcessor :: Transformation Uncurry sub
+-- uncurryProcessor :: Transformation Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
 uncurry :: (P.Processor sub, ComplexityProof (P.ProofOf sub)) => Bool -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)

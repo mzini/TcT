@@ -27,7 +27,7 @@ import System.IO.Unsafe
 import Termlib.Utils (PrettyPrintable (..))
 
 debugEnabled :: Bool
-debugEnabled = False
+debugEnabled = True
 
 putErrLn :: String -> IO ()
 putErrLn s = hPutStr stderr (s ++ "\n")

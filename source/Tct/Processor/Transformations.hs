@@ -104,17 +104,17 @@ applyList False ((proc,prob) : ps) = do r <- P.apply proc prob
                                                  return $ case rs of {Right ls -> Right (r:ls); e -> e}
                                          else return $ Left r
 
-transformationProcessor :: Transformer t => t -> Transformation t sub
-transformationProcessor = Transformation
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.Processor (Transformation t P.AnyProcessor)
+transformationProcessor t = S.Processor (Transformation t)
 
 --calledWith :: Transformation t -> Domains (Transformation t sub) -> P.InstanceOf (Trans
 -- calledWith :: (Transformer t, P.Processor sub, ComplexityProof (P.ProofOf sub)) =>
 --      t -> Domains (S.ArgumentsOf (Transformation t sub)) -> sub -> P.InstanceOf (S.Processor (Transformation t sub))
 type TransformationProcessor t sub = S.Processor (Transformation t sub)
-calledWith :: (Transformer t, P.Processor sub, ComplexityProof (P.ProofOf sub)) => 
+calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (P.ProofOf sub)) => 
               t
               -> (Domains (ArgumentsOf t))
               -> Bool 
               -> P.InstanceOf sub
               -> P.InstanceOf (TransformationProcessor t sub)
-t `calledWith` as = \par sub -> (transformationProcessor t) `S.calledWith` (par :+: as :+: sub)
+t `calledWith` as = \par sub -> (Transformation t) `S.calledWith` (par :+: as :+: sub)

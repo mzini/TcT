@@ -45,10 +45,10 @@ details ps | any failed ps = detailsFailed ps
            | otherwise     = detailsSuccess ps
 
 detailsFailed :: (P.Processor a, Answerable (P.ProofOf a), PrettyPrintable (P.ProofOf a)) => [P.Proof a] -> Doc
-detailsFailed ps = block "Details (of failed attempts)" [procName p $+$ (nest 1 $ pprint $ P.result p) | p <- ps, failed p]
+detailsFailed ps = block "Details (of failed attempt(s))" [procName p <+> text "failed due to the following reason:" $+$ (nest 1 $ pprint $ P.result p) | p <- ps, failed p]
 
 detailsSuccess :: (P.Processor a, PrettyPrintable (P.ProofOf a)) => [P.Proof a] -> Doc
-detailsSuccess ps = block "Details" [procName p $+$ (nest 1 $ pprint $ P.result p) | p <- ps]
+detailsSuccess ps = block "Details" [procName p <+> text "succeeded with the following output:" $+$ (nest 1 $ pprint $ P.result p) | p <- ps]
 
 overview :: (P.Processor a, Answerable (P.ProofOf a)) => [P.Proof a] -> Doc
 overview ps = block "Overview" [ppOverview p | p <- ps]

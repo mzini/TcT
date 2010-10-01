@@ -170,7 +170,7 @@ kind = kind' . S.processorArgs
 bound :: S.TheProcessor NaturalMI -> N.Size
 bound inst = case mbits of 
                Just (Nat b) -> N.Bits b
-               Nothing      -> N.Bits bnd
+               Nothing      -> N.Bound bnd
     where (_ :+: _ :+: Nat bnd :+: mbits :+: _) = S.processorArgs inst
 
 cbits :: S.TheProcessor NaturalMI -> Maybe N.Size

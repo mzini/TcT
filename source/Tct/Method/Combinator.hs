@@ -41,10 +41,10 @@ where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Data.List (intersperse)
-import Control.Concurrent.PFold (pfold, fastestSatisfying)
+import Control.Concurrent.PFold (pfoldA, Return (..))
 import Text.Parsec.Prim
 import Text.Parsec.Char
-import Control.Monad (forM, liftM)
+import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
 
 import Termlib.Utils (PrettyPrintable(..))
@@ -234,21 +234,24 @@ instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) w
                                             if succeeded r
                                              then return $ OneOfSucceeded Sequentially r
                                              else solveSeq ps (r:failures)
-
-              esucceeded (Left _)      = False
-              esucceeded (Right proof) = succeeded proof
-              
-              solveFast ps = do actions <- mkActions ps
-                                r <- liftIO $ fastestSatisfying esucceeded (Left []) [Right `liftM` m | m <- actions]
-                                return $ ofResult Fastest r
                                 
-              solveBest ps = do actions <- mkActions ps
-                                let select (Left ps') proof | succeeded proof = Right proof
-                                                            | otherwise       = Left (proof : ps')
-                                    select (Right p1) p2 | certificate p2 < certificate p1 = Right p2
-                                                         | otherwise                       = Right p1
-                                r <- liftIO $ pfold select (Left []) actions
-                                return $ ofResult Best r
+              solveBest = solvePar betterThan final 
+                  where p1 `betterThan` p2 = certificate p1 < certificate p2
+                        final = const False
+
+              solveFast= solvePar betterThan final
+                  where _ `betterThan` _ = True
+                        final = const True
+
+              solvePar better final ps = do actions <- mkActions ps
+                                            let sel (Left ps') proof | succeeded proof = ret proof
+                                                                     | otherwise       = Continue $ Left (proof : ps')
+                                                sel (Right p1) p2 | p1 `better` p2 = ret p1
+                                                                  | otherwise      = ret p2
+                                                ret proof | final proof = Stop $ Right proof
+                                                          | otherwise   = Continue $ Right proof
+                                            r <- liftIO $ pfoldA sel (Left []) actions
+                                            return $ ofResult Best r
 
 
 

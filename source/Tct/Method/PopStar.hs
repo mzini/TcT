@@ -151,7 +151,12 @@ instance S.StdProcessor PopStar where
 
     type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool
 
-    instanceName inst = S.name $ S.processor inst
+    instanceName inst = show $ text "Pop*" <+> ppargs
+        where ppargs | ps && wsc = text "with parameter subtitution and weak safe composition"
+                     | ps        = text "with parameter subtitution"
+                     | wsc       = text "with weak safe composition"
+                     | otherwise = PP.empty
+              ps :+: wsc = S.processorArgs inst
 
     arguments _ = opt { A.name = "ps"
                       , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"

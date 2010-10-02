@@ -26,6 +26,7 @@ module Tct.Processor
     ( SatSolver (..)
     , Processor (..)
     , ParsableProcessor (..)
+    , ComplexityProcessor
     , Proof (..)
     , SolverM (..)
     , SolverState (..)
@@ -76,7 +77,6 @@ import qualified Tct.Processor.Parse as Parse
 import qualified Tct.Proof as P
 
 
-
 data SatSolver = MiniSat FilePath
 
 -- solver
@@ -96,7 +96,6 @@ class Processor a where
     data InstanceOf a 
     name            :: a -> String
     instanceName    :: (InstanceOf a) -> String
---    fromInstance :: (InstanceOf a) -> a
     solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
 
 type ProcessorParser a = CharParser AnyProcessor a 
@@ -113,6 +112,8 @@ parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse Parsec.<|> parse
     where parse = parseProcessor_ a
 
+class (Processor a, P.ComplexityProof (ProofOf a)) => ComplexityProcessor a
+instance (Processor a, P.ComplexityProof (ProofOf a)) => ComplexityProcessor a
 
 -- proof
 

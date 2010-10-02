@@ -34,17 +34,15 @@ import Data.Maybe (fromMaybe)
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
-import Termlib.Variable (canonical, Variables)
+import Termlib.Variable (canonical)
 import Termlib.FunctionSymbol (Signature, Symbol, SignatureMonad, Attributes(..))
 import qualified Termlib.FunctionSymbol as F
-import qualified Termlib.Variable as V
 import Termlib.Signature (runSignature )
 import Termlib.Term (Term(..))
-import Termlib.Utils (PrettyPrintable(..),Enumerateable(..))
+import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Term as T
 import Termlib.Trs (Trs(..))
-import Tct.Main.Debug
 
 import Tct.Proof
 import Tct.Processor.Transformations as T
@@ -62,12 +60,11 @@ data UncurryProof = UncurryProof { inputProblem :: Problem
 
 
 instance PrettyPrintable UncurryProof where 
-    pprint (NotUncurryable r) = text "The system cannot be uncurried since given TRS is" <+> text r
+    pprint (NotUncurryable r) = text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
     pprint proof | Trs.isEmpty $ uncurriedTrs proof = text "The given TRS is empty, hence nothing to do." 
                  | otherwise = text "We uncurry the input using the following uncurry rules."
                    $+$ (nest 2 $ pptrs $ uncurriedTrs proof)
              where pptrs trs = pprint (trs,sig,vars)
-                   prob = inputProblem proof
                    sig = newSignature proof
                    vars = Prob.variables $ inputProblem proof
 
@@ -75,6 +72,7 @@ instance PrettyPrintable UncurryProof where
 instance Answerable (P.ProofOf sp) => Answerable (T.TProof Uncurry sp) where
     answer (TProof (NotUncurryable _) _)  = MaybeAnswer
     answer (TProof _              [ps]) = answer ps
+    answer (UTProof _                p) = answer p
 
 instance T.Transformer Uncurry where
     type T.ArgumentsOf Uncurry = A.NoArgs
@@ -101,6 +99,13 @@ instance T.Transformer Uncurry where
                                                                   , newSignature = sig}
                                                  ((ucTrs,uncurried), sig) = runSignature (mkUncurry asig (etaSaturate asig trs)) $ F.emptySignature
                                                  prob' = prob{relation=Standard (uncurried `Trs.union` ucTrs), signature=sig}
+
+
+uncurryProcessor :: TransformationProcessor Uncurry
+uncurryProcessor = transformationProcessor Uncurry
+
+uncurry :: (P.ComplexityProcessor sub) => Bool -> Bool -> P.InstanceOf sub -> Transformation Uncurry sub
+uncurry = Uncurry `T.calledWith` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show
@@ -220,10 +225,7 @@ mkUncurry asig trs = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
 
 
 -- uncurryProcessor :: Transformation Uncurry P.AnyProcessor
-uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: (P.Processor sub, ComplexityProof (P.ProofOf sub)) => Bool -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
-uncurry = Uncurry `T.calledWith` ()
 
 -- data UncurryStrategy = UncurryStrategy deriving (Show, Typeable)
 

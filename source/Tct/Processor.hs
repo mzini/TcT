@@ -86,7 +86,7 @@ class MonadIO m => SolverM m where
     mkIO :: m a -> m (IO a)
     runSolver :: St m -> m a -> IO a
     minisatValue :: (Decoder e a) => MiniSat () -> e -> m (Maybe e)
-    solve :: (SolverM m, Processor a) => InstanceOf a -> Problem -> m (ProofOf a)
+    solve :: (Processor a) => InstanceOf a -> Problem -> m (ProofOf a)
 -- TODO needs to be redone after qlogic-update, allow generic solvers
                                 
 -- processor
@@ -129,6 +129,7 @@ instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (
               ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
                           $+$ nest 2 (prettyPrintRelation prob)
+                          $+$ nest 2 undefined
               ppanswer  = pt "Answer" <+> pprint (P.answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"

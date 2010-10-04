@@ -118,11 +118,7 @@ toSccGraph gr = Graph.mkGraph nodes edges
                                     , n1 /= n2
                                     , isEdge scc1 scc2 ]
           isEdge scc1 scc2 = any id [ n2 `elem` Graph.suc gr n1 | n1 <- scc1, n2 <- scc2]
-          sccs     = nontrivialsccs ++ trivialsccs
-              where nontrivialsccs = GraphDFS.scc gr
-                    trivialsccs = [ [n] | n <- Set.toList $ ns]
-                        where ns = all `Set.difference` Set.unions [Set.fromList scc | scc <- nontrivialsccs]
-                              all = Set.fromList $ Graph.nodes gr
+          sccs     = GraphDFS.scc gr
           rules scc = [Maybe.fromJust $ Graph.lab gr n | n <- scc]
 
 pathsFromSCCs :: SCCGraph -> [([Trs], Trs)]
@@ -217,7 +213,7 @@ match c t = State.evalState match' ([(c, t)], [])
                       if null eqs 
                        then return $ State.evalState matchmerge mergeqs 
                        else case head eqs of
-                             (Hole, _)                                       -> State.put (tail eqs, mergeqs) >> match'
+                             (Hole, _)                                          -> State.put (tail eqs, mergeqs) >> match'
                              (Fun f ss, Term.Fun g ts) | f /= g                 -> return False
                                                        | length ss /= length ts -> return False
                                                        | otherwise              -> State.put (zip ss ts ++ tail eqs, mergeqs) >> match'

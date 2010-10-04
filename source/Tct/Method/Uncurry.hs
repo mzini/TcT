@@ -69,10 +69,13 @@ instance PrettyPrintable UncurryProof where
                    vars = Prob.variables $ inputProblem proof
 
 
-instance Answerable (P.ProofOf sp) => Answerable (T.TProof Uncurry sp) where
-    answer (TProof (NotUncurryable _) _)  = MaybeAnswer
-    answer (TProof _          [(_,ps)]) = answer ps
-    answer (UTProof _                p) = answer p
+instance P.ComplexityProcessor sub => Answerable (T.TProof Uncurry sub) where
+    answer = T.answerTProof answer' 
+        where answer' (NotUncurryable _) _        = MaybeAnswer
+              answer' _                  [(_,ps)] = answer ps
+
+instance P.ComplexityProcessor sub => PrettyPrintable (T.TProof Uncurry sub) where
+    pprint = prettyPrintTProof
 
 instance T.Transformer Uncurry where
     type T.ArgumentsOf Uncurry = A.NoArgs

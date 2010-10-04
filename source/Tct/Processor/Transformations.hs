@@ -29,6 +29,8 @@ module Tct.Processor.Transformations
     , Transformation
     , TransformationProcessor
     , transformationProcessor
+    , answerTProof
+    , prettyPrintTProof
     , calledWith
     , enumeration
     , enumeration'
@@ -59,21 +61,28 @@ data Result t = Failure (ProofOf t)
 data TheTransformer t = TheTransformer { transformation :: t
                                        , transformationArgs :: Domains (ArgumentsOf t)}
 
-instance (P.Processor sub, PrettyPrintable (ProofOf t), ComplexityProof (P.ProofOf sub)) => PrettyPrintable (TProof t sub) where
-    pprint (TProof tp ps) = block "Transformation Details" (enumeration' [tp])
-                            $+$ text ""
-                            $+$ overview ps
-                            $+$ text ""
-                            $+$ details ps
-    pprint (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
+prettyPrintTProof :: ( PrettyPrintable (ProofOf t)
+                    , P.Processor p
+                    , Answerable (P.ProofOf p)
+                    , PrettyPrintable (P.ProofOf p)) => TProof t p -> Doc
+prettyPrintTProof (TProof tp ps) = block "Transformation Details" (enumeration' [tp])
+                                   $+$ text ""
+                                   $+$ overview ps
+                                   $+$ text ""
+                                   $+$ details ps
+prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
                             $+$ text ""
                             $+$ block "Transformation Details" (enumeration' [tp])
                             $+$ text ""
                             $+$ block "Application of the subprocessor" (enumeration' [p])
 
+answerTProof :: (P.ComplexityProcessor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
+answerTProof _ (UTProof _ sp) = answer sp
+answerTProof f (TProof tp sps) = f tp sps
+
 instance ( P.Processor sub
          , Answerable (TProof t sub)
-         , PrettyPrintable (ProofOf t)
+         , PrettyPrintable (TProof t sub)
          , ComplexityProof (P.ProofOf sub))  => ComplexityProof (TProof t sub)
 
 class Transformer t where

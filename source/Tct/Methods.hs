@@ -35,6 +35,8 @@ module Tct.Methods
     , timeoutProcessor
     , predicateProcessors
     , uncurryProcessor
+    , wdgProcessor
+    , customProcessor
     , (<|>)
     -- * Processors
     , arctic
@@ -51,7 +53,8 @@ module Tct.Methods
     , success
     , timeout
     , uncurry
-    , customProcessor
+    , wdg
+    , Approximation(..)
     , CustomProcessor(..)
     -- * Predicates
     , isDuplicating
@@ -97,6 +100,7 @@ import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
 import Tct.Method.Uncurry
+import Tct.Method.Wdg
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -120,6 +124,7 @@ defaultProcessor = timeoutProcessor
                    <|> epostarProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
+                   <|> wdgProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
                    <|> combineProcessor

@@ -50,6 +50,9 @@ class (Typeable a, Eq a) => Numbering a where
 instance Numbering Int where
     ppNumbering = pprintInt
 
+instance Numbering a => Numbering [a] where
+    ppNumbering as = vcat $ punctuate (text ".") [ppNumbering a | a <- as]
+
 data SomeNumbering = forall a. Numbering a => SN a
 
 --instance Numbering SomeNumbering where ppNumbering (SN e) = ppNumbering e

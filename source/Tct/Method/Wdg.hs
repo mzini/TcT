@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeOperators #-}
@@ -66,29 +67,31 @@ import Tct.Processor.Args.Instances
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 
-
 ----------------------------------------------------------------------
 -- Proof object
 
-data Path = Path { path    :: ([Trs],Trs)
-                 , usables :: Trs }
+data Path = Path { graphPath :: Graph.Path
+                 , path      :: ([Trs],Trs)
+                 , usables   :: Trs }
+
 
 type Graph = GraphT.Gr Rule ()
 
 type SCCGraph = GraphT.Gr ([Int], Trs) ()
 
 instance PrettyPrintable (SCCGraph, F.Signature, V.Variables) where
-  pprint (g, sig, vars) = text "The nodes of the Dependency Graph (modulo SCCs) constitutes of the following nodes:"
+  pprint (g, sig, vars) = text "The following set of SCCs constitute the nodes of the Dependency Graph modulo SCCs:"
                           $+$ (nest 1 $ vcat [printNode n | n <- Graph.nodes g])
                           $+$ text ""
                           $+$ text "Following edges were computed:"
                           $+$ (nest 1 $ vcat [printEdge e | e <- Graph.edges g])
       where printEdge (n1, n2) = printNodeId n1 <+> text "==>" <+> printNodeId n2
-            printNode n = text "The node" <+> printNodeId n <+> text "constitutes of the following rules:" 
+            printNode n = text "SCC" <+> printNodeId n <> text ":" 
                           $+$ (nest 2 $ pprint (trs, sig, vars))
                 where (_, trs) = fromJust $ Graph.lab g n
             printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- ids ]
                 where (ids, _) = fromJust $ Graph.lab g n
+
 
 data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.Processor NaturalMI)))]
                          , computedGraph     :: Graph
@@ -96,13 +99,46 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.Proces
                          , dependencyPairs   :: Trs
                          , usableRules       :: Trs
                          , newSignature      :: Signature
-                         , containsNoEdges   :: Bool}
-              | Inapplicable
+                         , newVariables      :: Variables
+                         , containsNoEdgesEmptyUrs :: Bool}
+              | Inapplicable { reason :: String}
 
 
-instance PrettyPrintable WdgProof where 
-    pprint Inapplicable = text "This processor is only applicable to runtime-complexity analysis"
-    pprint proof = undefined
+instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
+    pprint (T.UTProof _ p) = paragraph (unlines [ "This processor is only applicable to runtime-complexity analysis."
+                                                , " We continue without dependency graph transformation." ])
+                              $+$ pprint p
+
+    pprint (T.TProof (Inapplicable r) _) = paragraph (unlines [ "This processor is not applicable to"
+                                                              , r ++ "."
+                                                              , "We abort." ])
+    pprint (T.TProof proof ps) = block "Transformation Details" (enumeration' [ppTrans])
+                                   -- $+$ text ""
+                                   -- $+$ ppOverview
+                                   -- $+$ text ""
+                                   -- $+$ ppDetails ps
+        where ppTrans = text "We have computed the following set of weak (innermost) dependency pairs:" 
+                        $+$ (nest 1 $ pprint (wdps, sig, vars))
+                        $+$ ppDG
+
+              ppDG | containsNoEdgesEmptyUrs proof = text "The dependency graph contains no edges and the usable rules are empty."
+                   | otherwise = (nest 1 $ pprint (ewdgSCC, sig, vars))
+              ppOverview = undefined
+              ppDetails = undefined
+              ewdgSCC = computedGraphSCC proof
+              sig     = newSignature proof
+              vars    = newVariables proof
+              wdps    = dependencyPairs proof
+              urs     = usableRules proof
+
+instance (P.ComplexityProcessor sub) => Answerable (T.TProof Wdg sub) where 
+    answer = T.answerTProof ans 
+        where ans tp sps = MaybeAnswer
+
+
+-- instance PrettyPrintable WdgProof where 
+--     pprint Inapplicable = 
+--     pprint proof = undefined
 
 ----------------------------------------------------------------------
 
@@ -135,39 +171,44 @@ instance T.Transformer Wdg where
                       , A.description = "specifies whether the weightgap principle is used per path"}
     transform inst prob = 
         case (startTerms prob, relation prob) of 
+          (TermAlgebra, _) -> return $ T.Failure $ Inapplicable {reason = "derivational complexity"}
+          (_, DP _ _) -> return $ T.Failure $ Inapplicable {reason = "DP problems"}
+          (_, Relative _ _) -> return $ T.Failure $ Inapplicable {reason = "relative problems"}
           (BasicTerms ds cs, Standard trs) -> do let wg urs | useWG = return Nothing 
                                                            | otherwise = weightGap (N.Bits 4) Nothing $ wgProblem urs
-                                                 ps <- P.evalList' useWG [ do wg urs >>= \ p -> return (pth, p) | pth@(Path _ urs) <- paths]
-                                                 return $ T.Success (mkProof ps) (enumeration' $ mkSubProbs ps)
+                                                 ps <- P.evalList' useWG [ do wg urs >>= \ p -> return (pth, p) | pth@(Path _ _ urs) <- paths]
+                                                 return $ T.Success (mkProof ps) (enumeration $ mkSubProbs ps)
               where mkProof ps = WdgProof { computedPaths    = ps
                                           , computedGraph    = ewdg
                                           , computedGraphSCC = ewdgSCC
                                           , dependencyPairs  = wdps
-                                          , usableRules      = mkUsableRules wdps trs
+                                          , usableRules      = allUsableRules
                                           , newSignature     = sig'
-                                          , containsNoEdges  = null $ Graph.edges ewdg}
+                                          , newVariables     = variables prob
+                                          , containsNoEdgesEmptyUrs  = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules}
                     mkSubProbs ps | null $ Graph.edges ewdg = []
                                   | otherwise               = [subProblem p pth | (pth,p) <- ps]
                     (startTerms', sig', wdps) = weakDependencyPairs prob
+                    allUsableRules = mkUsableRules wdps trs
                     ewdg = estimatedDependencyGraph approx sig' wdps trs
                     ewdgSCC = toSccGraph ewdg
-                    paths = [ Path (ps,pm) (urs $ pm : ps) | (ps,pm) <- pathsFromSCCs ewdgSCC ]
+                    paths = [ Path ns (ps,pm) (urs $ pm : ps) | (ns, ps,pm) <- pathsFromSCCs ewdgSCC ]
                         where urs = mkUsableRules wdps . Trs.unions
-                    wgProblem trs = Problem { startTerms = TermAlgebra
+                    wgProblem urs = Problem { startTerms = TermAlgebra
                                             , strategy   = Full
-                                            , relation   = Standard trs
+                                            , relation   = Standard urs
                                             , variables  = variables prob
                                             , signature  = sig' }
-                    subProblem mp (Path (ps,pm) urs) = case mp of 
-                                                         Nothing -> direct
-                                                         Just p | succeeded p -> rp
-                                                                | otherwise   -> direct
-                        where direct = Problem { startTerms = TermAlgebra
+                    subProblem mp (Path ns (ps,pm) urs) = case mp of 
+                                                            Nothing -> (ns, direct)
+                                                            Just p | succeeded p -> (ns, rp)
+                                                                   | otherwise   -> (ns, direct)
+                        where direct = Problem { startTerms = startTerms'
                                                , strategy   = strategy prob
                                                , relation   = Standard $ Trs.unions $ pm : urs : ps
                                                , variables  = variables prob
                                                , signature  = sig' }
-                              rp     = Problem { startTerms = TermAlgebra
+                              rp     = Problem { startTerms = startTerms'
                                                , strategy   = strategy prob
                                                , relation   = DP pm (Trs.unions $ urs : ps)
                                                , variables  = variables prob
@@ -188,15 +229,15 @@ toSccGraph gr = Graph.mkGraph nodes edges
           sccs     = GraphDFS.scc gr
           rules scc = [Maybe.fromJust $ Graph.lab gr n | n <- scc]
 
-pathsFromSCCs :: SCCGraph -> [([Trs], Trs)]
+pathsFromSCCs :: SCCGraph -> [(Graph.Path, [Trs], Trs)]
 pathsFromSCCs gr = runMemoAction allPathsM
     where allPathsM = concat `liftM` mapM pathsM sources
               where sources = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
           pathsM n = memo n $ do paths <- concat `liftM` mapM pathsM (Graph.suc gr n)
+                                 let trs = snd $ Maybe.fromJust $ Graph.lab gr n
                                  return $ case paths of 
-                                            [] -> [([],toTrs n)]
-                                            _  -> ([],trs) : [ (trs : path,pm) | (path,pm) <- paths ] where trs = toTrs n
-              where toTrs n = snd $ Maybe.fromJust $ Graph.lab gr n
+                                            [] -> [([n], [],trs)]
+                                            _  -> ([n], [], trs) : [ (n : ns ,trs : path,pm) | (ns,path,pm) <- paths ] 
 
 
 -- dependency pairs and usable rules

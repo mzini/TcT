@@ -215,7 +215,7 @@ relativeConstraints = matrixConstraints MDirect MNoDP
 dpConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 dpConstraints = matrixConstraints MDirect MWithDP
 
-
+-- TODO: rename derivationGraph
 weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 weightGapConstraints = matrixConstraints MWeightGap MNoDP
 

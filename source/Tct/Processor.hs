@@ -36,6 +36,7 @@ module Tct.Processor
     , ProcessorParser
     , apply
     , evalList
+    , evalList'
     , parseProcessor
     , fromString
     -- * Some Processor
@@ -131,7 +132,6 @@ instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (
               ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
                           $+$ nest 2 (prettyPrintRelation prob)
-                          $+$ nest 2 undefined
               ppanswer  = pt "Answer" <+> pprint (P.answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"
@@ -158,6 +158,10 @@ evalList False success (m : ms) = do a <- m
                                       then do eas <- evalList False success ms
                                               return $ case eas of {Right as -> Right (a:as); e -> e}
                                       else return $ Left a
+
+evalList' :: (SolverM m) => Bool -> [m a] -> m [a]
+evalList' b ms = do Right rs <- evalList b (const True) ms
+                    return rs
 
 fromString :: ParsableProcessor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
 fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s

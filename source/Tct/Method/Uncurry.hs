@@ -71,7 +71,7 @@ instance PrettyPrintable UncurryProof where
 
 instance Answerable (P.ProofOf sp) => Answerable (T.TProof Uncurry sp) where
     answer (TProof (NotUncurryable _) _)  = MaybeAnswer
-    answer (TProof _              [ps]) = answer ps
+    answer (TProof _          [(_,ps)]) = answer ps
     answer (UTProof _                p) = answer p
 
 instance T.Transformer Uncurry where
@@ -82,7 +82,7 @@ instance T.Transformer Uncurry where
     arguments Uncurry = A.NoArgs
     transform _ prob =
         return $ case (relation prob) of
-                   (Standard (Trs []))  -> T.Success p [prob]
+                   (Standard (Trs []))  -> T.Success p (enumeration' [prob])
                        where p = UncurryProof { inputProblem = prob
                                               , uncurryTrs   = Trs.empty
                                               , uncurriedTrs = Trs.empty 
@@ -92,7 +92,7 @@ instance T.Transformer Uncurry where
                                        Nothing   -> T.Failure $ NotUncurryable {reason = "non applicative"}
                                        Just asig -> if not $ isLeftHeadVariableFree trs 
                                                     then T.Failure $ NotUncurryable {reason = "not left head variable free"}
-                                                    else T.Success p [prob'] 
+                                                    else T.Success p (enumeration' [prob']) 
                                            where p = UncurryProof { inputProblem = prob
                                                                   , uncurryTrs   = ucTrs
                                                                   , uncurriedTrs = uncurried 
@@ -222,21 +222,4 @@ mkUncurry asig trs = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
                         uc <- mkUncurryTrs asig' trs
                         return $ (us,uc)
     where appName = case asig of AppSignature (_,attribs) _ -> F.symIdent attribs
-
-
--- uncurryProcessor :: Transformation Uncurry P.AnyProcessor
-
-
--- data UncurryStrategy = UncurryStrategy deriving (Show, Typeable)
-
--- type instance ProcessorOf UncurryStrategy = Uncurry
--- instance TransformerStrategy UncurryStrategy where
---     transformerStrategyName _   = "uncurry"
---     transformerFlags _          = noFlags
---     transformerDescription _    = ["Uncurrying"]
---     transformerSynopsis _ =  text "uncurry <strategy>"
---     transformerFromFlags _ _ = Uncurry
-
--- strategy :: Strat
--- strategy = Strat $ TS UncurryStrategy
 

@@ -192,10 +192,10 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneO
     pprint proof = case proof of 
                      (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                                 $+$ text "" 
-                                                $+$ detailsFailed failures 
+                                                $+$ detailsFailed (enumeration' failures)
                      (OneOfSucceeded o p)     -> descr o
                                                 $+$ text ""
-                                                $+$ detailsSuccess [p]
+                                                $+$ detailsSuccess (enumeration' [p])
                                                     where descr Sequentially = procName p <+> text "succeeded:"
                                                           descr Fastest      = procName p <+> text "proved the goal fastest:"
                                                           descr Best         = procName p <+> text "proved the best result:"

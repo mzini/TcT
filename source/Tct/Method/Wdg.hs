@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-
@@ -31,6 +34,10 @@ import qualified Data.IntMap as IMap
 import qualified Data.Set as Set
 import Data.IntMap (IntMap)
 import Data.List (partition)
+import Data.Typeable 
+import Data.Maybe (fromJust)
+import Data.List (intersperse)
+import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
 import Termlib.Problem
@@ -50,8 +57,11 @@ import Termlib.Utils
 import Tct.Certificate
 import Tct.Proof
 import qualified Tct.Processor.Transformations as T
+import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
+import Tct.Method.Matrix.NaturalMI (NaturalMI, NaturalMIKind(..), matrix)
 import Tct.Processor.Args as A
+import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -64,51 +74,108 @@ data Path = Path { path    :: ([Trs],Trs)
                  , usables :: Trs }
 
 type Graph = GraphT.Gr Rule ()
+
 type SCCGraph = GraphT.Gr ([Int], Trs) ()
 
-data WdgProof = WdgProof { computedPaths     :: [Path]
+instance PrettyPrintable (SCCGraph, F.Signature, V.Variables) where
+  pprint (g, sig, vars) = text "The nodes of the Dependency Graph (modulo SCCs) constitutes of the following nodes:"
+                          $+$ (nest 1 $ vcat [printNode n | n <- Graph.nodes g])
+                          $+$ text ""
+                          $+$ text "Following edges were computed:"
+                          $+$ (nest 1 $ vcat [printEdge e | e <- Graph.edges g])
+      where printEdge (n1, n2) = printNodeId n1 <+> text "==>" <+> printNodeId n2
+            printNode n = text "The node" <+> printNodeId n <+> text "constitutes of the following rules:" 
+                          $+$ (nest 2 $ pprint (trs, sig, vars))
+                where (_, trs) = fromJust $ Graph.lab g n
+            printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- ids ]
+                where (ids, _) = fromJust $ Graph.lab g n
+
+data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.Processor NaturalMI)))]
                          , computedGraph     :: Graph
                          , computedGraphSCC  :: SCCGraph
                          , dependencyPairs   :: Trs
                          , usableRules       :: Trs
-                         , newSignature      :: Signature }
+                         , newSignature      :: Signature
+                         , containsNoEdges   :: Bool}
               | Inapplicable
+
+
+instance PrettyPrintable WdgProof where 
+    pprint Inapplicable = text "This processor is only applicable to runtime-complexity analysis"
+    pprint proof = undefined
 
 ----------------------------------------------------------------------
 
 -- Processor 
-type Aproximation = F.Signature -> Trs.Trs -> Trs.Trs -> Graph -- Signature -> DP -> R -> Graph
-instance AssocArg Aproximation where assoc _ = [("edg", edg)]
+data Approximation = Edg deriving (Bounded, Ord, Eq, Typeable, Enum) 
+instance Show Approximation where
+    show Edg = "edg"
 
 data Wdg = Wdg
 
+wdgProcessor :: T.TransformationProcessor Wdg
+wdgProcessor = T.transformationProcessor Wdg
+
+wdg :: (P.ComplexityProcessor sub) => Approximation -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap = Wdg `T.calledWith` (approx :+: weightgap)
+
 instance T.Transformer Wdg where
     name Wdg = "wdg"
-    description Wdg = ["<TODO>"]
+    description Wdg = ["This processor implements path analysis based on (weak) Dependency Graphs."]
 
-    type T.ArgumentsOf Wdg = Arg (Assoc Aproximation)
+    type T.ArgumentsOf Wdg = Arg (EnumOf Approximation) :+: Arg (Bool)
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
+    arguments _ = opt { A.name = "approximation"
+                      , A.defaultValue = Edg
+                      , A.description = "specifies the employed dependency graph approximation"}
+                  :+: 
+                  opt { A.name = "weightgap"
+                      , A.defaultValue = True
+                      , A.description = "specifies whether the weightgap principle is used per path"}
     transform inst prob = 
-        case (startTerms prob, relation prob) of
-          (BasicTerms ds cs, Standard trs) -> return $ T.Success proof probs 
-              where proof = WdgProof { computedPaths    = paths
-                                     , computedGraph    = ewdg
-                                     , computedGraphSCC = ewdgSCC
-                                     , dependencyPairs  = wdps
-                                     , usableRules      = mkUsableRules wdps trs
-                                     , newSignature     = sig' }
+        case (startTerms prob, relation prob) of 
+          (BasicTerms ds cs, Standard trs) -> do let wg urs | useWG = return Nothing 
+                                                           | otherwise = weightGap (N.Bits 4) Nothing $ wgProblem urs
+                                                 ps <- P.evalList' useWG [ do wg urs >>= \ p -> return (pth, p) | pth@(Path _ urs) <- paths]
+                                                 return $ T.Success (mkProof ps) (enumeration' $ mkSubProbs ps)
+              where mkProof ps = WdgProof { computedPaths    = ps
+                                          , computedGraph    = ewdg
+                                          , computedGraphSCC = ewdgSCC
+                                          , dependencyPairs  = wdps
+                                          , usableRules      = mkUsableRules wdps trs
+                                          , newSignature     = sig'
+                                          , containsNoEdges  = null $ Graph.edges ewdg}
+                    mkSubProbs ps | null $ Graph.edges ewdg = []
+                                  | otherwise               = [subProblem p pth | (pth,p) <- ps]
                     (startTerms', sig', wdps) = weakDependencyPairs prob
-                    ewdg = approx sig' wdps trs
+                    ewdg = estimatedDependencyGraph approx sig' wdps trs
                     ewdgSCC = toSccGraph ewdg
-                    paths = [Path (ps,pm) (urs $ pm : ps) | (ps,pm) <- pathsFromSCCs ewdgSCC]
-                        where urs = foldl (\ us ps -> mkUsableRules ps trs `Trs.union` us) Trs.empty
-                    probs = [ prob { startTerms = startTerms'
-                                   , relation = undefined }
-                              | Path (ps,pm) urs <- paths]
-                    approx = T.transformationArgs inst
-                    unions = foldl Trs.union Trs.empty
-          _                                    -> return $ T.Failure $ Inapplicable 
+                    paths = [ Path (ps,pm) (urs $ pm : ps) | (ps,pm) <- pathsFromSCCs ewdgSCC ]
+                        where urs = mkUsableRules wdps . Trs.unions
+                    wgProblem trs = Problem { startTerms = TermAlgebra
+                                            , strategy   = Full
+                                            , relation   = Standard trs
+                                            , variables  = variables prob
+                                            , signature  = sig' }
+                    subProblem mp (Path (ps,pm) urs) = case mp of 
+                                                         Nothing -> direct
+                                                         Just p | succeeded p -> rp
+                                                                | otherwise   -> direct
+                        where direct = Problem { startTerms = TermAlgebra
+                                               , strategy   = strategy prob
+                                               , relation   = Standard $ Trs.unions $ pm : urs : ps
+                                               , variables  = variables prob
+                                               , signature  = sig' }
+                              rp     = Problem { startTerms = TermAlgebra
+                                               , strategy   = strategy prob
+                                               , relation   = DP pm (Trs.unions $ urs : ps)
+                                               , variables  = variables prob
+                                               , signature  = sig' }
+                    approx :+: useWG = T.transformationArgs inst
+
+
+-- path analysis
 
 toSccGraph :: Graph -> SCCGraph
 toSccGraph gr = Graph.mkGraph nodes edges
@@ -140,8 +207,8 @@ weakDependencyPairs prob =
       (BasicTerms ds cs, Standard trs) -> (BasicTerms dssharp cs, sig, wdps)
           where ((wdps,dssharp),sig) = flip Sig.runSignature (signature prob) $ 
                                        do dps <- weakDPs (strategy prob) trs 
-                                          ds <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
-                                          return (dps, ds)
+                                          ds' <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
+                                          return (dps, ds')
       _                -> error "Wdp.weakDependencyPairs called with non-basic terms"
 
 markSymbol :: Symbol -> SignatureMonad Symbol
@@ -180,10 +247,19 @@ mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
                               Right f -> f `Set.member` syms
                               Left _  ->  True
 
+weightGap :: P.SolverM m => N.Size -> Maybe Nat -> Problem -> m (Maybe (P.Proof (S.Processor NaturalMI)))
+weightGap coefficientsize constraintbits prob | Trs.isDuplicating (strictTrs prob) = return $ Nothing
+                                              | otherwise                          = Just `liftM` P.apply sli prob
+    where sli = matrix Triangular (nat 1) coefficientsize constraintbits
+
 
 -- approximations
 
-edg :: Aproximation
+estimatedDependencyGraph :: Approximation -> Signature -> Trs -> Trs -> Graph
+estimatedDependencyGraph Edg = edg
+
+
+edg :: F.Signature -> Trs.Trs -> Trs.Trs -> Graph
 edg sig (Trs dps) trs = Graph.mkGraph nodes edges
     where nodes = zip [1..] dps
           edges = [ (n1, n2, ()) | (n1,l1) <- nodes

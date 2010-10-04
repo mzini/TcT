@@ -71,9 +71,9 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (Comb
                                                         , "and apply the i-th given subprocessor on the relative problem R_i modulo R\\R_i."])
                                      $+$ (if success then empty else text "Unfortunately one of the subprocessors failed.")
                                      $+$ text ""
-                                     $+$ overview ps
+                                     $+$ overview (enumeration' ps)
                                      $+$ text ""
-                                     $+$ (if success then detailsSuccess ps else detailsFailed ps)
+                                     $+$ details (enumeration' ps)
         where n = length ps
               success = all succeeded ps
 

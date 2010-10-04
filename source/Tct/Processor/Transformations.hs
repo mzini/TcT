@@ -21,14 +21,26 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 
 
-module Tct.Processor.Transformations where
+module Tct.Processor.Transformations 
+    ( TProof (..)
+    , Result (..)
+    , TheTransformer (..)
+    , Transformer(..)
+    , Transformation
+    , TransformationProcessor
+    , transformationProcessor
+    , calledWith
+    , enumeration
+    , enumeration'
+    ) 
+where
 
 import Tct.Proof 
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
 import Control.Monad.Trans (liftIO)
-
+import Data.Maybe (fromMaybe)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.PPrint
@@ -37,27 +49,27 @@ import qualified Tct.Processor.Args.Instances ()
 import Tct.Processor.Args hiding (name, description, synopsis)
 
 
-data TProof t sub = TProof (ProofOf t) [P.Proof sub]
+data TProof t sub = TProof (ProofOf t) (Enumeration (P.Proof sub))
                   | UTProof (ProofOf t) (P.ProofOf sub)
 
 data Result t = Failure (ProofOf t) 
-              | Success (ProofOf t) [Problem]
+              | Success (ProofOf t) (Enumeration Problem)
 
 
 data TheTransformer t = TheTransformer { transformation :: t
                                        , transformationArgs :: Domains (ArgumentsOf t)}
 
 instance (P.Processor sub, PrettyPrintable (ProofOf t), ComplexityProof (P.ProofOf sub)) => PrettyPrintable (TProof t sub) where
-    pprint (TProof tp ps) = block "Transformation Details" [tp]
+    pprint (TProof tp ps) = block "Transformation Details" (enumeration' [tp])
                             $+$ text ""
                             $+$ overview ps
                             $+$ text ""
                             $+$ details ps
     pprint (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
                             $+$ text ""
-                            $+$ block "Transformation Details" [tp]
+                            $+$ block "Transformation Details" (enumeration' [tp])
                             $+$ text ""
-                            $+$ block "Application of the subprocessor" [p]
+                            $+$ block "Application of the subprocessor" (enumeration' [p])
 
 instance ( P.Processor sub
          , Answerable (TProof t sub)
@@ -95,13 +107,14 @@ instance (P.Processor sub, ComplexityProof (P.ProofOf sub), Transformer t) => S.
                                   , A.description = "The processor that is applied on the transformed problem(s)"}
     solve inst prob = do res <- transform (TheTransformer t args) prob
                          case res of 
-                           Failure p | strict    -> return $ TProof p []
+                           Failure p | strict    -> return $ TProof p (enumeration' [])
                                      | otherwise -> do p' <- P.solve sub prob 
                                                        return $ UTProof p p'
-                           Success p ps -> do esubproofs <- P.evalList par succeeded [P.apply sub p' | p' <- ps]
+                           Success p ps -> do esubproofs <- P.evalList par (succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
-                                                Right subproofs   -> return $ TProof p subproofs
-                                                Left  failedproof -> return $ TProof p [failedproof]
+                                                Right subproofs   -> return $ TProof p subproofs'
+                                                    where subproofs' = [(e,fromMaybe (error "Transformation.hs: subproof not found!") $ find e subproofs) | (e,_) <- ps]
+                                                Left  (_,failedproof) -> return $ TProof p (enumeration' undefined)
         where (Trans t) = S.processor inst
               strict :+: par :+: args :+: sub = S.processorArgs inst
 

@@ -18,7 +18,7 @@ cabal-version:      >= 1.6
 build-type:         Simple
 Executable tct
  main-is:           Main.hs
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl
  hs-source-dirs:    source
  ghc-options:       -threaded -O2
 Library
@@ -59,10 +59,11 @@ Library
                     Tct.Method.Bounds.Violations
                     Tct.Method.Bounds.Violations.Find
                     Tct.Method.Bounds.Violations.Fix
+                    Tct.Method.Wdg
                     Tct.Method.Custom
                     Tct.Method.Predicates
                     Tct.Methods
 
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

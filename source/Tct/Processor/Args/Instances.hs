@@ -92,16 +92,33 @@ instance ParsableArgument a => ParsableArgument [a] where
 
 newtype EnumOf a = EnumOf a    
 
-instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
-    type Domain (EnumOf a) = a
-    domainName Phantom = br $ concat $ intersperse "|" [ show e | e <- [(minBound :: a) .. maxBound] ]
+domainNameList :: Show e => [e] -> String
+domainNameList l = br $ concat $ intersperse "|" [ show e | e <- l ]
         where br s = "[" ++ s ++ "]"
 
-instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
-    parseArg Phantom = choice [ try $ pa (show e) e | e <- [(minBound :: a) .. maxBound] ]
+parseArgAssoc :: [(String,e)] -> P.ProcessorParser e
+parseArgAssoc  l = choice [ try $ pa n e | (n,e) <- l]
         where pa n e = do _ <- string n
                           return e
 
+instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
+    type Domain (EnumOf a) = a
+    domainName Phantom = domainNameList [(minBound :: a) .. maxBound]
+
+instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
+    parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
+
+newtype Assoc a = Assoc a
+
+class AssocArg a where 
+    assoc :: Phantom a -> [(String, a)]
+
+instance AssocArg a => Argument (Assoc a) where
+    type Domain (Assoc a) = a
+    domainName _ = domainNameList [ s | (s,_) <- assoc (Phantom :: Phantom a)]
+
+instance AssocArg a => ParsableArgument (Assoc a) where
+    parseArg _ = parseArgAssoc $ assoc (Phantom :: Phantom a)
 
 -- type instance CoDomain Nat = Nat
 

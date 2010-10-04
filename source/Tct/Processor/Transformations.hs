@@ -1,7 +1,3 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -18,6 +14,12 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
+
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+
 
 module Tct.Processor.Transformations where
 
@@ -64,14 +66,15 @@ instance ( P.Processor sub
          , ComplexityProof (P.ProofOf sub))  => ComplexityProof (TProof t sub)
 
 class Transformer t where
-    type ArgumentsOf t
-    type ProofOf t
     name         :: t -> String
-    instanceName :: TheTransformer t -> String
-    instanceName = name . transformation
     description  :: t -> [String]
     description  = const []
+
+    type ArgumentsOf t
+    type ProofOf t
     arguments    :: t -> (ArgumentsOf t)
+    instanceName :: TheTransformer t -> String
+    instanceName = name . transformation
     transform    :: P.SolverM m => TheTransformer t -> Problem -> m (Result t)
 
 

@@ -27,7 +27,6 @@ import Tct.Proof
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
-import Control.Concurrent.PFold (pfoldA, Return(..))
 import Control.Monad.Trans (liftIO)
 
 import qualified Tct.Processor as P
@@ -99,7 +98,7 @@ instance (P.Processor sub, ComplexityProof (P.ProofOf sub), Transformer t) => S.
                            Failure p | strict    -> return $ TProof p []
                                      | otherwise -> do p' <- P.solve sub prob 
                                                        return $ UTProof p p'
-                           Success p ps -> do esubproofs <- applyList par [(sub,p') | p' <- ps]
+                           Success p ps -> do esubproofs <- P.evalList par succeeded [P.apply sub p' | p' <- ps]
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p subproofs
                                                 Left  failedproof -> return $ TProof p [failedproof]
@@ -123,15 +122,3 @@ calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.ComplexityPro
               -> P.InstanceOf sub
               -> Transformation t sub
 t `calledWith` as = \ strict par sub -> (Trans t) `S.calledWith` (strict :+: par :+: as :+: sub)
-
-applyList :: (P.SolverM m, Answerable (P.ProofOf proc), P.Processor proc) => Bool -> [(P.InstanceOf proc,Problem)] -> m (Either (P.Proof proc) [P.Proof proc])
-applyList True ps = do actions <- sequence [ P.mkIO $ P.apply proc prob | (proc, prob) <- ps]
-                       liftIO $ pfoldA comb (Right []) actions
-    where comb (Right l) proof | succeeded proof = Continue $ Right $ proof : l
-                               | otherwise       = Stop $ Left proof
-applyList False []                 = return $ Right []
-applyList False ((proc,prob) : ps) = do r <- P.apply proc prob
-                                        if succeeded r
-                                         then do rs <- applyList False ps
-                                                 return $ case rs of {Right ls -> Right (r:ls); e -> e}
-                                         else return $ Left r

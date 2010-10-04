@@ -35,6 +35,7 @@ module Tct.Processor
     , LoggingSolverM (..)
     , ProcessorParser
     , apply
+    , evalList
     , parseProcessor
     , fromString
     -- * Some Processor
@@ -61,6 +62,7 @@ import System.IO (Handle, hPutStrLn, hFlush)
 import Control.Concurrent (ThreadId, forkIO, killThread, myThreadId)
 import qualified Control.Exception as C
 import Control.Monad.Reader
+import Control.Concurrent.PFold (pfoldA, Return(..))
 import Data.Typeable
 
 import qualified Qlogic.SatSolver as SatSolver
@@ -145,6 +147,17 @@ apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof
 apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
+evalList :: (SolverM m) => Bool -> (a -> Bool) -> [m a] -> m (Either a [a])
+evalList True success ms  = do actions <- sequence [ mkIO $ m | m <- ms]
+                               liftIO $ pfoldA comb (Right []) actions
+    where comb (Right as) a | success a = Continue $ Right $ a : as
+                            | otherwise       = Stop $ Left a
+evalList False _     []       = return $ Right []
+evalList False success (m : ms) = do a <- m
+                                     if success a
+                                      then do eas <- evalList False success ms
+                                              return $ case eas of {Right as -> Right (a:as); e -> e}
+                                      else return $ Left a
 
 fromString :: ParsableProcessor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
 fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s

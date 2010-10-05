@@ -41,7 +41,6 @@ import Tct.Proof
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
-import Control.Monad.Trans (liftIO)
 import Data.Maybe (fromMaybe)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -80,11 +79,6 @@ answerTProof :: (P.ComplexityProcessor sub) => (ProofOf t -> Enumeration (P.Proo
 answerTProof _ (UTProof _ sp) = answer sp
 answerTProof f (TProof tp sps) = f tp sps
 
-instance ( P.Processor sub
-         , Answerable (TProof t sub)
-         , PrettyPrintable (TProof t sub)
-         , ComplexityProof (P.ProofOf sub))  => ComplexityProof (TProof t sub)
-
 class Transformer t where
     name         :: t -> String
     description  :: t -> [String]
@@ -100,7 +94,7 @@ class Transformer t where
 
 data Trans t sub = Trans t
 
-instance (P.Processor sub, ComplexityProof (P.ProofOf sub), Transformer t) => S.StdProcessor (Trans t sub) where
+instance (P.ComplexityProcessor sub, Transformer t) => S.StdProcessor (Trans t sub) where
     type S.ProofOf (Trans t sub) = TProof t sub
     type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (S.Processor sub)
     name (Trans t)      = name t
@@ -123,7 +117,7 @@ instance (P.Processor sub, ComplexityProof (P.ProofOf sub), Transformer t) => S.
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p subproofs'
                                                     where subproofs' = [(e,fromMaybe (error "Transformation.hs: subproof not found!") $ find e subproofs) | (e,_) <- ps]
-                                                Left  (_,failedproof) -> return $ TProof p (enumeration' undefined)
+                                                Left  (_,failedproof) -> return $ TProof p (enumeration' [failedproof])
         where (Trans t) = S.processor inst
               strict :+: par :+: args :+: sub = S.processorArgs inst
 
@@ -131,11 +125,9 @@ instance (P.Processor sub, ComplexityProof (P.ProofOf sub), Transformer t) => S.
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.Processor (Trans t P.AnyProcessor)
 transformationProcessor t = S.Processor (Trans t)
 
---calledWith :: Trans t -> Domains (Trans t sub) -> P.InstanceOf (Trans
--- calledWith :: (Transformer t, P.Processor sub, ComplexityProof (P.ProofOf sub)) =>
---      t -> Domains (S.ArgumentsOf (Trans t sub)) -> sub -> P.InstanceOf (S.Processor (Trans t sub))
 type TransformationProcessor t = S.Processor (Trans t P.AnyProcessor)
 type Transformation t sub = P.InstanceOf (S.Processor (Trans t sub))
+
 calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.ComplexityProcessor sub) => 
               t
               -> (Domains (ArgumentsOf t))

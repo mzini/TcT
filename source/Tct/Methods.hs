@@ -132,7 +132,7 @@ defaultProcessor = timeoutProcessor
 
 -- combinators
 
-call :: (ComplexityProof (P.ProofOf p), P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
+call :: (P.ComplexityProcessor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
 call = P.someInstance
 
 upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) =>

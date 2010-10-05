@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
@@ -79,6 +80,7 @@ certificate p = case answer p of
                 _            -> uncertified
 
 class (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
+instance (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
 
 
 

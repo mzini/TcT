@@ -87,5 +87,3 @@ instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
 instance Answerable (ProofOf p) => Answerable (TOProof p) where 
     answer (TOProof p)  = answer p
     answer (TimedOut _) = TimeoutAnswer
-
-instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p)

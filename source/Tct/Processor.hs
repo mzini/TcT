@@ -125,7 +125,7 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , result           :: ProofOf proc}
 
 
-instance (P.ComplexityProof (ProofOf proc), Processor proc) => PrettyPrintable (Proof proc) where
+instance (ComplexityProcessor proc) => PrettyPrintable (Proof proc) where
     pprint p@(Proof inst prob res) = ppheading $++$ ppres
         where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
               pphead    = quotes (text (instanceName inst))
@@ -173,8 +173,6 @@ data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => 
 
 instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
 instance P.Answerable SomeProof where answer (SomeProof p) = P.answer p
-
-instance P.ComplexityProof SomeProof
 
 instance Typeable (InstanceOf SomeProcessor) where 
     typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]

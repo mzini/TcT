@@ -81,9 +81,6 @@ instance Answerable BoundsProof where
     answer (BP _ Nothing) = MaybeAnswer
     answer (BP _ _)       = CertAnswer $ certified (unknown, poly (Just 1))
 
-instance ComplexityProof BoundsProof
-
-
 -- processor
 instance S.StdProcessor Bounds where
     name Bounds = "bounds"

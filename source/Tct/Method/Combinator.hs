@@ -71,8 +71,6 @@ instance PrettyPrintable TrivialProof where
     pprint Succeeded = text "Success"
     pprint Failed    = text "Fail"
 
-instance ComplexityProof TrivialProof
-
 data Fail = Fail deriving (Show)
 
 instance S.StdProcessor Fail where
@@ -133,14 +131,6 @@ instance ( Answerable (P.ProofOf g)
                              $+$ (nest 3 $ either pprint pprint $ branchProof p)
                   suc      = succeeded $ guardProof p
 
-
-instance ( Answerable (P.ProofOf g)
-         , Answerable (P.ProofOf t)
-         , Answerable (P.ProofOf e)
-         , PrettyPrintable (P.ProofOf g)
-         , PrettyPrintable (P.ProofOf t)
-         , PrettyPrintable (P.ProofOf e)) => ComplexityProof (IteProof g t e)
-
 instance ( P.Processor g
          , Answerable (P.ProofOf g)
          , P.Processor t
@@ -188,7 +178,7 @@ instance Answerable (P.Proof p) => Answerable (OneOfProof p) where
     answer (OneOfFailed _ _)    = MaybeAnswer
     answer (OneOfSucceeded _ p) = answer p
 
-instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneOfProof p) where
+instance (P.ComplexityProcessor p) => PrettyPrintable (OneOfProof p) where
     pprint proof = case proof of 
                      (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                                 $+$ text "" 
@@ -200,9 +190,7 @@ instance (P.Processor p, ComplexityProof (P.ProofOf p)) => PrettyPrintable (OneO
                                                           descr Fastest      = procName p <+> text "proved the goal fastest:"
                                                           descr Best         = procName p <+> text "proved the best result:"
 
-instance (P.Processor p, ComplexityProof (P.ProofOf p)) => ComplexityProof (OneOfProof p)
-
-instance (P.Processor p, Answerable (P.ProofOf p)) => S.StdProcessor (OneOf p) where
+instance (P.ComplexityProcessor p) => S.StdProcessor (OneOf p) where
     type S.ArgumentsOf (OneOf p) = Arg [S.Processor p]
     type S.ProofOf (OneOf p)     = OneOfProof p
 
@@ -265,11 +253,11 @@ fastestProcessor = S.Processor Fastest
 sequentiallyProcessor :: S.Processor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.Processor Sequentially
 
-best :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+best :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
 best ps = Best `S.calledWith` ps
 
-fastest :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+fastest :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
 fastest ps = Fastest `S.calledWith` ps
 
-sequentially :: (P.Processor p, Answerable (P.ProofOf p)) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+sequentially :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
 sequentially ps = Sequentially `S.calledWith` ps

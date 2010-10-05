@@ -59,8 +59,6 @@ instance PrettyPrintable PredicateProof where
         where ans | succeeded a = empty
                   | otherwise   = text "NOT"
 
-instance ComplexityProof PredicateProof
-
 instance S.StdProcessor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
     type S.ProofOf Predicate = PredicateProof

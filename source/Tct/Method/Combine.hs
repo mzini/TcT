@@ -86,8 +86,6 @@ instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
               ub (p':ps') = foldl add p' ps'
               allcerts = all (succeeded . answer) $ ps
 
-instance (P.Processor p, ComplexityProof (P.ProofOf p)) => ComplexityProof (CombineProof p)
-
 instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdProcessor (Combine p) where
     type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [S.Processor p]
     type S.ProofOf (Combine p)     = CombineProof p

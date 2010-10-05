@@ -64,16 +64,16 @@ prettyPrintTProof :: ( PrettyPrintable (ProofOf t)
                     , P.Processor p
                     , Answerable (P.ProofOf p)
                     , PrettyPrintable (P.ProofOf p)) => TProof t p -> Doc
-prettyPrintTProof (TProof tp ps) = block "Transformation Details" (enumeration' [tp])
+prettyPrintTProof (TProof tp ps) = block' "Transformation Details" [tp]
                                    $+$ text ""
                                    $+$ overview ps
                                    $+$ text ""
                                    $+$ details ps
 prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
                             $+$ text ""
-                            $+$ block "Transformation Details" (enumeration' [tp])
+                            $+$ block' "Transformation Details" [tp]
                             $+$ text ""
-                            $+$ block "Application of the subprocessor" (enumeration' [p])
+                            $+$ block' "Application of the subprocessor" [p]
 
 answerTProof :: (P.ComplexityProcessor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
 answerTProof _ (UTProof _ sp) = answer sp
@@ -117,7 +117,7 @@ instance (P.ComplexityProcessor sub, Transformer t) => S.StdProcessor (Trans t s
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p subproofs'
                                                     where subproofs' = [(e,fromMaybe (error "Transformation.hs: subproof not found!") $ find e subproofs) | (e,_) <- ps]
-                                                Left  (_,failedproof) -> return $ TProof p (enumeration' [failedproof])
+                                                Left  fld -> return $ TProof p [fld]
         where (Trans t) = S.processor inst
               strict :+: par :+: args :+: sub = S.processorArgs inst
 

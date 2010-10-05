@@ -16,8 +16,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Tct.Certificate
-    ( Complexity
-    , Certificate
+    ( Complexity (..)
+    , Certificate 
     , lowerBound
     , upperBound
     , certified

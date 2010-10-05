@@ -84,6 +84,7 @@ instance PrettyPrintable a => PrettyPrintable (MatrixInter a) where
           printInter f li = fHead <+> nest (length (show fHead) + 1) (pprint li)
             where fHead = pprint (f,sig) <> fargs li <+> char '='
                   fargs = parens . hsep . punctuate comma . map (\(V.Canon i) -> char 'x' <> int i) . Map.keys . coefficients
+
 instance PrettyPrintable a => PrettyPrintable (LInter a) where
   pprint (LI ms vec) = foldr handleLine empty [1..d]
     where handleLine i doc               = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc

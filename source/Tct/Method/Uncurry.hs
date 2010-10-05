@@ -48,6 +48,7 @@ import Tct.Proof
 import Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
+import Tct.Processor.PPrint
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 data Uncurry = Uncurry deriving (Show,Typeable)

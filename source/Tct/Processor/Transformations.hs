@@ -117,7 +117,7 @@ instance (P.ComplexityProcessor sub, Transformer t) => S.StdProcessor (Trans t s
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p subproofs'
                                                     where subproofs' = [(e,fromMaybe (error "Transformation.hs: subproof not found!") $ find e subproofs) | (e,_) <- ps]
-                                                Left  fld -> return $ TProof p [fld]
+                                                Left  (fld,subs) -> return $ TProof p (fld:subs)
         where (Trans t) = S.processor inst
               strict :+: par :+: args :+: sub = S.processorArgs inst
 

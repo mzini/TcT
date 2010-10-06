@@ -30,6 +30,7 @@ import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 import Data.List (partition, intersperse, delete, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
+-- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Data.Typeable 
 import Data.Maybe (fromJust)
@@ -104,7 +105,7 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                               , "We abort." ])
     pprint (T.TProof proof ps) = block' "Transformation Details" [ppTrans]
                                  $+$ if not simple 
-                                      then block' "Details" [ppDetails]
+                                      then block' "Sub-problems" [ppDetails]
                                       else PP.empty
         where ppTrans = ppDPs
                         $+$ text ""
@@ -119,6 +120,7 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                  $+$ text ""
                                  $+$ (indent $ printTrees ppNode )
                                  $+$ text ""
+                                 $+$ text ""
                                  $+$ text "Here nodes are as follow:"
                                  $+$ text ""
                                  $+$ (indent $ vcat [ text "SCC" <+> printNodeId n <> text ":" 
@@ -132,29 +134,32 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
               --     where ppNode pth n = (printNodeId n) <+> text "   " <+> parens (ppAns (proofOfPath pth))
               --           ppAns Nothing = text "unverified"
               --           ppAns (Just n) = pprint (answer n)
-              ppDetails = vcat $ intersperse (text "") [ (text "* Path" <+> printPath gpth <> text ":")
+              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> printPath gpth <> text ":"))
                                                          $+$ text ""
-                                                         $+$ ppUrs urs
-                                                         $+$ text ""
-                                                         $+$ (indent $ ppSLIProof p)
-                                                         $+$ text ""
-                                                         $+$ (indent $ ppSubProof gpth)
-                                                         | (Path gpth _ urs, p) <- computedPaths proof]
-                  where ppSLIProof Nothing = ppSLIfail
+                                                         $+$ indent (ppUrs urs sliproof 
+                                                                     $+$ text ""
+                                                                     $+$ text "We apply the sub-processor on the resulting sub-problem:"
+                                                                     $+$ text ""
+                                                                     $+$ ppSubProof gpth)
+                                                         | (Path gpth _ urs, sliproof) <- sortBy comparePath $ computedPaths proof]
+                  where ppSLIfail = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
+                                                        , "We thus generated the problem consisting of the union of usable rules"
+                                                        , "and dependency pairs of this path."]
+                        ppSubProof gpth = case find (SN gpth) ps of 
+                                            Just p  -> pprint p
+                                            Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                        ppUrs (Trs []) _        = text "The usable rules of this path are empty."
+                        ppUrs urs      sliproof = text "The usable rules for this path are:"
+                                                  $+$ text ""
+                                                  $+$ (indent $ pprint (urs, sig, vars))
+                                                  $+$ text ""
+                                                  $+$ ppSLIProof sliproof
+                        ppSLIProof Nothing = ppSLIfail
                         ppSLIProof (Just mp) | failed mp = ppSLIfail
                                              | otherwise = text "The usable rules are compatible with the following SLI:"
                                                            $+$ pprint (P.result mp)
-                        ppSLIfail = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
-                                                        , "We thus generated the problem consisting of the union of usable rules"
-                                                        , "and dependency pairs of this path"]
-                        ppSubProof gpth = case find (SN gpth) ps of 
-                                            Just p  -> pprint p
-                                            Nothing -> text "We have not generated a proof for the resulting sub-problem"
-                        ppUrs (Trs []) = text "The usable rules of this path are empty"
-                        ppUrs urs      = text "The usable rules for this path are:"
-                                         $+$ text ""
-                                         $+$ (indent $ pprint (urs, sig, vars))
-
+                                                  $+$ text ""
+                        comparePath (Path p1 _ _,_) (Path p2 _ _,_) = p1 `compare` p2
 
 -- todo refactor for general use
               printTrees ppNode  = vcat $ intersperse (text "") [printTree ppNode n | n <- nodes, Graph.indeg ewdgSCC n == 0]
@@ -226,8 +231,8 @@ instance T.Transformer Wdg where
           (TermAlgebra, _) -> return $ T.Failure $ Inapplicable {reason = "derivational complexity"}
           (_, DP _ _) -> return $ T.Failure $ Inapplicable {reason = "DP problems"}
           (_, Relative _ _) -> return $ T.Failure $ Inapplicable {reason = "relative problems"}
-          (BasicTerms _ _, Standard trs) -> do let wg urs | useWG     = return Nothing 
-                                                          | otherwise = weightGap (N.Bits 4) Nothing $ wgProblem urs
+          (BasicTerms _ _, Standard trs) -> do let wg urs | useWG     = weightGap (N.Bits 4) Nothing $ wgProblem urs
+                                                          | otherwise = return Nothing 
                                                ps <- P.evalList' useWG [ do wg urs >>= \ p -> return (pth, p) | pth@(Path _ _ urs) <- paths]
                                                return $ T.Success (mkProof ps) (mkSubProbs ps)
       

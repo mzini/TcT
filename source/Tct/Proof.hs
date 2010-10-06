@@ -25,6 +25,7 @@ module Tct.Proof
     , failed
     , isTimeout
     , certificate
+    , answerFromCertificate
     )
 where
 
@@ -59,6 +60,10 @@ class Answerable proof where
 instance Answerable Answer where
     answer = id
 
+answerFromCertificate :: Certificate -> Answer
+answerFromCertificate cert = if cert == uncertified
+                             then MaybeAnswer
+                             else CertAnswer cert
 
 succeeded :: Answerable p => p -> Bool
 succeeded p = case answer p of 

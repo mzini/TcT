@@ -1,10 +1,3 @@
-{-# LANGUAGE TransformListComp #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -21,6 +14,12 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tct.Method.Wdg where
 
@@ -28,12 +27,12 @@ import qualified Control.Monad.State.Lazy as State
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Graph.Inductive.Tree as GraphT
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
-import Data.List (partition, transpose, intersperse, delete, sortBy)
+import Data.List (partition, intersperse, delete, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
 import qualified Data.Set as Set
 import Data.Typeable 
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
@@ -41,13 +40,11 @@ import Termlib.Problem
 import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
-import Termlib.FunctionSymbol
+import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
 import Termlib.Rule (Rule)
-import Termlib.FunctionSymbol (Signature)
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..), definedSymbols)
-import qualified Termlib.Variable as V
 import Termlib.Variable(Variables)
 import Termlib.Utils
 
@@ -131,18 +128,34 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                         ppAns Nothing = text "unverified"
                         ppAns (Just n) = pprint (answer n)
 
-
               -- ppOverview = printTrees ppNode 
               --     where ppNode pth n = (printNodeId n) <+> text "   " <+> parens (ppAns (proofOfPath pth))
               --           ppAns Nothing = text "unverified"
               --           ppAns (Just n) = pprint (answer n)
-              ppDetails = vcat $ intersperse (text "") [ (text "* Path" <+> ppath e <> text ":")
+              ppDetails = vcat $ intersperse (text "") [ (text "* Path" <+> printPath gpth <> text ":")
                                                          $+$ text ""
-                                                         $+$ (indent $ pprint p)
-                                                         | (e,p) <- ps]
-                            where ppath (SN e) = case cast e of 
-                                                   (Just path) -> printPath path 
-                                                   Nothing -> ppNumbering e
+                                                         $+$ ppUrs urs
+                                                         $+$ text ""
+                                                         $+$ (indent $ ppSLIProof p)
+                                                         $+$ text ""
+                                                         $+$ (indent $ ppSubProof gpth)
+                                                         | (Path gpth _ urs, p) <- computedPaths proof]
+                  where ppSLIProof Nothing = ppSLIfail
+                        ppSLIProof (Just mp) | failed mp = ppSLIfail
+                                             | otherwise = text "The usable rules are compatible with the following SLI:"
+                                                           $+$ pprint (P.result mp)
+                        ppSLIfail = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
+                                                        , "We thus generated the problem consisting of the union of usable rules"
+                                                        , "and dependency pairs of this path"]
+                        ppSubProof gpth = case find (SN gpth) ps of 
+                                            Just p  -> pprint p
+                                            Nothing -> text "We have not generated a proof for the resulting sub-problem"
+                        ppUrs (Trs []) = text "The usable rules of this path are empty"
+                        ppUrs urs      = text "The usable rules for this path are:"
+                                         $+$ text ""
+                                         $+$ (indent $ pprint (urs, sig, vars))
+
+
 -- todo refactor for general use
               printTrees ppNode  = vcat $ intersperse (text "") [printTree ppNode n | n <- nodes, Graph.indeg ewdgSCC n == 0]
               printTree ppNode node = printTree' [node] node
@@ -150,8 +163,8 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                            $+$ printSubtrees pth (sortBy compareLabel $ Graph.suc ewdgSCC n)
                         printSubtrees _ [] = PP.empty
                         printSubtrees pth ns = text " |"   
-                                               $+$ (vcat $ intersperse (text " |") [ text (" " ++ sep) <+> printTree' (pth ++ [n]) n 
-                                                                                     | (sep, n) <- zip seps ns])
+                                               $+$ (vcat $ intersperse (text " |") [ text (" " ++ sepstr) <+> printTree' (pth ++ [n]) n 
+                                                                                     | (sepstr, n) <- zip seps ns])
                             where seps = take (length ns - 1) (repeat ("|-->")) ++ [" `->"]
 
 
@@ -164,15 +177,13 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
               sig     = newSignature proof
               vars    = newVariables proof
               wdps    = dependencyPairs proof
-              urs     = usableRules proof
               simple  = containsNoEdgesEmptyUrs proof
-              vcat'   = foldl ($+$) PP.empty 
 
 instance (P.ComplexityProcessor sub) => Answerable (T.TProof Wdg sub) where 
     answer = T.answerTProof ans 
         where ans (Inapplicable _) _                        = MaybeAnswer
-              ans proof sps | containsNoEdgesEmptyUrs proof = CertAnswer $ certified (unknown, poly (Just 0))
-                            | otherwise = CertAnswer $ certified (unknown, maximum [ mkUb sp | sp <- sps])
+              ans proof sps | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
+                            | otherwise = answerFromCertificate $ certified (unknown, maximum [ mkUb sp | sp <- sps])
                   where mkUb (_,p) = case relation $ P.inputProblem p of 
                                        Standard _ -> ub p
                                        _          -> assertLinear $ ub p
@@ -264,7 +275,7 @@ instance T.Transformer Wdg where
                     ewdgSCC = toSccGraph ewdg
 
                     paths = [ Path ns (ps,pm) (urs $ pm : ps) | (ns, ps,pm) <- pathsFromSCCs ewdgSCC ]
-                        where urs = mkUsableRules wdps . Trs.unions
+                        where urs dps = mkUsableRules (Trs.unions dps) trs
 
 
 
@@ -290,7 +301,7 @@ pathsFromSCCs gr = runMemoAction allPathsM
                                  let trs = snd $ fromJust $ Graph.lab gr n
                                  return $ case paths of 
                                             [] -> [([n], [],trs)]
-                                            _  -> ([n], [], trs) : [ (n : ns ,trs : path,pm) | (ns,path,pm) <- paths ] 
+                                            _  -> ([n], [], trs) : [ (n : ns ,trs : pth,pm) | (ns,pth,pm) <- paths ] 
 
 
 -- dependency pairs and usable rules
@@ -387,19 +398,19 @@ match c t = State.evalState match' ([(c, t)], [])
                              (Fun f ss, Term.Fun g ts) | f /= g                 -> return False
                                                        | length ss /= length ts -> return False
                                                        | otherwise              -> State.put (zip ss ts ++ tail eqs, mergeqs) >> match'
-                             (c, Term.Var x)                                    -> State.put (tail eqs, (c, x) : mergeqs) >> match'
+                             (c', Term.Var x)                                    -> State.put (tail eqs, (c', x) : mergeqs) >> match'
           matchmerge = do eqs <- State.get
                           if null eqs 
                            then return True 
-                           else do let (c, x) = head eqs
+                           else do let (c', x) = head eqs
                                        eqs' = tail eqs
                                    case List.find ((== x) . snd) eqs' of
                                      Nothing     -> State.put eqs' >> matchmerge
-                                     Just (d, y) -> case merge c d of
+                                     Just (d, y) -> case merge c' d of
                                                      Nothing -> return False
                                                      Just e  -> State.put ((e, x) : delete (d, y) eqs') >> matchmerge
-          merge Hole c                                         = Just c
-          merge c Hole                                         = Just c
+          merge Hole c'                                        = Just c'
+          merge c' Hole                                        = Just c'
           merge (Fun f ss) (Fun g ts) | f /= g                 = Nothing
                                       | length ss /= length ts = Nothing
                                       | any (== Nothing) cs    = Nothing 

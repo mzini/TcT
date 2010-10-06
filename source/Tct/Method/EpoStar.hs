@@ -257,7 +257,7 @@ symbols sign = Set.toList (defineds sign) ++ Set.toList (constructors sign)
 precedence :: Sig -> EpoSAT (Precedence, PrecedenceDecoder) 
 precedence sign = do top <- constant True
                      bot <- constant False
-                     let fs = symbols sign
+                     let fs = Set.toList $ defineds sign
                          pairs = [(f,g) | f <- fs, g <- fs]
                          bits = ceiling $ (log $ fromIntegral $ length fs :: Double)
                      lvs <- foldM (\ m f -> number bits >>= \ n -> return $ Map.insert f n m) Map.empty fs
@@ -268,19 +268,20 @@ precedence sign = do top <- constant True
                                                     return $ Map.insert (f,g) (gtp,eqp) m)
                          Map.empty 
                          pairs
-                     let ord f g | f < g     = (f,g)
-                                 | otherwise = (g,f)
-                         mkf (f :>: g) | f == g     = bot
-                                       | c f && d g = bot
-                                       | d g && c f = top
-                                       | otherwise  = fst $ find (f,g) prec
-                         mkf (f :~: g) | f == g     = top
-                                       | c f && d g = bot
-                                       | d f && c g = bot
+                     let pr f g | f < g     = (f,g)
+                                | otherwise = (g,f)
+                         mkf (f :>: g) | f == g               = bot
+                                       | isConstructor sign f = bot
+                                       | isConstructor sign g = top
+                                       | otherwise            = fst $ find (f,g) prec
+                         mkf (f :~: g) | f == g               = top
+                                       | cf && Prelude.not cg = bot
+                                       | Prelude.not cf && cg = bot
+                                       | cf && cg             = top
                                        | ar sign f /= ar sign g = bot
-                                       | otherwise  = snd $ find (ord f g) prec
-                         c f = isConstructor sign f 
-                         d f = isDefined sign f
+                                       | otherwise            = snd $ find (pr f g) prec
+                             where cf = isConstructor sign f 
+                                   cg = isConstructor sign g
                      
                      return $ (mkf, PrecDecode prec sign)
 

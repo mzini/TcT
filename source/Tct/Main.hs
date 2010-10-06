@@ -32,7 +32,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Maybe (isJust, fromMaybe)
 import Data.List (sortBy)
 import System
-import System.Posix.Signals (Handler(..), installHandler, sigTERM)
+import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
 import qualified Config.Dyre as Dyre
@@ -101,6 +101,7 @@ tct conf = flip Dyre.wrapMain conf params
                        | otherwise          = C.block $ do flgs <- readFlags
                                                            mv   <- newEmptyMVar
                                                            _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
+                                                           _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing
                                                            let main pid = do e <- readMVar mv
                                                                              killThread pid
                                                                              return e

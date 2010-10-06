@@ -116,18 +116,19 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                       $+$ (indent $ pprint (wdps, sig, vars))
 
               ppDG | containsNoEdgesEmptyUrs proof = text "The dependency graph contains no edges and the usable rules are empty."
-                   | otherwise = text "Following Dependency Graph (modulo SCCs) was computed:"
+                   | otherwise = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
                                  $+$ text ""
-                                 $+$ (indent $ printTrees ppNode )
+                                 $+$ (indent $ printTrees 60 ppNode ppLabel)
                                  $+$ text ""
                                  $+$ text ""
-                                 $+$ text "Here nodes are as follow:"
+                                 $+$ text "Here nodes are as follows:"
                                  $+$ text ""
                                  $+$ (indent $ vcat [ text "SCC" <+> printNodeId n <> text ":" 
                                                       $+$ (indent $  pprint (nodeTrs ewdgSCC n, sig, vars)) $+$ text "" 
                                                       | n <- nodes])
-                  where ppNode pth n = (printNodeId n) <+> text "   " <+> parens (ppAns (proofOfPath pth))
-                        ppAns Nothing = text "unverified"
+                  where ppNode _ n    = printNodeId n
+                        ppLabel pth _ = PP.brackets (text " " <+> ppAns (proofOfPath pth) <+> text " ")
+                        ppAns Nothing = text "NA"
                         ppAns (Just n) = pprint (answer n)
 
               ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> printPath gpth <> text ":"))
@@ -158,10 +159,11 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                         comparePath (Path p1 _ _,_) (Path p2 _ _,_) = p1 `compare` p2
 
 -- todo refactor for general use
-              printTrees ppNode  = vcat $ intersperse (text "") [printTree ppNode n | n <- nodes, Graph.indeg ewdgSCC n == 0]
-              printTree ppNode node = printTree' [node] node
-                  where printTree' pth n = ppNode pth n 
+              printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]
+              printTree offset ppNode ppLabel node = printTree' [node] node
+                  where printTree' pth n = padToLength l (ppNode pth n) <> (ppLabel pth n)
                                            $+$ printSubtrees pth (sortBy compareLabel $ Graph.suc ewdgSCC n)
+                            where l = offset - (length pth) * 6
                         printSubtrees _ [] = PP.empty
                         printSubtrees pth ns = text " |"   
                                                $+$ (vcat $ intersperse (text " |") [ text (" " ++ sepstr) <+> printTree' (pth ++ [n]) n 

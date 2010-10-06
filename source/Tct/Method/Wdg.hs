@@ -130,11 +130,16 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                         ppAns Nothing = text "unverified"
                         ppAns (Just n) = pprint (answer n)
 
+
               -- ppOverview = printTrees ppNode 
               --     where ppNode pth n = (printNodeId n) <+> text "   " <+> parens (ppAns (proofOfPath pth))
               --           ppAns Nothing = text "unverified"
               --           ppAns (Just n) = pprint (answer n)
-              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> printPath gpth <> text ":"))
+              ppDetails = vcat $ intersperse (text "") [ (text "* Path" <+> ppath e <> text ":")
+                                                         $+$ text ""
+                                                         $+$ ppUrs urs
+                                                         $+$ text ""
+                                                         $+$ (indent $ ppSLIProof p)
                                                          $+$ text ""
                                                          $+$ indent (ppUrs urs sliproof 
                                                                      $+$ text ""
@@ -300,13 +305,12 @@ toSccGraph gr = Graph.mkGraph nodes edges
 
 pathsFromSCCs :: SCCGraph -> [(Graph.Path, [Trs], Trs)]
 pathsFromSCCs gr = runMemoAction allPathsM
-    where allPathsM = concat `liftM` mapM pathsM sources
-              where sources = [n | n <- roots gr]
+    where allPathsM = concat `liftM` mapM pathsM [n | n <- roots gr]
           pathsM n = memo n $ do paths <- concat `liftM` mapM pathsM (Graph.suc gr n)
                                  let trs = snd $ fromJust $ Graph.lab gr n
                                  return $ case paths of 
                                             [] -> [([n], [],trs)]
-                                            _  -> ([n], [], trs) : [ (n : ns ,trs : pth,pm) | (ns,pth,pm) <- paths ] 
+                                            _  -> ([n], [], trs) : [ (n : ns ,trs : path,pm) | (ns,path,pm) <- paths ] 
 
 
 -- dependency pairs and usable rules

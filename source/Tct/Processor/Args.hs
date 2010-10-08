@@ -75,7 +75,7 @@ class Arguments a => ParsableArguments a where
     optionalParsers :: a -> [OptionalParser]
 
 
-data NoArgs = NoArgs deriving (Typeable, Show)
+data Unit = Unit deriving (Typeable, Show)
 
 data Arg k = Arg { name         :: String
                  , description  :: String
@@ -86,8 +86,8 @@ data Arg k = Arg { name         :: String
 data a :+: b = a :+: b deriving (Typeable, Show)
 
 
-instance Arguments NoArgs where 
-    type Domains NoArgs = ()
+instance Arguments Unit where 
+    type Domains Unit = ()
 
 
 instance (Argument a) => Arguments (Arg a) where
@@ -97,10 +97,10 @@ instance (Arguments a, Arguments b) => Arguments (a :+: b) where
     type Domains (a :+: b) = Domains a :+: Domains b
 
 
-instance ParsableArguments NoArgs where
-    parseArgs NoArgs _ = return ()
-    optionalParsers NoArgs = []
-    descriptions NoArgs = []
+instance ParsableArguments Unit where
+    parseArgs Unit _ = return ()
+    optionalParsers Unit = []
+    descriptions Unit = []
 
 instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
@@ -162,6 +162,6 @@ arg = Arg { name         = "unspecified"
 opt :: Arg a
 opt = arg { isOptional_ = True }
 
-unit :: NoArgs
-unit = NoArgs
+unit :: Unit
+unit = Unit
 

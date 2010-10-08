@@ -79,11 +79,11 @@ instance P.ComplexityProcessor sub => PrettyPrintable (T.TProof Uncurry sub) whe
     pprint = prettyPrintTProof
 
 instance T.Transformer Uncurry where
-    type T.ArgumentsOf Uncurry = A.NoArgs
+    type T.ArgumentsOf Uncurry = A.Unit
     type T.ProofOf     Uncurry = UncurryProof
     name Uncurry = "uncurry"
     description Uncurry = [ "This processor implements 'Uncurrying' for left-head-variable-free ATRSs"]
-    arguments Uncurry = A.NoArgs
+    arguments Uncurry = A.Unit
     transform _ prob =
         return $ case (relation prob) of
                    (Standard (Trs []))  -> T.Success p (enumeration' [prob])

@@ -30,10 +30,11 @@ import Text.Parsec.Combinator (choice)
 import Text.Parsec.Char (string)
 import Data.List (intersperse)
 import Text.Parsec.Prim (many, try, (<|>))
-import Tct.Processor.Parse
+import Tct.Processor.Parse hiding (natural, bool)
+import qualified Tct.Processor.Parse as Parse
 import Tct.Processor.Args
 import qualified Tct.Processor as P
-import Tct.Processor.Standard
+import qualified Tct.Processor.Standard as S
 
 -- * Primitives
 newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Num, Enum)
@@ -51,22 +52,22 @@ instance Argument Nat where
     domainName Phantom = "<nat>"
 
 instance ParsableArgument Nat where
-    parseArg Phantom = Nat `liftM` natural
+    parseArg Phantom = Nat `liftM` Parse.natural
 
 instance Argument Bool where
     type Domain Bool = Bool
     domainName Phantom = "<bool>"
 
 instance ParsableArgument Bool where
-    parseArg Phantom = bool
+    parseArg Phantom = Parse.bool
 
 
 -- * Processors
-instance (P.Processor a) => Argument (Processor a) where
-    type Domain (Processor a) = P.InstanceOf a
+instance (P.Processor a) => Argument (S.Processor a) where
+    type Domain (S.Processor a) = P.InstanceOf a
     domainName _ = "<processor>"
 
-instance ParsableArgument (Processor P.AnyProcessor) where
+instance ParsableArgument (S.Processor P.AnyProcessor) where
     parseArg Phantom = P.parseAnyProcessor
 
 -- * Compound
@@ -108,6 +109,7 @@ instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
 instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
     parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
 
+
 newtype Assoc a = Assoc a
 
 class AssocArg a where 
@@ -119,6 +121,30 @@ instance AssocArg a => Argument (Assoc a) where
 
 instance AssocArg a => ParsableArgument (Assoc a) where
     parseArg _ = parseArgAssoc $ assoc (Phantom :: Phantom a)
+
+-- argument types
+
+type NaturalArg = Arg Nat
+
+natural :: NaturalArg
+natural = arg
+
+type BoolArg = Arg Bool
+bool :: BoolArg
+bool = arg
+
+type ProcessorArg = Arg (S.Processor P.AnyProcessor)
+processor :: ProcessorArg
+processor = arg
+
+type EnumArg a = Arg (EnumOf a)
+
+optional :: Arg t -> String -> Domain t -> Arg t
+optional tpe nm def = tpe { name = nm
+                          , defaultValue = def
+                          , isOptional_ = True}
+
+
 
 -- type instance CoDomain Nat = Nat
 

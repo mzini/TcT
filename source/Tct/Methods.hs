@@ -70,11 +70,16 @@ module Tct.Methods
 
     -- ** Argument Types
     , Arg
+    , Unit
     , (:+:)(..)
+    , EnumArg
+    , NaturalArg
+    , BoolArg
+    , ProcessorArg
     , natural
     , bool
-    , optional
     , processor
+    , optional
     , unit
 
     -- ** Argument Construction
@@ -141,21 +146,3 @@ upto prc (fast :+: l :+: u) | l > u     = fastest []
                             | fast      = fastest subs
                             | otherwise = sequentially subs
     where subs = [ prc i | i <- [l..u] ]
-
-
--- argument types
-
-natural :: Arg Nat
-natural = arg
-
-bool :: Arg Bool
-bool = arg
-
-processor :: Arg (S.Processor P.AnyProcessor)
-processor = arg
-
-optional :: Arg t -> String -> Domain t -> Arg t
-optional tpe nm def = tpe { name = nm
-                          , defaultValue = def
-                          , isOptional_ = True}
-

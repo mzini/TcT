@@ -64,6 +64,6 @@ Library
                     Tct.Method.Predicates
                     Tct.Methods
 
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, pretty-ncols
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo==1.7, satchmo-backends==1.7, array, fgl, pretty-ncols
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

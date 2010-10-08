@@ -25,7 +25,8 @@ module Tct.Method.Custom
     , customProcessor
     , proc
     , pure
-    , withArgs)
+    , withArgs
+    , apply)
 where
 
 import qualified Tct.Processor as P
@@ -42,7 +43,7 @@ data CustomProcessor arg res = CustomProcessor { as  :: String
 
 --------------------------------------------------------------------------------
 -- processor instance
-
+-- MA: TODO make instance of StdProcessor?
 instance (ComplexityProof res) => P.Processor (CustomProcessor arg res) where
   type P.ProofOf    (CustomProcessor arg res) = res
   data P.InstanceOf (CustomProcessor arg res) = Inst (CustomProcessor arg res) (A.Domains arg)
@@ -55,6 +56,10 @@ instance (A.ParsableArguments arg, ComplexityProof res) => P.ParsableProcessor (
     parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
                            return $ Inst p aa
     description             = description
+    argDescriptions p = [ (A.adName d, descr d) | d <- A.descriptions $ args p, A.adIsOptional d]
+        where descr d = A.adDescr d ++ A.argDescrOnDefault mshow d
+                  where mshow Nothing    = "" 
+                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
 
 withArgs :: CustomProcessor arg res -> (A.Domains arg) -> P.InstanceOf (CustomProcessor arg res)
 c `withArgs` a = Inst c a
@@ -72,3 +77,8 @@ proc p aa prob = P.solve (p aa) prob
 
 pure :: (P.SolverM m, ComplexityProof res) => (args -> Problem -> res) -> (args -> Problem -> m res)
 pure f aa prob = return $ f aa prob
+
+apply :: (P.SolverM m, ComplexityProof res) =>
+        CustomProcessor arg res -> A.Domains arg -> Problem -> m (P.Proof (CustomProcessor arg res))
+apply prc ags prob = P.apply inst prob
+    where inst = prc `withArgs` ags

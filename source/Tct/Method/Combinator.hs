@@ -74,24 +74,24 @@ instance PrettyPrintable TrivialProof where
 data Fail = Fail deriving (Show)
 
 instance S.StdProcessor Fail where
-    type S.ArgumentsOf Fail = NoArgs
+    type S.ArgumentsOf Fail = Unit
     type S.ProofOf Fail     = TrivialProof
     name Fail               = "fail"
     instanceName _          = "fail"
     solve _ _               = return Failed
     description Fail        = ["Processor 'fail' always returns the answer 'No'."]
-    arguments Fail          = NoArgs
+    arguments Fail          = Unit
 
 data Success = Success deriving (Show)
 
 instance S.StdProcessor Success where
-    type S.ArgumentsOf Success = NoArgs
+    type S.ArgumentsOf Success = Unit
     type S.ProofOf Success     = TrivialProof
     name Success               = "success"
     instanceName _             = "success"
     solve _ _                  = return Succeeded
     description Success        = ["Processor 'success' always returns the answer 'Yes'."]
-    arguments   Success        = NoArgs
+    arguments   Success        = Unit
 
 failProcessor :: S.Processor Fail
 failProcessor = S.Processor Fail
@@ -198,7 +198,7 @@ instance (P.ComplexityProcessor p) => S.StdProcessor (OneOf p) where
     name Sequentially = "sequentially"
     name Best         = "best"
 
-    instanceName inst = c (S.processor inst) ++ " of " ++  (concat $ intersperse ", " [ "'" ++ P.instanceName p ++ "'" | p <- S.processorArgs inst])
+    instanceName inst = c (S.processor inst) -- ++ " of " ++  (concat $ intersperse ", " [ "'" ++ P.instanceName p ++ "'" | p <- S.processorArgs inst])
         where c Best         = "Best"
               c Fastest      = "Fastest"
               c Sequentially = "Sequentially"

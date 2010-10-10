@@ -30,6 +30,7 @@ where
 
 import Text.ParserCombinators.Parsec
 
+import Tct.Proof
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
@@ -40,7 +41,7 @@ import Tct.Processor.Parse
 data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: Domains (ArgumentsOf a) }
 
-class StdProcessor a where
+class ComplexityProof (ProofOf a) => Processor a where
     type ArgumentsOf a
     type ProofOf a
     name         :: a -> String
@@ -52,22 +53,22 @@ class StdProcessor a where
     solve        :: P.SolverM m => TheProcessor a -> Problem -> m (ProofOf a)
 
 
-data Processor a = Processor a
+data StdProcessor a = StdProcessor a
 
-instance (StdProcessor a, Arguments (ArgumentsOf a)) => P.Processor (Processor a) where
-    type P.ProofOf (Processor a)    = ProofOf a
-    data P.InstanceOf (Processor a) = TP (TheProcessor a)
-    name (Processor a)            = name a
-    instanceName (TP theproc)     = instanceName theproc
-    solve_ (TP theproc) prob      = solve theproc prob
+instance (Processor a, Arguments (ArgumentsOf a)) => P.Processor (StdProcessor a) where
+    type P.ProofOf (StdProcessor a)    = ProofOf a
+    data P.InstanceOf (StdProcessor a) = TP (TheProcessor a)
+    name (StdProcessor a)              = name a
+    instanceName (TP theproc)          = instanceName theproc
+    solve_ (TP theproc) prob           = solve theproc prob
 
-instance (StdProcessor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (Processor a) where
-    synopsis (Processor a) = name a ++ " " ++ A.synopsis (arguments a) 
-    parseProcessor_ (Processor a) = do args <- mkParseProcessor (name a) (arguments a)
-                                       return $ TP $ TheProcessor { processor = a
-                                                                  , processorArgs = args}
-    description (Processor a)     = description a
-    argDescriptions (Processor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
+instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (StdProcessor a) where
+    synopsis (StdProcessor a)        = name a ++ " " ++ A.synopsis (arguments a) 
+    parseProcessor_ (StdProcessor a) = do args <- mkParseProcessor (name a) (arguments a)
+                                          return $ TP $ TheProcessor { processor = a
+                                                                     , processorArgs = args}
+    description (StdProcessor a)     = description a
+    argDescriptions (StdProcessor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
         where descr d = adDescr d ++ argDescrOnDefault mshow d
                   where mshow Nothing    = "" 
                         mshow (Just def) = " The default is set to '" ++ show def ++ "'."
@@ -76,7 +77,7 @@ mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (D
 mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace
                               parseArguments nm args
 
-calledWith :: StdProcessor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (Processor a)
+calledWith :: Processor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
 p `calledWith` a = TP $ TheProcessor { processor = p
                                      , processorArgs = a }
 

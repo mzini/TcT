@@ -75,7 +75,7 @@ prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus 
                             $+$ text ""
                             $+$ block' "Application of the subprocessor" [p]
 
-answerTProof :: (P.ComplexityProcessor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
+answerTProof :: (P.Processor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
 answerTProof _ (UTProof _ sp) = answer sp
 answerTProof f (TProof tp sps) = f tp sps
 
@@ -94,9 +94,12 @@ class Transformer t where
 
 data Trans t sub = Trans t
 
-instance (P.ComplexityProcessor sub, Transformer t) => S.StdProcessor (Trans t sub) where
+instance ( Transformer t
+         , P.Processor sub
+         , ComplexityProof (TProof t sub)) 
+    => S.Processor (Trans t sub) where
     type S.ProofOf (Trans t sub) = TProof t sub
-    type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (S.Processor sub)
+    type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (S.StdProcessor sub)
     name (Trans t)      = name t
     arguments (Trans t) = opt { A.name = "strict"
                                        , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
@@ -122,13 +125,13 @@ instance (P.ComplexityProcessor sub, Transformer t) => S.StdProcessor (Trans t s
               strict :+: par :+: args :+: sub = S.processorArgs inst
 
 
-transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.Processor (Trans t P.AnyProcessor)
-transformationProcessor t = S.Processor (Trans t)
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Trans t P.AnyProcessor)
+transformationProcessor t = S.StdProcessor (Trans t)
 
-type TransformationProcessor t = S.Processor (Trans t P.AnyProcessor)
-type Transformation t sub = P.InstanceOf (S.Processor (Trans t sub))
+type TransformationProcessor t = S.StdProcessor (Trans t P.AnyProcessor)
+type Transformation t sub = P.InstanceOf (S.StdProcessor (Trans t sub))
 
-calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.ComplexityProcessor sub) => 
+calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 
               t
               -> (Domains (ArgumentsOf t))
               -> Bool 

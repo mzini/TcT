@@ -85,7 +85,7 @@ roots :: (Graph.Graph gr) => gr a b -> [Graph.Node]
 roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
 
 
-data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.Processor NaturalMI)))]
+data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.StdProcessor NaturalMI)))]
                          , computedGraph     :: Graph
                          , computedGraphSCC  :: SCCGraph
                          , dependencyPairs   :: Trs
@@ -96,7 +96,7 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.Proces
               | Inapplicable { reason :: String }
 
 
-instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
+instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
     pprint (T.UTProof _ p) = paragraph (unlines [ "This processor is only applicable to runtime-complexity analysis."
                                                 , " We continue without dependency graph transformation." ])
                               $+$ pprint p
@@ -182,10 +182,10 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
               compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
               sig     = newSignature proof
               vars    = newVariables proof
-              wdps    = dependencyPairs proof
+--              wdps    = dependencyPairs proof
               simple  = containsNoEdgesEmptyUrs proof
 
-instance (P.ComplexityProcessor sub) => Answerable (T.TProof Wdg sub) where 
+instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where 
     answer = T.answerTProof ans 
         where ans (Inapplicable _) _                        = MaybeAnswer
               ans proof sps | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
@@ -210,7 +210,7 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.ComplexityProcessor sub) => Approximation -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg :: (P.Processor sub) => Approximation -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
 wdg approx weightgap = Wdg `T.calledWith` (approx :+: weightgap)
 
 instance T.Transformer Wdg where
@@ -355,7 +355,7 @@ mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
                               Right f -> f `Set.member` syms
                               Left _  ->  True
 
-weightGap :: P.SolverM m => N.Size -> Maybe Nat -> Problem -> m (Maybe (P.Proof (S.Processor NaturalMI)))
+weightGap :: P.SolverM m => N.Size -> Maybe Nat -> Problem -> m (Maybe (P.Proof (S.StdProcessor NaturalMI)))
 weightGap coefficientsize constraintbits prob | Trs.isDuplicating (strictTrs prob) = return $ Nothing
                                               | otherwise                          = Just `liftM` P.apply sli prob
     where sli = matrix Triangular (nat 1) coefficientsize constraintbits

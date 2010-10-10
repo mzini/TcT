@@ -86,8 +86,8 @@ instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
               ub (p':ps') = foldl add p' ps'
               allcerts = all (succeeded . answer) $ ps
 
-instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdProcessor (Combine p) where
-    type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [S.Processor p]
+instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.StdProcessor p)]) => S.Processor (Combine p) where
+    type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [S.StdProcessor p]
     type S.ProofOf (Combine p)     = CombineProof p
 
     name Combine        = "combine"
@@ -108,9 +108,9 @@ instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.Processor p)]) => S.StdPr
     solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob') -- TODO sequentially ! 
         where split :+: insts = S.processorArgs inst
               assigned = assign split insts prob
-combineProcessor :: S.Processor (Combine P.AnyProcessor)
-combineProcessor = S.Processor Combine
+combineProcessor :: S.StdProcessor (Combine P.AnyProcessor)
+combineProcessor = S.StdProcessor Combine
 
 
-combine :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (Combine p))
+combine :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (Combine p))
 combine ps = Combine `S.calledWith` (Random :+: ps)

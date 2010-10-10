@@ -94,7 +94,7 @@ instance Answerable MatrixOrder where
 
 instance ComplexityProof MatrixOrder
 
-instance S.StdProcessor NaturalMI where
+instance S.Processor NaturalMI where
     name NaturalMI = "matrix"
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
@@ -149,10 +149,10 @@ instance S.StdProcessor NaturalMI where
               st  = Prob.startTerms problem
 
 
-matrixProcessor :: S.Processor NaturalMI
-matrixProcessor = S.Processor NaturalMI
+matrixProcessor :: S.StdProcessor NaturalMI
+matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.Processor NaturalMI)
+matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor NaturalMI)
 matrix matrixkind matrixdimension coefficientsize constraintbits = 
     NaturalMI `S.calledWith` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
 

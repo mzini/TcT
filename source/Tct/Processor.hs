@@ -26,7 +26,6 @@ module Tct.Processor
     ( SatSolver (..)
     , Processor (..)
     , ParsableProcessor (..)
-    , ComplexityProcessor
     , Proof (..)
     , SolverM (..)
     , SolverState (..)
@@ -94,29 +93,15 @@ class MonadIO m => SolverM m where
                                 
 -- processor
 
-class Processor a where
+class P.ComplexityProof (ProofOf a) => Processor a where
     type ProofOf a                  
     data InstanceOf a 
     name            :: a -> String
     instanceName    :: (InstanceOf a) -> String
     solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
 
+
 type ProcessorParser a = CharParser AnyProcessor a 
-
-class Processor a => ParsableProcessor a where
-    synopsis :: a -> String
-    description     :: a -> [String]
-    argDescriptions :: a -> [(String, String)]
-    argDescriptions _ = []
-    parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
-
-
-parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
-parseProcessor a = parens parse Parsec.<|> parse
-    where parse = parseProcessor_ a
-
-class (Processor a, P.ComplexityProof (ProofOf a)) => ComplexityProcessor a
-instance (Processor a, P.ComplexityProof (ProofOf a)) => ComplexityProcessor a
 
 -- proof
 
@@ -125,7 +110,7 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , result           :: ProofOf proc}
 
 
-instance (ComplexityProcessor proc) => PrettyPrintable (Proof proc) where
+instance (Processor proc) => PrettyPrintable (Proof proc) where
     pprint p@(Proof inst prob res) = ppheading $++$ ppres
         where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
               pphead    = quotes (text (instanceName inst))
@@ -140,8 +125,10 @@ instance (ComplexityProcessor proc) => PrettyPrintable (Proof proc) where
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
-instance (P.ComplexityProof (ProofOf proc), Processor proc) 
-    => P.ComplexityProof (Proof proc)
+instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
+
+
+-- operations
 
 apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof proc)
 apply proc prob = solve proc prob >>= mkProof
@@ -163,8 +150,25 @@ evalList' :: (SolverM m) => Bool -> [m a] -> m [a]
 evalList' b ms = do Right rs <- evalList b (const True) ms
                     return rs
 
+-- parsable processor
+
+class Processor a => ParsableProcessor a where
+    synopsis :: a -> String
+    description     :: a -> [String]
+    argDescriptions :: a -> [(String, String)]
+    argDescriptions _ = []
+    parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
+
+
+parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
+parseProcessor a = parens parse Parsec.<|> parse
+    where parse = parseProcessor_ a
+
 fromString :: ParsableProcessor p => AnyProcessor -> p -> String -> Either ParseError (InstanceOf p)
 fromString a p s = Parse.fromString (parseProcessor p) a "supplied strategy" s
+
+
+-- someprocessor, anyprocessor
 
 data SomeProcessor = forall p. (P.ComplexityProof (ProofOf p) , ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p

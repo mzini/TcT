@@ -180,7 +180,7 @@ instance (Answerable EpoProof) where
 
 data EpoStar = EpoStar deriving (Show, Eq, Typeable)
 
-instance S.StdProcessor EpoStar where
+instance S.Processor EpoStar where
     name _ = "epo*"
     description _ = [ unlines [ "This processor implements orientation of the input problem using 'exponential path orders',"
                               , "a technique applicable for innermost runtime-complexity analysis."
@@ -210,10 +210,10 @@ instance S.StdProcessor EpoStar where
                                                                                  ec   = S.processorArgs inst
                         _                                                            -> return (Inapplicable "EPO* only applicable for innermost runtime complexity analysis of constructor TRSs")
 
-epostarProcessor :: S.Processor EpoStar
-epostarProcessor = S.Processor EpoStar
+epostarProcessor :: S.StdProcessor EpoStar
+epostarProcessor = S.StdProcessor EpoStar
 
-epostar :: Bool -> P.InstanceOf (S.Processor EpoStar)
+epostar :: Bool -> P.InstanceOf (S.StdProcessor EpoStar)
 epostar ec = EpoStar `S.calledWith` ec
 
 --------------------------------------------------------------------------------

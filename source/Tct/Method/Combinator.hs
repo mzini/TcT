@@ -40,7 +40,6 @@ module Tct.Method.Combinator
 where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
-import Data.List (intersperse)
 import Control.Concurrent.PFold (pfoldA, Return (..))
 import Text.Parsec.Prim
 import Text.Parsec.Char
@@ -73,7 +72,7 @@ instance PrettyPrintable TrivialProof where
 
 data Fail = Fail deriving (Show)
 
-instance S.StdProcessor Fail where
+instance S.Processor Fail where
     type S.ArgumentsOf Fail = Unit
     type S.ProofOf Fail     = TrivialProof
     name Fail               = "fail"
@@ -84,7 +83,7 @@ instance S.StdProcessor Fail where
 
 data Success = Success deriving (Show)
 
-instance S.StdProcessor Success where
+instance S.Processor Success where
     type S.ArgumentsOf Success = Unit
     type S.ProofOf Success     = TrivialProof
     name Success               = "success"
@@ -93,16 +92,16 @@ instance S.StdProcessor Success where
     description Success        = ["Processor 'success' always returns the answer 'Yes'."]
     arguments   Success        = Unit
 
-failProcessor :: S.Processor Fail
-failProcessor = S.Processor Fail
+failProcessor :: S.StdProcessor Fail
+failProcessor = S.StdProcessor Fail
 
-successProcessor :: S.Processor Success
-successProcessor = S.Processor Success
+successProcessor :: S.StdProcessor Success
+successProcessor = S.StdProcessor Success
 
-fail :: P.InstanceOf (S.Processor Fail)
+fail :: P.InstanceOf (S.StdProcessor Fail)
 fail = Fail `S.calledWith` ()
 
-success :: P.InstanceOf (S.Processor Success)
+success :: P.InstanceOf (S.StdProcessor Success)
 success = Success `S.calledWith` ()
 
 
@@ -178,7 +177,7 @@ instance Answerable (P.Proof p) => Answerable (OneOfProof p) where
     answer (OneOfFailed _ _)    = MaybeAnswer
     answer (OneOfSucceeded _ p) = answer p
 
-instance (P.ComplexityProcessor p) => PrettyPrintable (OneOfProof p) where
+instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
     pprint proof = case proof of 
                      (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                                 $+$ text "" 
@@ -190,8 +189,8 @@ instance (P.ComplexityProcessor p) => PrettyPrintable (OneOfProof p) where
                                                           descr Fastest      = procName p <+> text "proved the goal fastest:"
                                                           descr Best         = procName p <+> text "proved the best result:"
 
-instance (P.ComplexityProcessor p) => S.StdProcessor (OneOf p) where
-    type S.ArgumentsOf (OneOf p) = Arg [S.Processor p]
+instance (P.Processor p) => S.Processor (OneOf p) where
+    type S.ArgumentsOf (OneOf p) = Arg [S.StdProcessor p]
     type S.ProofOf (OneOf p)     = OneOfProof p
 
     name Fastest      = "fastest"
@@ -244,20 +243,20 @@ instance (P.ComplexityProcessor p) => S.StdProcessor (OneOf p) where
 
 
 
-bestProcessor :: S.Processor (OneOf P.AnyProcessor)
-bestProcessor = S.Processor Best
+bestProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
+bestProcessor = S.StdProcessor Best
 
-fastestProcessor :: S.Processor (OneOf P.AnyProcessor)
-fastestProcessor = S.Processor Fastest
+fastestProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
+fastestProcessor = S.StdProcessor Fastest
 
-sequentiallyProcessor :: S.Processor (OneOf P.AnyProcessor)
-sequentiallyProcessor = S.Processor Sequentially
+sequentiallyProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
+sequentiallyProcessor = S.StdProcessor Sequentially
 
-best :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 best ps = Best `S.calledWith` ps
 
-fastest :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+fastest :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 fastest ps = Fastest `S.calledWith` ps
 
-sequentially :: (P.ComplexityProcessor p) => [P.InstanceOf p] -> P.InstanceOf (S.Processor (OneOf p))
+sequentially :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 sequentially ps = Sequentially `S.calledWith` ps

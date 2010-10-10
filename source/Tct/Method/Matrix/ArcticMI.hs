@@ -75,7 +75,7 @@ instance Answerable ArcticOrder where
 
 instance ComplexityProof ArcticOrder
 
-instance S.StdProcessor ArcticMI where
+instance S.Processor ArcticMI where
     name ArcticMI = "arctic"
 
     description ArcticMI = [ "This processor orients the problem using matrix-interpretation over the arctic semiring." ]
@@ -115,10 +115,10 @@ instance S.StdProcessor ArcticMI where
 
         where sig = Prob.signature problem
 
-arcticProcessor :: S.Processor ArcticMI
-arcticProcessor = S.Processor ArcticMI
+arcticProcessor :: S.StdProcessor ArcticMI
+arcticProcessor = S.StdProcessor ArcticMI
 
-arctic :: Nat -> AS.Size -> Maybe Nat -> P.InstanceOf (S.Processor ArcticMI)
+arctic :: Nat -> AS.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor ArcticMI)
 arctic matrixdimension coefficientsize constraintbits =
     ArcticMI `S.calledWith` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits)
 

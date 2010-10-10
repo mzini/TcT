@@ -59,7 +59,7 @@ instance PrettyPrintable PredicateProof where
         where ans | succeeded a = empty
                   | otherwise   = text "NOT"
 
-instance S.StdProcessor Predicate where
+instance S.Processor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
     type S.ProofOf Predicate = PredicateProof
     name (Predicate n _) = n
@@ -92,8 +92,8 @@ isRightLinear = Predicate "rightlinear" Trs.isLeftLinear
 isWellFormed :: Predicate
 isWellFormed = Predicate "wellformed" Trs.wellFormed
 
-predicateProcessors :: [S.Processor Predicate]
-predicateProcessors = [S.Processor p 
+predicateProcessors :: [S.StdProcessor Predicate]
+predicateProcessors = [S.StdProcessor p 
                        | p <- [ isDuplicating
                               , isConstructor
                               , isCollapsing

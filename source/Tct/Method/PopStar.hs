@@ -128,7 +128,7 @@ instance ComplexityProof PopStarOrder
 
 data PopStar = PopStar {isLmpo :: Bool} deriving (Typeable, Show)
 
-instance S.StdProcessor PopStar where
+instance S.Processor PopStar where
     name p | isLmpo p  = "lmpo"
            | otherwise = "pop*"
 
@@ -176,16 +176,16 @@ instance S.StdProcessor PopStar where
 
 
 
-popstarProcessor :: S.Processor PopStar
-popstarProcessor = S.Processor (PopStar False)
+popstarProcessor :: S.StdProcessor PopStar
+popstarProcessor = S.StdProcessor (PopStar False)
 
-lmpoProcessor :: S.Processor PopStar
-lmpoProcessor = S.Processor (PopStar True)
+lmpoProcessor :: S.StdProcessor PopStar
+lmpoProcessor = S.StdProcessor (PopStar True)
 
-popstar :: Bool -> P.InstanceOf (S.Processor PopStar)
+popstar :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
 popstar ps = (PopStar False) `S.calledWith` (ps :+: False)
 
-lmpo :: Bool -> P.InstanceOf (S.Processor PopStar)
+lmpo :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
 lmpo ps = (PopStar True) `S.calledWith` (ps :+: False)
 
 

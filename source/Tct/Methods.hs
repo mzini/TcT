@@ -137,11 +137,11 @@ defaultProcessor = timeoutProcessor
 
 -- combinators
 
-call :: (P.ComplexityProcessor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
+call :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
 call = P.someInstance
 
 upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) =>
-        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.Processor (OneOf p))
+        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (OneOf p))
 upto prc (fast :+: l :+: u) | l > u     = fastest []
                             | fast      = fastest subs
                             | otherwise = sequentially subs

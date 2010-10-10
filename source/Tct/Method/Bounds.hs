@@ -82,7 +82,7 @@ instance Answerable BoundsProof where
     answer (BP _ _)       = CertAnswer $ certified (unknown, poly (Just 1))
 
 -- processor
-instance S.StdProcessor Bounds where
+instance S.Processor Bounds where
     name Bounds = "bounds"
     description Bounds = [ unlines [ "This processor implements the (match|roof|top)-bounds technique"
                                    , "that induces linear derivational- and runtime-complexity for right-linear problems." 
@@ -123,11 +123,11 @@ instance S.StdProcessor Bounds where
                     PerSymbol -> perSymInitialAutomaton strict weak st sign
                     Minimal   -> minimalInitialAutomaton strict weak st sign
 
-bounds :: InitialAutomaton -> Enrichment -> P.InstanceOf (S.Processor Bounds)
+bounds :: InitialAutomaton -> Enrichment -> P.InstanceOf (S.StdProcessor Bounds)
 bounds initialAutomaton enrichment = Bounds `S.calledWith` (initialAutomaton :+: enrichment)
 
-boundsProcessor :: S.Processor Bounds
-boundsProcessor = S.Processor Bounds
+boundsProcessor :: S.StdProcessor Bounds
+boundsProcessor = S.StdProcessor Bounds
 
 mkMinRules :: Set.Set FS.Symbol -> Signature -> [State] -> State -> [Rule]
 mkMinRules fs sign qs q = [ Collapse (f,0) (take (FS.arity sign f) qs) q | f <- Set.toList $ fs]

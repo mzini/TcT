@@ -82,22 +82,22 @@ find (SN a) ((SN a', e) : es) =
       Just a'' -> if a == a'' then Just e else find (SN a) es
       Nothing  -> find (SN a) es
 
-details :: (P.ComplexityProcessor a) => Enumeration (P.Proof a) -> Doc
+details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 details ps | any (failed . snd) ps = detailsFailed ps 
            | otherwise             = detailsSuccess ps
 
-detailsFailed :: (P.ComplexityProcessor a) => Enumeration (P.Proof a) -> Doc
+detailsFailed :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 detailsFailed ps = block "Details of failed attempt(s)" 
                        $ [ (a, procName p <+> text "failed due to the following reason:" 
                                  $+$ (indent $ pprint $ P.result p)) 
                            | (a,p) <- ps, failed p]
 
-detailsSuccess :: (P.ComplexityProcessor a) => Enumeration (P.Proof a) -> Doc
+detailsSuccess :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 detailsSuccess ps = block "Details" 
                     $ [(e, procName p <+> text "succeeded with the following output:" $+$ (nest 1 $ pprint p)) 
                        | (e, p) <- ps]
 
-overview :: (P.ComplexityProcessor a) => Enumeration (P.Proof a) -> Doc
+overview :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
     where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
                          $+$ indent (prettyPrintRelation (P.inputProblem p))

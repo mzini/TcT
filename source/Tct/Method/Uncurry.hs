@@ -48,7 +48,6 @@ import Tct.Proof
 import Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
-import Tct.Processor.PPrint
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 data Uncurry = Uncurry deriving (Show,Typeable)
@@ -70,12 +69,12 @@ instance PrettyPrintable UncurryProof where
                    vars = Prob.variables $ inputProblem proof
 
 
-instance P.ComplexityProcessor sub => Answerable (T.TProof Uncurry sub) where
+instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
     answer = T.answerTProof answer' 
         where answer' (NotUncurryable _) _        = MaybeAnswer
               answer' _                  [(_,ps)] = answer ps
 
-instance P.ComplexityProcessor sub => PrettyPrintable (T.TProof Uncurry sub) where
+instance P.Processor sub => PrettyPrintable (T.TProof Uncurry sub) where
     pprint = prettyPrintTProof
 
 instance T.Transformer Uncurry where
@@ -108,7 +107,7 @@ instance T.Transformer Uncurry where
 uncurryProcessor :: TransformationProcessor Uncurry
 uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: (P.ComplexityProcessor sub) => Bool -> Bool -> P.InstanceOf sub -> Transformation Uncurry sub
+uncurry :: (P.Processor sub) => Bool -> Bool -> P.InstanceOf sub -> Transformation Uncurry sub
 uncurry = Uncurry `T.calledWith` ()
 
 

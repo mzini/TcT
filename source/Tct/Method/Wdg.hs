@@ -45,6 +45,7 @@ import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
 import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
+import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Trs (Trs(..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
@@ -113,7 +114,8 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
 
               ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:" 
                       $+$ text ""
-                      $+$ (indent $ pprint (wdps, sig, vars))
+                      $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
+                          where pprule (i,r) = text (show i) <> text ":" <+> pprint (r,sig,vars)
 
               ppDG | containsNoEdgesEmptyUrs proof = text "The dependency graph contains no edges and the usable rules are empty."
                    | otherwise = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
@@ -121,11 +123,11 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                  $+$ (indent $ printTrees 60 ppNode ppLabel)
                                  $+$ text ""
                                  $+$ text ""
-                                 $+$ text "Here nodes are as follows:"
-                                 $+$ text ""
-                                 $+$ (indent $ vcat [ text "SCC" <+> printNodeId n <> text ":" 
-                                                      $+$ (indent $  pprint (nodeTrs ewdgSCC n, sig, vars)) $+$ text "" 
-                                                      | n <- nodes])
+                                 -- $+$ text "Here nodes are as follows:"
+                                 -- $+$ text ""
+                                 -- $+$ (indent $ vcat [ text "SCC" <+> printNodeId n <> text ":" 
+                                 --                      $+$ (indent $  pprint (nodeTrs ewdgSCC n, sig, vars)) $+$ text "" 
+                                 --                      | n <- nodes])
                   where ppNode _ n    = printNodeId n
                         ppLabel pth _ = PP.brackets (text " " <+> ppAns (proofOfPath pth) <+> text " ")
                         ppAns Nothing = text "NA"
@@ -135,15 +137,15 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                          $+$ text ""
                                                          $+$ indent (ppUrs urs sliproof 
                                                                      $+$ text ""
-                                                                     $+$ text "We apply the sub-processor on the resulting sub-problem:"
-                                                                     $+$ text ""
                                                                      $+$ ppSubProof gpth)
                                                          | (Path gpth _ urs, sliproof) <- sortBy comparePath $ computedPaths proof]
                   where ppSLIfail = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
                                                         , "We thus generated the problem consisting of the union of usable rules"
                                                         , "and dependency pairs of this path."]
                         ppSubProof gpth = case find (SN gpth) ps of 
-                                            Just p  -> pprint p
+                                            Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                      $+$ text ""
+                                                      $+$ pprint p
                                             Nothing -> text "We have not generated a proof for the resulting sub-problem."
                         ppUrs (Trs []) _        = text "The usable rules of this path are empty."
                         ppUrs urs      sliproof = text "The usable rules for this path are:"
@@ -175,6 +177,7 @@ instance (P.ComplexityProcessor sub) => PrettyPrintable (T.TProof Wdg sub) where
               printPath ns = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
               proofOfPath p = find (SN p) ps
               ewdgSCC = computedGraphSCC proof
+              ewdg    = computedGraph proof
               nodes   = sortBy compareLabel $ Graph.nodes ewdgSCC
               compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
               sig     = newSignature proof
@@ -212,7 +215,7 @@ wdg approx weightgap = Wdg `T.calledWith` (approx :+: weightgap)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
-    description Wdg = ["This processor implements path analysis based on (weak) Dependency Graphs."]
+    description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
     type T.ArgumentsOf Wdg = Arg (EnumOf Approximation) :+: Arg (Bool)
     type T.ProofOf Wdg = WdgProof 

@@ -282,7 +282,7 @@ data LoggingSig = LMStart | LMFin
 data LoggingMsg = LoggingMsg LoggingSig Integer String ThreadId 
 
 instance Show LoggingMsg where 
-    show (LoggingMsg m t n pid) = "[" ++ show t ++ "]@" ++ show pid ++ ": Processor " ++ n ++ " " ++ sig m
+    show (LoggingMsg m t n pid) = "[" ++ show t ++ "]@" ++ show pid ++ ":" ++ n ++ " " ++ sig m
         where sig LMStart = "started"
               sig LMFin   = "finished"
 
@@ -291,6 +291,7 @@ newtype LoggingSolverM m r = LS { runLS :: ReaderT (Chan LoggingMsg) m r}
 
 
 data LSolverState st = LSolverState { subState  :: st
+                                    , indentation :: Int
                                     , logHandle :: Handle }
 
 instance SolverM m => SolverM (LoggingSolverM m) where 

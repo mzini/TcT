@@ -133,6 +133,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
                                               Just f  -> do h <- openFile f WriteMode  -- TODO error handling
                                                             let st = LSolverState { subState = SolverState slver
+                                                                                  , indentation = 0
                                                                                   , logHandle = h }
                                                             r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
                                                             hFlush h >> hClose h

@@ -154,7 +154,7 @@ matrixProcessor = S.StdProcessor NaturalMI
 
 matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor NaturalMI)
 matrix matrixkind matrixdimension coefficientsize constraintbits = 
-    NaturalMI `S.calledWith` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
+    NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
 
 -- argument accessors
 

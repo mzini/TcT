@@ -18,7 +18,7 @@ cabal-version:      >= 1.6
 build-type:         Simple
 Executable tct
  main-is:           Main.hs
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, pretty-ncols
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time
  hs-source-dirs:    source
  ghc-options:       -threaded -O2
 Library
@@ -37,6 +37,7 @@ Library
                     Tct.Processor.Args.Instances
                     Tct.Processor.PPrint
                     Tct.Processor.Transformations
+                    Tct.Processor.LoggingSolver
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence
@@ -64,6 +65,6 @@ Library
                     Tct.Method.Predicates
                     Tct.Methods
 
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo==1.7, satchmo-backends==1.7, array, fgl, pretty-ncols
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -Wall -fno-warn-orphans

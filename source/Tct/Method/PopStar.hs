@@ -183,10 +183,10 @@ lmpoProcessor :: S.StdProcessor PopStar
 lmpoProcessor = S.StdProcessor (PopStar True)
 
 popstar :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
-popstar ps = (PopStar False) `S.calledWith` (ps :+: False)
+popstar ps = (PopStar False) `S.withArgs` (ps :+: False)
 
 lmpo :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
-lmpo ps = (PopStar True) `S.calledWith` (ps :+: False)
+lmpo ps = (PopStar True) `S.withArgs` (ps :+: False)
 
 
 --------------------------------------------------------------------------------

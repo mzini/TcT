@@ -29,9 +29,7 @@ module Tct.Processor
     , Proof (..)
     , SolverM (..)
     , SolverState (..)
-    , LSolverState (..)
     , StdSolverM
-    , LoggingSolverM (..)
     , ProcessorParser
     , apply
     , evalList
@@ -45,6 +43,7 @@ module Tct.Processor
     , someProof
     , someProcessor
     , someInstance
+    , solveBy
     -- * Any Processor
     , AnyProcessor
     , none
@@ -56,11 +55,6 @@ module Tct.Processor
 where
 
 import Control.Monad.Error
-import Control.Concurrent.Chan
-import System.CPUTime (getCPUTime)
-import System.IO (Handle, hPutStrLn, hFlush)
-import Control.Concurrent (ThreadId, forkIO, killThread, myThreadId)
-import qualified Control.Exception as C
 import Control.Monad.Reader
 import Control.Concurrent.PFold (pfoldA, Return(..))
 import Data.Typeable
@@ -125,7 +119,7 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
-instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
+-- instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
 
 
 -- operations
@@ -219,6 +213,11 @@ someProcessor = SomeProcessor
 someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 someInstance inst = SPI (SomeInstance inst)
 
+solveBy :: (Processor a, SolverM m) => Problem -> InstanceOf a -> m SomeProof
+prob `solveBy` proc = someProof `liftM` solve proc prob
+
+
+
 -- anyInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> SomeInstance
 -- anyInstance inst = SPI (SomeInstance inst)
 
@@ -281,46 +280,3 @@ instance SolverM StdSolverM where
 
     solve = solve_
 
--- add logging to solver monad
-data LoggingSig = LMStart | LMFin
-data LoggingMsg = LoggingMsg LoggingSig Integer String ThreadId 
-
-instance Show LoggingMsg where 
-    show (LoggingMsg m t n pid) = "[" ++ show t ++ "]@" ++ show pid ++ ":" ++ n ++ " " ++ sig m
-        where sig LMStart = "started"
-              sig LMFin   = "finished"
-
-newtype LoggingSolverM m r = LS { runLS :: ReaderT (Chan LoggingMsg) m r}
-    deriving (Monad, MonadIO, MonadReader (Chan LoggingMsg), MonadTrans)
-
-
-data LSolverState st = LSolverState { subState  :: st
-                                    , indentation :: Int
-                                    , logHandle :: Handle }
-
-instance SolverM m => SolverM (LoggingSolverM m) where 
-    type St (LoggingSolverM m) = LSolverState (St m)
-
-    mkIO m = do chan <- ask
-                lift $ mkIO $ runReaderT (runLS m) chan
-
-    runSolver st m = do chan <- liftIO $ newChan
-                        let logThread = do msg <- readChan chan
-                                           let handle = logHandle st
-                                           hPutStrLn handle (show msg)
-                                           hFlush handle
-                                           logThread
-                            run = const $ C.unblock $ runSolver (subState st) $ runReaderT (runLS m) chan
-                        C.bracket (forkIO logThread) killThread run
-
-    minisatValue m e = lift $ minisatValue m e 
-                       
-    solve proc prob = do sendMsg LMStart
-                         r <- solve_ proc prob -- HMN
-                         sendMsg LMFin
-                         return r
-        where sendMsg sig = do t <- liftIO getCPUTime
-                               let n = instanceName proc
-                               pid <- liftIO $ myThreadId
-                               chan <- ask
-                               liftIO $ writeChan chan (LoggingMsg sig t n pid)

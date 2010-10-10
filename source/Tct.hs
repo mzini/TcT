@@ -50,6 +50,7 @@ import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags 
 import Tct.Processor
+import Tct.Processor.LoggingSolver
 import Tct.Proof
 import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
@@ -87,8 +88,7 @@ data TCTState = TCTState
 
 data TCTROState = TCTROState 
   { config    :: Config
-  , flags     :: Flags
-  , startTime :: EpochTime}
+  , flags     :: Flags}
 
 
 instance Error TCTError where
@@ -132,10 +132,8 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                    liftIO $ case lf of
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
                                               Just f  -> do h <- openFile f WriteMode  -- TODO error handling
-                                                            let st = LSolverState { subState = SolverState slver
-                                                                                  , indentation = 0
-                                                                                  , logHandle = h }
-                                                            r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
+                                                            st <- initialState h (SolverState slver)
+                                                            r <- C.block $ runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
                                                             hFlush h >> hClose h
                                                             return r 
 
@@ -225,10 +223,8 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                      
 
 run :: Flags -> Config -> IO (Maybe TCTError, [TCTWarning])
-run flg cfg = do t <- epochTime 
-                 let rostate = TCTROState { config    = cfg
-                                          , flags     = flg
-                                          , startTime = t}
+run flg cfg = do let rostate = TCTROState { config    = cfg
+                                          , flags     = flg}
                  mk `liftM` evalRWST (runErrorT (tct $ readProblem >>= check >>= putProof)) rostate TCTState 
     where mk (Left e,r) = (Just e, r)
           mk (_     ,r) = (Nothing, r)

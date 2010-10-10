@@ -65,8 +65,12 @@ module Tct.Methods
     , isWellFormed
 
     -- * Processor Combinators and Utilities
-    , call
+    , withArgs
     , upto
+    , solveBy
+    , orFaster
+    , orBetter
+    , before
 
     -- ** Argument Types
     , Arg
@@ -108,7 +112,9 @@ import Tct.Method.Uncurry
 import Tct.Method.Wdg
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
+import Tct.Processor (solveBy)
 import qualified Tct.Processor.Standard as S
+import Tct.Processor.Standard (withArgs)
 import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
@@ -137,8 +143,8 @@ defaultProcessor = timeoutProcessor
 
 -- combinators
 
-call :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
-call = P.someInstance
+-- call :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
+-- call = P.someInstance
 
 upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) =>
         (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (OneOf p))
@@ -146,3 +152,15 @@ upto prc (fast :+: l :+: u) | l > u     = fastest []
                             | fast      = fastest subs
                             | otherwise = sequentially subs
     where subs = [ prc i | i <- [l..u] ]
+
+orFaster :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `orFaster` b = fastest [P.someInstance a, P.someInstance b]
+
+orBetter :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `orBetter` b = best [P.someInstance a, P.someInstance b]
+
+before :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `before` b = sequentially [P.someInstance a, P.someInstance b]

@@ -138,4 +138,14 @@ calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub
               -> Bool
               -> P.InstanceOf sub
               -> Transformation t sub
-t `calledWith` as = \ strict par sub -> (Trans t) `S.calledWith` (strict :+: par :+: as :+: sub)
+t `calledWith` as = \ strict par sub -> (Trans t) `S.withArgs` (strict :+: par :+: as :+: sub)
+
+
+-- :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 
+--               t
+--               -> (Domains (ArgumentsOf t))
+--               -> Bool 
+--               -> Bool
+--               -> P.InstanceOf sub
+--               -> Transformation t sub
+-- apply trans args = trans `calledWith` args

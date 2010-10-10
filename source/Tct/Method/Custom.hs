@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -24,17 +26,14 @@ module Tct.Method.Custom
     ( CustomProcessor (..)
     , customProcessor
     , proc
-    , pure
-    , withArgs
-    , apply)
+    , pure)
 where
 
+import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Proof
 import Termlib.Problem (Problem)
-import Tct.Processor.Standard (mkParseProcessor)
-
 
 data CustomProcessor arg res = CustomProcessor { as  :: String
                                                , description :: [String]
@@ -43,30 +42,21 @@ data CustomProcessor arg res = CustomProcessor { as  :: String
 
 --------------------------------------------------------------------------------
 -- processor instance
--- MA: TODO make instance of StdProcessor?
-instance (ComplexityProof res) => P.Processor (CustomProcessor arg res) where
-  type P.ProofOf    (CustomProcessor arg res) = res
-  data P.InstanceOf (CustomProcessor arg res) = Inst (CustomProcessor arg res) (A.Domains arg)
-  name                    = as
-  instanceName (Inst p _) = as p
-  solve_ (Inst p aa) prob = (code p) aa prob
 
-instance (A.ParsableArguments arg, ComplexityProof res) => P.ParsableProcessor (CustomProcessor arg res) where
-    synopsis p = as p ++ " " ++ A.synopsis (args p)
-    parseProcessor_ p = do aa <- mkParseProcessor (as p) (args p)
-                           return $ Inst p aa
-    description             = description
-    argDescriptions p = [ (A.adName d, descr d) | d <- A.descriptions $ args p, A.adIsOptional d]
-        where descr d = A.adDescr d ++ A.argDescrOnDefault mshow d
-                  where mshow Nothing    = "" 
-                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
+instance (ComplexityProof res) => S.Processor (CustomProcessor arg res) where
+  type S.ProofOf (CustomProcessor arg res)     = res
+  type S.ArgumentsOf (CustomProcessor arg res) = arg
+  name        = as
+  description = description
+  arguments   = args
+  solve inst prob = (code p) ags prob
+      where p = S.processor inst
+            ags = S.processorArgs inst
 
-withArgs :: CustomProcessor arg res -> (A.Domains arg) -> P.InstanceOf (CustomProcessor arg res)
-c `withArgs` a = Inst c a
 --------------------------------------------------------------------------------
 -- convenience
 
-customProcessor :: CustomProcessor arg p
+customProcessor :: (CustomProcessor arg p)
 customProcessor = CustomProcessor { as = "unknown"
                                   , code = error "code must be specified when adding custom processor"
                                   , args = error "args must be specified when adding custom processor"
@@ -78,7 +68,6 @@ proc p aa prob = P.solve (p aa) prob
 pure :: (P.SolverM m, ComplexityProof res) => (args -> Problem -> res) -> (args -> Problem -> m res)
 pure f aa prob = return $ f aa prob
 
-apply :: (P.SolverM m, ComplexityProof res) =>
-        CustomProcessor arg res -> A.Domains arg -> Problem -> m (P.Proof (CustomProcessor arg res))
-apply prc ags prob = P.apply inst prob
-    where inst = prc `withArgs` ags
+
+-- withArgs :: ComplexityProof p => CustomProcessor arg p -> A.Domains arg -> P.InstanceOf (S.StdProcessor (CustomProcessor arg p))
+-- p `withArgs` a = p `S.withArgs` a

@@ -113,4 +113,4 @@ combineProcessor = S.StdProcessor Combine
 
 
 combine :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (Combine p))
-combine ps = Combine `S.calledWith` (Random :+: ps)
+combine ps = Combine `S.withArgs` (Random :+: ps)

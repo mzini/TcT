@@ -214,7 +214,7 @@ epostarProcessor :: S.StdProcessor EpoStar
 epostarProcessor = S.StdProcessor EpoStar
 
 epostar :: Bool -> P.InstanceOf (S.StdProcessor EpoStar)
-epostar ec = EpoStar `S.calledWith` ec
+epostar ec = EpoStar `S.withArgs` ec
 
 --------------------------------------------------------------------------------
 -- encoding

@@ -99,10 +99,10 @@ successProcessor :: S.StdProcessor Success
 successProcessor = S.StdProcessor Success
 
 fail :: P.InstanceOf (S.StdProcessor Fail)
-fail = Fail `S.calledWith` ()
+fail = Fail `S.withArgs` ()
 
 success :: P.InstanceOf (S.StdProcessor Success)
-success = Success `S.calledWith` ()
+success = Success `S.withArgs` ()
 
 
 
@@ -253,10 +253,10 @@ sequentiallyProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.StdProcessor Sequentially
 
 best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-best ps = Best `S.calledWith` ps
+best ps = Best `S.withArgs` ps
 
 fastest :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-fastest ps = Fastest `S.calledWith` ps
+fastest ps = Fastest `S.withArgs` ps
 
 sequentially :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-sequentially ps = Sequentially `S.calledWith` ps
+sequentially ps = Sequentially `S.withArgs` ps

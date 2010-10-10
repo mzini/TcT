@@ -22,10 +22,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Standard 
-    -- ( processor
-    -- , processorArgs
-    -- , TheProcessor
-    -- , Processor (..))
+    ( processor
+    , processorArgs
+    , TheProcessor
+    , Processor (..)
+    , StdProcessor(..)
+    , apply
+    , withArgs)
 where
 
 import Text.ParserCombinators.Parsec
@@ -77,7 +80,11 @@ mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (D
 mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace
                               parseArguments nm args
 
-calledWith :: Processor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
-p `calledWith` a = TP $ TheProcessor { processor = p
+withArgs :: Processor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
+p `withArgs` a = TP $ TheProcessor { processor = p
                                      , processorArgs = a }
 
+apply :: (P.SolverM m, Processor p, Arguments (ArgumentsOf p)) =>
+        p -> A.Domains (ArgumentsOf p) -> Problem -> m (P.Proof (StdProcessor p))
+apply proc args prob = P.apply inst prob
+    where inst = proc `withArgs` args

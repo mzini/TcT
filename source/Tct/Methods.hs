@@ -36,7 +36,6 @@ module Tct.Methods
     , predicateProcessors
     , uncurryProcessor
     , wdgProcessor
-    , customProcessor
     , (<|>)
     -- * Processors
     , arctic
@@ -54,8 +53,9 @@ module Tct.Methods
     , timeout
     , uncurry
     , wdg
-    , Approximation(..)
-    , CustomProcessor(..)
+    , CustomProcessor
+    , custom
+    , customProcessor
     -- * Predicates
     , isDuplicating
     , isConstructor
@@ -80,6 +80,7 @@ module Tct.Methods
     , NaturalArg
     , BoolArg
     , ProcessorArg
+    , Approximation(..)
     , natural
     , bool
     , processor

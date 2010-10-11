@@ -54,6 +54,7 @@ module Tct.Methods
     , uncurry
     , wdg
     , CustomProcessor
+    , CPConfig(..)
     , custom
     , customProcessor
     -- * Predicates

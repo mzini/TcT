@@ -50,6 +50,7 @@ import Termlib.Trs (Trs(..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
 
+import Tct.Main.Debug
 import Tct.Certificate
 import Tct.Proof
 import qualified Tct.Processor.Transformations as T
@@ -189,7 +190,7 @@ instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where
     answer = T.answerTProof ans 
         where ans (Inapplicable _) _                        = MaybeAnswer
               ans proof sps | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
-                            | otherwise = answerFromCertificate $ certified (unknown, maximum [ mkUb sp | sp <- sps])
+                            | otherwise = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
                   where mkUb (_,p) = case relation $ P.inputProblem p of 
                                        Standard _ -> ub p
                                        _          -> assertLinear $ ub p
@@ -244,10 +245,12 @@ instance T.Transformer Wdg where
                                           , usableRules      = allUsableRules
                                           , newSignature     = sig'
                                           , newVariables     = variables prob
-                                          , containsNoEdgesEmptyUrs  = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules}
+                                          , containsNoEdgesEmptyUrs  = simple}
               
-                    mkSubProbs ps | null $ Graph.edges ewdg = []
-                                  | otherwise               = [(SN (graphPath pth), subProblem p pth) | (pth,p) <- ps]
+                    mkSubProbs ps | simple    = []
+                                  | otherwise = [(SN (graphPath pth), subProblem p pth) | (pth,p) <- ps]
+
+                    simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 
                     subProblem mp (Path _ (ps,pm) urs) = case mp of 
                                                            Nothing -> direct

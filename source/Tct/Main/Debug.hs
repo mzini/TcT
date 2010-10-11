@@ -64,9 +64,12 @@ timedLogCatchErr s m = whenDebug dm m
 debugMsg :: MonadIO m => String -> m ()
 debugMsg = whenDebug (liftIO . putErrLn) (const $ return ())
 
+debugMsgPP :: (MonadIO m, PrettyPrintable a) => a -> m ()
+debugMsgPP a = debugMsg (show $ pprint $ a)
+
 
 unsafeDebugMsg :: Show a => a -> a
 unsafeDebugMsg a = unsafePerformIO (debugMsg (show a) >> return a)
 
 unsafeDebugMsgPP :: PrettyPrintable a => a -> a
-unsafeDebugMsgPP a = unsafePerformIO (debugMsg (show $ pprint $ a) >> return a)
+unsafeDebugMsgPP a = unsafePerformIO $ debugMsgPP a >> return a

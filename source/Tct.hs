@@ -36,10 +36,8 @@ import Data.Typeable
 import System.Directory
 import System.IO
 import System.FilePath ((</>))
-import System.Posix.Types (EpochTime)
 import Text.PrettyPrint.HughesPJ
 import qualified Control.Exception as C
-import System.Posix.Time (epochTime)
 
 import Termlib.Problem (Problem, onProblem, standardProblem, dpProblem, relativeProblem, wellFormed)
 import Termlib.Utils (PrettyPrintable (..), paragraph)

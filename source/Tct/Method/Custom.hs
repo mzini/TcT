@@ -63,6 +63,7 @@ custom = CPConfig { as = "unknown"
                   , description = [] }
 
 type CustomProcessor arg p = S.StdProcessor (CPConfig arg p)
+
 customProcessor :: (CPConfig arg p) -> (CustomProcessor arg p)
 customProcessor = S.StdProcessor
 

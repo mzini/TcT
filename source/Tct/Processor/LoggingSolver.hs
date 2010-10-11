@@ -42,13 +42,13 @@ import Tct.Proof
 -- add logging to solver monad
 data LoggingSig = LMStart 
                 | LMFin (Proof SomeProcessor)
-data LoggingMsg = LoggingMsg UUID LoggingSig Int ZonedTime ThreadId (InstanceOf SomeProcessor) Problem 
+data LoggingMsg = LoggingMsg UUID LoggingSig Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
 
 toSec :: Integer -> Double
 toSec i = fromInteger i / fromInteger ((10 :: Integer)^(12 :: Integer))
 
 instance PrettyPrintable LoggingMsg where 
-    pprint (LoggingMsg uid sig lv time thread inst prob) = 
+    pprint (LoggingMsg uid sig lv (cpuTime,time) thread inst prob) = 
         stars <+> ( heading 
                    $+$ properties 
                    $+$ text "" 
@@ -58,8 +58,10 @@ instance PrettyPrintable LoggingMsg where
                         <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> brackets ppId
                         <+> text "@"
-                        <+> timedoc
+                        <+> text (show cpuTime_ms ++ "ms")
 
+              cpuTime_ms :: Int
+              cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (12.0^(9 :: Int))
               stars = text [ '*' | _ <- [1..indent]] 
               indent = lv -- case sig of {LMStart -> lv; _-> lv + 1}
 
@@ -132,7 +134,8 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                         mv <- liftIO $ newEmptyMVar
                         let handle = logHandle st
                             time   = startTime st
-                        mapM_ (hPutStrLn handle) [ "#+STARTUP: hidestars"
+                        mapM_ (hPutStrLn handle) [ "-*- mode: Org; mode: Auto-Revert -*-"
+                                                 , "#+STARTUP: hidestars"
                                                  , "#+STARTUP: hideall"
                                                  , "#+TODO: START | END"]
                         let logThread = do mmsg <- readChan chan
@@ -158,8 +161,8 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                          return r
         where sendMsg uid lv sig = do (chan, UTCTime day time) <- ask
                                       liftIO $ do pid <- myThreadId
-                                                  diff <- picosecondsToDiffTime `liftM` getCPUTime
-                                                  localtime <- utcToLocalZonedTime (UTCTime day (time + diff))
+                                                  cpuTime <- getCPUTime
+                                                  localtime <- utcToLocalZonedTime (UTCTime day (time + picosecondsToDiffTime cpuTime))
                                                   let inst = (someInstance proc)
-                                                      msg = LoggingMsg uid sig lv localtime pid inst prob
+                                                      msg = LoggingMsg uid sig lv (cpuTime, localtime) pid inst prob
                                                   writeChan chan $ Just $ msg

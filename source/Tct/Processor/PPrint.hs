@@ -68,6 +68,10 @@ instance PrettyPrintable SomeNumbering where pprint (SN e) = ppNumbering e
 
 type Enumeration e = [(SomeNumbering, e)]
 
+mapEnum :: (e -> f) -> Enumeration e -> Enumeration f
+f `mapEnum` l = [(n,f e) | (n,e) <- l]
+
+
 enumeration :: Numbering a => [(a,e)] -> Enumeration e
 enumeration l = [(SN a, e) | (a,e) <- l]
 

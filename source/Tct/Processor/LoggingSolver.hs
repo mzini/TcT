@@ -19,6 +19,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Processor.LoggingSolver where
 import Control.Concurrent.Chan
+import Control.Concurrent.MVar
 import System.CPUTime (getCPUTime)
 import System.IO (Handle, hPutStrLn, hFlush)
 import Control.Concurrent (ThreadId, forkIO, myThreadId)
@@ -128,6 +129,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                 return $ C.block $ m'
 
     runSolver st m = do chan <- liftIO $ newChan
+                        mv <- liftIO $ newEmptyMVar
                         let handle = logHandle st
                             time   = startTime st
                         mapM_ (hPutStrLn handle) [ "#+STARTUP: hidestars"
@@ -138,9 +140,9 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                                              Just msg -> do hPutStrLn handle (show $ pprint msg)
                                                             hFlush handle
                                                             logThread
-                                             Nothing -> return ()
-                            run = const $ runSolver (subState st) $ runLS m chan time (level st)
-                        C.bracket (forkIO logThread) (const $ writeChan chan Nothing) run
+                                             Nothing -> putMVar mv ()
+                            run = const $ C.block $ runSolver (subState st) $ runLS m chan time (level st)
+                        C.bracket (forkIO logThread) (const $ writeChan chan Nothing >> readMVar mv) run
                         
 
     minisatValue m e = lift $ minisatValue m e 

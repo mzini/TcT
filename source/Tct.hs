@@ -129,11 +129,11 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                    lf <- askFlag logFile
                                    liftIO $ case lf of
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
-                                              Just f  -> do h <- openFile f WriteMode  -- TODO error handling
-                                                            st <- initialState h (SolverState slver)
-                                                            r <- C.block $ runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
-                                                            hFlush h >> hClose h
-                                                            return r 
+                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- TODO error handling
+                                                                      st <- initialState h (SolverState slver)
+                                                                      r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
+                                                                      hFlush h >> hClose h
+                                                                      return r 
 
           getProblem_        = do inputFile <- input `liftM` askFlags
                                   parseResult <- liftIO $ ProblemParser.problemFromFile inputFile

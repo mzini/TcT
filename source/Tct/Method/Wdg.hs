@@ -105,10 +105,10 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
     pprint (T.TProof (Inapplicable r) _) = paragraph (unlines [ "This processor is not applicable to"
                                                               , r ++ "."
                                                               , "We abort." ])
-    pprint (T.TProof proof ps) = block' "Transformation Details" [ppTrans]
-                                 $+$ if not simple 
-                                      then block' "Sub-problems" [ppDetails]
-                                      else PP.empty
+    pprint proof@(T.TProof tp _) = block' "Transformation Details" [ppTrans]
+                                   $+$ if not simple 
+                                       then block' "Sub-problems" [ppDetails]
+                                       else PP.empty
         where ppTrans = ppDPs
                         $+$ text ""
                         $+$ ppDG
@@ -118,7 +118,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                       $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
                           where pprule (i,r) = text (show i) <> text ":" <+> pprint (r,sig,vars)
 
-              ppDG | containsNoEdgesEmptyUrs proof = text "The dependency graph contains no edges and the usable rules are empty."
+              ppDG | containsNoEdgesEmptyUrs tp = text "The dependency graph contains no edges and the usable rules are empty."
                    | otherwise = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
                                  $+$ text ""
                                  $+$ (indent $ printTrees 60 ppNode ppLabel)
@@ -139,15 +139,15 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                          $+$ indent (ppUrs urs sliproof 
                                                                      $+$ text ""
                                                                      $+$ ppSubProof gpth)
-                                                         | (Path gpth _ urs, sliproof) <- sortBy comparePath $ computedPaths proof]
+                                                         | (Path gpth _ urs, sliproof) <- sortBy comparePath $ computedPaths tp]
                   where ppSLIfail = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
                                                         , "We thus generated the problem consisting of the union of usable rules"
                                                         , "and dependency pairs of this path."]
-                        ppSubProof gpth = case find (SN gpth) ps of 
-                                            Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                      $+$ text ""
-                                                      $+$ pprint p
-                                            Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                        ppSubProof gpth = case proofOfPath gpth of 
+                                                Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                           $+$ text ""
+                                                          $+$ pprint p
+                                                Nothing -> text "We have not generated a proof for the resulting sub-problem."
                         ppUrs (Trs []) _        = text "The usable rules of this path are empty."
                         ppUrs urs      sliproof = text "The usable rules for this path are:"
                                                   $+$ text ""
@@ -159,7 +159,8 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                              | otherwise = text "The usable rules are compatible with the following SLI:"
                                                            $+$ pprint (P.result mp)
                                                   $+$ text ""
-                        comparePath (Path p1 _ _,_) (Path p2 _ _,_) = p1 `compare` p2
+                        comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
+                            where mkpath p = [nodeSCC ewdgSCC n | n <- p]
 
 -- todo refactor for general use
               printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]
@@ -176,15 +177,15 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
 
               printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- nodeSCC ewdgSCC n ]
               printPath ns = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
-              proofOfPath p = find (SN p) ps
-              ewdgSCC = computedGraphSCC proof
-              ewdg    = computedGraph proof
+              proofOfPath p = T.findProof p proof
+              ewdgSCC = computedGraphSCC tp
+              ewdg    = computedGraph tp
               nodes   = sortBy compareLabel $ Graph.nodes ewdgSCC
               compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
-              sig     = newSignature proof
-              vars    = newVariables proof
+              sig     = newSignature tp
+              vars    = newVariables tp
 --              wdps    = dependencyPairs proof
-              simple  = containsNoEdgesEmptyUrs proof
+              simple  = containsNoEdgesEmptyUrs tp
 
 instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where 
     answer = T.answerTProof ans 
@@ -233,9 +234,9 @@ instance T.Transformer Wdg where
           (TermAlgebra, _) -> return $ T.Failure $ Inapplicable {reason = "derivational complexity"}
           (_, DP _ _) -> return $ T.Failure $ Inapplicable {reason = "DP problems"}
           (_, Relative _ _) -> return $ T.Failure $ Inapplicable {reason = "relative problems"}
-          (BasicTerms _ _, Standard trs) -> do let wg urs | useWG     = weightGap (N.Bits 4) Nothing $ wgProblem urs
-                                                          | otherwise = return Nothing 
-                                               ps <- P.evalList' useWG [ do wg urs >>= \ p -> return (pth, p) | pth@(Path _ _ urs) <- paths]
+          (BasicTerms _ _, Standard trs) -> do let wg strict urs | useWG     = weightGap (N.Bits 4) Nothing strict (wgProblem urs)
+                                                                 | otherwise = return Nothing 
+                                               ps <- P.evalList' useWG [ do wg strict urs >>= \ p -> return (pth, p) | pth@(Path _ (_,strict) urs) <- paths]
                                                return $ T.Success (mkProof ps) (mkSubProbs ps)
       
               where mkProof ps = WdgProof { computedPaths    = ps
@@ -358,9 +359,9 @@ mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
                               Right f -> f `Set.member` syms
                               Left _  ->  True
 
-weightGap :: P.SolverM m => N.Size -> Maybe Nat -> Problem -> m (Maybe (P.Proof (S.StdProcessor NaturalMI)))
-weightGap coefficientsize constraintbits prob | Trs.isDuplicating (strictTrs prob) = return $ Nothing
-                                              | otherwise                          = Just `liftM` P.apply sli prob
+weightGap :: P.SolverM m => N.Size -> Maybe Nat -> Trs -> Problem -> m (Maybe (P.Proof (S.StdProcessor NaturalMI)))
+weightGap coefficientsize constraintbits strict prob | Trs.isDuplicating strict = return $ Nothing
+                                                     | otherwise                = Just `liftM` P.apply sli prob
     where sli = matrix Triangular (nat 1) coefficientsize constraintbits
 
 

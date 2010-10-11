@@ -23,6 +23,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Processor.Transformations 
     ( TProof (..)
+    , subProofs
+    , findProof
     , Result (..)
     , TheTransformer (..)
     , Transformer(..)
@@ -41,16 +43,16 @@ import Tct.Proof
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
-import Data.Maybe (fromMaybe)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
+
 import Tct.Processor.PPrint
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor.Args.Instances ()
 import Tct.Processor.Args hiding (name, description, synopsis)
 
 
-data TProof t sub = TProof (ProofOf t) (Enumeration (P.Proof sub))
+data TProof t sub = TProof (ProofOf t) (Enumeration (Maybe (P.Proof sub)))
                   | UTProof (ProofOf t) (P.ProofOf sub)
 
 data Result t = Failure (ProofOf t) 
@@ -60,24 +62,38 @@ data Result t = Failure (ProofOf t)
 data TheTransformer t = TheTransformer { transformation :: t
                                        , transformationArgs :: Domains (ArgumentsOf t)}
 
+subProofs :: TProof t sub -> Maybe (Enumeration (P.Proof sub))
+subProofs (UTProof _ _) = Nothing
+subProofs (TProof _ es) = mkSps es
+    where mkSps [] = Just []
+          mkSps ((n,Just e):es') = do es'' <- mkSps es'
+                                      return $ (n,e) : es''
+          mkSps _               = Nothing 
+
+findProof :: (Numbering a) => a -> TProof t t1 -> Maybe (P.Proof t1)
+findProof _ (UTProof _ _) = Nothing
+findProof e (TProof _ ps) = find (SN e) ps >>= id
+
 prettyPrintTProof :: ( PrettyPrintable (ProofOf t)
                     , P.Processor p
                     , Answerable (P.ProofOf p)
                     , PrettyPrintable (P.ProofOf p)) => TProof t p -> Doc
-prettyPrintTProof (TProof tp ps) = block' "Transformation Details" [tp]
-                                   $+$ text ""
-                                   $+$ overview ps
-                                   $+$ text ""
-                                   $+$ details ps
+prettyPrintTProof p@(TProof tp _) = block' "Transformation Details" [tp]
+                                    $+$ text ""
+                                    $+$ (case subProofs p of
+                                           Just ps' -> overview ps' $+$ text "" $+$ details ps'
+                                           Nothing  -> text "Processing of at least one sub-problem did not finish. We abort. ")
 prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
                             $+$ text ""
                             $+$ block' "Transformation Details" [tp]
                             $+$ text ""
-                            $+$ block' "Application of the subprocessor" [p]
+                            $+$ block' "Application of the Sub-processor" [p]
 
 answerTProof :: (P.Processor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
-answerTProof _ (UTProof _ sp) = answer sp
-answerTProof f (TProof tp sps) = f tp sps
+answerTProof _ (UTProof _ sp)  = answer sp
+answerTProof f p@(TProof tp _) = case subProofs p of 
+                                   Just sps -> f tp sps
+                                   _        -> MaybeAnswer
 
 class Transformer t where
     name         :: t -> String
@@ -118,9 +134,8 @@ instance ( Transformer t
                                                        return $ UTProof p p'
                            Success p ps -> do esubproofs <- P.evalList par (succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
-                                                Right subproofs   -> return $ TProof p subproofs'
-                                                    where subproofs' = [(e,fromMaybe (error "Transformation.hs: subproof not found!") $ find e subproofs) | (e,_) <- ps]
-                                                Left  (fld,subs) -> return $ TProof p (fld:subs)
+                                                Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]
+                                                Left  (fld,subs) -> return $ TProof p (mapEnum Just $ fld : subs)
         where (Trans t) = S.processor inst
               strict :+: par :+: args :+: sub = S.processorArgs inst
 

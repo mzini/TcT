@@ -55,15 +55,15 @@ instance PrettyPrintable LoggingMsg where
                    $+$ body 
                    $+$ text "")
         where heading = text (case sig of {LMStart -> "START"; _ -> "END"})
-                        <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> brackets ppId
+                        <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> text "@"
                         <+> text (show cpuTime_ms ++ "ms")
 
               cpuTime_ms :: Int
               cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (12.0^(9 :: Int))
               stars = text [ '*' | _ <- [1..indent]] 
-              indent = lv -- case sig of {LMStart -> lv; _-> lv + 1}
+              indent = lv * 2 - 1 -- case sig of {LMStart -> lv; _-> lv + 1}
 
               ppId = text $ take 8 $ show $ uid
 
@@ -137,6 +137,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                         mapM_ (hPutStrLn handle) [ "-*- mode: Org; mode: Auto-Revert -*-"
                                                  , "#+STARTUP: hidestars"
                                                  , "#+STARTUP: hideall"
+                                                 , "#+STARTUP: odd"
                                                  , "#+TODO: START | END"]
                         let logThread = do mmsg <- readChan chan
                                            case mmsg of 

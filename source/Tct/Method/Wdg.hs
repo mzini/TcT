@@ -34,6 +34,9 @@ import Control.Monad (liftM)
 import qualified Data.Set as Set
 import Data.Typeable 
 import Data.Maybe (fromJust)
+import qualified Text.PrettyPrint.HughesPJ as PP 
+import Text.PrettyPrint.HughesPJ hiding (empty)
+
 import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
@@ -60,8 +63,9 @@ import Tct.Method.Matrix.NaturalMI (NaturalMI, NaturalMIKind(..), matrix)
 import Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
-import Text.PrettyPrint.HughesPJ hiding (empty)
-import qualified Text.PrettyPrint.HughesPJ as PP 
+
+import Tct.Encoding.UsablePositions
+
 
 ----------------------------------------------------------------------
 -- Proof object
@@ -93,6 +97,7 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, Maybe (P.Proof (S.StdPro
                          , usableRules       :: Trs
                          , newSignature      :: Signature
                          , newVariables      :: Variables
+                         , usableArguments   :: UsablePositions
                          , containsNoEdgesEmptyUrs :: Bool}
               | Inapplicable { reason :: String }
 
@@ -106,12 +111,15 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                               , r ++ "."
                                                               , "We abort." ])
     pprint proof@(T.TProof tp _) = block' "Transformation Details" [ppTrans]
+                                   $+$ text ""
                                    $+$ if not simple 
                                        then block' "Sub-problems" [ppDetails]
                                        else PP.empty
         where ppTrans = ppDPs
                         $+$ text ""
                         $+$ ppDG
+                        $+$ text ""
+                        $+$ ppUargs
 
               ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:" 
                       $+$ text ""
@@ -133,6 +141,9 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                         ppLabel pth _ = PP.brackets (text " " <+> ppAns (proofOfPath pth) <+> text " ")
                         ppAns Nothing = text "NA"
                         ppAns (Just n) = pprint (answer n)
+
+              ppUargs = text "Following usable argument positions were computed:"
+                        $+$ indent (pprint (usableArguments tp, sig))
 
               ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> printPath gpth <> text ":"))
                                                          $+$ text ""
@@ -246,6 +257,7 @@ instance T.Transformer Wdg where
                                           , usableRules      = allUsableRules
                                           , newSignature     = sig'
                                           , newVariables     = variables prob
+                                          , usableArguments  = usablePoss
                                           , containsNoEdgesEmptyUrs  = simple}
               
                     mkSubProbs ps | simple    = []
@@ -279,6 +291,8 @@ instance T.Transformer Wdg where
                     (startTerms', sig', wdps) = weakDependencyPairs prob
 
                     allUsableRules = mkUsableRules wdps trs
+
+                    usablePoss = usableArgs (strategy prob) wdps allUsableRules
 
                     ewdg = estimatedDependencyGraph approx sig' wdps trs
 

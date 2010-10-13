@@ -43,6 +43,7 @@ Library
                     Tct.Encoding.Precedence
                     Tct.Encoding.Relative
                     Tct.Encoding.SafeMapping
+                    Tct.Encoding.UsablePositions
                     Tct.Encoding.Matrix
                     Tct.Encoding.Natring
                     Tct.Encoding.AbstractInterpretation

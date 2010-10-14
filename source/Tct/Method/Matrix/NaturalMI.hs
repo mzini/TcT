@@ -138,13 +138,13 @@ instance S.Processor NaturalMI where
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
 
-    instanceName inst = "matrix-interpretation of dimension " ++ show (dim inst)
+    instanceName inst = "matrix-interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
     solve inst problem = case Prob.relation problem of
-                           Standard sr    -> orientDirect st sr sig inst
-                           Relative sr wr -> orientRelative st sr wr sig inst
-                           DP sr wr       -> orientDp st sr wr sig inst
+                           Standard sr    -> orientDirect st sr sig (S.processorArgs inst)
+                           Relative sr wr -> orientRelative st sr wr sig (S.processorArgs inst)
+                           DP sr wr       -> orientDp st sr wr sig (S.processorArgs inst)
         where sig = Prob.signature problem
               st  = Prob.startTerms problem
 
@@ -158,41 +158,38 @@ matrix matrixkind matrixdimension coefficientsize constraintbits =
 
 -- argument accessors
 
-kind :: S.TheProcessor NaturalMI -> Prob.StartTerms -> MatrixKind
-kind = kind' . S.processorArgs 
-    where kind' (Unrestricted :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-          kind' (Constructor  :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-          kind' (Constructor  :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-          kind' (Default      :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-          kind' (Default      :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-          kind' (Triangular   :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Constructor  :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Constructor  :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
+kind (Default      :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Default      :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
+kind (Triangular   :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
 
-bound :: S.TheProcessor NaturalMI -> N.Size
-bound inst = case mbits of 
-               Just (Nat b) -> N.Bits b
-               Nothing      -> N.Bound bnd
-    where (_ :+: _ :+: Nat bnd :+: mbits :+: _) = S.processorArgs inst
+bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
+bound (_ :+: _ :+: Nat bnd :+: mbits :+: _) = case mbits of
+                                                Just (Nat b) -> N.Bits b
+                                                Nothing      -> N.Bound bnd
 
-cbits :: S.TheProcessor NaturalMI -> Maybe N.Size
-cbits inst = do Nat n <- b
-                return $ N.Bits n
-    where (_ :+: _ :+: _ :+: _ :+: b) = S.processorArgs inst
+cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
+cbits (_ :+: _ :+: _ :+: _ :+: b) = do Nat n <- b
+                                       return $ N.Bits n
 
-dim :: S.TheProcessor NaturalMI -> Int
-dim inst = d where (_ :+: Nat d :+: _ :+: _ :+: _) = S.processorArgs inst
+dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
+dim (_ :+: Nat d :+: _ :+: _ :+: _) = d
 
 
-orientDirect :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
+orientDirect :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientDirect st trs = orientMatrix relativeConstraints st trs Trs.empty
 
-orientRelative :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
+orientRelative :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientRelative = orientMatrix relativeConstraints
 
-orientDp :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
+orientDp :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientDp = orientMatrix dpConstraints
 
-orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula MiniSatLiteral DioVar Int) 
-             -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> m (S.ProofOf NaturalMI)
+orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int) 
+             -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                       return $ case theMI of
                                                  Nothing -> Incompatible
@@ -206,20 +203,20 @@ orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                           mk     = kind mp st
 
 data MatrixDP = MWithDP | MNoDP deriving Show
-data MatrixRelativity = MDirect | MRelative | MWeightGap deriving Show
+data MatrixRelativity = MDirect | MRelative deriving Show
 
 
-relativeConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
+relativeConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 relativeConstraints = matrixConstraints MDirect MNoDP
 
-dpConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
+dpConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 dpConstraints = matrixConstraints MDirect MWithDP
 
 -- TODO: rename derivationGraph
-weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
-weightGapConstraints = matrixConstraints MWeightGap MNoDP
+-- weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
+-- weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
-matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
+matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 matrixConstraints mrel mdp st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
@@ -231,7 +228,7 @@ matrixConstraints mrel mdp st strict weak sig mp = strictChoice mrel absmi stric
                                                           filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStrictTrsConstraints
-        strictChoice MWeightGap = strictOneConstraints
+--         strictChoice MWeightGap = strictOneConstraints
         dpChoice MWithDP = safeRedpairConstraints sig
         dpChoice MNoDP   = monotoneConstraints
 

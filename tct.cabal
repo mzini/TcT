@@ -61,6 +61,7 @@ Library
                     Tct.Method.Bounds.Violations
                     Tct.Method.Bounds.Violations.Find
                     Tct.Method.Bounds.Violations.Fix
+                    Tct.Method.Weightgap
                     Tct.Method.Wdg
                     Tct.Method.Custom
                     Tct.Method.Predicates

@@ -139,7 +139,7 @@ evalList False success (m : ms) = do a <- m
                                       then do eas <- evalList False success ms
                                               return $ case eas of {Right as -> Right (a:as); Left (f,as) -> Left (f,a:as)}
                                       else return $ Left (a,[])
-
+-- TODO: check for exceptions
 evalList' :: (SolverM m) => Bool -> [m a] -> m [a]
 evalList' b ms = do Right rs <- evalList b (const True) ms
                     return rs

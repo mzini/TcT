@@ -55,7 +55,6 @@ import Termlib.Trs (Trs(..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
 
-import Tct.Main.Debug
 import Tct.Certificate
 import Tct.Proof
 import qualified Tct.Processor.Transformations as T
@@ -178,21 +177,15 @@ instance T.Transformer Wdg where
           (_, DP _ _) -> return $ T.Failure $ NA {reason = "DP problems"}
           (_, Relative _ _) -> return $ T.Failure $ NA {reason = "relative problems"}
           (BasicTerms _ _, Standard trs) -> do (_,ps) <- traverseNodes [] (roots ewdgSCC) [] Trs.empty
-                                               debugMsg (show ps)
                                                return $ T.Success (mkProof ps) (mkProbs ps)
 
               where traverseNodes pth ns dpss urs = do rs <- P.evalList' False [ traverse pth n_i dpss urs | n_i <- ns ]
                                                        return (List.find isJust [ ms | (ms,_) <- rs] >>= id, concatMap snd rs)
 
-                    traverse pth n dpss urs = do debugMsg $ show (pth ++ [n]) ++ " = "
---                                                 debugMsg $ show $ map (nodeSCC ewdgSCC) (pth ++ [n])
-                                                 (subsumed, rs) <- debugMsg "A" >> traverseNodes pth' (Graph.suc ewdgSCC n) dpss' urs'
+                    traverse pth n dpss urs = do (subsumed, rs) <- traverseNodes pth' (Graph.suc ewdgSCC n) dpss' urs'
                                                  (subsumed', proof) <- case subsumed of 
-                                                                        (Just sp) -> do debugMsg "B"
-                                                                                        return $ (subsumed , PPSubsumedBy sp)
-                                                                        Nothing   -> do debugMsg $ "D"
-                                                                                        wgcond <- return $ Incompatible -- weightGap dps_n urs'
-                                                                                        debugMsg "E"
+                                                                        (Just sp) -> do return $ (subsumed , PPSubsumedBy sp)
+                                                                        Nothing   -> do wgcond <- weightGap urs' dps_n 
                                                                                         return $ ( if succeeded wgcond then Nothing else Just path
                                                                                                  , PPWeightGap wgcond)
                                                  return (subsumed', (path, proof) : rs)
@@ -222,7 +215,7 @@ instance T.Transformer Wdg where
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 
-                    mkProof ps = WdgProof { computedPaths    = unsafeDebugMsg $ ps
+                    mkProof ps = WdgProof { computedPaths    = ps
                                           , computedGraph    = ewdg
                                           , computedGraphSCC = ewdgSCC
                                           , dependencyPairs  = wdps

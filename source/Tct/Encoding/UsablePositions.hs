@@ -1,4 +1,3 @@
-
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -103,7 +102,7 @@ usableArgs Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f 
                         | otherwise                    = uArgsSym f (delta `IntSet.union` us)
               where delta   = IntSet.unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules both]
 
-                    rhsVars = Set.unions [variables li 
+                    rhsVars = Set.unions [ variables li 
                                           | rule <- Trs.rules both  -- TODO verify use of both, verify if inlined
                                          , root (lhs rule) == Right f 
                                          , li <- immediateSubterms (lhs rule)]

@@ -74,7 +74,7 @@ instance Show NaturalMIKind where
     show Default      = "default"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
-                               , param    :: MatrixKind }
+                               , param    :: MatrixKind } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 

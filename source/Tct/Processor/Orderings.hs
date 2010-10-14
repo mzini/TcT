@@ -23,7 +23,7 @@ import Text.PrettyPrint.HughesPJ
 
 data OrientationProof o = Order o
                         | Incompatible
-                        | Inapplicable String
+                        | Inapplicable String deriving Show
 
 instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
     pprint (Order o) = pprint o

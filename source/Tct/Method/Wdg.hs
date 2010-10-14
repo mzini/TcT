@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -33,9 +34,10 @@ import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Data.Typeable 
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, fromMaybe)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Control.Exception as C
 
 import qualified Qlogic.NatSat as N
 
@@ -85,7 +87,7 @@ nodeURs :: SCCGraph -> Graph.Node -> Trs
 nodeURs gr n = sccURs $ fromJust $ Graph.lab gr n
 
 nodeSCC :: SCCGraph -> Graph.Node -> [Graph.Node]
-nodeSCC gr n = theSCC $ fromJust $ Graph.lab gr n
+nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (Graph.lab gr n)
 
 roots :: (Graph.Graph gr) => gr a b -> [Graph.Node]
 roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
@@ -109,10 +111,10 @@ toSccGraph wdps trs gr = Graph.mkGraph nodes edges
 
 data Path = Path { thePath     :: Graph.Path
                  , pathTrss    :: ([Trs],Trs)
-                 , pathUsables :: Trs }
+                 , pathUsables :: Trs } deriving Show
 
 data PathProof = PPSubsumedBy Path
-               | PPWeightGap (OrientationProof MatrixOrder)
+               | PPWeightGap (OrientationProof MatrixOrder) deriving Show
 
 data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
                          , computedGraph     :: Graph
@@ -176,17 +178,23 @@ instance T.Transformer Wdg where
           (_, DP _ _) -> return $ T.Failure $ NA {reason = "DP problems"}
           (_, Relative _ _) -> return $ T.Failure $ NA {reason = "relative problems"}
           (BasicTerms _ _, Standard trs) -> do (_,ps) <- traverseNodes [] (roots ewdgSCC) [] Trs.empty
+                                               debugMsg (show ps)
                                                return $ T.Success (mkProof ps) (mkProbs ps)
-              where traverseNodes pth ns dpss urs = do rs <- P.evalList' True [ traverse pth n' dpss urs | n' <- ns ]
+
+              where traverseNodes pth ns dpss urs = do rs <- P.evalList' False [ traverse pth n_i dpss urs | n_i <- ns ]
                                                        return (List.find isJust [ ms | (ms,_) <- rs] >>= id, concatMap snd rs)
 
-                    traverse pth n dpss urs = do (subsumed, rs) <- traverseNodes pth' (Graph.suc ewdgSCC n) dpss' urs'
-                                                 (subsumed', proof) <- do case subsumed of 
-                                                                           (Just sp) -> return $ (subsumed
-                                                                                                , PPSubsumedBy sp)
-                                                                           Nothing   -> do wgcond <- weightGap dps_n urs'
-                                                                                           return $ ( if succeeded wgcond then Nothing else Just path
-                                                                                                    , PPWeightGap wgcond)
+                    traverse pth n dpss urs = do debugMsg $ show (pth ++ [n]) ++ " = "
+--                                                 debugMsg $ show $ map (nodeSCC ewdgSCC) (pth ++ [n])
+                                                 (subsumed, rs) <- debugMsg "A" >> traverseNodes pth' (Graph.suc ewdgSCC n) dpss' urs'
+                                                 (subsumed', proof) <- case subsumed of 
+                                                                        (Just sp) -> do debugMsg "B"
+                                                                                        return $ (subsumed , PPSubsumedBy sp)
+                                                                        Nothing   -> do debugMsg $ "D"
+                                                                                        wgcond <- return $ Incompatible -- weightGap dps_n urs'
+                                                                                        debugMsg "E"
+                                                                                        return $ ( if succeeded wgcond then Nothing else Just path
+                                                                                                 , PPWeightGap wgcond)
                                                  return (subsumed', (path, proof) : rs)
                         where pth'  = pth ++ [n]
                               dps_n = nodeDPs ewdgSCC n
@@ -214,7 +222,7 @@ instance T.Transformer Wdg where
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 
-                    mkProof ps = WdgProof { computedPaths    = ps
+                    mkProof ps = WdgProof { computedPaths    = unsafeDebugMsg $ ps
                                           , computedGraph    = ewdg
                                           , computedGraphSCC = ewdgSCC
                                           , dependencyPairs  = wdps
@@ -329,7 +337,7 @@ match c t = State.evalState match' ([(c, t)], [])
                              (Fun f ss, Term.Fun g ts) | f /= g                 -> return False
                                                        | length ss /= length ts -> return False
                                                        | otherwise              -> State.put (zip ss ts ++ tail eqs, mergeqs) >> match'
-                             (c', Term.Var x)                                    -> State.put (tail eqs, (c', x) : mergeqs) >> match'
+                             (c', Term.Var x)                                   -> State.put (tail eqs, (c', x) : mergeqs) >> match'
           matchmerge = do eqs <- State.get
                           if null eqs 
                            then return True 
@@ -387,40 +395,44 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                  $+$ (indent $ printTrees 60 ppNode ppLabel)
                                  $+$ text ""
                   where ppNode _ n    = printNodeId n
-                        ppLabel pth _ = PP.brackets (text " " <+> ppAns (proofOfPath pth) <+> text " ")
-                        ppAns Nothing = text "NA"
-                        ppAns (Just n) = pprint (answer n)
+                        ppLabel pth _ = PP.brackets (text " " <+> ppAns pth (findWGProof pth)  <+> text " ")
+                        ppAns pth Nothing  = text "FOO" -- error $ "WDG.hs: findWGProof did not find path" ++ show pth
+                        ppAns pth (Just p) = (case findPathProof pth' of 
+                                                Just pp -> pprint $ answer pp
+                                                Nothing -> text "NA")
+                                             $+$ (if subsumed then parens (text "inherited") else PP.empty)
+                            where pth' = case p of {PPSubsumedBy sub -> thePath sub; _ -> pth}
+                                  subsumed = case p of {PPSubsumedBy _ -> True; _ -> False}
 
               ppUargs = text "Following usable argument positions were computed:"
                         $+$ indent (pprint (usableArguments tp, sig))
 
-              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> printPath gpth <> text ":"))
+              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> ppPathName path <> text ":"))
                                                          $+$ text ""
-                                                         $+$ indent (ppUrs urs sliproof 
-                                                                     $+$ text ""
-                                                                     $+$ ppSubProof gpth)
-                                                         | (Path gpth _ urs, sliproof) <- sortBy comparePath $ computedPaths tp]
-                  where ppSubProof gpth = case proofOfPath gpth of 
-                                                Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                           $+$ text ""
-                                                          $+$ pprint p
-                                                Nothing -> text "We have not generated a proof for the resulting sub-problem."
-                        ppUrs (Trs []) _        = text "The usable rules of this path are empty."
-                        ppUrs urs      sliproof = text "The usable rules for this path are:"
-                                                  $+$ text ""
-                                                  $+$ (indent $ pprint (urs, sig, vars))
-                                                  $+$ text ""
-                                                  $+$ ppSLIProof sliproof
-                        ppSLIProof (PPSubsumedBy (Path gpth _ _)) = text "This path is subsumed by the proof of path" 
-                                                                    <+> printPath gpth <> text "."
-                        ppSLIProof (PPWeightGap p) | succeeded p = text "The weightgap principle applies with the following matrix interpretation:"
-                                                                   $+$ pprint p
-                                                                   $+$ text ""
-                                                   | otherwise   = paragraph $ unlines ["No successful SLI proof was generated for those usable rules."
-                                                                                       , "We thus generated the problem consisting of the union of usable rules"
-                                                                                       , "and dependency pairs of this path."]
-                        comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
+                                                         $+$ ppDetail path pathproof
+                                                         | (path, pathproof) <- sortBy comparePath $ computedPaths tp]
+                  where comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
                             where mkpath p = [nodeSCC ewdgSCC n | n <- p]
+
+              ppDetail path pathproof = (case (pathUsables path) of 
+                                           (Trs []) -> text "The usable rules of this path are empty."
+                                           urs      -> text "The usable rules for this path are:"
+                                                      $+$ text ""
+                                                      $+$ (indent $ pprint (urs, sig, vars)))
+                                        $+$ text ""
+                                        $+$ (case pathproof of 
+                                               PPSubsumedBy pth -> text "This path is subsumed by the proof of path" 
+                                                                   <+> ppPathName pth <> text "."
+                                               PPWeightGap p    -> text (if succeeded p 
+                                                                        then "The weightgap principle applies:" 
+                                                                        else "The weight gap principle does not apply:")
+                                                                  $+$ indent (pprint p))
+                                        $+$ text ""
+                                        $+$ (case findPathProof (thePath path) of
+                                               Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                                               Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                         $+$ text ""
+                                                         $+$ pprint p)
 
 -- todo refactor for general use
               printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]
@@ -436,8 +448,9 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
 
 
               printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- nodeSCC ewdgSCC n ]
-              printPath ns = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
-              proofOfPath p = T.findProof p proof
+              ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
+              findPathProof gpth = T.findProof gpth proof
+              findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
               ewdgSCC = computedGraphSCC tp
               ewdg    = computedGraph tp
               nodes   = sortBy compareLabel $ Graph.nodes ewdgSCC

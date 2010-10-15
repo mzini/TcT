@@ -32,7 +32,7 @@ applyWeightGap uarg nondup trs st sig mk d b cb = orientMatrix (weightGapConstra
 
 weightGapConstraints :: Eq l => UsablePositions -> Trs.Trs -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 weightGapConstraints uarg nondup st strict weak sig mp = strictTrsConstraints absmi strict && weakTrsConstraints absmi weak && otherConstraints
-  where absmi      = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar Int)
+  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         otherConstraints = safeRedpairConstraints sig absmi && uargMonotoneConstraints uarg absmi && nondupConstraints nondup absmi && mkConstraints mk absmi

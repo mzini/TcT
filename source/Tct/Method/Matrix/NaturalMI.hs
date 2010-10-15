@@ -142,11 +142,12 @@ instance S.Processor NaturalMI where
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
     solve inst problem = case Prob.relation problem of
-                           Standard sr    -> orientDirect st sr sig (S.processorArgs inst)
-                           Relative sr wr -> orientRelative st sr wr sig (S.processorArgs inst)
-                           DP sr wr       -> orientDp st sr wr sig (S.processorArgs inst)
-        where sig = Prob.signature problem
-              st  = Prob.startTerms problem
+                           Standard sr    -> orientDirect st sr sig' (S.processorArgs inst)
+                           Relative sr wr -> orientRelative st sr wr sig' (S.processorArgs inst)
+                           DP sr wr       -> orientDp st sr wr sig' (S.processorArgs inst)
+        where sig  = Prob.signature problem
+              sig' = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+              st   = Prob.startTerms problem
 
 
 matrixProcessor :: S.StdProcessor NaturalMI
@@ -196,7 +197,7 @@ orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                                  Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk
                                     where addAct :: MiniSat ()
                                           addAct = toFormula (liftM N.bound cb) (N.bound n) (f st dps trs sig mp) >>= SatSolver.addFormula
-                                          mi     = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (dps `Trs.union` trs)) :: MatrixInter (N.Size -> Int)
+                                          mi     = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
                                           n      = bound mp
                                           cb     = cbits mp
                                           d      = dim mp
@@ -218,7 +219,7 @@ dpConstraints = matrixConstraints MDirect MWithDP
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 matrixConstraints mrel mdp st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
-  where absmi      = abstractInterpretation mk d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar Int)
+  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         otherConstraints UnrestrictedMatrix mi = dpChoice mdp mi

@@ -79,7 +79,7 @@ data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
 instance PrettyPrintable MatrixOrder where
-    pprint order = (text "The input is compatible using the following" <+> ppknd (param order) <+> text "matrix interpretation:")
+    pprint order = (text "Consider the following" <+> ppknd (param order) <+> text "matrix interpretation:")
                    $+$ pprint (ordInter order)
         where ppknd UnrestrictedMatrix   = text "unrestricted"
               ppknd TriangularMatrix     = text "triangular"

@@ -417,7 +417,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                               $+$ text ""
                                               $+$ text (if succeeded p 
                                                         then "The weightgap principle applies:" 
-                                                        else "The weight gap principle does not apply:")
+                                                        else "The weight gap principle does not apply, using the following TMI:")
                                               $+$ indent (pprint p)
                                               $+$ text ""
                                               $+$ (case findPathProof (thePath path) of

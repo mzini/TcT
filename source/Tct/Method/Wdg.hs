@@ -103,7 +103,7 @@ toSccGraph wdps trs gr = Graph.mkGraph nodes edges
           sccs             = GraphDFS.scc gr
           sccNode scc = SCCNode scc dps urs
               where dps = Trs [fromJust $ Graph.lab gr n | n <- scc]
-                    urs = mkUsableRules wdps trs
+                    urs = mkUsableRules dps trs
 
 ----------------------------------------------------------------------
 -- Proof objects
@@ -210,15 +210,15 @@ instance T.Transformer Wdg where
                         where isSubsumed (PPSubsumedBy _) = True 
                               isSubsumed _                = False
                               mk (PPWeightGap proof) dpss dps urs | succeeded proof = Problem { startTerms = startTerms'
-                                                                                              , strategy   = strategy prob
-                                                                                              , relation   = Standard $ Trs.unions $ urs : dps : dpss
-                                                                                              , variables  = variables prob
-                                                                                              , signature  = sig' }
-                                                                  | otherwise   = Problem { startTerms = startTerms'
                                                                                           , strategy   = strategy prob
                                                                                           , relation   = DP dps (Trs.unions $ urs : dpss)
                                                                                           , variables  = variables prob
                                                                                           , signature  = sig' }
+                                                                  | otherwise       = Problem { startTerms = startTerms'
+                                                                                              , strategy   = strategy prob
+                                                                                              , relation   = Standard $ Trs.unions $ urs : dps : dpss
+                                                                                              , variables  = variables prob
+                                                                                              , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
                     
@@ -391,43 +391,40 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                  $+$ text ""
                   where ppNode _ n    = printNodeId n
                         ppLabel pth _ = PP.brackets (text " " <+> ppAns pth (findWGProof pth)  <+> text " ")
-                        ppAns pth Nothing  = error $ "WDG.hs: findWGProof did not find path" ++ show pth
-                        ppAns pth (Just p) = (case findPathProof pth' of 
-                                                Just pp -> pprint $ answer pp
-                                                Nothing -> text "NA")
-                                             $+$ (if subsumed then parens (text "inherited") else PP.empty)
-                            where pth' = case p of {PPSubsumedBy sub -> thePath sub; _ -> pth}
-                                  subsumed = case p of {PPSubsumedBy _ -> True; _ -> False}
+                        ppAns pth Nothing                 = error $ "WDG.hs: findWGProof did not find path" ++ show pth
+                        ppAns _   (Just (PPSubsumedBy _)) = parens $ text "inherited"
+                        ppAns pth _                       = case findPathProof pth of 
+                                                              Just pp -> pprint $ answer pp
+                                                              Nothing -> text "NA"
 
               ppUargs = text "Following usable argument positions were computed:"
                         $+$ indent (pprint (usableArguments tp, sig))
 
-              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> underline (text "Path" <+> ppPathName path <> text ":"))
-                                                         $+$ text ""
-                                                         $+$ ppDetail path pathproof
+              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":")
+                                                                        $+$ text ""
+                                                                        $+$ ppDetail path pathproof))
                                                          | (path, pathproof) <- sortBy comparePath $ computedPaths tp]
                   where comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
                             where mkpath p = [nodeSCC ewdgSCC n | n <- p]
 
-              ppDetail path pathproof = (case (pathUsables path) of 
-                                           (Trs []) -> text "The usable rules of this path are empty."
-                                           urs      -> text "The usable rules for this path are:"
-                                                      $+$ text ""
-                                                      $+$ (indent $ pprint (urs, sig, vars)))
-                                        $+$ text ""
-                                        $+$ (case pathproof of 
-                                               PPSubsumedBy pth -> text "This path is subsumed by the proof of path" 
-                                                                   <+> ppPathName pth <> text "."
-                                               PPWeightGap p    -> text (if succeeded p 
-                                                                        then "The weightgap principle applies:" 
-                                                                        else "The weight gap principle does not apply:")
-                                                                  $+$ indent (pprint p)
-                                                                  $+$ text ""
-                                                                  $+$ (case findPathProof (thePath path) of
-                                                                         Nothing -> text "We have not generated a proof for the resulting sub-problem."
-                                                                         Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                                                   $+$ text ""
-                                                                                   $+$ pprint p))
+              ppDetail path (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
+                                                 <+> ppPathName pth <> text "."
+              ppDetail path (PPWeightGap p) = (case (pathUsables path) of 
+                                                 (Trs []) -> text "The usable rules of this path are empty."
+                                                 urs      -> text "The usable rules for this path are:"
+                                                             $+$ text ""
+                                                             $+$ (indent $ pprint (urs, sig, vars)))
+                                              $+$ text ""
+                                              $+$ text (if succeeded p 
+                                                        then "The weightgap principle applies:" 
+                                                        else "The weight gap principle does not apply:")
+                                              $+$ indent (pprint p)
+                                              $+$ text ""
+                                              $+$ (case findPathProof (thePath path) of
+                                                     Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                                                     Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                                $+$ text ""
+                                                                $+$ pprint p)
 
 -- todo refactor for general use
               printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]

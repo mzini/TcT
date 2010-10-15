@@ -109,8 +109,8 @@ tct conf = flip Dyre.wrapMain conf params
                                                                child = (C.unblock (runTct cfg flgs) >> putMVar mv ExitSuccess) 
                                                                        `C.catch` \ (e :: C.SomeException) -> putErrorMsg [show e] >> putMVar mv exitFail
                                                                handler pid (e :: C.SomeException) = do { killThread pid;
-                                                                                                        putErrorMsg $ [show e];
-                                                                                                        exitWith exitFail}
+                                                                                                         putErrorMsg $ [show e];
+                                                                                                         exitWith exitFail}
                                                            pid <- forkOS $ child
                                                            e <- main pid `C.catch` handler pid
                                                            exitWith e

@@ -194,26 +194,6 @@ instance T.Transformer Wdg where
                               dpss' = dpss ++ [dps_n]
                               urs'  = nodeURs ewdgSCC n `Trs.union` urs
                               path  = Path pth' (dpss,dps_n) urs'
-                    
-                    approx :+: useWG          = T.transformationArgs inst
-                    wgMatrixDim               = 2 -- TODO
-                    wgMatrixShape             = Triangular
-                    wgMatrixSize              = N.Bits 2
-                    wgMatrixCBits             = Nothing
-
-                    (startTerms', sig', wdps) = weakDependencyPairs prob
-
-                    allUsableRules            = mkUsableRules wdps trs
-
-                    ewdg                      = estimatedDependencyGraph approx sig' wdps trs
-
-                    ewdgSCC                   = toSccGraph wdps trs ewdg
-
-                    usablePoss                = usableArgs (strategy prob) wdps allUsableRules
-
-                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
-
-                    simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 
                     mkProof ps = WdgProof { computedPaths    = ps
                                           , computedGraph    = ewdg
@@ -240,6 +220,28 @@ instance T.Transformer Wdg where
                                                                                           , variables  = variables prob
                                                                                           , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
+
+                    
+                    approx :+: useWG          = T.transformationArgs inst
+                    wgMatrixDim               = 2 -- TODO
+                    wgMatrixShape             = Triangular
+                    wgMatrixSize              = N.Bits 2
+                    wgMatrixCBits             = Nothing
+
+                    (startTerms', sig', wdps) = weakDependencyPairs prob
+
+                    allUsableRules            = mkUsableRules wdps trs
+
+                    ewdg                      = estimatedDependencyGraph approx sig' wdps trs
+
+                    ewdgSCC                   = toSccGraph wdps trs ewdg
+
+                    usablePoss                = usableArgs (strategy prob) wdps allUsableRules
+
+                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
+
+                    simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
+
 
 
 -- dependency pairs and usable rules
@@ -389,7 +391,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                  $+$ text ""
                   where ppNode _ n    = printNodeId n
                         ppLabel pth _ = PP.brackets (text " " <+> ppAns pth (findWGProof pth)  <+> text " ")
-                        ppAns pth Nothing  = text "FOO" -- error $ "WDG.hs: findWGProof did not find path" ++ show pth
+                        ppAns pth Nothing  = error $ "WDG.hs: findWGProof did not find path" ++ show pth
                         ppAns pth (Just p) = (case findPathProof pth' of 
                                                 Just pp -> pprint $ answer pp
                                                 Nothing -> text "NA")
@@ -419,13 +421,13 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                PPWeightGap p    -> text (if succeeded p 
                                                                         then "The weightgap principle applies:" 
                                                                         else "The weight gap principle does not apply:")
-                                                                  $+$ indent (pprint p))
-                                        $+$ text ""
-                                        $+$ (case findPathProof (thePath path) of
-                                               Nothing -> text "We have not generated a proof for the resulting sub-problem."
-                                               Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                         $+$ text ""
-                                                         $+$ pprint p)
+                                                                  $+$ indent (pprint p)
+                                                                  $+$ text ""
+                                                                  $+$ (case findPathProof (thePath path) of
+                                                                         Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                                                                         Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                                                   $+$ text ""
+                                                                                   $+$ pprint p))
 
 -- todo refactor for general use
               printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]

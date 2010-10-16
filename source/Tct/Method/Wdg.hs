@@ -37,7 +37,6 @@ import Data.Typeable
 import Data.Maybe (fromJust, isJust, fromMaybe)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
-import qualified Control.Exception as C
 
 import qualified Qlogic.NatSat as N
 
@@ -93,7 +92,7 @@ roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
 
 
 toSccGraph :: Trs -> Trs -> Graph -> SCCGraph
-toSccGraph wdps trs gr = Graph.mkGraph nodes edges
+toSccGraph _ trs gr = Graph.mkGraph nodes edges
     where nodes    = zip [1..] [sccNode scc | scc <- sccs]
           edges    = [ (n1, n2, ()) | (n1, SCCNode scc1 _ _) <- nodes
                                     , (n2, SCCNode scc2 _ _) <- nodes
@@ -127,21 +126,6 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
               | NA { reason :: String }
 
 
-
--- data PPTree a = PPTree { roots :: [a]
---                        , suc :: a -> [a]}
-
--- printTrees :: Int -> ([a] -> a -> Doc) -> ([a] -> a -> Doc) -> Tree a -> Doc
--- printTrees labelOffset ppNode ppLabel tree = vcat $ intersperse (text "") [text "->" <+> printTree [n] n | n <- roots tree]
---     where printTree pth n = padToLength l (ppNode pth n) <> (ppLabel pth n)
---                             $+$ printSubtrees pth (suc tree n)
---                                 where l = labelOffset - (length pth) * indent
---           printSubtrees _ [] = PP.empty
---           printSubtrees pth ns = text " |"   
---                                  $+$ (vcat $ intersperse (text " |") [ text (" " ++ sepstr) <+> printTree (pth ++ [n]) n 
---                                                                        | (sepstr, n) <- zip seps ns])
---                             where seps = take (length ns - 1) (repeat ("|-->")) ++ [" `->"]
---           indent = 6
 
 ----------------------------------------------------------------------
 -- Processor 
@@ -373,32 +357,46 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                    $+$ if not simple 
                                        then block' "Sub-problems" [ppDetails]
                                        else PP.empty
-        where ppTrans = ppDPs
-                        $+$ text ""
-                        $+$ ppDG
-                        $+$ text ""
-                        $+$ ppUargs
+        where printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- nodeSCC ewdgSCC n ]
+              ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
+              findPathProof gpth = T.findProof gpth proof
+              findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
+              ewdgSCC = computedGraphSCC tp
+              ewdg    = computedGraph tp
+              sig     = newSignature tp
+              vars    = newVariables tp
+              simple  = containsNoEdgesEmptyUrs tp
 
-              ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:" 
-                      $+$ text ""
-                      $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
-                          where pprule (i,r) = text (show i) <> text ":" <+> pprint (r,sig,vars)
+              ppTrans = ppDPs $+$ text "" $+$ ppDG $+$ text "" $+$ ppUargs
+                  where ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:" 
+                                $+$ text ""
+                                $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
+                                    where pprule (i,r) = text (show i) <> text ":" <+> pprint (r,sig,vars)
 
-              ppDG | containsNoEdgesEmptyUrs tp = text "The dependency graph contains no edges and the usable rules are empty."
-                   | otherwise = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
-                                 $+$ text ""
-                                 $+$ (indent $ printTrees 60 ppNode ppLabel)
-                                 $+$ text ""
-                  where ppNode _ n    = printNodeId n
-                        ppLabel pth _ = PP.brackets (text " " <+> ppAns pth (findWGProof pth)  <+> text " ")
-                        ppAns pth Nothing                 = error $ "WDG.hs: findWGProof did not find path" ++ show pth
-                        ppAns _   (Just (PPSubsumedBy _)) = parens $ text "inherited"
-                        ppAns pth _                       = case findPathProof pth of 
-                                                              Just pp -> pprint $ answer pp
-                                                              Nothing -> text "NA"
+                        ppDG | containsNoEdgesEmptyUrs tp = text "The dependency graph contains no edges and the usable rules are empty."
+                             | otherwise = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
+                                           $+$ text ""
+                                           $+$ (indent $ printTree 60 ppNode ppLabel pTree)
+                                           $+$ text ""
+                             where ppNode _ n    = printNodeId n
+                                   ppLabel pth _ = PP.brackets (centering 20 $ ppAns pth (findWGProof pth))
+                                       where ppAns pth Nothing                 = error $ "WDG.hs: findWGProof did not find path" ++ show pth
+                                             ppAns _   (Just (PPSubsumedBy _)) = text "inherited"
+                                             ppAns pth _                       = case findPathProof pth of 
+                                                                                   Just pp -> pprint $ answer pp
+                                                                                   Nothing -> text "NA"
+                                             centering n d =  text $ take pre ss ++ s ++ take post ss
+                                                 where s = show d
+                                                       l = length s 
+                                                       ss = repeat ' '
+                                                       pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
+                                                       post = n - l - pre
+                                   pTree = PPTree { pptRoots = roots ewdgSCC
+                                                  , pptSuc = sortBy compareLabel . Graph.suc ewdgSCC}
+                                   compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
 
-              ppUargs = text "Following usable argument positions were computed:"
-                        $+$ indent (pprint (usableArguments tp, sig))
+                        ppUargs = text "Following usable argument positions were computed:"
+                                  $+$ indent (pprint (usableArguments tp, sig))
 
               ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":")
                                                                         $+$ text ""
@@ -406,50 +404,24 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                          | (path, pathproof) <- sortBy comparePath $ computedPaths tp]
                   where comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
                             where mkpath p = [nodeSCC ewdgSCC n | n <- p]
-
-              ppDetail path (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
-                                                 <+> ppPathName pth <> text "."
-              ppDetail path (PPWeightGap p) = (case (pathUsables path) of 
-                                                 (Trs []) -> text "The usable rules of this path are empty."
-                                                 urs      -> text "The usable rules for this path are:"
-                                                             $+$ text ""
-                                                             $+$ (indent $ pprint (urs, sig, vars)))
-                                              $+$ text ""
-                                              $+$ text (if succeeded p 
-                                                        then "The weightgap principle applies:" 
-                                                        else "The weight gap principle does not apply, using the following TMI:")
-                                              $+$ indent (pprint p)
-                                              $+$ text ""
-                                              $+$ (case findPathProof (thePath path) of
-                                                     Nothing -> text "We have not generated a proof for the resulting sub-problem."
-                                                     Just p  -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                                $+$ text ""
-                                                                $+$ pprint p)
-
--- todo refactor for general use
-              printTrees offset ppNode ppLabel  = vcat $ intersperse (text "") [text "->" <+> printTree offset ppNode ppLabel n | n <- nodes, Graph.indeg ewdgSCC n == 0]
-              printTree offset ppNode ppLabel node = printTree' [node] node
-                  where printTree' pth n = padToLength l (ppNode pth n) <> (ppLabel pth n)
-                                           $+$ printSubtrees pth (sortBy compareLabel $ Graph.suc ewdgSCC n)
-                            where l = offset - (length pth) * 6
-                        printSubtrees _ [] = PP.empty
-                        printSubtrees pth ns = text " |"   
-                                               $+$ (vcat $ intersperse (text " |") [ text (" " ++ sepstr) <+> printTree' (pth ++ [n]) n 
-                                                                                     | (sepstr, n) <- zip seps ns])
-                            where seps = take (length ns - 1) (repeat ("|-->")) ++ [" `->"]
-
-
-              printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- nodeSCC ewdgSCC n ]
-              ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
-              findPathProof gpth = T.findProof gpth proof
-              findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
-              ewdgSCC = computedGraphSCC tp
-              ewdg    = computedGraph tp
-              nodes   = sortBy compareLabel $ Graph.nodes ewdgSCC
-              compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
-              sig     = newSignature tp
-              vars    = newVariables tp
-              simple  = containsNoEdgesEmptyUrs tp
+                        ppDetail path (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
+                                                           <+> ppPathName pth <> text "."
+                        ppDetail path (PPWeightGap p) = (case (pathUsables path) of 
+                                                           (Trs []) -> text "The usable rules of this path are empty."
+                                                           urs      -> text "The usable rules for this path are:"
+                                                                      $+$ text ""
+                                                                      $+$ (indent $ pprint (urs, sig, vars)))
+                                                        $+$ text ""
+                                                        $+$ text (if succeeded p 
+                                                                  then "The weightgap principle applies, using the following TMI:" 
+                                                                  else "The weight gap principle does not apply:")
+                                                        $+$ indent (pprint p)
+                                                        $+$ text ""
+                                                        $+$ (case findPathProof (thePath path) of
+                                                               Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                                                               Just pp -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                                         $+$ text ""
+                                                                         $+$ pprint pp)
 
 instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where 
     answer = T.answerTProof ans 

@@ -169,7 +169,7 @@ instance T.Transformer Wdg where
                     traverse pth n dpss urs = do (subsumed, rs) <- traverseNodes pth' (Graph.suc ewdgSCC n) dpss' urs'
                                                  (subsumed', proof) <- case subsumed of 
                                                                         (Just sp) -> do return $ (subsumed , PPSubsumedBy sp)
-                                                                        Nothing   -> do wgcond <- weightGap urs' dps_n 
+                                                                        Nothing   -> do wgcond <- weightGap dps_n urs'
                                                                                         return $ ( if succeeded wgcond then Nothing else Just path
                                                                                                  , PPWeightGap wgcond)
                                                  return (subsumed', (path, proof) : rs)
@@ -207,7 +207,7 @@ instance T.Transformer Wdg where
 
                     
                     approx :+: useWG          = T.transformationArgs inst
-                    wgMatrixDim               = 2 -- TODO
+                    wgMatrixDim               = 1 -- TODO
                     wgMatrixShape             = Triangular
                     wgMatrixSize              = N.Bits 2
                     wgMatrixCBits             = Nothing

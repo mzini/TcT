@@ -44,6 +44,7 @@ import Termlib.Problem (Relation (..))
 import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
+import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Variable as V
 
@@ -84,6 +85,13 @@ instance PrettyPrintable MatrixOrder where
         where ppknd UnrestrictedMatrix   = text "unrestricted"
               ppknd TriangularMatrix     = text "triangular"
               ppknd (ConstructorBased _) = text "constructor-restricted"
+
+instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
+    pprint (order, trs, var) = pprint order $+$ pptrs
+        where sig = signature $ ordInter order
+              pptrs = text "Interpretations of rules:" $+$ vcat (map pprule $ Trs.rules trs)
+              pprule r = (text "Rule" <+> pprint (r, sig, var) <+> char ':') $+$ ppterm (R.lhs r) $+$ ppterm (R.rhs r)
+              ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
     answer (MatrixOrder _ UnrestrictedMatrix)    = CertAnswer $ certified (unknown, expo (Just 1))
@@ -154,7 +162,7 @@ matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
 matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind matrixdimension coefficientsize constraintbits = 
+matrix matrixkind matrixdimension coefficientsize constraintbits =
     NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
 
 -- argument accessors

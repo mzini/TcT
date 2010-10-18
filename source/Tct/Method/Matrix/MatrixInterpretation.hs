@@ -86,29 +86,49 @@ instance PrettyPrintable a => PrettyPrintable (MatrixInter a) where
                   fargs = parens . hsep . punctuate comma . map (\(V.Canon i) -> char 'x' <> int i) . Map.keys . coefficients
 
 instance PrettyPrintable a => PrettyPrintable (LInter a) where
-  pprint (LI ms vec) = foldr handleLine empty [1..d]
-    where handleLine i doc               = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc
-          handleMatrix i v m doc         = mLine i m <+> mVar i v <+> doc
-          colWidths m                    = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
-          mLine i m                      = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
-          mCell (cell, l) doc            = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
-          mVar i (V.Canon v) | i == 1    = char 'x' <> int v <+> char '+'
-          mVar _ (V.Canon v) | otherwise = text $ replicate (length (show v) + 3) ' '
-          mVar i (V.User v)  | i == 1    = char 'y' <> int v <+> char '+'
-          mVar _ (V.User v)  | otherwise = text $ replicate (length (show v) + 3) ' '
-          vLine i                        = brackets $ pprint (vEntry i vec)
-          prettyLength                   = length . show . pprint
-          d                              = vecdim vec
+   pprint = pprintLI mVar
+     where mVar (V.Canon v) = char 'x' <> int v
+           mVar (V.User v)  = char 'y' <> int v
+--   pprint (LI ms vec) = foldr handleLine empty [1..d]
+--     where handleLine i doc               = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc
+--           handleMatrix i v m doc         = mLine i m <+> mVar i v <+> doc
+--           colWidths m                    = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
+--           mLine i m                      = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
+--           mCell (cell, l) doc            = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
+--           mVar i (V.Canon v) | i == 1    = char 'x' <> int v <+> char '+'
+--           mVar _ (V.Canon v) | otherwise = text $ replicate (length (show v) + 3) ' '
+--           mVar i (V.User v)  | i == 1    = char 'y' <> int v <+> char '+'
+--           mVar _ (V.User v)  | otherwise = text $ replicate (length (show v) + 3) ' '
+--           vLine i                        = brackets $ pprint (vEntry i vec)
+--           prettyLength                   = length . show . pprint
+--           d                              = vecdim vec
 
-pprint' :: PrettyPrintable a => LInter a -> Doc
-pprint' (LI ms v) = Map.foldWithKey pArg (pVector v) ms
-    where pArg (V.Canon i) m doc  = pMatrix m <> char 'x' <> int i <+> char '+' <+> doc
-          pArg (V.User i) m doc   = pMatrix m <> char 'y' <> int i <+> char '+' <+> doc
-          pVector                 = vcat . liftVector (map (brackets . pprint))
-          pMatrix (Matrix m)      = (vcat (map (const lbrack) m)) <> pMatrix' m <> vcat (map (const rbrack) m)
-          pMatrix' m | any (liftVector null) m = empty
-          pMatrix' m | otherwise               = (vcat (map (liftVector (pprint . head)) m)) <+>
-                                                   pMatrix' (map (liftVector_ tail) m)
+instance PrettyPrintable a => PrettyPrintable (LInter a, V.Variables) where
+   pprint (li, var) = pprintLI mVar li
+     where mVar v = text $ V.variableName v var
+
+pprintLI :: PrettyPrintable a => (V.Variable -> Doc) -> LInter a -> Doc
+pprintLI f (LI ms vec) = foldr handleLine empty [1..d]
+    where handleLine i doc       = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc
+          handleMatrix i v m doc = mLine i m <+> mVar i v <+> doc
+          colWidths m            = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
+          mLine i m              = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
+          mCell (cell, l) doc    = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
+          mVar i v | i == 1      = f v <+> char '+'
+          mVar _ v | otherwise   = text $ replicate (length (show $ f v) + 2) ' '
+          vLine i                = brackets $ pprint (vEntry i vec)
+          prettyLength           = length . show . pprint
+          d                      = vecdim vec
+
+-- pprint' :: PrettyPrintable a => LInter a -> Doc
+-- pprint' (LI ms v) = Map.foldWithKey pArg (pVector v) ms
+--     where pArg (V.Canon i) m doc  = pMatrix m <> char 'x' <> int i <+> char '+' <+> doc
+--           pArg (V.User i) m doc   = pMatrix m <> char 'y' <> int i <+> char '+' <+> doc
+--           pVector                 = vcat . liftVector (map (brackets . pprint))
+--           pMatrix (Matrix m)      = (vcat (map (const lbrack) m)) <> pMatrix' m <> vcat (map (const rbrack) m)
+--           pMatrix' m | any (liftVector null) m = empty
+--           pMatrix' m | otherwise               = (vcat (map (liftVector (pprint . head)) m)) <+>
+--                                                    pMatrix' (map (liftVector_ tail) m)
 
 instance Semiring a => Interpretation (MatrixInter a) (LInter a) where
   interpretFun mi f lis = addAll $ zipWith handleArg [1..] lis

@@ -188,10 +188,10 @@ instance T.Transformer Wdg where
                                           , newVariables     = variables prob
                                           , usableArguments  = usablePoss
                                           , containsNoEdgesEmptyUrs  = simple}
-              
+
                     mkProbs ps | simple    = []
                                | otherwise = [(SN gpath, mk proof dpss dps urs) | (Path gpath (dpss,dps) urs, proof) <- ps, not $ isSubsumed proof]
-                        where isSubsumed (PPSubsumedBy _) = True 
+                        where isSubsumed (PPSubsumedBy _) = True
                               isSubsumed _                = False
                               mk (PPWeightGap proof) dpss dps urs | succeeded proof = Problem { startTerms = startTerms'
                                                                                           , strategy   = strategy prob
@@ -361,6 +361,9 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
               findPathProof gpth = T.findProof gpth proof
               findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
+--               tmiComplexity gpth = case snd gpth of
+--                                      PPSubsumedBy _ -> Poly $ Just 0
+--                                      PPWeightGap tmi -> upperBound $ certificate tmi
               ewdgSCC = computedGraphSCC tp
               ewdg    = computedGraph tp
               sig     = newSignature tp
@@ -380,14 +383,15 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                            $+$ text ""
                              where ppNode _ n    = printNodeId n
                                    ppLabel pth _ = PP.brackets (centering 20 $ ppAns pth (findWGProof pth))
-                                       where ppAns pth Nothing                 = error $ "WDG.hs: findWGProof did not find path" ++ show pth
-                                             ppAns _   (Just (PPSubsumedBy _)) = text "inherited"
-                                             ppAns pth _                       = case findPathProof pth of 
-                                                                                   Just pp -> pprint $ answer pp
-                                                                                   Nothing -> text "NA"
+                                       where ppAns pth' Nothing                  = error $ "WDG.hs: findWGProof did not find path" ++ show pth'
+                                             ppAns _    (Just (PPSubsumedBy _))  = text "inherited"
+                                             ppAns pth' (Just (PPWeightGap tmi)) = case findPathProof pth' of
+                                                                                    Just pp -> pprint $ pthAnswer tmi pp
+                                                                                    Nothing -> text "NA"
+                                             pthAnswer tmi pp = if succeeded (answer pp) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
                                              centering n d =  text $ take pre ss ++ s ++ take post ss
                                                  where s = show d
-                                                       l = length s 
+                                                       l = length s
                                                        ss = repeat ' '
                                                        pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
                                                        post = n - l - pre

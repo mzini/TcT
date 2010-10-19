@@ -361,9 +361,6 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
               findPathProof gpth = T.findProof gpth proof
               findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
---               tmiComplexity gpth = case snd gpth of
---                                      PPSubsumedBy _ -> Poly $ Just 0
---                                      PPWeightGap tmi -> upperBound $ certificate tmi
               ewdgSCC = computedGraphSCC tp
               ewdg    = computedGraph tp
               sig     = newSignature tp
@@ -408,9 +405,9 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                          | (path, pathproof) <- sortBy comparePath $ computedPaths tp]
                   where comparePath (Path p1 _ _,_) (Path p2 _ _,_) = mkpath p1 `compare` mkpath p2
                             where mkpath p = [nodeSCC ewdgSCC n | n <- p]
-                        ppDetail path (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
+                        ppDetail _    (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
                                                            <+> ppPathName pth <> text "."
-                        ppDetail path (PPWeightGap p) = (case (pathUsables path) of 
+                        ppDetail path (PPWeightGap p) = (text "Path Complexity:" <+> pprint (answer p)) $+$ (case (pathUsables path) of 
                                                            (Trs []) -> text "The usable rules of this path are empty."
                                                            urs      -> text "The usable rules for this path are:"
                                                                       $+$ text ""

@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -18,6 +17,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -34,7 +34,7 @@ import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Data.Typeable 
-import Data.Maybe (fromJust, isJust, fromMaybe)
+import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -207,7 +207,7 @@ instance T.Transformer Wdg where
 
                     
                     approx :+: useWG          = T.transformationArgs inst
-                    wgMatrixDim               = 1 -- TODO
+                    wgMatrixDim               = 2 -- TODO
                     wgMatrixShape             = Triangular
                     wgMatrixSize              = N.Bits 2
                     wgMatrixCBits             = Nothing
@@ -423,16 +423,20 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                                          $+$ text ""
                                                                          $+$ pprint pp)
 
-instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where 
-    answer = T.answerTProof ans 
+instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where
+    answer = T.answerTProof ans
         where ans (NA _) _                                  = MaybeAnswer
               ans proof sps | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
-                            | otherwise = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
-                  where mkUb (_,p) = case relation $ P.inputProblem p of 
+                            | otherwise = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps] ++ [tmiUb | tmiUb <- tmiUbs])
+                  where mkUb (_,p) = case relation $ P.inputProblem p of
                                        Standard _ -> ub p
                                        _          -> assertLinear $ ub p
                         ub = upperBound . certificate
+                        tmiUbs = map upperBound tmiCerts
+                        tmiCerts = mapMaybe handlePathProof pathproofs
+                        handlePathProof (PPSubsumedBy _) = Nothing
+                        handlePathProof (PPWeightGap tmi) = Just $ certificate tmi
+                        pathproofs = map snd $ computedPaths proof
                         assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
                         assertLinear (Poly Nothing)  = Poly Nothing
                         assertLinear e               = e
-                             

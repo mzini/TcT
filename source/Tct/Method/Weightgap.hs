@@ -25,13 +25,11 @@ import Qlogic.Boolean
 import Qlogic.Diophantine
 import Qlogic.Semiring
 import qualified Qlogic.NatSat as N
-import qualified Qlogic.Semiring as SR
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
-import qualified Termlib.Variable as V
 
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix
@@ -58,13 +56,6 @@ weightGapConstraints uarg nondup st strict weak sig mp = strictTrsConstraints ab
         mkConstraints (ConstructorBased cs) mi = triConstraints mi'
                                                  where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                        filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-
-uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
-uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
-  where funConstraint f = bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . filterUargs f . coefficients
-        filterUargs f = Map.filterWithKey $ fun f
-        fun f (V.Canon i) _ = isUsable f i uarg
-        fun _ (V.User _) _ = error "Tct.Method.Weightgap.uargMonotoneConstraints: User variable in abstract interpretation"
 
 nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs.Trs -> MatrixInter a -> b
 nondupConstraints trs mi = bigAnd $ Trs.liftTrs (map rConstraint) trs

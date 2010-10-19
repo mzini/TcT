@@ -52,6 +52,7 @@ import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix hiding (maxMatrix)
 import Tct.Encoding.Natring ()
+import Tct.Encoding.UsablePositions
 import Tct.Method.Matrix.MatrixInterpretation
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
@@ -150,12 +151,13 @@ instance S.Processor NaturalMI where
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
     solve inst problem = case Prob.relation problem of
-                           Standard sr    -> orientDirect st sr sig' (S.processorArgs inst)
-                           Relative sr wr -> orientRelative st sr wr sig' (S.processorArgs inst)
-                           DP sr wr       -> orientDp st sr wr sig' (S.processorArgs inst)
-        where sig  = Prob.signature problem
-              sig' = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
-              st   = Prob.startTerms problem
+                           Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
+                           Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
+                           DP sr wr       -> orientDp strat st sr wr sig' (S.processorArgs inst)
+        where sig   = Prob.signature problem
+              sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+              st    = Prob.startTerms problem
+              strat = Prob.strategy problem
 
 
 matrixProcessor :: S.StdProcessor NaturalMI
@@ -188,16 +190,16 @@ dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
 dim (_ :+: Nat d :+: _ :+: _ :+: _) = d
 
 
-orientDirect :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientDirect st trs = orientMatrix relativeConstraints st trs Trs.empty
+orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientDirect strat st trs = orientMatrix (relativeConstraints strat) st trs Trs.empty
 
-orientRelative :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientRelative = orientMatrix relativeConstraints
+orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientRelative strat = orientMatrix $ relativeConstraints strat
 
-orientDp :: P.SolverM m => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientDp = orientMatrix dpConstraints
+orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientDp strat = orientMatrix $ dpConstraints strat
 
-orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int) 
+orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
              -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                       return $ case theMI of
@@ -215,31 +217,41 @@ data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative deriving Show
 
 
-relativeConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+relativeConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 relativeConstraints = matrixConstraints MDirect MNoDP
 
-dpConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+dpConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 dpConstraints = matrixConstraints MDirect MWithDP
 
 -- TODO: rename derivationGraph
 -- weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 -- weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
-matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
+matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
+                  -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
-        otherConstraints UnrestrictedMatrix mi = dpChoice mdp mi
-        otherConstraints TriangularMatrix mi = dpChoice mdp mi && triConstraints mi
-        otherConstraints (ConstructorBased cs) mi = dpChoice mdp mi && triConstraints mi'
+        otherConstraints UnrestrictedMatrix mi = dpChoice mdp st mi
+        otherConstraints TriangularMatrix mi = dpChoice mdp st mi && triConstraints mi
+        otherConstraints (ConstructorBased cs) mi = dpChoice mdp st mi && triConstraints mi'
                                                     where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                           filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStrictTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
-        dpChoice MWithDP = safeRedpairConstraints sig
-        dpChoice MNoDP   = monotoneConstraints
+        dpChoice MWithDP _ = safeRedpairConstraints sig
+        dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints
+        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs strat Trs.empty combTrs
+        combTrs = strict `Trs.union` weak
+
+uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
+uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
+  where funConstraint f = bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . filterUargs f . coefficients
+        filterUargs f = Map.filterWithKey $ fun f
+        fun f (V.Canon i) _ = isUsable f i uarg
+        fun _ (V.User _)  _ = error "Tct.Method.Matrix.NaturalMI.uargMonotoneConstraints: User variable in abstract interpretation"
 
 monotoneConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 monotoneConstraints = bigAnd . Map.map (bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . coefficients) . interpretations

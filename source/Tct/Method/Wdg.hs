@@ -128,7 +128,7 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
 
 
 ----------------------------------------------------------------------
--- Processor 
+-- Processor
 
 data Approximation = Edg deriving (Bounded, Ord, Eq, Typeable, Enum) 
 instance Show Approximation where show Edg = "edg"
@@ -138,24 +138,45 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
-wdg approx weightgap = Wdg `T.calledWith` (approx :+: weightgap)
+wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap wgdim wgsize wgcbits = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = Arg (EnumOf Approximation) :+: Arg (Bool)
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat))
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
                       , A.defaultValue = Edg
                       , A.description = "specifies the employed dependency graph approximation"}
-                  :+: 
+                  :+:
                   opt { A.name = "weightgap"
                       , A.defaultValue = True
                       , A.description = "specifies whether the weightgap principle is used per path"}
-    transform inst prob = 
+                  :+:
+                  opt { A.name = "dim"
+                      , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
+                                                , "in the matrix-interpretation for the weight gap condition."]
+                      , A.defaultValue = Nat 2 }
+                  :+:
+                  opt { A.name = "bound"
+                      , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the matrix"
+                                                , "interpretation for the weight gap condition."]
+                      , A.defaultValue = Nat 3 }
+                  :+:
+                  opt { A.name = "bits"
+                      , A.description = unlines [ "This argument plays the same role as 'bound',"
+                                                , "but instead of an upper-bound the number of bits is specified."
+                                                , "This argument overrides the argument 'bound'." ]
+                      , A.defaultValue = Nothing }
+                  :+:
+                  opt { A.name = "cbits"
+                      , A.description = unlines [ "This argument specifies the number of bits used for intermediate results"
+                                                , "computed for the matrix interpretation of the weight gap condition." ]
+                      , A.defaultValue = Nothing }
+    transform inst prob =
         case (startTerms prob, relation prob) of 
           (TermAlgebra, _) -> return $ T.Failure $ NA {reason = "derivational complexity"}
           (_, DP _ _) -> return $ T.Failure $ NA {reason = "DP problems"}
@@ -205,12 +226,11 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    
-                    approx :+: useWG          = T.transformationArgs inst
-                    wgMatrixDim               = 2 -- TODO
+                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits = T.transformationArgs inst
                     wgMatrixShape             = Triangular
-                    wgMatrixSize              = N.Bits 2
-                    wgMatrixCBits             = Nothing
+                    wgMatrixSize              = case wgMatrixBits of
+                                                  Nothing -> N.Bound wgMatrixBound
+                                                  Just (Nat b) -> N.Bits b
 
                     (startTerms', sig', wdps) = weakDependencyPairs prob
 
@@ -368,7 +388,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               simple  = containsNoEdgesEmptyUrs tp
 
               ppTrans = ppDPs $+$ text "" $+$ ppDG $+$ text "" $+$ ppUargs
-                  where ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:" 
+                  where ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:"
                                 $+$ text ""
                                 $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
                                     where pprule (i,r) = text (show i) <> text ":" <+> pprint (r,sig,vars)
@@ -380,13 +400,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                            $+$ text ""
                              where ppNode _ n    = printNodeId n
                                    ppLabel pth _ = PP.brackets (centering 20 $ ppAns pth (findWGProof pth))
-                                       where ppAns pth' Nothing                  = error $ "WDG.hs: findWGProof did not find path" ++ show pth'
-                                             ppAns _    (Just (PPSubsumedBy _))  = text "inherited"
-                                             ppAns pth' (Just (PPWeightGap tmi)) = case findPathProof pth' of
-                                                                                    Just pp -> pprint $ pthAnswer tmi pp
-                                                                                    Nothing -> text "NA"
-                                             pthAnswer tmi pp = if succeeded (answer pp) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
-                                             centering n d =  text $ take pre ss ++ s ++ take post ss
+                                       where centering n d =  text $ take pre ss ++ s ++ take post ss
                                                  where s = show d
                                                        l = length s
                                                        ss = repeat ' '
@@ -399,7 +413,14 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                         ppUargs = text "Following usable argument positions were computed:"
                                   $+$ indent (pprint (usableArguments tp, sig))
 
-              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":")
+              ppAns pth' Nothing                  = error $ "WDG.hs: findWGProof did not find path" ++ show pth'
+              ppAns _    (Just (PPSubsumedBy _))  = text "inherited"
+              ppAns pth' (Just (PPWeightGap p)) = case findPathProof pth' of
+                                                      Just pp -> pprint $ pthAnswer p pp
+                                                      Nothing -> text "NA"
+                where pthAnswer tmi pp = if succeeded (answer pp) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
+
+              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppAns (thePath path) (Just pathproof))
                                                                         $+$ text ""
                                                                         $+$ ppDetail path pathproof))
                                                          | (path, pathproof) <- sortBy comparePath $ computedPaths tp]
@@ -407,16 +428,17 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                             where mkpath p = [nodeSCC ewdgSCC n | n <- p]
                         ppDetail _    (PPSubsumedBy pth) = text "This path is subsumed by the proof of path" 
                                                            <+> ppPathName pth <> text "."
-                        ppDetail path (PPWeightGap p) = (text "Path Complexity:" <+> pprint (answer p)) $+$ (case (pathUsables path) of 
+                        ppDetail path (PPWeightGap p) = (case (pathUsables path) of
                                                            (Trs []) -> text "The usable rules of this path are empty."
                                                            urs      -> text "The usable rules for this path are:"
                                                                       $+$ text ""
                                                                       $+$ (indent $ pprint (urs, sig, vars)))
                                                         $+$ text ""
-                                                        $+$ text (if succeeded p 
+                                                        $+$ text (if succeeded p
                                                                   then "The weightgap principle applies, using the following TMI:" 
                                                                   else "The weight gap principle does not apply:")
                                                         $+$ indent (pprint p)
+                                                        $+$ (text "Induced complexity for the usable rules:" <+> pprint (answer p))
                                                         $+$ text ""
                                                         $+$ (case findPathProof (thePath path) of
                                                                Nothing -> text "We have not generated a proof for the resulting sub-problem."

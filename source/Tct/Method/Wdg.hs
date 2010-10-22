@@ -138,14 +138,14 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
-wdg approx weightgap wgdim wgsize wgcbits = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits)
+wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> UArgStrategy -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap wgdim wgsize wgcbits uas = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: uas)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat))
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg (EnumOf UArgStrategy))
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
@@ -176,6 +176,13 @@ instance T.Transformer Wdg where
                       , A.description = unlines [ "This argument specifies the number of bits used for intermediate results"
                                                 , "computed for the matrix interpretation of the weight gap condition." ]
                       , A.defaultValue = Nothing }
+                  :+:
+                  opt { A.name = "uargs"
+                      , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument"
+                                                , "positions for the weight gap condition."
+                                                , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
+                                                , "to using a tcap-like function." ]
+                      , A.defaultValue = UArgByCap }
     transform inst prob =
         case (startTerms prob, relation prob) of 
           (TermAlgebra, _) -> return $ T.Failure $ NA {reason = "derivational complexity"}
@@ -226,7 +233,7 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits = T.transformationArgs inst
+                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUas = T.transformationArgs inst
                     wgMatrixShape             = Triangular
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
@@ -240,9 +247,9 @@ instance T.Transformer Wdg where
 
                     ewdgSCC                   = toSccGraph wdps trs ewdg
 
-                    usablePoss                = usableArgs (strategy prob) wdps allUsableRules
+                    usablePoss                = usableArgs wgUas (strategy prob) wdps allUsableRules
 
-                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
+                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits wgUas
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 

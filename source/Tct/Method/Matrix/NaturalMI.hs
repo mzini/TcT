@@ -108,7 +108,7 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat))
+    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg (EnumOf UArgStrategy))
     arguments NaturalMI = opt { A.name        = "kind"
                               , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation employed for complexity-analysis."
                                                         , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
@@ -123,7 +123,7 @@ instance S.Processor NaturalMI where
                                                         , "cf. http://cl-informatik.uibk.ac.at/research/publications/2008/complexity-analysis-of-term-rewriting-based-on-mat/ ." 
                                                         ]
                               , A.defaultValue = Default}
-                          :+: 
+                          :+:
                           opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
                                                         , " in the matrix-interpretation."]
@@ -134,18 +134,24 @@ instance S.Processor NaturalMI where
                                                         , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
                                                         , "when searching for compatible matrix interpretations."]
                               , A.defaultValue = Nat 3 }
-                          :+: 
+                          :+:
                           opt { A.name        = "bits"
                               , A.description = unlines [ "This argument plays the same role as 'bound',"
                                                         , "but instead of an upper-bound the number of bits is specified."
                                                         , "This argument overrides the argument 'bound'."]
                               , A.defaultValue = Nothing }
-                          :+: 
+                          :+:
                           opt { A.name = "cbits"
                               , A.description = unlines [ "This argument specifies the number of bits used for intermediate results, "
                                                         , "as for instance coefficients of matrices obtained by interpreting"
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
+                          :+:
+                          opt { A.name = "uargs"
+                              , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument positions."
+                                                        , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
+                                                        , "to using a tcap-like function." ]
+                              , A.defaultValue = UArgByCap }
 
     instanceName inst = "matrix-interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
@@ -163,31 +169,34 @@ instance S.Processor NaturalMI where
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind matrixdimension coefficientsize constraintbits =
-    NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
+matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> UArgStrategy -> P.InstanceOf (S.StdProcessor NaturalMI)
+matrix matrixkind matrixdimension coefficientsize constraintbits uas =
+    NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: uas)
 
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
-kind (Unrestricted :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Constructor  :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Constructor  :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-kind (Default      :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Default      :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-kind (Triangular   :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
+kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
+kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
-bound (_ :+: _ :+: Nat bnd :+: mbits :+: _) = case mbits of
-                                                Just (Nat b) -> N.Bits b
-                                                Nothing      -> N.Bound bnd
+bound (_ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
+                                                      Just (Nat b) -> N.Bits b
+                                                      Nothing      -> N.Bound bnd
 
 cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
-cbits (_ :+: _ :+: _ :+: _ :+: b) = do Nat n <- b
-                                       return $ N.Bits n
+cbits (_ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
+                                             return $ N.Bits n
 
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
-dim (_ :+: Nat d :+: _ :+: _ :+: _) = d
+dim (_ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
+
+uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
+uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
 
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
@@ -233,6 +242,7 @@ matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
+        uas        = uastrat mp
         otherConstraints UnrestrictedMatrix mi = dpChoice mdp st mi
         otherConstraints TriangularMatrix mi = dpChoice mdp st mi && triConstraints mi
         otherConstraints (ConstructorBased cs) mi = dpChoice mdp st mi && triConstraints mi'
@@ -243,7 +253,7 @@ matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi
 --         strictChoice MWeightGap = strictOneConstraints
         dpChoice MWithDP _ = safeRedpairConstraints sig
         dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints
-        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs strat Trs.empty combTrs
+        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs uas strat Trs.empty combTrs
         combTrs = strict `Trs.union` weak
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b

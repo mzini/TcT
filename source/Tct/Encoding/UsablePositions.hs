@@ -27,24 +27,25 @@ module Tct.Encoding.UsablePositions
   -- )
 where
 
+import Termlib.Rule (Rule(..))
+import Termlib.Substitution (isRenamedUnifiable)
+import Termlib.Term
+import Termlib.Trs (Trs(..))
+import Termlib.Problem hiding (variables)
+import qualified Termlib.Trs as Trs
+
 import qualified Data.IntSet as IntSet
 import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
-import Termlib.Rule (Rule(..))
-import Termlib.Trs (Trs(..))
-import qualified Termlib.Trs as Trs
-import Termlib.Problem hiding (variables)
-import Termlib.Term
-
-
 import Data.IntSet (IntSet)
 import Data.IntMap (IntMap)
-import Data.List (sort)
+import Data.List (sort, partition)
+import Data.Typeable
 import Termlib.Utils (PrettyPrintable(..), enum)
 import Termlib.FunctionSymbol
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-newtype UsablePositions = UP (IntMap IntSet) deriving Show
+newtype UsablePositions = UP (IntMap IntSet) deriving (Eq, Show)
 
 
 empty :: UsablePositions
@@ -78,13 +79,30 @@ isUsable sym i (UP m) = case IntMap.lookup (enum sym) m of
                           Just poss -> IntSet.member i poss
                           Nothing ->  False
 
+isBlockedProperSubtermOf :: UsablePositions -> Term -> Term -> Bool
+isBlockedProperSubtermOf up s t = any (isBlockedProperSubtermOf up s . snd) uSubs || any (isSubtermOf s . snd) nonSubs
+  where (uSubs, nonSubs) = partition (\ (i, _) -> isUsable f i up ) $ zip [1 :: Int ..] $ immediateSubterms t
+        f                = case root t of
+                             Left  _  -> error "Tct.Encoding.UsablePositions.isBlockedProperSubtermOf: root t called for a variable t"
+                             Right f' -> f'
+
 instance PrettyPrintable (UsablePositions, Signature) where 
   pprint (up, sig) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ symbols sig]
     where pp sym = text "Uargs" <> parens (pprint (sym, sig)) <+> text "=" 
                    <+> (braces . fsep . punctuate (text ",") $ [ text $ show i | i <- usablePositions sym up])
 
-usableArgs :: Strategy -> Trs -> Trs -> UsablePositions
-usableArgs Innermost r s = unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules $ Trs.union r s]
+data UArgStrategy = UArgByFun | UArgByCap deriving (Typeable, Bounded, Enum)
+
+instance Show UArgStrategy where
+  show UArgByFun = "byFunctions"
+  show UArgByCap = "byCap"
+
+usableArgs :: UArgStrategy -> Strategy -> Trs -> Trs -> UsablePositions
+usableArgs UArgByFun = usableArgsFun
+usableArgs UArgByCap = usableArgsCap
+
+usableArgsFun :: Strategy -> Trs -> Trs -> UsablePositions
+usableArgsFun Innermost r s = unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules $ Trs.union r s]
     where ds = Trs.definedSymbols s
           uArgs (Var _)    = (False, empty)
           uArgs (Fun f ts) = ( subtermUsable || f `Set.member` ds
@@ -93,7 +111,7 @@ usableArgs Innermost r s = unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules $
                     subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
                     new = singleton f [i | (i, usable, _) <- uArgs', usable]
 
-usableArgs Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f $ IntSet.empty) up) empty fs 
+usableArgsFun Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f $ IntSet.empty) up) empty fs 
     where both = r `Trs.union` s
           fs = Set.toList $ Trs.functionSymbols both
           ds = Trs.definedSymbols s
@@ -102,7 +120,7 @@ usableArgs Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f 
                         | otherwise                    = uArgsSym f (delta `IntSet.union` us)
               where delta   = IntSet.unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules both]
 
-                    rhsVars = Set.unions [ variables li 
+                    rhsVars = Set.unions [ variables li
                                           | rule <- Trs.rules both  -- TODO verify use of both, verify if inlined
                                          , root (lhs rule) == Right f 
                                          , li <- immediateSubterms (lhs rule)]
@@ -114,3 +132,20 @@ usableArgs Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f 
                               subtermUsable   = any (\ (_,(isUP,_)) -> isUP) uArgs'
                               new | f == g    = IntSet.fromList [i | (i, (isUp, _)) <- uArgs' , isUp]
                                   | otherwise = IntSet.empty
+
+usableArgsCap :: Strategy -> Trs -> Trs -> UsablePositions
+usableArgsCap Innermost r s = usableReplacementMap (r `Trs.union` s) empty
+usableArgsCap Full r s = fix (usableReplacementMap $ r `Trs.union` s) empty
+    where fix f up | res == up = up
+                   | otherwise = fix f (f up)
+            where res = f up
+
+usableReplacementMap :: Trs -> UsablePositions -> UsablePositions
+usableReplacementMap trs up = unions [ snd $ uArgs l r | Rule l r <- Trs.rules trs]
+    where uArgs l t@(Var _)    = ( not $ isBlockedProperSubtermOf up t l, empty)
+          uArgs l t@(Fun f ts) = ( not (isBlockedProperSubtermOf up t l) && (subtermUsable || hasRedex)
+                             , unions $ new : [ uargs | (_,_,uargs) <- uArgs'] )
+              where uArgs' = [ let (usable,uargs) = uArgs l ti in (i,usable,uargs)  | (i, ti) <- zip [1 :: Int ..] ts]
+                    subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
+                    hasRedex = any (\ rule -> isRenamedUnifiable t $ lhs rule) $ rules trs
+                    new = singleton f [i | (i, usable, _) <- uArgs', usable]

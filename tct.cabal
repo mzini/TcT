@@ -37,6 +37,7 @@ Library
                     Tct.Processor.Args.Instances
                     Tct.Processor.PPrint
                     Tct.Processor.Transformations
+                    Tct.Processor.PartialProcessor
                     Tct.Processor.LoggingSolver
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering

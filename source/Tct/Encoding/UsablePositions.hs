@@ -97,47 +97,50 @@ instance Show UArgStrategy where
   show UArgByFun = "byFunctions"
   show UArgByCap = "byCap"
 
-usableArgs :: UArgStrategy -> Strategy -> Trs -> Trs -> UsablePositions
-usableArgs UArgByFun = usableArgsFun
-usableArgs UArgByCap = usableArgsCap
+usableArgs :: Strategy -> Trs -> Trs -> UsablePositions
+usableArgs = usableArgsCap
 
-usableArgsFun :: Strategy -> Trs -> Trs -> UsablePositions
-usableArgsFun Innermost r s = unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules $ Trs.union r s]
-    where ds = Trs.definedSymbols s
-          uArgs (Var _)    = (False, empty)
-          uArgs (Fun f ts) = ( subtermUsable || f `Set.member` ds
-                             , unions $ new : [ uargs | (_,_,uargs) <- uArgs'] )
-              where uArgs' = [ let (usable,uargs) = uArgs ti in (i,usable,uargs)  | (i, ti) <- zip [1 :: Int ..] ts]
-                    subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
-                    new = singleton f [i | (i, usable, _) <- uArgs', usable]
-
-usableArgsFun Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f $ IntSet.empty) up) empty fs 
-    where both = r `Trs.union` s
-          fs = Set.toList $ Trs.functionSymbols both
-          ds = Trs.definedSymbols s
-
-          uArgsSym f us | delta `IntSet.isSubsetOf` us = us
-                        | otherwise                    = uArgsSym f (delta `IntSet.union` us)
-              where delta   = IntSet.unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules both]
-
-                    rhsVars = Set.unions [ variables li
-                                          | rule <- Trs.rules both  -- TODO verify use of both, verify if inlined
-                                         , root (lhs rule) == Right f 
-                                         , li <- immediateSubterms (lhs rule)]
-
-                    uArgs (Var x)    = (x `Set.member` rhsVars, IntSet.empty)
-                    uArgs (Fun g ts) = ( subtermUsable || g `Set.member` ds
-                                       , IntSet.unions $ new : [ us' | (_,(_, us')) <- uArgs' ] )
-                        where uArgs'          = [ (i, uArgs ti) | (i,ti) <- zip [1 :: Int ..] ts]
-                              subtermUsable   = any (\ (_,(isUP,_)) -> isUP) uArgs'
-                              new | f == g    = IntSet.fromList [i | (i, (isUp, _)) <- uArgs' , isUp]
-                                  | otherwise = IntSet.empty
+-- usableArgs :: UArgStrategy -> Strategy -> Trs -> Trs -> UsablePositions
+-- usableArgs UArgByFun = usableArgsFun
+-- usableArgs UArgByCap = usableArgsCap
+-- 
+-- usableArgsFun :: Strategy -> Trs -> Trs -> UsablePositions
+-- usableArgsFun Innermost r s = unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules $ Trs.union r s]
+--     where ds = Trs.definedSymbols s
+--           uArgs (Var _)    = (False, empty)
+--           uArgs (Fun f ts) = ( subtermUsable || f `Set.member` ds
+--                              , unions $ new : [ uargs | (_,_,uargs) <- uArgs'] )
+--               where uArgs' = [ let (usable,uargs) = uArgs ti in (i,usable,uargs)  | (i, ti) <- zip [1 :: Int ..] ts]
+--                     subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
+--                     new = singleton f [i | (i, usable, _) <- uArgs', usable]
+-- 
+-- usableArgsFun Full r s = foldl (\ up f -> setUsables f (IntSet.toList $ uArgsSym f $ IntSet.empty) up) empty fs 
+--     where both = r `Trs.union` s
+--           fs = Set.toList $ Trs.functionSymbols both
+--           ds = Trs.definedSymbols s
+-- 
+--           uArgsSym f us | delta `IntSet.isSubsetOf` us = us
+--                         | otherwise                    = uArgsSym f (delta `IntSet.union` us)
+--               where delta   = IntSet.unions [ snd $ uArgs $ rhs rule | rule <- Trs.rules both]
+-- 
+--                     rhsVars = Set.unions [ variables li
+--                                           | rule <- Trs.rules both  -- TODO verify use of both, verify if inlined
+--                                          , root (lhs rule) == Right f 
+--                                          , li <- immediateSubterms (lhs rule)]
+-- 
+--                     uArgs (Var x)    = (x `Set.member` rhsVars, IntSet.empty)
+--                     uArgs (Fun g ts) = ( subtermUsable || g `Set.member` ds
+--                                        , IntSet.unions $ new : [ us' | (_,(_, us')) <- uArgs' ] )
+--                         where uArgs'          = [ (i, uArgs ti) | (i,ti) <- zip [1 :: Int ..] ts]
+--                               subtermUsable   = any (\ (_,(isUP,_)) -> isUP) uArgs'
+--                               new | f == g    = IntSet.fromList [i | (i, (isUp, _)) <- uArgs' , isUp]
+--                                   | otherwise = IntSet.empty
 
 usableArgsCap :: Strategy -> Trs -> Trs -> UsablePositions
 usableArgsCap Innermost r s = usableReplacementMap (r `Trs.union` s) empty
 usableArgsCap Full r s = fix (usableReplacementMap $ r `Trs.union` s) empty
     where fix f up | res == up = up
-                   | otherwise = fix f (f up)
+                   | otherwise = fix f res
             where res = f up
 
 usableReplacementMap :: Trs -> UsablePositions -> UsablePositions

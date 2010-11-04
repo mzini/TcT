@@ -42,9 +42,9 @@ import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
-applyWeightGap :: P.SolverM m => UsablePositions -> Trs.Trs -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> UArgStrategy
+applyWeightGap :: P.SolverM m => UsablePositions -> Trs.Trs -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat
                -> m (OrientationProof MatrixOrder)
-applyWeightGap uarg nondup trs st sig mk d b cb uas = orientMatrix (weightGapConstraints uarg nondup) st trs Trs.empty sig (mk :+: d :+: (nat $ N.bound b) :+: Nothing :+: cb :+: uas)
+applyWeightGap uarg nondup trs st sig mk d b cb = orientMatrix (weightGapConstraints uarg nondup) st trs Trs.empty sig (mk :+: d :+: (nat $ N.bound b) :+: Nothing :+: cb)
 
 weightGapConstraints :: Eq l => UsablePositions -> Trs.Trs -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 weightGapConstraints uarg nondup st strict weak sig mp = strictTrsConstraints absmi strict && weakTrsConstraints absmi weak && otherConstraints

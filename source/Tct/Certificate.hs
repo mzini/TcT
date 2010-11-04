@@ -22,8 +22,10 @@ module Tct.Certificate
     , upperBound
     , certified
     , uncertified
-    , add 
+    , add
     , mult
+    , compose
+    , iter
     , poly
     , expo
     , primrec
@@ -67,9 +69,39 @@ mult :: Complexity -> Complexity -> Complexity
 (Poly (Just n)) `mult` (Poly (Just m)) = Poly $ Just $ n + m
 (Poly Nothing)  `mult` (Poly _)        = Poly Nothing
 (Poly _)        `mult` (Poly Nothing)  = Poly Nothing
-(Exp (Just n))  `mult` (Exp (Just m))  = Exp $ Just $ max n m    
+(Exp (Just n))  `mult` (Exp (Just m))  = Exp $ Just $ max n m
 (Exp Nothing)   `mult` (Exp _)         = Exp Nothing
 a               `mult` b               = max a b
+
+compose :: Complexity -> Complexity -> Complexity
+(Poly (Just n)) `compose` a               | n == 0 = Poly (Just 0)
+                                          | n == 1 = a
+a               `compose` (Poly (Just m)) | m == 0 = Poly (Just 0)
+                                          | m == 1 = a
+(Poly (Just n)) `compose` (Poly (Just m))          = Poly $ Just $ n * m
+(Poly Nothing)  `compose` (Poly _)                 = Poly Nothing
+(Poly _)        `compose` (Poly Nothing)           = Poly Nothing
+(Exp (Just n))  `compose` (Poly _)                 = Exp $ Just $ n + 1
+(Poly _)        `compose` (Exp (Just m))           = Exp $ Just m
+(Exp (Just n))  `compose` (Exp (Just m))           = Exp $ Just $ n + m
+(Exp Nothing)   `compose` (Exp _)                  = Exp Nothing
+(Exp _)         `compose` (Exp Nothing)            = Exp Nothing
+a               `compose` b                        = maximum [Primrec, a, b]
+
+iter :: Complexity -> Complexity -> Complexity
+(Poly (Just n)) `iter` _        | n == 0 = Poly $ Just 0
+(Poly (Just n)) `iter` (Poly m) | n == 1 = case m of
+                                             Just 0 -> Poly $ Just 1
+                                             Just 1 -> Exp $ Just 1
+                                             _      -> Exp $ Just 2
+(Poly n)        `iter` (Exp _)  | n == Just 0 = Exp Nothing
+                                | n == Just 1 = Supexp
+                                | otherwise   = Primrec
+(Poly _)        `iter` b                      = max Primrec b
+(Exp _)         `iter` (Poly m) | m == Just 0 = Exp Nothing
+                                | m == Just 1 = Supexp
+                                | otherwise   = Primrec
+a               `iter` b                      = maximum [Primrec, a, b]
 
 newtype Certificate = Cert (Complexity, Complexity) deriving (Show)
 

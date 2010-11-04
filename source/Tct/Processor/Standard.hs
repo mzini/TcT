@@ -22,9 +22,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Standard 
-    ( processor
-    , processorArgs
-    , TheProcessor
+    ( TheProcessor (..)
     , Processor (..)
     , StdProcessor(..)
     , apply

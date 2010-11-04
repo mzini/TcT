@@ -86,7 +86,3 @@ certificate p = case answer p of
 
 class (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
 instance (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
-
-
-
-

@@ -59,6 +59,7 @@ import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Orderings
+import Tct.Processor.PartialProcessor
 import Tct.Proof
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -108,7 +109,7 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg (EnumOf UArgStrategy))
+    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat))
     arguments NaturalMI = opt { A.name        = "kind"
                               , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation employed for complexity-analysis."
                                                         , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
@@ -146,12 +147,12 @@ instance S.Processor NaturalMI where
                                                         , "as for instance coefficients of matrices obtained by interpreting"
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
-                          :+:
-                          opt { A.name = "uargs"
-                              , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument positions."
-                                                        , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
-                                                        , "to using a tcap-like function." ]
-                              , A.defaultValue = UArgByCap }
+--                           :+:
+--                           opt { A.name = "uargs"
+--                               , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument positions."
+--                                                         , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
+--                                                         , "to using a tcap-like function." ]
+--                               , A.defaultValue = UArgByCap }
 
     instanceName inst = "matrix-interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
@@ -165,39 +166,54 @@ instance S.Processor NaturalMI where
               st    = Prob.startTerms problem
               strat = Prob.strategy problem
 
+instance PartialProcessor NaturalMI where
+  solvePartial inst problem = case Prob.relation problem of
+                                Standard sr    -> do res@(Order (MatrixOrder mi _)) <- orientPartial strat st sr sig' (S.processorArgs inst)
+                                                     let ppstr = strictRules mi sr
+                                                     return $ PartialProof problem res ppstr
+                                Relative sr wr -> do res@(Order (MatrixOrder mi _)) <- orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+                                                     let ppstr = strictRules mi sr
+                                                     return $ PartialProof problem res ppstr
+                                DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> UArgStrategy -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind matrixdimension coefficientsize constraintbits uas =
-    NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: uas)
+matrixPartialProcessor :: S.StdProcessor (ChoiceProc NaturalMI P.AnyProcessor)
+matrixPartialProcessor = S.StdProcessor $ ChoiceProc NaturalMI
+
+matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor NaturalMI)
+matrix matrixkind matrixdimension coefficientsize constraintbits =
+    NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits)
 
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
-kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Constructor  :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Constructor  :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
+kind (Default      :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Default      :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
+kind (Triangular   :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
-bound (_ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
+bound (_ :+: _ :+: Nat bnd :+: mbits :+: _) = case mbits of
                                                       Just (Nat b) -> N.Bits b
                                                       Nothing      -> N.Bound bnd
 
 cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
-cbits (_ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
-                                             return $ N.Bits n
+cbits (_ :+: _ :+: _ :+: _ :+: b) = do Nat n <- b
+                                       return $ N.Bits n
 
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
-dim (_ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
+dim (_ :+: Nat d :+: _ :+: _ :+: _) = d
 
-uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
-uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
-
+-- uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
+-- uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientDirect strat st trs = orientMatrix (relativeConstraints strat) st trs Trs.empty
@@ -207,6 +223,12 @@ orientRelative strat = orientMatrix $ relativeConstraints strat
 
 orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientDp strat = orientMatrix $ dpConstraints strat
+
+orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartial strat st trs = orientMatrix (partialConstraints strat) st trs Trs.empty
+
+orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartialRelative strat = orientMatrix $ partialConstraints strat
 
 orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
              -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
@@ -226,6 +248,9 @@ data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative deriving Show
 
 
+partialConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+partialConstraints = matrixConstraints MRelative MNoDP
+
 relativeConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 relativeConstraints = matrixConstraints MDirect MNoDP
 
@@ -242,18 +267,17 @@ matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
-        uas        = uastrat mp
         otherConstraints UnrestrictedMatrix mi = dpChoice mdp st mi
         otherConstraints TriangularMatrix mi = dpChoice mdp st mi && triConstraints mi
         otherConstraints (ConstructorBased cs) mi = dpChoice mdp st mi && triConstraints mi'
                                                     where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                           filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         strictChoice MDirect    = strictTrsConstraints
-        strictChoice MRelative  = relativeStrictTrsConstraints
+        strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
         dpChoice MWithDP _ = safeRedpairConstraints sig
         dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints
-        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs uas strat Trs.empty combTrs
+        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs strat Trs.empty combTrs
         combTrs = strict `Trs.union` weak
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b

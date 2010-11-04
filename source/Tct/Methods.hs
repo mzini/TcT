@@ -28,7 +28,7 @@ module Tct.Methods
     , fastestProcessor
     , iteProcessor
     , lmpoProcessor
-    , matrixProcessor
+    , matrixPartialProcessor
     , popstarProcessor
     , sequentiallyProcessor
     , successProcessor
@@ -138,7 +138,7 @@ defaultProcessor = timeoutProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
                    <|> wdgProcessor
-                   <|> matrixProcessor
+                   <|> matrixPartialProcessor
                    <|> arcticProcessor
                    <|> combineProcessor
                    <|> foldr (<|>) none predicateProcessors

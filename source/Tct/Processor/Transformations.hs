@@ -107,7 +107,6 @@ class Transformer t where
     instanceName = name . transformation
     transform    :: P.SolverM m => TheTransformer t -> Problem -> m (Result t)
 
-
 data Trans t sub = Trans t
 
 instance ( Transformer t

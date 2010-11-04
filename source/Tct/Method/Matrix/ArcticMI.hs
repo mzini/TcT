@@ -58,6 +58,7 @@ import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
+import Tct.Processor.PartialProcessor
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -112,11 +113,26 @@ instance S.Processor ArcticMI where
                                                    Relative sr wr -> orientRelative sr wr sig inst
                                                    DP sr wr       -> orientDp sr wr sig inst
                        | otherwise             = return $ Inapplicable "Arctic Interpretations only applicable for monadic problems"
-
         where sig = Prob.signature problem
+
+instance PartialProcessor ArcticMI where
+  solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
+                                                        Standard sr    -> do res@(Order (ArcticOrder mi)) <- orientPartial sr sig' inst
+                                                                             let ppstr = strictRules mi sr
+                                                                             return $ PartialProof problem res ppstr
+                                                        Relative sr wr -> do res@(Order (ArcticOrder mi)) <- orientPartialRelative sr wr sig' inst
+                                                                             let ppstr = strictRules mi sr
+                                                                             return $ PartialProof problem res ppstr
+                                                        DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
+                            | otherwise             = return $ PartialProof problem (Inapplicable "Arctic Interpretations only applicable for monadic problems") Trs.empty
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
 
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI
+
+arcticPartialProcessor :: S.StdProcessor (ChoiceProc ArcticMI P.AnyProcessor)
+arcticPartialProcessor = S.StdProcessor $ ChoiceProc ArcticMI
 
 arctic :: Nat -> AS.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor ArcticMI)
 arctic matrixdimension coefficientsize constraintbits =
@@ -163,6 +179,12 @@ orientRelative = orientMatrix relativeConstraints
 orientDp :: P.SolverM m => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
 orientDp = orientMatrix dpConstraints
 
+orientPartial :: P.SolverM m => Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartial trs = orientMatrix partialConstraints trs Trs.empty
+
+orientPartialRelative :: P.SolverM m => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartialRelative = orientMatrix partialConstraints
+
 orientMatrix :: P.SolverM m => (Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
              -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
 orientMatrix f dps trs sig mp = do theMI <- P.minisatValue addAct mi
@@ -176,6 +198,9 @@ orientMatrix f dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                       cb     = cbits mp
                                       d      = dim mp
 
+partialConstraints :: Eq l => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+partialConstraints = matrixConstraints MRelative MNoDP
+
 relativeConstraints :: Eq l => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 relativeConstraints = matrixConstraints MDirect MNoDP
 
@@ -188,7 +213,7 @@ matrixConstraints mrel mdp strict weak sig mp = strictChoice mrel absmi strict &
         d          = dim mp
         otherConstraints mi = dpChoice mdp mi
         strictChoice MDirect   = strictTrsConstraints
-        strictChoice MRelative = relativeStrictTrsConstraints
+        strictChoice MRelative = relativeStricterTrsConstraints
         dpChoice MWithDP = safeRedpairConstraints sig
         dpChoice MNoDP   = monotoneConstraints sig
 

@@ -116,12 +116,15 @@ instance (PartialProcessor p, P.Processor sub) => PrettyPrintable (T.TProof (Par
   pprint (T.UTProof _ sub)  = paragraph (unlines [ "This processor is not applicable for DP Problems."
                                                  , " We continue with the subprocessor." ])
                               $+$ pprint sub
-  pprint (T.TProof  p subs) = text "First we apply the relative processor:"
-                              $+$ pprint p
-                              $+$ text "Next, we apply the subprocessor:"
-                              $+$ case sub of
-                                    Nothing   -> text "No subproof given."
-                                    Just sub' -> pprint sub'
+  pprint (T.TProof  p subs) = case succeeded p of
+                                True  -> text "First we apply the relative processor:"
+                                         $+$ pprint p
+                                         $+$ text "Next, we apply the subprocessor:"
+                                         $+$ case sub of
+                                               Nothing   -> text "No subproof given."
+                                               Just sub' -> pprint sub'
+                                False -> text "The relative processor was not successful:"
+                                         $+$ pprint p
     where sub = if length subs == 1 then snd (head subs) else error "Tct.Processor.PartialProcessor.TProof.pprint: number of subproofs not equal to 1."
 
 instance (PartialProcessor p, P.Processor sub) => Answerable (T.TProof (PartialProc p) sub) where
@@ -131,7 +134,7 @@ instance (PartialProcessor p, P.Processor sub) => Answerable (T.TProof (PartialP
                           Standard strict      -> (op strict) (upperBound $ certificate p) subBound
                           Relative strict weak -> if Trs.isNonSizeIncreasing weak then (op strict) (upperBound $ certificate p) subBound else unknown
                           DP       _      _    -> unknown
-                  subBound = maximum $ map (upperBound . certificate . snd) subs
+                  subBound = maximum $ (poly $ Just 0) : map (upperBound . certificate . snd) subs
                   op strict = if Trs.isNonSizeIncreasing (strict Trs.\\ trs) then op' else iter'
                   op' = if Trs.isNonSizeIncreasing trs then mult else compose'
                   compose' r s = r `mult` (s `compose` (poly (Just 1) `add` r))

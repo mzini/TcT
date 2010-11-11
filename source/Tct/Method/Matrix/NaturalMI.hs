@@ -168,12 +168,16 @@ instance S.Processor NaturalMI where
 
 instance PartialProcessor NaturalMI where
   solvePartial inst problem = case Prob.relation problem of
-                                Standard sr    -> do res@(Order (MatrixOrder mi _)) <- orientPartial strat st sr sig' (S.processorArgs inst)
-                                                     let ppstr = strictRules mi sr
-                                                     return $ PartialProof problem res ppstr
-                                Relative sr wr -> do res@(Order (MatrixOrder mi _)) <- orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
-                                                     let ppstr = strictRules mi sr
-                                                     return $ PartialProof problem res ppstr
+                                Standard sr    -> do res <- orientPartial strat st sr sig' (S.processorArgs inst)
+                                                     case res of
+                                                       Order (MatrixOrder mi _) -> do let ppstr = strictRules mi sr
+                                                                                      return $ PartialProof problem res ppstr
+                                                       _                        -> return $ PartialProof problem res Trs.empty
+                                Relative sr wr -> do res <- orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+                                                     case res of
+                                                       Order (MatrixOrder mi _) -> do let ppstr = strictRules mi sr
+                                                                                      return $ PartialProof problem res ppstr
+                                                       _                        -> return $ PartialProof problem res Trs.empty
                                 DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)

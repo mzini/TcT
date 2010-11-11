@@ -117,12 +117,16 @@ instance S.Processor ArcticMI where
 
 instance PartialProcessor ArcticMI where
   solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
-                                                        Standard sr    -> do res@(Order (ArcticOrder mi)) <- orientPartial sr sig' inst
-                                                                             let ppstr = strictRules mi sr
-                                                                             return $ PartialProof problem res ppstr
-                                                        Relative sr wr -> do res@(Order (ArcticOrder mi)) <- orientPartialRelative sr wr sig' inst
-                                                                             let ppstr = strictRules mi sr
-                                                                             return $ PartialProof problem res ppstr
+                                                        Standard sr    -> do res <- orientPartial sr sig' inst
+                                                                             case res of
+                                                                               Order (ArcticOrder mi) -> do let ppstr = strictRules mi sr
+                                                                                                            return $ PartialProof problem res ppstr
+                                                                               _                      -> return $ PartialProof problem res Trs.empty
+                                                        Relative sr wr -> do res <- orientPartialRelative sr wr sig' inst
+                                                                             case res of
+                                                                               Order (ArcticOrder mi) -> do let ppstr = strictRules mi sr
+                                                                                                            return $ PartialProof problem res ppstr
+                                                                               _                      -> return $ PartialProof problem res Trs.empty
                                                         DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
                             | otherwise             = return $ PartialProof problem (Inapplicable "Arctic Interpretations only applicable for monadic problems") Trs.empty
       where sig   = Prob.signature problem

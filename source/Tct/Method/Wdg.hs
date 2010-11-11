@@ -271,6 +271,9 @@ markSymbol :: Symbol -> SignatureMonad Symbol
 markSymbol f = do fa <- getAttributes f 
                   maybeFresh fa{symIsMarked = True}
 
+-- AS: MA and GM say that not leaving out unary compound symbols obviously does not make any difference at all for the currently used techniques
+--     AS does not know about this, however, not leaving that symbol does no harm, either
+--     GM wants that these facts are explicitly written down as a comment in the code
 weakDPs :: Strategy -> Trs -> SignatureMonad Trs
 weakDPs strat trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
   where ds = definedSymbols trs 

@@ -78,7 +78,7 @@ instance Argument a => Argument [a] where
 
 instance Argument a => Argument (Maybe a) where 
     type Domain (Maybe a) = Maybe (Domain a)
-    domainName Phantom = "[" ++ domainName (Phantom :: Phantom a) ++ "|none]"
+    domainName Phantom = domainName (Phantom :: Phantom a) ++ "|none"
 
 instance ParsableArgument a => ParsableArgument (Maybe a) where 
     parseArg Phantom = try (string "none" >> return Nothing)
@@ -94,8 +94,7 @@ instance ParsableArgument a => ParsableArgument [a] where
 newtype EnumOf a = EnumOf a    
 
 domainNameList :: Show e => [e] -> String
-domainNameList l = br $ concat $ intersperse "|" [ show e | e <- l ]
-        where br s = "[" ++ s ++ "]"
+domainNameList l = concat $ intersperse "|" [ show e | e <- l ]
 
 parseArgAssoc :: [(String,e)] -> P.ProcessorParser e
 parseArgAssoc  l = choice [ try $ pa n e | (n,e) <- l]

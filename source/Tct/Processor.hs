@@ -21,6 +21,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Tct.Processor
     ( SatSolver (..)
@@ -31,6 +32,7 @@ module Tct.Processor
     , SolverState (..)
     , StdSolverM
     , ProcessorParser
+    , ArgDescr (..)
     , apply
     , evalList
     , evalList'
@@ -51,6 +53,9 @@ module Tct.Processor
     , (<|>)
     , processors
     , parseAnyProcessor
+    -- * Machine Readable Description of Processors
+    , SynElt (..)
+    , mrSynopsis
     ) 
 where
 
@@ -119,9 +124,6 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
--- instance (P.ComplexityProof (ProofOf proc), Processor proc) => P.ComplexityProof (Proof proc)
-
-
 -- operations
 
 apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof proc)
@@ -132,7 +134,8 @@ evalList :: (SolverM m) => Bool -> (a -> Bool) -> [m a] -> m (Either (a,[a]) [a]
 evalList True success ms  = do actions <- sequence [ mkIO $ m | m <- ms]
                                liftIO $ pfoldA comb (Right []) actions
     where comb (Right as) a | success a = Continue $ Right $ a : as
-                            | otherwise       = Stop $ Left (a,as)
+                            | otherwise = Stop $ Left (a,as)
+          comb (Left _)   _             = error "Processor.evalList: comb called with (Left _) which cannot happen"
 evalList False _     []       = return $ Right []
 evalList False success (m : ms) = do a <- m
                                      if success a
@@ -147,14 +150,50 @@ evalList' b ms = do Right rs <- evalList b (const True) ms
 
 -- parsable processor
 
+data SynElt = Token String
+            | PosArg Int
+            | OptArgs
+
+type SynString = [SynElt]
+
+data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
+                                             , adName       :: String
+                                             , adDefault    :: Maybe a
+                                             , adDescr      :: String
+                                             , adSynopsis   :: String }
+
+instance PrettyPrintable ArgDescr where
+    pprint d = text "Argument" 
+               <+> braces (vcat [ attrib "name"         (adName d)
+                                , attrib "isOptional"   (adIsOptional d)
+                                , attrib "description"  (adDescr d)
+                                , attrib "values"       (adSynopsis d)])
+        where attrib n s = nest 1 $ text n <+> text "=" <+> text (show s) <> text ";"
+
+argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
+argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
+
 class Processor a => ParsableProcessor a where
-    synopsis :: a -> String
     description     :: a -> [String]
-    argDescriptions :: a -> [(String, String)]
-    argDescriptions _ = []
+    synString       :: a -> SynString
+    posArgs         :: a -> [(Int, ArgDescr)]
+    optArgs         :: a -> [ArgDescr]
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
 
+mrSynopsis :: ParsableProcessor a => a -> String
+mrSynopsis p = unwords $ map f (synString p)
+    where f (Token str) = str
+          f (PosArg i) = "#" ++ show i
+          f (OptArgs)  = "#OPTIONALARGS"
 
+synopsis :: ParsableProcessor a => a -> String
+synopsis p = unwords $ map f (synString p)
+    where f (Token str) = str
+          f (PosArg i) = case lookup i (posArgs p) of 
+                           Just d  -> adSynopsis d
+                           Nothing -> "<unspecified>"
+          f (OptArgs)  = unwords [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- optArgs p]
+          
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse Parsec.<|> parse
     where parse = parseProcessor_ a
@@ -184,10 +223,13 @@ instance Processor SomeProcessor where
     solve_ (SPI (SomeInstance inst)) prob    = SomeProof `liftM` solve_ inst prob
 
 instance ParsableProcessor SomeProcessor where
-    synopsis (SomeProcessor proc) = synopsis proc
+    description     (SomeProcessor proc) = description proc
+    synString       (SomeProcessor proc) = synString proc
+    posArgs         (SomeProcessor proc) = posArgs proc
+    optArgs         (SomeProcessor proc) = optArgs proc
     parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance) `liftM` parseProcessor_ proc
-    description (SomeProcessor proc)         = description proc
-    argDescriptions (SomeProcessor proc)     = argDescriptions proc
+
+
 
 instance PrettyPrintable SomeProcessor where
     pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppsyn $++$ ppdescr $++$ ppargdescr)
@@ -197,7 +239,10 @@ instance PrettyPrintable SomeProcessor where
               ppsyn     = block "Usage" $ text (synopsis proc)
               ppargdescr | length l == 0 = empty
                          | otherwise     = block "Arguments" $ vcat l
-                  where l = [text nm <> text ":" <+> paragraph s | (nm, s) <- argDescriptions proc]
+                  where l = [text (adName d) <> text ":" 
+                             <+> paragraph (adDescr d ++ argDescrOnDefault mshow d) | d <- optArgs proc]
+                        mshow Nothing    = "" 
+                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
               sname = name proc 
               descr = description proc 
               block n d = text n <> text ":" $+$ nest 1 d
@@ -235,12 +280,15 @@ instance Typeable (InstanceOf AnyProcessor) where
     typeOf (OOI _) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
 
 instance ParsableProcessor AnyProcessor where
-    synopsis _    = "<processor>"
-    description _           = []
-    argDescriptions _       = []
+    description _             = []
+    synString _               = []
+    optArgs _                 = []
+    posArgs _                 = []
     parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
+instance Show AnyProcessor where
+    show _ = "AnyProcessor"
 instance Show (InstanceOf AnyProcessor) where
     show _ = "InstanceOf AnyProcessor"
 

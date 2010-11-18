@@ -178,7 +178,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                     consistent ans at prob = if isStrict at then ans == prob else True
 
 
-          defaultProcessor_  = undefined --TODO
+          defaultProcessor_  = error "defaultProcessor not specified yet!"
           getProcessor_ prob = do anyproc <- askConfig parsableProcessor
                                   to <- askFlag time
                                   str <- getStrategyString

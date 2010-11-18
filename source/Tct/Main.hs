@@ -21,6 +21,8 @@ module Tct.Main
     ( tct
     , Config (..)
     , defaultConfig
+    , runTct
+    , tctWith
     )
 where
 
@@ -84,9 +86,12 @@ putWarnMsg str = do putStrLn $ unlines $ "The following warning(s) occured:" : "
 exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
-
 tct :: Config -> IO ()
-tct conf = flip Dyre.wrapMain conf params
+tct = tctWith runTct
+
+-- 
+tctWith :: (Config -> Flags -> IO ()) -> Config -> IO ()
+tctWith runm conf = flip Dyre.wrapMain conf params
     where params = Dyre.defaultParams 
                    { Dyre.projectName = "tct"
                    , Dyre.realMain    = realMain
@@ -106,7 +111,7 @@ tct conf = flip Dyre.wrapMain conf params
                                                            let main pid = do e <- readMVar mv
                                                                              killThread pid
                                                                              return e
-                                                               child = (C.unblock (runTct cfg flgs) >> putMVar mv ExitSuccess) 
+                                                               child = (C.unblock (runm cfg flgs) >> putMVar mv ExitSuccess) 
                                                                        `C.catch` \ (e :: C.SomeException) -> putErrorMsg [show e] >> putMVar mv exitFail
                                                                handler pid (e :: C.SomeException) = do { killThread pid;
                                                                                                          putErrorMsg $ [show e];

@@ -120,8 +120,6 @@ instance S.Processor NaturalMI where
                                                         , "If 'unrestricted' is given, then matrix-interpretations of all function symbols are unrestricted."
                                                         , "Those induce exponentially bounded derivational-complexity."
                                                         , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
-                                                        , "For more information on matrix interpretations for complexity analysis "
-                                                        , "cf. http://cl-informatik.uibk.ac.at/research/publications/2008/complexity-analysis-of-term-rewriting-based-on-mat/ ." 
                                                         ]
                               , A.defaultValue = Default}
                           :+:

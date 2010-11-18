@@ -54,7 +54,8 @@ class ComplexityProof (ProofOf a) => Processor a where
     solve        :: P.SolverM m => TheProcessor a -> Problem -> m (ProofOf a)
 
 
-data StdProcessor a = StdProcessor a
+data StdProcessor a = StdProcessor a deriving Show
+
 
 instance (Processor a, Arguments (ArgumentsOf a)) => P.Processor (StdProcessor a) where
     type P.ProofOf (StdProcessor a)    = ProofOf a
@@ -64,15 +65,15 @@ instance (Processor a, Arguments (ArgumentsOf a)) => P.Processor (StdProcessor a
     solve_ (TP theproc) prob           = solve theproc prob
 
 instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (StdProcessor a) where
-    synopsis (StdProcessor a)        = name a ++ " " ++ A.synopsis (arguments a) 
+    description     (StdProcessor a) = description a
+    synString     s@(StdProcessor a) = [ P.Token (name a) , P.OptArgs] ++ [ P.PosArg i | (i,_) <- P.posArgs s ]
+    posArgs         (StdProcessor a) = zip [1..] ds
+        where ds = filter (not . P.adIsOptional) (descriptions $ arguments a)
+    optArgs         (StdProcessor a) = filter P.adIsOptional (descriptions $ arguments a)
     parseProcessor_ (StdProcessor a) = do args <- mkParseProcessor (name a) (arguments a)
                                           return $ TP $ TheProcessor { processor = a
                                                                      , processorArgs = args}
-    description (StdProcessor a)     = description a
-    argDescriptions (StdProcessor a) = [ (adName d, descr d) | d <- descriptions $ arguments a, adIsOptional d]
-        where descr d = adDescr d ++ argDescrOnDefault mshow d
-                  where mshow Nothing    = "" 
-                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
+
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
 mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace

@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -23,7 +22,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Args where
 
@@ -50,17 +49,6 @@ class (Argument a) => ParsableArgument a where
 
 type family CoDomain a
 
--- argument lists
-
-data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
-                                             , adName       :: String
-                                             , adDefault    :: Maybe a
-                                             , adDescr      :: String
-                                             , adSynopsis   :: String }
-
-argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
-argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
-
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
 instance Show SomeDomainElt where show (SomeDomainElt e) = show e
 type ParsedOptionals = Map.Map String SomeDomainElt
@@ -70,7 +58,7 @@ class Arguments a where
     type Domains a 
 
 class Arguments a => ParsableArguments a where
-    descriptions :: a -> [ArgDescr]
+    descriptions :: a -> [P.ArgDescr]
     parseArgs :: a -> ParsedOptionals -> P.ProcessorParser (Domains a)
     optionalParsers :: a -> [OptionalParser]
 
@@ -84,7 +72,6 @@ data Arg k = Arg { name         :: String
              deriving Typeable 
 
 data a :+: b = a :+: b deriving (Typeable, Show)
-
 
 instance Arguments Unit where 
     type Domains Unit = ()
@@ -115,12 +102,12 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                              return (name a, SomeDomainElt e) ]
                       | otherwise     = []
 
-    descriptions a = [ArgDescr { adIsOptional = isOptional_ a
-                               , adName       = name a
-                               , adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
-                               , adDescr      = description a
-                               , adSynopsis   = domainName (Phantom :: Phantom a) }]
-
+    descriptions a = [P.ArgDescr { P.adIsOptional = isOptional_ a
+                                 , P.adName       = name a
+                                 , P.adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
+                                 , P.adDescr      = description a
+                                 , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
+                     
 instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: b) where
     parseArgs (a :+: b) opts = do e_a <- parseArgs a opts
                                   whiteSpace
@@ -143,9 +130,9 @@ parseArguments hlp a = do opts <- Map.fromList `liftM` many (string ":" >> choic
 
 synopsis :: ParsableArguments a => a -> String
 synopsis a = ofList oSyn `app` ofList nSyn
-    where oSyn = [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- opts]
-          nSyn = [ adSynopsis d | d <- nonopts]
-          (opts, nonopts) = partition adIsOptional (descriptions a)
+    where oSyn = [ "[:" ++ P.adName d ++ " " ++ P.adSynopsis d ++ "]"| d <- opts]
+          nSyn = [ P.adSynopsis d | d <- nonopts]
+          (opts, nonopts) = partition P.adIsOptional (descriptions a)
           ofList l = concat $ intersperse " " l
           "" `app` n = n
           n `app` "" = n

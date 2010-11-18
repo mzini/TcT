@@ -33,6 +33,9 @@ import Control.Monad.Trans (liftIO)
 import Text.Parsec.Prim
 
 import qualified Tct.Processor.Parse as PP
+import Tct.Processor.Args 
+import qualified Tct.Processor.Standard as S
+import Tct.Processor.Args.Instances
 import Tct.Processor hiding (Proof, (<|>))
 import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
@@ -67,17 +70,30 @@ instance Processor p => Processor (Timeout p) where
 --    fromInstance (TOInstance i proc _) = Timeout i proc
     
 instance ParsableProcessor (Timeout AnyProcessor) where
-    synopsis Timeout = "[<seconds>]<processor>"
-    parseProcessor_ Timeout  = do to <- parseTimeout
-                                  i <- parseAnyProcessor
-                                  return $ timeout to i
+    description Timeout              = ["The processor either returns the result of the given processor"
+                                       , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
+    synString       Timeout = [ Token "[", PosArg 1, Token "]", PosArg 2]
+    optArgs         Timeout = []
+    posArgs         Timeout = [ (1, ArgDescr { adIsOptional = False
+                                             , adName       = "timeout"
+                                             , adDefault    = (Nothing :: Maybe Nat)
+                                             , adDescr      = "The timeout in seconds"
+                                             , adSynopsis   = domainName (Phantom :: Phantom Nat)})
+                              , (2, ArgDescr { adIsOptional = False
+                                             , adName       = "processor"
+                                             , adDefault    = (Nothing :: Maybe (S.StdProcessor AnyProcessor))
+                                             , adDescr      = "The applied processor"
+                                             , adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor AnyProcessor))})
+                              ]
+    parseProcessor_ Timeout = do to <- parseTimeout
+                                 i <- parseAnyProcessor
+                                 return $ timeout to i
         where parseTimeout = (PP.brackets spec <?> "[<seconds>]")
               spec  = do n <-  number
                          return $ n
               number = try (PP.double >>= return . round) <|> PP.natural
-    description Timeout              = ["The processor either returns the result of the given processor"
-                                       , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
-    argDescriptions _                = []
+
+
 
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where

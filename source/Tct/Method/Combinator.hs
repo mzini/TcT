@@ -149,7 +149,24 @@ instance ( P.Processor g
                                                            , branchProof = d bproof }
 
 instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) where
-    synopsis        Ite = "if <processor> then <processor> else <processor>"
+    description     Ite = ["This processor implements conditional branching."]
+    synString       Ite = [ P.Token "if", P.PosArg 1, P.Token "then", P.PosArg 2, P.Token "else", P.PosArg 3]
+    optArgs         Ite = []
+    posArgs         Ite = [ (1, P.ArgDescr { P.adIsOptional = False
+                                           , P.adName       = "guard-processor"
+                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor P.AnyProcessor))
+                                           , P.adDescr      = "The guard of the condition"
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor P.AnyProcessor))})            
+                          , (2, P.ArgDescr { P.adIsOptional = False
+                                           , P.adName       = "then-processor"
+                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor P.AnyProcessor))
+                                           , P.adDescr      = "The processor that is executed when the guard succeeds"
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor P.AnyProcessor))})             
+                          , (3, P.ArgDescr { P.adIsOptional = False
+                                           , P.adName       = "else-processor"
+                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor P.AnyProcessor))
+                                           , P.adDescr      = "The processor that is executed when the guard fails"
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor P.AnyProcessor))}) ]
     parseProcessor_ Ite = do let pb s = try (string s) >> whiteSpace >> P.parseAnyProcessor
                              ginst <- pb "if"
                              whiteSpace
@@ -157,7 +174,7 @@ instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) 
                              whiteSpace
                              einst <- pb "else"
                              return $ IteInstance ginst tinst einst
-    description  _   = ["This processor implements conditional branching."]
+    
 
 ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
 ite = IteInstance

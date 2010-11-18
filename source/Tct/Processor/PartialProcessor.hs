@@ -99,8 +99,7 @@ instance (ParsableArguments (S.ArgumentsOf p), PartialProcessor p, P.Processor s
                                                               , "this processor aborts. Otherwise, it still applies the subprocessor."]
                                       , defaultValue = True }
                              :+: S.arguments p
--- TODO: debug Args/Instances such that subprocessor can be "opt" instead of "arg" without throwing a "Prelude.undefined" error
-                             :+: arg { name = "subprocessor"
+                             :+: opt { name = "XXX"
                                      , description = unlines [ "The subprocessor that is applied after the current processor."
                                                              , "The value 'none' forces the current processor to orient all rules strictly."]
                                      , defaultValue = Nothing }

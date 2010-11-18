@@ -1,3 +1,6 @@
+ 
+*) wird ArgDescr wirklich benoetigt?
+
 *) 9.9.2010
 
 die pfadanalyse ist sub-optimal, siehe email; eigentlich müssten wir CaT auf den duplizierenden beispielen locker abhängen.

@@ -236,7 +236,7 @@ instance T.Transformer Wdg where
                               mk _                  _     _    _ = error "kabooom"
 
                     approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits = T.transformationArgs inst
-                    wgMatrixShape             = Triangular
+                    wgMatrixShape             = Constructor
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
                                                   Just (Nat b) -> N.Bits b

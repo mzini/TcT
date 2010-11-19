@@ -130,8 +130,10 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
 ----------------------------------------------------------------------
 -- Processor
 
-data Approximation = Edg deriving (Bounded, Ord, Eq, Typeable, Enum) 
-instance Show Approximation where show Edg = "edg"
+data Approximation = Edg | Trivial deriving (Bounded, Ord, Eq, Typeable, Enum) 
+instance Show Approximation where 
+    show Edg = "edg"
+    show Trivial = "trivial"
 
 data Wdg = Wdg
 
@@ -222,10 +224,10 @@ instance T.Transformer Wdg where
                         where isSubsumed (PPSubsumedBy _) = True
                               isSubsumed _                = False
                               mk (PPWeightGap proof) dpss dps urs | succeeded proof = Problem { startTerms = startTerms'
-                                                                                          , strategy   = strategy prob
-                                                                                          , relation   = DP dps (Trs.unions $ urs : dpss)
-                                                                                          , variables  = variables prob
-                                                                                          , signature  = sig' }
+                                                                                              , strategy   = strategy prob
+                                                                                              , relation   = DP dps (Trs.unions $ urs : dpss)
+                                                                                              , variables  = variables prob
+                                                                                              , signature  = sig' }
                                                                   | otherwise       = Problem { startTerms = startTerms'
                                                                                               , strategy   = strategy prob
                                                                                               , relation   = Standard $ Trs.unions $ urs : dps : dpss
@@ -309,11 +311,7 @@ mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
 -- approximations
 
 estimatedDependencyGraph :: Approximation -> Signature -> Trs -> Trs -> Graph
-estimatedDependencyGraph Edg = edg
-
-
-edg :: F.Signature -> Trs.Trs -> Trs.Trs -> Graph
-edg sig (Trs dps) trs = Graph.mkGraph nodes edges
+estimatedDependencyGraph Edg sig (Trs dps) trs = Graph.mkGraph nodes edges
     where nodes = zip [1..] dps
           edges = [ (n1, n2, ()) | (n1,l1) <- nodes
                                  , (n2,l2) <- nodes
@@ -329,8 +327,10 @@ edg sig (Trs dps) trs = Graph.mkGraph nodes edges
                     sharpedSs (Term.Var _)                        = []
                     sharpedSs (Term.Fun f ss') | F.isMarked sig f = [Term.Fun f ss']
                                                | otherwise        = concatMap sharpedSs ss'
-
-
+estimatedDependencyGraph Trivial _ (Trs dps) _ = Graph.mkGraph nodes edges
+    where nodes = zip [1..] dps
+          edges = [ (n1, n2, ()) | (n1,_) <- nodes
+                                 , (n2,_) <- nodes ]
 -- utilities
 
 data GroundContext = Hole | Fun F.Symbol [GroundContext]

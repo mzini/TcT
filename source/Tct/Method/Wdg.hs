@@ -121,7 +121,6 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
                          , usableRules       :: Trs
                          , newSignature      :: Signature
                          , newVariables      :: Variables
-                         , usableArguments   :: UsablePositions
                          , containsNoEdgesEmptyUrs :: Bool}
               | NA { reason :: String }
 
@@ -216,7 +215,6 @@ instance T.Transformer Wdg where
                                           , usableRules      = allUsableRules
                                           , newSignature     = sig'
                                           , newVariables     = variables prob
-                                          , usableArguments  = usablePoss
                                           , containsNoEdgesEmptyUrs  = simple}
 
                     mkProbs ps | simple    = []
@@ -249,9 +247,9 @@ instance T.Transformer Wdg where
 
                     ewdgSCC                   = toSccGraph wdps trs ewdg
 
-                    usablePoss                = usableArgs (strategy prob) wdps allUsableRules
-
                     weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
+                        where usablePoss      = usableArgs (strategy prob) ds urs
+
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 
@@ -397,7 +395,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               vars    = newVariables tp
               simple  = containsNoEdgesEmptyUrs tp
 
-              ppTrans = ppDPs $+$ text "" $+$ ppDG $+$ text "" $+$ ppUargs
+              ppTrans = ppDPs $+$ text "" $+$ ppDG -- $+$ text "" $+$ ppUargs
                   where ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:"
                                 $+$ text ""
                                 $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])
@@ -420,8 +418,8 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                   , pptSuc = sortBy compareLabel . Graph.suc ewdgSCC}
                                    compareLabel n1 n2 = nodeSCC ewdgSCC n1 `compare` nodeSCC ewdgSCC n2
 
-                        ppUargs = text "Following usable argument positions were computed:"
-                                  $+$ indent (pprint (usableArguments tp, sig))
+                        -- ppUargs = text "Following usable argument positions were computed:"
+                        --           $+$ indent (pprint (usableArguments tp, sig))
 
               ppAns pth' Nothing                  = error $ "WDG.hs: findWGProof did not find path" ++ show pth'
               ppAns _    (Just (PPSubsumedBy _))  = text "inherited"

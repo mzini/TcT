@@ -20,6 +20,7 @@ import Tct.Main
 import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..))
+
 data Description = Description { name                :: String
                                , description         :: [String]
                                , synopsis            :: String

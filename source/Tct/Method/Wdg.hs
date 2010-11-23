@@ -139,14 +139,14 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
-wdg approx weightgap wgdim wgsize wgcbits = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits)
+wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap wgdim wgsize wgcbits ua = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat))
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
@@ -177,6 +177,11 @@ instance T.Transformer Wdg where
                       , A.description = unlines [ "This argument specifies the number of bits used for intermediate results"
                                                 , "computed for the matrix interpretation of the weight gap condition." ]
                       , A.defaultValue = Nothing }
+                  :+:
+                  opt { A.name = "uargs"
+                      , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
+                                                , "in order to relax the monotonicity constraints on the interpretation."]
+                      , A.defaultValue = True }
 --                   :+:
 --                   opt { A.name = "uargs"
 --                       , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument"
@@ -233,7 +238,7 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits = T.transformationArgs inst
+                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa = T.transformationArgs inst
                     wgMatrixShape             = Constructor
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
@@ -247,7 +252,7 @@ instance T.Transformer Wdg where
 
                     ewdgSCC                   = toSccGraph wdps trs ewdg
 
-                    weightGap ds dss urs      = applyWeightGap ds usablePoss urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
+                    weightGap ds dss urs      = applyWeightGap ds usablePoss urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits wgUa
                         where usablePoss      = usableArgs (strategy prob) dss urs
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
@@ -425,7 +430,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               ppAns pth' (Just (PPWeightGap p)) = case findPathProof pth' of
                                                       Just pp -> pprint $ pthAnswer p pp
                                                       Nothing -> text "NA"
-                where pthAnswer tmi pp = if succeeded (answer pp) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
+                where pthAnswer tmi pp = if succeeded (answer tmi) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
 
               ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppAns (thePath path) (Just pathproof))
                                                                         $+$ text ""
@@ -465,7 +470,8 @@ instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where
                         tmiUbs = map upperBound tmiCerts
                         tmiCerts = mapMaybe handlePathProof pathproofs
                         handlePathProof (PPSubsumedBy _) = Nothing
-                        handlePathProof (PPWeightGap tmi) = Just $ certificate tmi
+                        handlePathProof (PPWeightGap tmi) | succeeded tmi = Just $ certificate tmi
+                                                          | otherwise     = Nothing
                         pathproofs = map snd $ computedPaths proof
                         assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
                         assertLinear (Poly Nothing)  = Poly Nothing

@@ -85,7 +85,7 @@ instance S.Processor ArcticMI where
 
     description ArcticMI = [ "This processor orients the problem using matrix-interpretation over the arctic semiring." ]
 
-    type S.ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat))
+    type S.ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments ArcticMI =  opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
                                                         , " in the matrix-interpretation."]
@@ -108,6 +108,11 @@ instance S.Processor ArcticMI where
                                                         , "as for instance coefficients of matrices obtained by interpreting"
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
+                          :+:
+                          opt { A.name = "uargs"
+                              , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
+                                                        , "in order to relax the monotonicity constraints on the interpretation."]
+                              , A.defaultValue = True }
 
     instanceName inst = "arctic-interpretation of dimension " ++ show (dim inst)
 
@@ -146,9 +151,9 @@ arcticProcessor = S.StdProcessor ArcticMI
 arcticPartialProcessor :: S.StdProcessor (ChoiceProc ArcticMI P.AnyProcessor)
 arcticPartialProcessor = S.StdProcessor $ ChoiceProc ArcticMI
 
-arctic :: Nat -> AS.Size -> Maybe Nat -> P.InstanceOf (S.StdProcessor ArcticMI)
-arctic matrixdimension coefficientsize constraintbits =
-    ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits)
+arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor ArcticMI)
+arctic matrixdimension coefficientsize constraintbits ua =
+    ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 
 -- argument accessors
 
@@ -156,22 +161,25 @@ bound :: S.TheProcessor ArcticMI -> AS.Size
 bound inst = case mbits of
                Just (Nat b) -> AS.Bits b
                Nothing      -> AS.Bound $ Fin bnd
-    where (_ :+: Nat bnd :+: mbits :+: _) = S.processorArgs inst
+    where (_ :+: Nat bnd :+: mbits :+: _ :+: _) = S.processorArgs inst
 
 cbits :: S.TheProcessor ArcticMI -> Maybe AS.Size
 cbits inst = do Nat n <- b
                 return $ AS.Bits n
-    where (_ :+: _ :+: _ :+: b) = S.processorArgs inst
+    where (_ :+: _ :+: _ :+: b :+: _) = S.processorArgs inst
 
 dim :: S.TheProcessor ArcticMI -> Int
-dim inst = d where (Nat d :+: _ :+: _ :+: _) = S.processorArgs inst
+dim inst = d where (Nat d :+: _ :+: _ :+: _ :+: _) = S.processorArgs inst
 
-usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
-usableArgsWhereApplicable MWithDP sig _                     _     _ _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
+isUargsOn :: S.TheProcessor ArcticMI -> Bool
+isUargsOn inst = ua where (_ :+: _ :+: _ :+: _ :+: ua) = S.processorArgs inst
+
+usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
+usableArgsWhereApplicable MWithDP sig _                     _  _     _ _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _     _ _ = fullWithSignature sig
-usableArgsWhereApplicable MNoDP   _   (Prob.BasicTerms _ _) strat r s = usableArgs strat r s
+usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _  _     _ _ = fullWithSignature sig
+usableArgsWhereApplicable MNoDP   sig (Prob.BasicTerms _ _) ua strat r s = if ua then usableArgs strat r s else fullWithSignature sig
 
 instance PrettyPrintable ArcInt where
   pprint MinusInf = text "-inf"
@@ -190,24 +198,24 @@ isMonadic prob sig =
     where allMonadic = all (\ f ->  F.arity sig f Prelude.<= 1) . Set.toList
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientDirect strat st trs sig = orientMatrix relativeConstraints ua st trs Trs.empty sig
-  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
+orientDirect strat st trs sig mp = orientMatrix relativeConstraints ua st trs Trs.empty sig mp
+  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty trs
 
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientRelative strat st strict weak sig = orientMatrix relativeConstraints ua st strict weak sig
-  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
+orientRelative strat st strict weak sig mp = orientMatrix relativeConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientDp strat st strict weak sig = orientMatrix dpConstraints ua st strict weak sig
-  where ua = usableArgsWhereApplicable MWithDP sig st strat Trs.empty (strict `Trs.union` weak)
+orientDp strat st strict weak sig mp = orientMatrix dpConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartial strat st trs sig = orientMatrix partialConstraints ua st trs Trs.empty sig
-  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
+orientPartial strat st trs sig mp = orientMatrix partialConstraints ua st trs Trs.empty sig mp
+  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty trs
 
 orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartialRelative strat st strict weak sig = orientMatrix partialConstraints ua st strict weak sig
-  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
+orientPartialRelative strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
@@ -235,12 +243,14 @@ matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> 
 matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints absmi
   where absmi   = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar ArcInt)
         d          = dim mp
-        otherConstraints mi = dpChoice mdp st mi
+        uaOn       = isUargsOn mp
+        otherConstraints mi = dpChoice mdp st uaOn mi
         strictChoice MDirect   = strictTrsConstraints
         strictChoice MRelative = relativeStricterTrsConstraints
-        dpChoice MWithDP _                   = safeRedpairConstraints sig
-        dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints sig
-        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints sig ua
+        dpChoice MWithDP _                           = safeRedpairConstraints sig
+        dpChoice MNoDP   Prob.TermAlgebra            = monotoneConstraints sig
+        dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints sig ua
+        dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints ua
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints sig uarg mi = unaryConstraints strictUnaryInts && nullaryConstraints nullaryInts && weakMonotoneConstraints weakUnaryInts

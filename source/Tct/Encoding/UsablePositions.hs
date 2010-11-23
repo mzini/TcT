@@ -74,6 +74,12 @@ union :: UsablePositions -> UsablePositions -> UsablePositions
 unions :: [UsablePositions] -> UsablePositions
 unions = foldl union empty
 
+emptyWithSignature :: Signature -> UsablePositions
+emptyWithSignature sig = unions $ map (\ f -> singleton f []) $ Set.toList $ symbols sig
+
+fullWithSignature :: Signature -> UsablePositions
+fullWithSignature sig = unions $ map (\ f -> singleton f $ argumentPositions sig f) $ Set.toList $ symbols sig
+
 isUsable :: Symbol -> Int -> UsablePositions -> Bool
 isUsable sym i (UP m) = case IntMap.lookup (enum sym) m of 
                           Just poss -> IntSet.member i poss

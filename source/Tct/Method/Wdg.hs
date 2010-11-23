@@ -247,9 +247,9 @@ instance T.Transformer Wdg where
 
                     ewdgSCC                   = toSccGraph wdps trs ewdg
 
-                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
-                        where usablePoss      = usableArgs (strategy prob) ds urs
+                    usablePoss                = usableArgs (strategy prob) wdps allUsableRules
 
+                    weightGap ds urs          = applyWeightGap usablePoss ds urs startTerms' sig' wgMatrixShape wgMatrixDim wgMatrixSize wgMatrixCBits
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules
 

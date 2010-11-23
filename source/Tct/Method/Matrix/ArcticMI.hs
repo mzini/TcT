@@ -53,6 +53,7 @@ import Tct.Certificate (poly, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix
 import Tct.Encoding.Natring ()
+import Tct.Encoding.UsablePositions
 import Tct.Method.Matrix.MatrixInterpretation
 import Tct.Proof
 import Tct.Processor.Args
@@ -63,16 +64,19 @@ import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
-data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt} deriving Show
+data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt
+                               , uargs :: UsablePositions} deriving Show
 
 data ArcticMI = ArcticMI deriving (Typeable, Show)
 
 instance PrettyPrintable ArcticOrder where
-    pprint order = (text "The input is compatible using the following" <+> text "arctic interpretation:")
+    pprint order = (text "The following argument positions are usable:")
+                   $+$ pprint (uargs order, signature $ ordInter order)
+                   $+$ (text "The input is compatible using the following" <+> text "arctic interpretation:")
                    $+$ pprint (ordInter order)
 
 instance Answerable ArcticOrder where
-    answer (ArcticOrder _)    = CertAnswer $ certified (unknown, poly (Just 1))
+    answer (ArcticOrder _ _) = CertAnswer $ certified (unknown, poly (Just 1))
 
 instance ComplexityProof ArcticOrder
 
@@ -109,28 +113,32 @@ instance S.Processor ArcticMI where
 
     type S.ProofOf ArcticMI = OrientationProof ArcticOrder
     solve inst problem | isMonadic problem sig = case Prob.relation problem of
-                                                   Standard sr    -> orientDirect sr sig inst
-                                                   Relative sr wr -> orientRelative sr wr sig inst
-                                                   DP sr wr       -> orientDp sr wr sig inst
+                                                   Standard sr    -> orientDirect strat st sr sig inst
+                                                   Relative sr wr -> orientRelative strat st sr wr sig inst
+                                                   DP sr wr       -> orientDp strat st sr wr sig inst
                        | otherwise             = return $ Inapplicable "Arctic Interpretations only applicable for monadic problems"
-        where sig = Prob.signature problem
+        where sig   = Prob.signature problem
+              st    = Prob.startTerms problem
+              strat = Prob.strategy problem
 
 instance PartialProcessor ArcticMI where
   solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
-                                                        Standard sr    -> do res <- orientPartial sr sig' inst
+                                                        Standard sr    -> do res <- orientPartial strat st sr sig' inst
                                                                              case res of
-                                                                               Order (ArcticOrder mi) -> do let ppstr = strictRules mi sr
-                                                                                                            return $ PartialProof problem res ppstr
-                                                                               _                      -> return $ PartialProof problem res Trs.empty
-                                                        Relative sr wr -> do res <- orientPartialRelative sr wr sig' inst
+                                                                               Order (ArcticOrder mi _) -> do let ppstr = strictRules mi sr
+                                                                                                              return $ PartialProof problem res ppstr
+                                                                               _                        -> return $ PartialProof problem res Trs.empty
+                                                        Relative sr wr -> do res <- orientPartialRelative strat st sr wr sig' inst
                                                                              case res of
-                                                                               Order (ArcticOrder mi) -> do let ppstr = strictRules mi sr
-                                                                                                            return $ PartialProof problem res ppstr
-                                                                               _                      -> return $ PartialProof problem res Trs.empty
+                                                                               Order (ArcticOrder mi _) -> do let ppstr = strictRules mi sr
+                                                                                                              return $ PartialProof problem res ppstr
+                                                                               _                        -> return $ PartialProof problem res Trs.empty
                                                         DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
                             | otherwise             = return $ PartialProof problem (Inapplicable "Arctic Interpretations only applicable for monadic problems") Trs.empty
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
 
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI
@@ -158,6 +166,13 @@ cbits inst = do Nat n <- b
 dim :: S.TheProcessor ArcticMI -> Int
 dim inst = d where (Nat d :+: _ :+: _ :+: _) = S.processorArgs inst
 
+usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
+usableArgsWhereApplicable MWithDP sig _                     _     _ _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
+  where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
+        nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
+usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _     _ _ = fullWithSignature sig
+usableArgsWhereApplicable MNoDP   _   (Prob.BasicTerms _ _) strat r s = usableArgs strat r s
+
 instance PrettyPrintable ArcInt where
   pprint MinusInf = text "-inf"
   pprint (Fin n)  = int n
@@ -174,52 +189,65 @@ isMonadic prob sig =
       Relative sr wr -> allMonadic $ Trs.functionSymbols sr `Set.union` Trs.functionSymbols wr
     where allMonadic = all (\ f ->  F.arity sig f Prelude.<= 1) . Set.toList
 
-orientDirect :: P.SolverM m => Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientDirect trs = orientMatrix relativeConstraints trs Trs.empty
+orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientDirect strat st trs sig = orientMatrix relativeConstraints ua st trs Trs.empty sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
 
-orientRelative :: P.SolverM m => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientRelative = orientMatrix relativeConstraints
+orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientRelative strat st strict weak sig = orientMatrix relativeConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
 
-orientDp :: P.SolverM m => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientDp = orientMatrix dpConstraints
+orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientDp strat st strict weak sig = orientMatrix dpConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MWithDP sig st strat Trs.empty (strict `Trs.union` weak)
 
-orientPartial :: P.SolverM m => Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartial trs = orientMatrix partialConstraints trs Trs.empty
+orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartial strat st trs sig = orientMatrix partialConstraints ua st trs Trs.empty sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
 
-orientPartialRelative :: P.SolverM m => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartialRelative = orientMatrix partialConstraints
+orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartialRelative strat st strict weak sig = orientMatrix partialConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
 
-orientMatrix :: P.SolverM m => (Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
-             -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientMatrix f dps trs sig mp = do theMI <- P.minisatValue addAct mi
-                                   return $ case theMI of
-                                              Nothing -> Incompatible
-                                              Just mv -> Order $ ArcticOrder $ fmap (\x -> x n) mv
-                                where addAct :: MiniSat ()
-                                      addAct = toFormula (liftM AS.bound cb) (AS.bound n) (f dps trs sig mp) >>= SatSolver.addFormula
-                                      mi     = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (dps `Trs.union` trs)) :: MatrixInter (AS.Size -> ArcInt)
-                                      n      = bound mp
-                                      cb     = cbits mp
-                                      d      = dim mp
+orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
+             -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
+                                         return $ case theMI of
+                                                    Nothing -> Incompatible
+                                                    Just mv -> Order $ ArcticOrder (fmap (\x -> x n) mv) ua
+                                      where addAct :: MiniSat ()
+                                            addAct = toFormula (liftM AS.bound cb) (AS.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
+                                            mi     = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (dps `Trs.union` trs)) :: MatrixInter (AS.Size -> ArcInt)
+                                            n      = bound mp
+                                            cb     = cbits mp
+                                            d      = dim mp
 
-partialConstraints :: Eq l => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+partialConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 partialConstraints = matrixConstraints MRelative MNoDP
 
-relativeConstraints :: Eq l => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 relativeConstraints = matrixConstraints MDirect MNoDP
 
-dpConstraints :: Eq l => Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+dpConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 dpConstraints = matrixConstraints MDirect MWithDP
 
-matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
-matrixConstraints mrel mdp strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints absmi
+matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints absmi
   where absmi   = abstractInterpretation UnrestrictedMatrix d (sig `F.restrictToSymbols` Trs.functionSymbols (strict `Trs.union` weak)) :: MatrixInter (DioPoly DioVar ArcInt)
         d          = dim mp
-        otherConstraints mi = dpChoice mdp mi
+        otherConstraints mi = dpChoice mdp st mi
         strictChoice MDirect   = strictTrsConstraints
         strictChoice MRelative = relativeStricterTrsConstraints
-        dpChoice MWithDP = safeRedpairConstraints sig
-        dpChoice MNoDP   = monotoneConstraints sig
+        dpChoice MWithDP _                   = safeRedpairConstraints sig
+        dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints sig
+        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints sig ua
+
+uargMonotoneConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
+uargMonotoneConstraints sig uarg mi = unaryConstraints strictUnaryInts && nullaryConstraints nullaryInts && weakMonotoneConstraints weakUnaryInts
+  where strictUnaryInts = mi{interpretations = Map.filterWithKey (\ f _ -> isUsable f 1 uarg) $ interpretations unaryInts}
+        weakUnaryInts = mi{interpretations = Map.filterWithKey (\ f _ -> not $ isUsable f 1 uarg) $ interpretations unaryInts}
+        unaryInts = mi{interpretations = Map.filterWithKey (\ f _ -> F.arity sig f == 1) $ interpretations mi}
+        nullaryInts = mi{interpretations = Map.filterWithKey (\ f _ -> F.arity sig f == 0) $ interpretations mi}
 
 monotoneConstraints :: AbstrOrdSemiring a b => F.Signature -> MatrixInter a -> b
 monotoneConstraints sig mi = unaryConstraints unaryInts && nullaryConstraints nullaryInts
@@ -227,8 +255,10 @@ monotoneConstraints sig mi = unaryConstraints unaryInts && nullaryConstraints nu
         nullaryInts = mi{interpretations = Map.filterWithKey (\ f _ -> F.arity sig f == 0) $ interpretations mi}
 
 safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> MatrixInter a -> b
-safeRedpairConstraints sig mi = unaryConstraints compMI && nullaryConstraints compMI && weakMonotoneConstraints noncompMI
+safeRedpairConstraints sig mi = unaryConstraints unaryCompMI && nullaryConstraints nullaryCompMI && weakMonotoneConstraints noncompMI
                                 where splitInterpretations = Map.partitionWithKey isCompound $ interpretations mi
+                                      unaryCompMI          = mi{interpretations = Map.filterWithKey (\ f _ -> F.arity sig f == 1) $ interpretations compMI}
+                                      nullaryCompMI        = mi{interpretations = Map.filterWithKey (\ f _ -> F.arity sig f == 0) $ interpretations compMI}
                                       compMI               = mi{interpretations = fst splitInterpretations}
                                       noncompMI            = mi{interpretations = snd splitInterpretations}
                                       isCompound f _       = F.isCompound sig f

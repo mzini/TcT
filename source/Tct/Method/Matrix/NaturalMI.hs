@@ -60,6 +60,7 @@ import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Orderings
 import Tct.Processor.PartialProcessor
+import Tct.Processor.PPrint (indent)
 import Tct.Proof
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -77,12 +78,15 @@ instance Show NaturalMIKind where
     show Default      = "default"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
-                               , param    :: MatrixKind } deriving Show
+                               , param    :: MatrixKind
+                               , uargs    :: UsablePositions } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
 instance PrettyPrintable MatrixOrder where
-    pprint order = (text "Consider the following" <+> ppknd (param order) <+> text "matrix interpretation:")
+    pprint order = (text "The following argument positions are usable:")
+                   $+$ indent (pprint (uargs order, signature $ ordInter order))
+                   $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
                    $+$ pprint (ordInter order)
         where ppknd UnrestrictedMatrix   = text "unrestricted"
               ppknd TriangularMatrix     = text "triangular"
@@ -96,9 +100,9 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
-    answer (MatrixOrder _ UnrestrictedMatrix)    = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m TriangularMatrix)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs)) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m')))
+    answer (MatrixOrder _ UnrestrictedMatrix _)    = CertAnswer $ certified (unknown, expo (Just 1))
+    answer (MatrixOrder m TriangularMatrix _)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
 
@@ -168,14 +172,14 @@ instance PartialProcessor NaturalMI where
   solvePartial inst problem = case Prob.relation problem of
                                 Standard sr    -> do res <- orientPartial strat st sr sig' (S.processorArgs inst)
                                                      case res of
-                                                       Order (MatrixOrder mi _) -> do let ppstr = strictRules mi sr
-                                                                                      return $ PartialProof problem res ppstr
-                                                       _                        -> return $ PartialProof problem res Trs.empty
+                                                       Order (MatrixOrder mi _ _) -> do let ppstr = strictRules mi sr
+                                                                                        return $ PartialProof problem res ppstr
+                                                       _                          -> return $ PartialProof problem res Trs.empty
                                 Relative sr wr -> do res <- orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
                                                      case res of
-                                                       Order (MatrixOrder mi _) -> do let ppstr = strictRules mi sr
-                                                                                      return $ PartialProof problem res ppstr
-                                                       _                        -> return $ PartialProof problem res Trs.empty
+                                                       Order (MatrixOrder mi _ _) -> do let ppstr = strictRules mi sr
+                                                                                        return $ PartialProof problem res ppstr
+                                                       _                          -> return $ PartialProof problem res Trs.empty
                                 DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
@@ -214,58 +218,69 @@ cbits (_ :+: _ :+: _ :+: _ :+: b) = do Nat n <- b
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
 dim (_ :+: Nat d :+: _ :+: _ :+: _) = d
 
+usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
+usableArgsWhereApplicable MWithDP sig _                     _     _ _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
+  where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
+        nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
+usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _     _ _ = fullWithSignature sig
+usableArgsWhereApplicable MNoDP   _   (Prob.BasicTerms _ _) strat r s = usableArgs strat r s
+
 -- uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
 -- uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientDirect strat st trs = orientMatrix (relativeConstraints strat) st trs Trs.empty
+orientDirect strat st trs sig = orientMatrix relativeConstraints ua st trs Trs.empty sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
 
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientRelative strat = orientMatrix $ relativeConstraints strat
+orientRelative strat st strict weak sig = orientMatrix relativeConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
 
 orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientDp strat = orientMatrix $ dpConstraints strat
+orientDp strat st strict weak sig = orientMatrix dpConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MWithDP sig st strat Trs.empty (strict `Trs.union` weak)
 
 orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartial strat st trs = orientMatrix (partialConstraints strat) st trs Trs.empty
+orientPartial strat st trs sig = orientMatrix partialConstraints ua st trs Trs.empty sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty trs
 
 orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartialRelative strat = orientMatrix $ partialConstraints strat
+orientPartialRelative strat st strict weak sig = orientMatrix partialConstraints ua st strict weak sig
+  where ua = usableArgsWhereApplicable MNoDP sig st strat Trs.empty (strict `Trs.union` weak)
 
-orientMatrix :: P.SolverM m => (Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
-             -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientMatrix f st dps trs sig mp = do theMI <- P.minisatValue addAct mi
-                                      return $ case theMI of
-                                                 Nothing -> Incompatible
-                                                 Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk
-                                    where addAct :: MiniSat ()
-                                          addAct = toFormula (liftM N.bound cb) (N.bound n) (f st dps trs sig mp) >>= SatSolver.addFormula
-                                          mi     = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
-                                          n      = bound mp
-                                          cb     = cbits mp
-                                          d      = dim mp
-                                          mk     = kind mp st
+orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
+             -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
+                                         return $ case theMI of
+                                                   Nothing -> Incompatible
+                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
+                                      where addAct :: MiniSat ()
+                                            addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
+                                            mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
+                                            n       = bound mp
+                                            cb      = cbits mp
+                                            d       = dim mp
+                                            mk      = kind mp st
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative deriving Show
 
-
-partialConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+partialConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 partialConstraints = matrixConstraints MRelative MNoDP
 
-relativeConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 relativeConstraints = matrixConstraints MDirect MNoDP
 
-dpConstraints :: Eq l => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+dpConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 dpConstraints = matrixConstraints MDirect MWithDP
 
 -- TODO: rename derivationGraph
 -- weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 -- weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
-matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
+matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
+matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
@@ -279,8 +294,7 @@ matrixConstraints mrel mdp strat st strict weak sig mp = strictChoice mrel absmi
 --         strictChoice MWeightGap = strictOneConstraints
         dpChoice MWithDP _ = safeRedpairConstraints sig
         dpChoice MNoDP Prob.TermAlgebra      = monotoneConstraints
-        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints $ usableArgs strat Trs.empty combTrs
-        combTrs = strict `Trs.union` weak
+        dpChoice MNoDP (Prob.BasicTerms _ _) = uargMonotoneConstraints ua
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations

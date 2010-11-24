@@ -247,10 +247,10 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         otherConstraints mi = dpChoice mdp st uaOn mi
         strictChoice MDirect   = strictTrsConstraints
         strictChoice MRelative = relativeStricterTrsConstraints
-        dpChoice MWithDP _                           = safeRedpairConstraints sig
-        dpChoice MNoDP   Prob.TermAlgebra            = monotoneConstraints sig
+        dpChoice MWithDP _                     _     = safeRedpairConstraints sig
+        dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints sig
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints sig ua
-        dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints ua
+        dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints sig
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints sig uarg mi = unaryConstraints strictUnaryInts && nullaryConstraints nullaryInts && weakMonotoneConstraints weakUnaryInts

@@ -24,3 +24,8 @@ ausbessern und summarise skript bitte ausführen.
 
 Klären warum CaT auf dim >5 deutlich besser, eventuell Tct code anpassen
 
+*) 29.11.2010
+
+sumarise script ist ziemlich konservativ und hat probleme wenn 
+die testbezeichnungen nicht zusammengeschrieben werden
+

@@ -17,3 +17,10 @@ die strategie, bezeichnung 'weight gap principle' ist irreführend,
 
 uncurry fuer RC (passende definition startterme) verifizieren.
 
+*) 29.11.2010
+
+vergleich von CaT zu TcT immer noch falsch, das aufruf von CaT falsch, 
+ausbessern und summarise skript bitte ausführen.
+
+Klären warum CaT auf dim >5 deutlich besser, eventuell Tct code anpassen
+

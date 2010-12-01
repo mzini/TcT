@@ -139,14 +139,14 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
-wdg approx weightgap wgdim wgsize wgcbits ua = Wdg `T.calledWith` (approx :+: weightgap :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua)
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap wgkind wgdim wgsize wgcbits ua = Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
@@ -156,6 +156,19 @@ instance T.Transformer Wdg where
                   opt { A.name = "weightgap"
                       , A.defaultValue = True
                       , A.description = "specifies whether the weightgap principle is used per path"}
+                  :+:
+                  opt { A.name        = "kind"
+                      , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation for the weight gap condition."
+                                                , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
+                                                , "diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
+                                                , "If 'constructor' is given as argument, then defined symbols are interpreted using unrestricted"
+                                                , "matrix-interpretations, whereas constructors are interpreted by interpretations of triangular shape."
+                                                , "Such matrix-interpretations induce polynomial upper-bounds on the runtime-complexity."
+                                                , "If 'unrestricted' is given, then matrix-interpretations of all function symbols are unrestricted."
+                                                , "Those induce exponentially bounded derivational-complexity."
+                                                , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
+                                                ]
+                      , A.defaultValue = Default}
                   :+:
                   opt { A.name = "dim"
                       , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
@@ -238,8 +251,7 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    approx :+: _ :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa = T.transformationArgs inst
-                    wgMatrixShape             = Constructor
+                    approx :+: _ :+: wgMatrixShape :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa = T.transformationArgs inst
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
                                                   Just (Nat b) -> N.Bits b

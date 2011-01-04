@@ -31,10 +31,11 @@ module Tct.Method.Matrix.MatrixInterpretation
     -- )
 where
 
-import Prelude hiding ((&&),(||),not)
+import Prelude hiding ((&&),(||),not,any)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import Data.Foldable (any)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ
 
@@ -172,6 +173,11 @@ triConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 triConstraints = bigAnd . Map.map (bigAnd . Map.map triConstraint . coefficients) . interpretations
                  where triConstraint m = bigAnd $ map (\i -> entry i i m .<=. one) [1..(dim m)]
                        dim             = uncurry min . mdim
+
+maxNonIdMatrix :: (AbstrOrdSemiring a Bool, AbstrEq (Matrix a) Bool) => MatrixInter a -> Matrix a
+maxNonIdMatrix mi = if any (any (.==. unit d) . coefficients) (interpretations mi) && maxi .==. zeromatrix d d then unit 1 else maxi
+  where maxi = maximumMatrix (d, d) $ Map.map (maximumMatrix (d, d) . Map.filter (./=. (unit d)) . coefficients) $ interpretations mi
+        d    = dimension mi
 
 maxMatrix :: AbstrOrdSemiring a Bool => MatrixInter a -> Matrix a
 maxMatrix mi = maximumMatrix (d, d) $ Map.map (maximumMatrix (d, d) . coefficients) $ interpretations mi

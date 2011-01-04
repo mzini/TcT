@@ -101,8 +101,8 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
 
 instance Answerable MatrixOrder where
     answer (MatrixOrder _ UnrestrictedMatrix _)    = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m TriangularMatrix _)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxMatrix m')))
+    answer (MatrixOrder m TriangularMatrix _)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
 

@@ -29,3 +29,14 @@ Klären warum CaT auf dim >5 deutlich besser, eventuell Tct code anpassen
 sumarise script ist ziemlich konservativ und hat probleme wenn 
 die testbezeichnungen nicht zusammengeschrieben werden
 
+*) 4.1.2011
+
+einheitsmatrizen aendern die komplexität nicht, siehe emails im November; killerexample
+
+(VAR x)
+(RULES
+d(0) -> 0
+d(s(x)) -> s(s(d(x)))
+exp(0) -> 0
+exp(s(x)) -> d(exp(x))
+)

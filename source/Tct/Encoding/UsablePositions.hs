@@ -108,7 +108,7 @@ usableArgs = usableArgsCap
 
 usableArgsCap :: Strategy -> Trs -> Trs -> UsablePositions
 usableArgsCap Innermost r s = usableReplacementMap (r `Trs.union` s) empty
-usableArgsCap Full r s = fix (usableReplacementMap $ r `Trs.union` s) empty
+usableArgsCap _ r s         = fix (usableReplacementMap $ r `Trs.union` s) empty
     where fix f up | res == up = up
                    | otherwise = fix f res
             where res = f up

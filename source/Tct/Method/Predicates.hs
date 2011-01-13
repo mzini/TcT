@@ -24,7 +24,7 @@ import Data.Typeable
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 import Termlib.Utils (PrettyPrintable (..))
-import Termlib.Problem (strictTrs, weakTrs)
+import Termlib.Problem (strictTrs, weakTrs, Strategy (..), Problem (..))
 import Tct.Proof
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
@@ -48,57 +48,75 @@ whichTrs :: Arg (EnumOf WhichTrs)
 whichTrs = arg
 
 
-data Predicate = Predicate String (Trs -> Bool)
-data PredicateProof = PredicateProof String Answer
+data Predicate = TrsPredicate String (Trs -> Bool)
+               | ProblemPredicate String (Problem -> Bool)
+data PredicateProof = PredicateProof Predicate Answer
 
 instance Answerable PredicateProof where
     answer (PredicateProof _ a) = a
 
 instance PrettyPrintable PredicateProof where
-    pprint (PredicateProof n a) = text "The input is" <+> ans <+> text n <> text "."
+    pprint (PredicateProof (TrsPredicate n _) a) = text "The input is" <+> ans <+> text n <> text "."
+        where ans | succeeded a = empty
+                  | otherwise   = text "NOT"
+    pprint (PredicateProof (ProblemPredicate n _) a) = text "The input problem is" <+> ans <+> text n <> text "."
         where ans | succeeded a = empty
                   | otherwise   = text "NOT"
 
 instance S.Processor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
     type S.ProofOf Predicate = PredicateProof
-    name (Predicate n _) = n
-    solve inst prob = return $ PredicateProof n ans
-        where Predicate n p = S.processor inst
-              holds = case S.processorArgs inst of 
-                        Strict -> p $ strictTrs prob
-                        Weak   -> p $ weakTrs prob
-                        Union  -> p $ strictTrs prob `Trs.union` weakTrs prob
-                        Both   -> p (strictTrs prob) &&  p (weakTrs prob)
+    name (TrsPredicate n _) = n
+    name (ProblemPredicate n _) = n
+    solve inst prob = return $ PredicateProof proc ans
+        where proc = S.processor inst
+              holds = case proc of 
+                        TrsPredicate _ p -> 
+                            case S.processorArgs inst of 
+                              Strict -> p $ strictTrs prob
+                              Weak   -> p $ weakTrs prob
+                              Union  -> p $ strictTrs prob `Trs.union` weakTrs prob
+                              Both   -> p (strictTrs prob) &&  p (weakTrs prob)
+                        ProblemPredicate _ p -> p prob                              
               ans | holds     = YesAnswer
                   | otherwise = NoAnswer
     arguments _ = opt { A.name = "on"
-                      , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied,"]
+                      , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs)."]
                       , A.defaultValue = Strict}
               
 
 isDuplicating :: Predicate
-isDuplicating = Predicate "duplicating" Trs.isDuplicating
+isDuplicating = TrsPredicate "duplicating" Trs.isDuplicating
 isConstructor :: Predicate
-isConstructor = Predicate "constructor" Trs.isConstructor
+isConstructor = TrsPredicate "constructor" Trs.isConstructor
 isCollapsing :: Predicate
-isCollapsing = Predicate "collapsing" Trs.isCollapsing
+isCollapsing = TrsPredicate "collapsing" Trs.isCollapsing
 isGround :: Predicate
-isGround = Predicate "ground" Trs.isGround
+isGround = TrsPredicate "ground" Trs.isGround
 isLeftLinear :: Predicate
-isLeftLinear = Predicate "leftlinear" Trs.isLeftLinear
+isLeftLinear = TrsPredicate "leftlinear" Trs.isLeftLinear
 isRightLinear :: Predicate
-isRightLinear = Predicate "rightlinear" Trs.isLeftLinear
+isRightLinear = TrsPredicate "rightlinear" Trs.isLeftLinear
 isWellFormed :: Predicate
-isWellFormed = Predicate "wellformed" Trs.wellFormed
+isWellFormed = TrsPredicate "wellformed" Trs.wellFormed
+
+isStrat n check = ProblemPredicate n (\ prob -> check $ strategy prob)
+isOutermost = isStrat "outermost" ((==) Outermost)
+isInnermost = isStrat "innermost" ((==) Innermost)
+isFull      = isStrat "fullstrategy" ((==) Full)
+isContextSensitive = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
 
 predicateProcessors :: [S.StdProcessor Predicate]
 predicateProcessors = [S.StdProcessor p 
-                       | p <- [ isDuplicating
-                              , isConstructor
-                              , isCollapsing
-                              , isGround
-                              , isLeftLinear
-                              , isRightLinear
-                              , isWellFormed]]
+                           | p <- [ isDuplicating
+                                 , isConstructor
+                                 , isCollapsing
+                                 , isGround
+                                 , isLeftLinear
+                                 , isRightLinear
+                                 , isWellFormed
+                                 , isOutermost
+                                 , isFull
+                                 , isInnermost
+                                 , isContextSensitive ]]
 

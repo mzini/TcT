@@ -164,12 +164,13 @@ data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
 
 instance PrettyPrintable ArgDescr where
     pprint d = text "Argument" 
-               <+> braces (vcat [ attrib "name"         (adName d)
-                                , attrib "isOptional"   (adIsOptional d)
-                                , attrib "description"  (adDescr d)
-                                , attrib "values"       (adSynopsis d)])
-        where attrib n s = nest 1 $ text n <+> text "=" <+> text (show s) <> text ";"
-
+               <+> braces (vcat [ attrib "name"         (show $ adName d)
+                                , attrib "isOptional"   (show $ adIsOptional d)
+                                , attrib "description"  (show $ adDescr d)
+                                , attrib "values"       (show $ adSynopsis d)
+                                , attrib "default"      deflt])
+        where attrib n s = nest 1 $ text n <+> text "=" <+> text s <> text ";"
+              deflt = case d of ArgDescr _ _ dv _ _ -> show dv
 argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
 argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
 

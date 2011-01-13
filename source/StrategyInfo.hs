@@ -30,11 +30,11 @@ data Description = Description { name                :: String
 
 
 descriptionOf :: P.ParsableProcessor p => p -> Description
-descriptionOf p = Description { name = P.name p
-                              , description = P.description p
-                              , synopsis    = P.mrSynopsis p
+descriptionOf p = Description { name                = P.name p
+                              , description         = P.description p
+                              , synopsis            = P.mrSynopsis p
                               , positionalArguments = P.posArgs p
-                              , optionalArguments = P.optArgs p
+                              , optionalArguments   = P.optArgs p
                               } 
 
 runStrategyInfo :: Config -> IO ()

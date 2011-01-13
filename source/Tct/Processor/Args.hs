@@ -76,13 +76,11 @@ data a :+: b = a :+: b deriving (Typeable, Show)
 instance Arguments Unit where 
     type Domains Unit = ()
 
-
 instance (Argument a) => Arguments (Arg a) where
     type Domains (Arg a) = Domain a
 
 instance (Arguments a, Arguments b) => Arguments (a :+: b) where
     type Domains (a :+: b) = Domains a :+: Domains b
-
 
 instance ParsableArguments Unit where
     parseArgs Unit _ = return ()

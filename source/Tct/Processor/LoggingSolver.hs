@@ -59,6 +59,7 @@ instance PrettyPrintable LoggingMsg where
                         <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> text "@"
                         <+> text (show cpuTime_ms ++ "ms")
+                        <+> (case sig of {LMFin p -> pprint (answer p) ; _ -> text "" })
 
               cpuTime_ms :: Int
               cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (12.0^(9 :: Int))

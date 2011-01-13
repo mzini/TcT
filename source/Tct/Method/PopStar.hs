@@ -343,24 +343,23 @@ orient p = memoized $ \ a ->
                                  (Var _)    -> bot
                                  (Fun g []) -> not (isCollapsing f) && f `pGt` g
                                  (Fun g ts) -> not (isCollapsing f) 
-                                              && bigAnd [inFilter g j 
-                                                    --> bigAnd [isCollapsing g 
-                                                         || (isDefined f 
-                                                             && (not (f `pGt` g) || isSafe g j || s `gsq` t_j)
-                                                             && bigOr [ isNormal g j
-                                                                  , precRestrictedP f t_j
-                                                                  , f `pGt` g && alpha j])
-                                                        , s `gpop` t_j || not (isCollapsing g) && isNormal g j]
+                                              && bigAnd [inFilter g j --> bigAnd [ isCollapsing g 
+                                                                                  || (isDefined f 
+                                                                                      && (not (f `pGt` g) || isSafe g j || s `gsq` t_j)
+                                                                                      && bigOr [ isNormal g j
+                                                                                               , precRestrictedP f t_j
+                                                                                               , f `pGt` g && alpha j])
+                                                                                 , s `gpop` t_j || not (isCollapsing g) && isNormal g j]
                                                         | (t_j, j) <- its ]
                                               && (isCollapsing g 
                                                   || (f `pGt` g && (mulRecForbidden --> atmostOne [alpha j | (_,j) <- its]))
                                                   || (f `pEq` g && isDefined f && mulGt))
                                      where mulGt = encodeCover
                                                    && bigAnd [gamma i j --> bigAnd [ inFilter f i
-                                                                       , ite paramSubst 
-                                                                                 (isNormal f i) 
-                                                                                 (isSafe f i <-> isSafe g j)
-                                                                       , ite (epsilon i) (s_i `equiv` t_j) (s_i `gpop` t_j)]
+                                                                                   , ite paramSubst 
+                                                                                             (isNormal f i) 
+                                                                                             (isSafe f i <-> isSafe g j)
+                                                                                   , ite (epsilon i) (s_i `equiv` t_j) (s_i `gpop` t_j) ]
                                                          | (s_i, i) <- iss, (t_j, j) <- its]
                                                    && bigOr [not (epsilon i) && isNormal f i && inFilter f i | i <- is]
                                            encodeCover = (forall js $ \ j ->  
@@ -369,8 +368,8 @@ orient p = memoized $ \ a ->
                                                              (paramSubst --> (inFilter f i && isNormal f i || bigAnd [not (gamma i j) | j <- js]))
                                                              && (epsilon i --> exactlyOne [gamma i j | j <- js]))
                                            its = indexed ts
-                                           is  = [i | (_, i) <- iss]
-                                           js  = [j | (_, j) <- its]
+                                           is  = [ i | (_, i) <- iss ]
+                                           js  = [ j | (_, j) <- its ]
                                            alpha j     = return $ propAtom $ Alpha (j, (s, t))
                                            gamma i j   = return $ propAtom $ Gamma (i, j, (s, t))
                                            epsilon i   = return $ propAtom $ Epsilon (i, (s, t))

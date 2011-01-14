@@ -24,12 +24,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Processor.PartialProcessor where
 
 import Text.PrettyPrint.HughesPJ
+import Data.Typeable
+import Control.Monad (liftM)
 
 import Termlib.Problem
 import Termlib.Trs (Trs)
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
-
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances()
 import Tct.Proof
@@ -39,8 +40,6 @@ import qualified Tct.Processor.Standard as S
 class P.Processor p => PartialProcessor p where
   solvePartial :: P.SolverM m => P.InstanceOf p -> Problem -> m (PartialProof p)
 
-
-data SomePartialProcessor = forall p. (P.ParsableProcessor p, PartialProcessor p) => SomePartialProcessor p
 
 -- Proof Objects
 
@@ -100,3 +99,29 @@ instance (P.Processor sub, PartialProcessor p) => S.Processor (RelativeProcessor
       where prob'     = prob{startTerms = TermAlgebra}
             p :+: sub = S.processorArgs inst
 
+
+-- somepartialprocessor
+
+data SomePartialProcessor = forall p. (P.ParsableProcessor p, PartialProcessor p) => SomePartialProcessor p
+data SomePartialProcInstance  = forall p. (PartialProcessor p) => PPI (P.InstanceOf p)
+instance Typeable (P.InstanceOf SomePartialProcessor) where 
+    typeOf (SPPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPPI") [mkTyConApp (mkTyCon "SomeInstance") []]
+
+instance P.Processor SomePartialProcessor where
+    type P.ProofOf    SomePartialProcessor = P.SomeProof
+    data P.InstanceOf SomePartialProcessor = SPPI SomePartialProcInstance
+    name (SomePartialProcessor proc)         = P.name proc
+    instanceName (SPPI (PPI inst))   = P.instanceName inst
+    solve_ (SPPI (PPI inst)) prob    = P.SomeProof `liftM` P.solve_ inst prob
+
+instance P.ParsableProcessor SomePartialProcessor where
+    description     (SomePartialProcessor proc) = P.description proc
+    synString       (SomePartialProcessor proc) = P.synString proc
+    posArgs         (SomePartialProcessor proc) = P.posArgs proc
+    optArgs         (SomePartialProcessor proc) = P.optArgs proc
+    parseProcessor_ (SomePartialProcessor proc) = (SPPI . PPI) `liftM` P.parseProcessor_ proc
+
+instance PartialProcessor SomePartialProcessor where
+    solvePartial (SPPI (PPI inst)) prob = 
+        do res <- solvePartial inst prob 
+           return $ res {ppProof = P.SomeProof $ ppProof res}

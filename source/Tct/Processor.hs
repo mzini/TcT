@@ -39,9 +39,9 @@ module Tct.Processor
     , parseProcessor
     , fromString
     -- * Some Processor
-    , SomeProcessor
-    , SomeProof
-    , SomeInstance
+    , SomeProcessor (..)
+    , SomeProof (..)
+    , SomeInstance (..)
     , someProof
     , someProcessor
     , someInstance
@@ -164,13 +164,15 @@ data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
 
 instance PrettyPrintable ArgDescr where
     pprint d = text "Argument" 
-               <+> braces (vcat [ attrib "name"         (show $ adName d)
-                                , attrib "isOptional"   (show $ adIsOptional d)
-                                , attrib "description"  (show $ adDescr d)
-                                , attrib "values"       (show $ adSynopsis d)
-                                , attrib "default"      deflt])
+               <+> braces (vcat $ [ attrib "name"         (show $ adName d)
+                                  , attrib "isOptional"   (show $ adIsOptional d)
+                                  , attrib "description"  (show $ adDescr d)
+                                  , attrib "values"       (show $ adSynopsis d)]
+                           ++ case d of 
+                                ArgDescr _ _ (Just dv) _ _ -> [attrib "default" (show dv)]
+                                _                          -> [])
         where attrib n s = nest 1 $ text n <+> text "=" <+> text s <> text ";"
-              deflt = case d of ArgDescr _ _ dv _ _ -> show dv
+
 argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
 argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
 
@@ -207,7 +209,7 @@ fromString p s = Parse.fromString (parseProcessor p) p "supplied strategy" s
 
 data SomeProcessor = forall p. (ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
-data SomeInstance  = forall p. (P.ComplexityProof (ProofOf p) , Processor p) => SomeInstance (InstanceOf p)
+data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 
 
 instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p

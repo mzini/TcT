@@ -47,7 +47,7 @@ timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
 timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
 
 
-timeoutProcessor :: Timeout AnyProcessor
+timeoutProcessor :: Timeout (AnyProcessor SomeProcessor)
 timeoutProcessor = Timeout
 
 toSeconds :: Int -> Double
@@ -69,7 +69,7 @@ instance Processor p => Processor (Timeout p) where
                       Nothing -> TimedOut t
 --    fromInstance (TOInstance i proc _) = Timeout i proc
     
-instance ParsableProcessor (Timeout AnyProcessor) where
+instance ParsableProcessor (Timeout (AnyProcessor SomeProcessor)) where
     description Timeout              = ["The processor either returns the result of the given processor"
                                        , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     synString       Timeout = [ Token "[", PosArg 1, Token "]", PosArg 2]
@@ -81,9 +81,9 @@ instance ParsableProcessor (Timeout AnyProcessor) where
                                              , adSynopsis   = domainName (Phantom :: Phantom Nat)})
                               , (2, ArgDescr { adIsOptional = False
                                              , adName       = "processor"
-                                             , adDefault    = (Nothing :: Maybe (S.StdProcessor AnyProcessor))
+                                             , adDefault    = (Nothing :: Maybe (S.StdProcessor (AnyProcessor SomeProcessor)))
                                              , adDescr      = "The applied processor"
-                                             , adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor AnyProcessor))})
+                                             , adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (AnyProcessor SomeProcessor)))})
                               ]
     parseProcessor_ Timeout = do to <- parseTimeout
                                  i <- parseAnyProcessor

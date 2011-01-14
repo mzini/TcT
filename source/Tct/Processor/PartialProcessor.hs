@@ -19,6 +19,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Tct.Processor.PartialProcessor where
 
@@ -37,6 +38,9 @@ import qualified Tct.Processor.Standard as S
 
 class P.Processor p => PartialProcessor p where
   solvePartial :: P.SolverM m => P.InstanceOf p -> Problem -> m (PartialProof p)
+
+
+data SomePartialProcessor = forall p. (P.ParsableProcessor p, PartialProcessor p) => SomePartialProcessor p
 
 -- Proof Objects
 
@@ -70,6 +74,7 @@ instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p su
                                              $+$ pprint subp
 
 
+-- Relative Processor
 
 data RelativeProcessor p sub = RelativeProcessor
 
@@ -94,3 +99,4 @@ instance (P.Processor sub, PartialProcessor p) => S.Processor (RelativeProcessor
                        return $ RelativeProof res subproof
       where prob'     = prob{startTerms = TermAlgebra}
             p :+: sub = S.processorArgs inst
+

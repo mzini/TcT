@@ -108,7 +108,7 @@ instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.StdProcessor p)]) => S.Pr
     solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob') -- TODO sequentially ! 
         where split :+: insts = S.processorArgs inst
               assigned = assign split insts prob
-combineProcessor :: S.StdProcessor (Combine P.AnyProcessor)
+combineProcessor :: S.StdProcessor (Combine (P.AnyProcessor P.SomeProcessor))
 combineProcessor = S.StdProcessor Combine
 
 

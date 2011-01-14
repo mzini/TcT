@@ -29,9 +29,7 @@ module Tct.Methods
     , iteProcessor
     , lmpoProcessor
     , matrixProcessor
-    , matrixPartialProcessor
     , arcticProcessor
-    , arcticPartialProcessor
     , popstarProcessor
     , sequentiallyProcessor
     , successProcessor
@@ -125,9 +123,9 @@ import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 
 import Tct.Processor.Timeout
-import Tct.Processor (none, (<|>), AnyProcessor)
+import Tct.Processor (none, (<|>), AnyProcessor, SomeProcessor)
 
-defaultProcessor :: AnyProcessor
+defaultProcessor :: AnyProcessor SomeProcessor
 defaultProcessor = timeoutProcessor
                    <|> failProcessor 
                    <|> successProcessor
@@ -141,8 +139,8 @@ defaultProcessor = timeoutProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
                    <|> wdgProcessor
-                   <|> matrixPartialProcessor
-                   <|> arcticPartialProcessor
+                   <|> matrixProcessor
+                   <|> arcticProcessor
                    <|> combineProcessor
                    <|> foldr (<|>) none predicateProcessors
 

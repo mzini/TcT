@@ -54,7 +54,7 @@ import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
 import qualified Tct.Methods as Methods
 
-data Config = Config { parsableProcessor :: AnyProcessor
+data Config = Config { parsableProcessor :: AnyProcessor SomeProcessor
                      , process           :: InstanceOf SomeProcessor -> Problem -> TCT (Proof SomeProcessor)
                      , defaultProcessor  :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)
@@ -183,7 +183,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                                   to <- askFlag time
                                   str <- getStrategyString
                                   proc <- case str of 
-                                            Just s -> case fromString anyproc anyproc s of 
+                                            Just s -> case fromString anyproc s of 
                                                         Left err    -> throwError $ StrategyParseError $ show err
                                                         Right proc' -> return $ someInstance proc'
                                             Nothing -> do defproc <- askConfig defaultProcessor 

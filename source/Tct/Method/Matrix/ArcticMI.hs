@@ -65,7 +65,7 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
 data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt
-                               , uargs :: UsablePositions} deriving Show
+                               , uargs    :: UsablePositions} deriving Show
 
 data ArcticMI = ArcticMI deriving (Typeable, Show)
 
@@ -126,8 +126,8 @@ instance S.Processor ArcticMI where
               st    = Prob.startTerms problem
               strat = Prob.strategy problem
 
-instance PartialProcessor ArcticMI where
-  solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
+instance PartialProcessor (S.StdProcessor ArcticMI) where
+  solvePartial inst' problem | isMonadic problem sig = case Prob.relation problem of
                                                         Standard sr    -> do res <- orientPartial strat st sr sig' inst
                                                                              case res of
                                                                                Order (ArcticOrder mi _) -> do let ppstr = strictRules mi sr
@@ -144,12 +144,10 @@ instance PartialProcessor ArcticMI where
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
+            inst  = S.theInstance inst'
 
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI
-
-arcticPartialProcessor :: S.StdProcessor (ChoiceProc ArcticMI P.AnyProcessor)
-arcticPartialProcessor = S.StdProcessor $ ChoiceProc ArcticMI
 
 arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor ArcticMI)
 arctic matrixdimension coefficientsize constraintbits ua =

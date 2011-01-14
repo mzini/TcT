@@ -173,8 +173,8 @@ instance S.Processor NaturalMI where
               st    = Prob.startTerms problem
               strat = Prob.strategy problem
 
-instance PartialProcessor NaturalMI where
-  solvePartial inst problem = case Prob.relation problem of
+instance PartialProcessor (S.StdProcessor NaturalMI) where
+  solvePartial inst' problem = case Prob.relation problem of
                                 Standard sr    -> do res <- orientPartial strat st sr sig' (S.processorArgs inst)
                                                      case res of
                                                        Order (MatrixOrder mi _ _) -> do let ppstr = strictRules mi sr
@@ -189,13 +189,11 @@ instance PartialProcessor NaturalMI where
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
+            inst  = S.theInstance inst'
             strat = Prob.strategy problem
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
-
-matrixPartialProcessor :: S.StdProcessor (ChoiceProc NaturalMI P.AnyProcessor)
-matrixPartialProcessor = S.StdProcessor $ ChoiceProc NaturalMI
 
 matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
 matrix matrixkind matrixdimension coefficientsize constraintbits ua =

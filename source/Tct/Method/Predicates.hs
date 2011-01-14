@@ -100,23 +100,29 @@ isRightLinear = TrsPredicate "rightlinear" Trs.isLeftLinear
 isWellFormed :: Predicate
 isWellFormed = TrsPredicate "wellformed" Trs.wellFormed
 
+isStrat :: String -> (Strategy -> Bool) -> Predicate
 isStrat n check = ProblemPredicate n (\ prob -> check $ strategy prob)
+
+isOutermost :: Predicate
 isOutermost = isStrat "outermost" ((==) Outermost)
+isInnermost :: Predicate
 isInnermost = isStrat "innermost" ((==) Innermost)
+isFull :: Predicate
 isFull      = isStrat "fullstrategy" ((==) Full)
+isContextSensitive :: Predicate
 isContextSensitive = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
 
 predicateProcessors :: [S.StdProcessor Predicate]
 predicateProcessors = [S.StdProcessor p 
                            | p <- [ isDuplicating
-                                 , isConstructor
-                                 , isCollapsing
-                                 , isGround
-                                 , isLeftLinear
-                                 , isRightLinear
-                                 , isWellFormed
-                                 , isOutermost
-                                 , isFull
-                                 , isInnermost
-                                 , isContextSensitive ]]
+                                  , isConstructor
+                                  , isCollapsing
+                                  , isGround
+                                  , isLeftLinear
+                                  , isRightLinear
+                                  , isWellFormed
+                                  , isOutermost
+                                  , isFull
+                                  , isInnermost
+                                  , isContextSensitive ]]
 

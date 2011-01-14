@@ -25,6 +25,7 @@ module Tct.Processor.Standard
     ( TheProcessor (..)
     , Processor (..)
     , StdProcessor(..)
+    , theInstance
     , apply
     , withArgs)
 where
@@ -63,6 +64,10 @@ instance (Processor a, Arguments (ArgumentsOf a)) => P.Processor (StdProcessor a
     name (StdProcessor a)              = name a
     instanceName (TP theproc)          = instanceName theproc
     solve_ (TP theproc) prob           = solve theproc prob
+
+
+theInstance :: P.InstanceOf (StdProcessor a) -> TheProcessor a
+theInstance (TP a) = a
 
 instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (StdProcessor a) where
     description     (StdProcessor a) = description a

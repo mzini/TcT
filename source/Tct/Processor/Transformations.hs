@@ -139,10 +139,10 @@ instance ( Transformer t
               strict :+: par :+: args :+: sub = S.processorArgs inst
 
 
-transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Trans t P.AnyProcessor)
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Trans t (P.AnyProcessor P.SomeProcessor))
 transformationProcessor t = S.StdProcessor (Trans t)
 
-type TransformationProcessor t = S.StdProcessor (Trans t P.AnyProcessor)
+type TransformationProcessor t = S.StdProcessor (Trans t (P.AnyProcessor P.SomeProcessor))
 type Transformation t sub = P.InstanceOf (S.StdProcessor (Trans t sub))
 
 calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 

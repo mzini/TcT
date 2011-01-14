@@ -67,7 +67,7 @@ instance (P.Processor a) => Argument (S.StdProcessor a) where
     type Domain (S.StdProcessor a) = P.InstanceOf a
     domainName _ = "<processor>"
 
-instance ParsableArgument (S.StdProcessor P.AnyProcessor) where
+instance ParsableArgument (S.StdProcessor (P.AnyProcessor P.SomeProcessor)) where
     parseArg Phantom = P.parseAnyProcessor
 
 -- * Compound
@@ -132,7 +132,8 @@ type BoolArg = Arg Bool
 bool :: BoolArg
 bool = arg
 
-type ProcessorArg = Arg (S.StdProcessor P.AnyProcessor)
+type ProcessorArg = Arg (S.StdProcessor (P.AnyProcessor P.SomeProcessor))
+
 processor :: ProcessorArg
 processor = arg
 

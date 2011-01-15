@@ -35,21 +35,20 @@ import qualified Tct.Processor.Parse as Parse
 import Tct.Processor.Args
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
-
+import qualified Data.List as L
 -- * Primitives
-newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Num, Enum)
+newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Show, Num, Enum)
 
 
 nat :: Int -> Nat
 nat i | i < 0 = error "nat received negative integer"
       | otherwise = Nat i
 
-instance Show Nat where
-    show (Nat i) = show i
-
 instance Argument Nat where
     type Domain Nat = Nat
+
     domainName Phantom = "<nat>"
+    showArg _ (Nat i) = show i 
 
 instance ParsableArgument Nat where
     parseArg Phantom = Nat `liftM` Parse.natural
@@ -57,15 +56,20 @@ instance ParsableArgument Nat where
 instance Argument Bool where
     type Domain Bool = Bool
     domainName Phantom = "<bool>"
+    showArg _ True = "On"
+    showArg _ False = "Off"
 
 instance ParsableArgument Bool where
     parseArg Phantom = Parse.bool
 
 
 -- * Processors
+
+-- MA:TODO: nicer
 instance (P.Processor a) => Argument (S.StdProcessor a) where
     type Domain (S.StdProcessor a) = P.InstanceOf a
     domainName _ = "<processor>"
+    showArg _ a    = "<processor " ++ P.instanceName a ++ ">"
 
 instance ParsableArgument (S.StdProcessor (P.AnyProcessor P.SomeProcessor)) where
     parseArg Phantom = P.parseAnyProcessor
@@ -75,10 +79,13 @@ instance ParsableArgument (S.StdProcessor (P.AnyProcessor P.SomeProcessor)) wher
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
     domainName Phantom =  "[" ++ domainName (Phantom :: Phantom a) ++ "...]"
+    showArg _ as = show "[" ++ concat (L.intersperse ", " [showArg (Phantom :: Phantom a) a | a <- as])
 
 instance Argument a => Argument (Maybe a) where 
     type Domain (Maybe a) = Maybe (Domain a)
     domainName Phantom = domainName (Phantom :: Phantom a) ++ "|none"
+    showArg _ (Just a)   = showArg (Phantom :: Phantom a) a
+    showArg _ Nothing    = "none"
 
 instance ParsableArgument a => ParsableArgument (Maybe a) where 
     parseArg Phantom = try (string "none" >> return Nothing)
@@ -104,6 +111,7 @@ parseArgAssoc  l = choice [ try $ pa n e | (n,e) <- l]
 instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
     type Domain (EnumOf a) = a
     domainName Phantom = domainNameList [(minBound :: a) .. maxBound]
+    showArg _ a = show a
 
 instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
     parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
@@ -114,11 +122,12 @@ newtype Assoc a = Assoc a
 class AssocArg a where 
     assoc :: Phantom a -> [(String, a)]
 
-instance AssocArg a => Argument (Assoc a) where
+instance (Show a, AssocArg a) => Argument (Assoc a) where
     type Domain (Assoc a) = a
     domainName _ = domainNameList [ s | (s,_) <- assoc (Phantom :: Phantom a)]
+    showArg _ a  = show a
 
-instance AssocArg a => ParsableArgument (Assoc a) where
+instance (Show a, AssocArg a) => ParsableArgument (Assoc a) where
     parseArg _ = parseArgAssoc $ assoc (Phantom :: Phantom a)
 
 -- argument types

@@ -76,12 +76,12 @@ instance ParsableProcessor (Timeout (AnyProcessor SomeProcessor)) where
     optArgs         Timeout = []
     posArgs         Timeout = [ (1, ArgDescr { adIsOptional = False
                                              , adName       = "timeout"
-                                             , adDefault    = (Nothing :: Maybe Nat)
+                                             , adDefault    = Nothing
                                              , adDescr      = "The timeout in seconds"
                                              , adSynopsis   = domainName (Phantom :: Phantom Nat)})
                               , (2, ArgDescr { adIsOptional = False
                                              , adName       = "processor"
-                                             , adDefault    = (Nothing :: Maybe (S.StdProcessor (AnyProcessor SomeProcessor)))
+                                             , adDefault    = Nothing
                                              , adDescr      = "The applied processor"
                                              , adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (AnyProcessor SomeProcessor)))})
                               ]

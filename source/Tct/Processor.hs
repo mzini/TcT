@@ -156,25 +156,22 @@ data SynElt = Token String
 
 type SynString = [SynElt]
 
-data ArgDescr = forall a. Show a => ArgDescr { adIsOptional :: Bool
-                                             , adName       :: String
-                                             , adDefault    :: Maybe a
-                                             , adDescr      :: String
-                                             , adSynopsis   :: String }
-
+data ArgDescr = ArgDescr { adIsOptional :: Bool
+                         , adName       :: String
+                         , adDefault    :: Maybe String
+                         , adDescr      :: String
+                         , adSynopsis   :: String }
+              
 instance PrettyPrintable ArgDescr where
     pprint d = text "Argument" 
                <+> braces (vcat $ [ attrib "name"         (show $ adName d)
                                   , attrib "isOptional"   (show $ adIsOptional d)
                                   , attrib "description"  (show $ adDescr d)
                                   , attrib "values"       (show $ adSynopsis d)]
-                           ++ case d of 
-                                ArgDescr _ _ (Just dv) _ _ -> [attrib "default" (show dv)]
-                                _                          -> [])
+                           ++ case adDefault d of 
+                                (Just dv) -> [attrib "default" dv]
+                                _         -> [])
         where attrib n s = nest 1 $ text n <+> text "=" <+> text s <> text ";"
-
-argDescrOnDefault :: (forall a. Show a => Maybe a -> b) -> ArgDescr -> b
-argDescrOnDefault f (ArgDescr _ _ a _ _) = f a
 
 class Processor a => ParsableProcessor a where
     description     :: a -> [String]
@@ -243,9 +240,9 @@ instance PrettyPrintable SomeProcessor where
               ppargdescr | length l == 0 = empty
                          | otherwise     = block "Arguments" $ vcat l
                   where l = [text (adName d) <> text ":" 
-                             <+> paragraph (adDescr d ++ argDescrOnDefault mshow d) | d <- optArgs proc]
+                             <+> paragraph (adDescr d ++ mshow (adDefault d)) | d <- optArgs proc]
                         mshow Nothing    = "" 
-                        mshow (Just def) = " The default is set to '" ++ show def ++ "'."
+                        mshow (Just def) = " The default is set to '" ++ def ++ "'."
               sname = name proc 
               descr = description proc 
               block n d = text n <> text ":" $+$ nest 1 d

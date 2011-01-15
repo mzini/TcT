@@ -154,17 +154,17 @@ instance P.ParsableProcessor (Ite (P.AnyProcessor P.SomeProcessor) (P.AnyProcess
     optArgs         Ite = []
     posArgs         Ite = [ (1, P.ArgDescr { P.adIsOptional = False
                                            , P.adName       = "guard-processor"
-                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))
+                                           , P.adDefault    = Nothing
                                            , P.adDescr      = "The guard of the condition"
                                            , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})            
                           , (2, P.ArgDescr { P.adIsOptional = False
                                            , P.adName       = "then-processor"
-                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))
+                                           , P.adDefault    = Nothing
                                            , P.adDescr      = "The processor that is executed when the guard succeeds"
                                            , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})             
                           , (3, P.ArgDescr { P.adIsOptional = False
                                            , P.adName       = "else-processor"
-                                           , P.adDefault    = (Nothing :: Maybe (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))
+                                           , P.adDefault    = Nothing
                                            , P.adDescr      = "The processor that is executed when the guard fails"
                                            , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))}) ]
     parseProcessor_ Ite = do let pb s = try (string s) >> whiteSpace >> P.parseAnyProcessor

@@ -43,6 +43,7 @@ data Phantom k = Phantom
 class Argument a where
     type Domain a
     domainName :: Phantom a -> String
+    showArg :: Phantom a -> Domain a -> String
 
 class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
@@ -102,7 +103,10 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
 
     descriptions a = [P.ArgDescr { P.adIsOptional = isOptional_ a
                                  , P.adName       = name a
-                                 , P.adDefault    = if isOptional_ a then Just (defaultValue a) else Nothing
+                                 , P.adDefault    = 
+                                     if isOptional_ a 
+                                     then Just $ showArg (Phantom :: Phantom a) (defaultValue a) 
+                                     else Nothing
                                  , P.adDescr      = description a
                                  , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
                      

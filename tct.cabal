@@ -44,7 +44,6 @@ Library
                     Tct.Processor.Args.Instances
                     Tct.Processor.PPrint
                     Tct.Processor.Transformations
-                    Tct.Processor.PartialProcessor
                     Tct.Processor.LoggingSolver
                     Tct.Proof
                     Tct.Encoding.ArgumentFiltering
@@ -60,6 +59,7 @@ Library
                     Tct.Method.PopStar
                     Tct.Method.EpoStar
                     Tct.Method.Combine
+                    Tct.Method.Relative
                     Tct.Method.Uncurry
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI

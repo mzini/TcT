@@ -43,28 +43,30 @@ import Tct.Processor.Parse
 data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: Domains (ArgumentsOf a) }
 
-class ComplexityProof (ProofOf a) => Processor a where
-    type ArgumentsOf a
-    type ProofOf a
-    name         :: a -> String
-    instanceName :: TheProcessor a -> String
+class ComplexityProof (ProofOf proc) => Processor proc where
+    type ArgumentsOf proc
+    type ProofOf proc
+    name         :: proc -> String
+    instanceName :: TheProcessor proc -> String
     instanceName = name . processor
-    description  :: a -> [String]
+    description  :: proc -> [String]
     description  = const []
-    arguments    :: a -> (ArgumentsOf a)
-    solve        :: P.SolverM m => TheProcessor a -> Problem -> m (ProofOf a)
+    arguments    :: proc -> (ArgumentsOf proc)
+    solve        :: P.SolverM m => TheProcessor proc -> Problem -> m (ProofOf proc)
+    solvePartial :: P.SolverM m => TheProcessor proc -> Problem -> m (P.PartialProof (ProofOf proc))
+    solvePartial _ prob = return $ P.PartialInapplicable prob
 
 
 data StdProcessor a = StdProcessor a deriving Show
 
 
-instance (Processor a, Arguments (ArgumentsOf a)) => P.Processor (StdProcessor a) where
-    type P.ProofOf (StdProcessor a)    = ProofOf a
-    data P.InstanceOf (StdProcessor a) = TP (TheProcessor a)
-    name (StdProcessor a)              = name a
-    instanceName (TP theproc)          = instanceName theproc
-    solve_ (TP theproc) prob           = solve theproc prob
-
+instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
+    type P.ProofOf (StdProcessor proc)    = ProofOf proc
+    data P.InstanceOf (StdProcessor proc) = TP (TheProcessor proc)
+    name (StdProcessor proc)              = name proc
+    instanceName (TP theproc)             = instanceName theproc
+    solve_ (TP theproc) prob              = solve theproc prob
+    solvePartial_ (TP theproc) prob       = solvePartial theproc prob
 
 theInstance :: P.InstanceOf (StdProcessor a) -> TheProcessor a
 theInstance (TP a) = a

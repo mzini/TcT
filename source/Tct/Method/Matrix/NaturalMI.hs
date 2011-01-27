@@ -59,7 +59,6 @@ import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Orderings
-import Tct.Processor.PartialProcessor
 import Tct.Processor.PPrint (indent)
 import Tct.Proof
 import qualified Tct.Processor as P
@@ -164,6 +163,7 @@ instance S.Processor NaturalMI where
     instanceName inst = "matrix-interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
+
     solve inst problem = case Prob.relation problem of
                            Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
                            Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
@@ -173,24 +173,22 @@ instance S.Processor NaturalMI where
               st    = Prob.startTerms problem
               strat = Prob.strategy problem
 
-instance PartialProcessor (S.StdProcessor NaturalMI) where
-  solvePartial inst' problem = case Prob.relation problem of
-                                Standard sr    -> do res <- orientPartial strat st sr sig' (S.processorArgs inst)
-                                                     case res of
-                                                       Order (MatrixOrder mi _ _) -> do let ppstr = strictRules mi sr
-                                                                                        return $ PartialProof problem res ppstr
-                                                       _                          -> return $ PartialProof problem res Trs.empty
-                                Relative sr wr -> do res <- orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
-                                                     case res of
-                                                       Order (MatrixOrder mi _ _) -> do let ppstr = strictRules mi sr
-                                                                                        return $ PartialProof problem res ppstr
-                                                       _                          -> return $ PartialProof problem res Trs.empty
-                                DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
+    solvePartial inst problem = case Prob.relation problem of
+                                   Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' (S.processorArgs inst)
+                                   Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+                                   DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
+                                                                             , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
+                                                                             , P.ppRemovable    = [] }
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
-            inst  = S.theInstance inst'
             strat = Prob.strategy problem
+            mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                         , P.ppResult       = res 
+                                                                         , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
+            mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
+                                                                         , P.ppResult       = res
+                                                                         , P.ppRemovable    = [] }
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI

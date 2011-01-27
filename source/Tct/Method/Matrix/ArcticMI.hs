@@ -59,7 +59,6 @@ import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
-import Tct.Processor.PartialProcessor
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
@@ -125,26 +124,25 @@ instance S.Processor ArcticMI where
         where sig   = Prob.signature problem
               st    = Prob.startTerms problem
               strat = Prob.strategy problem
-
-instance PartialProcessor (S.StdProcessor ArcticMI) where
-  solvePartial inst' problem | isMonadic problem sig = case Prob.relation problem of
-                                                        Standard sr    -> do res <- orientPartial strat st sr sig' inst
-                                                                             case res of
-                                                                               Order (ArcticOrder mi _) -> do let ppstr = strictRules mi sr
-                                                                                                              return $ PartialProof problem res ppstr
-                                                                               _                        -> return $ PartialProof problem res Trs.empty
-                                                        Relative sr wr -> do res <- orientPartialRelative strat st sr wr sig' inst
-                                                                             case res of
-                                                                               Order (ArcticOrder mi _) -> do let ppstr = strictRules mi sr
-                                                                                                              return $ PartialProof problem res ppstr
-                                                                               _                        -> return $ PartialProof problem res Trs.empty
-                                                        DP       _  _  -> return $ PartialProof problem (Inapplicable "Relative Rule Removal inapplicable for DP problems") Trs.empty
-                            | otherwise             = return $ PartialProof problem (Inapplicable "Arctic Interpretations only applicable for monadic problems") Trs.empty
+    solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
+                                                          Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' inst
+                                                          Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' inst
+                                                          DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
+                                                                                                    , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
+                                                                                                    , P.ppRemovable    = [] }
+                              | otherwise             = return $ P.PartialProof { P.ppInputProblem = problem
+                                                                                , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
+                                                                                , P.ppRemovable    = [] }
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
-            inst  = S.theInstance inst'
+            mkProof sr res@(Order (ArcticOrder mi _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                       , P.ppResult       = res 
+                                                                       , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
+            mkProof _  res                            = P.PartialProof { P.ppInputProblem = problem
+                                                                       , P.ppResult       = res
+                                                                       , P.ppRemovable    = [] }
 
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI

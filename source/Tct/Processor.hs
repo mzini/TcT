@@ -27,6 +27,7 @@ module Tct.Processor
     , Processor (..)
     , ParsableProcessor (..)
     , Proof (..)
+    , PartialProof (..)
     , SolverM (..)
     , SolverState (..)
     , StdSolverM
@@ -72,6 +73,8 @@ import Text.PrettyPrint.HughesPJ hiding (parens)
 
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$))
+import Termlib.Rule (Rule)
+import qualified Termlib.Trs as Trs
 import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse
 import qualified Tct.Proof as P
@@ -79,49 +82,49 @@ import qualified Tct.Proof as P
 
 data SatSolver = MiniSat FilePath
 
--- solver
+-- * The Solver Monad
 
 class MonadIO m => SolverM m where
     type St m
-    mkIO :: m a -> m (IO a)
-    runSolver :: St m -> m a -> IO a
+    runSolver    :: St m -> m a -> IO a
+    mkIO         :: m a -> m (IO a)
     minisatValue :: (Decoder e a) => MiniSat () -> e -> m (Maybe e)
-    solve :: (Processor a) => InstanceOf a -> Problem -> m (ProofOf a)
+    solve        :: (Processor proc) => InstanceOf proc -> Problem -> m (ProofOf proc)
+    solvePartial :: (Processor proc) => InstanceOf proc -> Problem -> m (PartialProof (ProofOf proc))
 -- TODO needs to be redone after qlogic-update, allow generic solvers
+
+-- ** Basic Solver Monad Implementation
+
+data SolverState = SolverState SatSolver
+newtype StdSolverM r = S {runS :: ReaderT SolverState IO r }
+    deriving (Monad, MonadIO, MonadReader SolverState)
+
+instance SolverM StdSolverM where 
+    type St StdSolverM = SolverState
+    mkIO m            = do s <- ask
+                           return $ runSolver s m
+    runSolver slver m = runReaderT (runS m) slver
+    minisatValue m e  = do SolverState slver <- ask
+                           r <- liftIO $ val slver
+                           case r of 
+                             Right v -> return $ Just v
+                             Left  _ -> return Nothing
+        where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
+    solve             = solve_
+    solvePartial      = solvePartial_
                                 
 -- processor
 
-class P.ComplexityProof (ProofOf a) => Processor a where
-    type ProofOf a                  
-    data InstanceOf a
-    name            :: a -> String
-    instanceName    :: (InstanceOf a) -> String
-    solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
-
+class P.ComplexityProof (ProofOf proc) => Processor proc where
+    name            :: proc -> String
+    instanceName    :: (InstanceOf proc) -> String
+    type ProofOf proc                  
+    data InstanceOf proc
+    solve_          :: SolverM m => InstanceOf proc -> Problem -> m (ProofOf proc)
+    solvePartial_   :: SolverM m => InstanceOf proc -> Problem -> m (PartialProof (ProofOf proc))
+    solvePartial_   _ prob = return $ PartialInapplicable prob
 
 type ProcessorParser a = CharParser (AnyProcessor SomeProcessor) a 
-
--- proof
-
-data Proof proc = Proof { appliedProcessor :: InstanceOf proc
-                        , inputProblem     :: Problem 
-                        , result           :: ProofOf proc}
-
-
-instance (Processor proc) => PrettyPrintable (Proof proc) where
-    pprint p@(Proof inst prob res) = ppheading $++$ ppres
-        where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
-              pphead    = quotes (text (instanceName inst))
-              ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
-              ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
-                          $+$ nest 2 (prettyPrintRelation prob)
-              ppanswer  = pt "Answer" <+> pprint (P.answer p)
-              underline = text (take (length $ show pphead) $ repeat '-')
-              pt s = wtext 17 $ s ++  ":"
-              wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
-
-instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
-    answer p = P.answer (result p)
 
 -- operations
 
@@ -200,8 +203,46 @@ parseProcessor a = parens parse Parsec.<|> parse
 fromString :: AnyProcessor SomeProcessor -> String -> Either ParseError (InstanceOf (AnyProcessor SomeProcessor))
 fromString p s = Parse.fromString (parseProcessor p) p "supplied strategy" s
 
+-- * proof
 
--- someprocessor, anyprocessor
+data Proof proc = Proof { appliedProcessor :: InstanceOf proc
+                        , inputProblem     :: Problem 
+                        , result           :: ProofOf proc}
+
+
+instance (Processor proc) => PrettyPrintable (Proof proc) where
+    pprint p@(Proof inst prob res) = ppheading $++$ ppres
+        where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
+              pphead    = quotes (text (instanceName inst))
+              ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
+              ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
+                          $+$ nest 2 (prettyPrintRelation prob)
+              ppanswer  = pt "Answer" <+> pprint (P.answer p)
+              underline = text (take (length $ show pphead) $ repeat '-')
+              pt s = wtext 17 $ s ++  ":"
+              wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
+
+instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
+    answer p = P.answer (result p)
+
+data PartialProof proof = PartialProof { ppInputProblem     :: Problem
+                                       , ppResult           :: proof
+                                       , ppRemovable        :: [Rule]
+                                       }
+                        | PartialInapplicable { ppInputProblem :: Problem }
+
+instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
+  pprint p = text "The following rules were strictly oriented by the relative processor:"
+             $+$ pprint (Trs.fromRules (ppRemovable p), signature $ ip, variables $ ip)
+             $+$ text ""
+             $+$ pprint (ppResult p)
+      where ip = ppInputProblem p
+
+instance (P.Answerable proof) => P.Answerable (PartialProof proof) where
+    answer = P.answer . ppResult
+
+
+-- * Someprocessor
 
 data SomeProcessor = forall p. (ParsableProcessor p) => SomeProcessor p 
 data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
@@ -217,9 +258,12 @@ instance Typeable (InstanceOf SomeProcessor) where
 instance Processor SomeProcessor where
     type ProofOf    SomeProcessor = SomeProof
     data InstanceOf SomeProcessor = SPI SomeInstance
-    name (SomeProcessor proc)                = name proc
-    instanceName (SPI (SomeInstance inst))   = instanceName inst
-    solve_ (SPI (SomeInstance inst)) prob    = SomeProof `liftM` solve_ inst prob
+    name (SomeProcessor proc)                    = name proc
+    instanceName (SPI (SomeInstance inst))       = instanceName inst
+    solve_ (SPI (SomeInstance inst)) prob        = SomeProof `liftM` solve_ inst prob
+    solvePartial_ (SPI (SomeInstance inst)) prob = do pp <- solvePartial_ inst prob
+                                                      return $ modify pp
+        where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance ParsableProcessor SomeProcessor where
     description     (SomeProcessor proc) = description proc
@@ -262,10 +306,8 @@ solveBy :: (Processor a, SolverM m) => Problem -> InstanceOf a -> m SomeProof
 prob `solveBy` proc = someProof `liftM` solve proc prob
 
 
-
--- anyInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
--- anyInstance inst = SPI (SomeInstance inst)
-
+-- * Any Processor
+-- AnyProcessor a implements a choice of Processors of type a
 data AnyProcessor a = OO String [a]
 
 instance Processor a => Processor (AnyProcessor a) where
@@ -274,6 +316,9 @@ instance Processor a => Processor (AnyProcessor a) where
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
+    solvePartial_ (OOI inst) prob  = do pp <- solvePartial_ inst prob
+                                        return $ modify pp
+        where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance Typeable (InstanceOf (AnyProcessor a)) where 
     typeOf (OOI _) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
@@ -307,25 +352,4 @@ parseAnyProcessor = do a <- getState
                        parseProcessor a
 
 
--- basic solver monad
-
-data SolverState = SolverState SatSolver
-newtype StdSolverM r = S {runS :: ReaderT SolverState IO r }
-    deriving (Monad, MonadIO, MonadReader SolverState)
-
-instance SolverM StdSolverM where 
-    type St StdSolverM = SolverState
-    mkIO m = do s <- ask
-                return $ runSolver s m
-
-    runSolver slver m = runReaderT (runS m) slver
-
-    minisatValue m e =  do SolverState slver <- ask
-                           r <- liftIO $ val slver
-                           case r of 
-                             Right v -> return $ Just v
-                             Left  _ -> return Nothing
-        where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
-
-    solve = solve_
 

@@ -73,6 +73,7 @@ instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
     answer = T.answerTProof answer' 
         where answer' (NotUncurryable _) _        = MaybeAnswer
               answer' _                  [(_,ps)] = answer ps
+              answer' _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
 
 instance P.Processor sub => PrettyPrintable (T.TProof Uncurry sub) where
     pprint = prettyPrintTProof
@@ -102,7 +103,7 @@ instance T.Transformer Uncurry where
                                                                   , newSignature = sig}
                                                  ((ucTrs,uncurried), sig) = runSignature (mkUncurry asig (etaSaturate asig trs)) $ F.emptySignature
                                                  prob' = prob{relation=Standard (uncurried `Trs.union` ucTrs), signature=sig}
-
+                   _               ->  T.Failure $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
 
 uncurryProcessor :: TransformationProcessor Uncurry
 uncurryProcessor = transformationProcessor Uncurry

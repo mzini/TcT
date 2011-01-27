@@ -168,3 +168,5 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                                                   let inst = (someInstance proc)
                                                       msg = LoggingMsg uid sig lv (cpuTime, localtime) pid inst prob
                                                   writeChan chan $ Just $ msg
+    -- MA:TODO provide logging
+    solvePartial = solvePartial_

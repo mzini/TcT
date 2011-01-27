@@ -411,7 +411,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
               vars    = newVariables tp
               simple  = containsNoEdgesEmptyUrs tp
 
-              ppTrans = ppDPs $+$ text "" $+$ ppDG -- $+$ text "" $+$ ppUargs
+              ppTrans = ppDPs $+$ text "" $+$ ppDG
                   where ppDPs = text "We have computed the following set of weak (innermost) dependency pairs:"
                                 $+$ text ""
                                 $+$ (indent $ pprintTrs pprule [ (n, fromJust (Graph.lab ewdg n)) | n <- Graph.nodes ewdg])

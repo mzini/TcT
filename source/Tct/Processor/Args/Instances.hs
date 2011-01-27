@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
@@ -154,16 +155,31 @@ optional tpe nm def = tpe { name = nm
                           , isOptional_ = True}
 
 
+-- class Typeable a => Foo a where
+--     foo :: a -> String
 
--- type instance CoDomain Nat = Nat
+-- class Foo a => Bar a where
+--     bar :: a -> Int
 
--- class Parsable a where
---     syn   :: a -> String
---     parse :: P.ProcessorParser a
+-- instance Foo Bool where
+--     foo = show
 
--- instance (ParsableArgument (CoDomain a), Domain (CoDomain a) ~ a) => Parsable a where
---     parse = parseArg (Phantom :: Phantom (CoDomain a))
---     syn   = const $ domainName (Phantom :: Phantom (CoDomain a))
+-- instance Foo Int where
+--     foo = show
 
--- foo :: P.ProcessorParser Nat
--- foo = parse 
+-- instance Bar Int where
+--     bar x = x + 1
+
+-- data Somefoo = forall a. Foo a => Somefoo a
+
+-- instance Show Somefoo where
+--     show (Somefoo a) = foo a 
+
+
+-- fromFoo :: Foo a => Somefoo -> Maybe a
+-- fromFoo (Somefoo a) = cast a
+
+-- baz :: (Foo a) => (a -> b) -> Somefoo -> Maybe b
+-- baz f sf = case fromFoo sf of 
+--             Just a  -> Just (f a)
+--             Nothing -> Nothing

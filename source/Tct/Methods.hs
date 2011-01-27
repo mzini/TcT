@@ -167,3 +167,5 @@ a `orBetter` b = best [P.someInstance a, P.someInstance b]
 before :: (P.Processor a, P.Processor b) => 
            P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
+
+

@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,12 +17,10 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE Rank2Types #-}
 
 module Tct.Processor
     ( SatSolver (..)
@@ -94,7 +93,7 @@ class MonadIO m => SolverM m where
 
 class P.ComplexityProof (ProofOf a) => Processor a where
     type ProofOf a                  
-    data InstanceOf a 
+    data InstanceOf a
     name            :: a -> String
     instanceName    :: (InstanceOf a) -> String
     solve_          :: SolverM m => InstanceOf a -> Problem -> m (ProofOf a)
@@ -264,7 +263,7 @@ prob `solveBy` proc = someProof `liftM` solve proc prob
 
 
 
--- anyInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> SomeInstance
+-- anyInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 -- anyInstance inst = SPI (SomeInstance inst)
 
 data AnyProcessor a = OO String [a]
@@ -309,6 +308,7 @@ parseAnyProcessor = do a <- getState
 
 
 -- basic solver monad
+
 data SolverState = SolverState SatSolver
 newtype StdSolverM r = S {runS :: ReaderT SolverState IO r }
     deriving (Monad, MonadIO, MonadReader SolverState)

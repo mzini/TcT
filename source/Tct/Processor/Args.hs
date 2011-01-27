@@ -48,8 +48,6 @@ class Argument a where
 class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
 
-type family CoDomain a
-
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
 instance Show SomeDomainElt where show (SomeDomainElt e) = show e
 type ParsedOptionals = Map.Map String SomeDomainElt

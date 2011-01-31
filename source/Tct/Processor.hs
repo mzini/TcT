@@ -51,7 +51,7 @@ module Tct.Processor
     , none
 --    , anyOf
     , (<|>)
-    , processors
+    , toProcessorList
     , parseAnyProcessor
     -- * Machine Readable Description of Processors
     , SynElt (..)
@@ -348,8 +348,8 @@ p <|> OO s l = OO s $ someProcessor p : l
 none :: AnyOf a
 none = OO "any processor" []
 
-processors :: AnyOf p -> [p]
-processors (OO _ l) = l
+toProcessorList :: AnyOf p -> [p]
+toProcessorList (OO _ l) = l
 
 parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = do a <- getState

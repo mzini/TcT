@@ -54,7 +54,7 @@ import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
 import qualified Tct.Methods as Methods
 
-data Config = Config { parsableProcessor :: AnyProcessor
+data Config = Config { processors        :: AnyProcessor
                      , process           :: InstanceOf SomeProcessor -> Problem -> TCT (Proof SomeProcessor)
                      , defaultProcessor  :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)
@@ -108,7 +108,7 @@ getStrategyString = do mstr <- askFlag strategy
 
 -- TODO are those fields in the config really interesting, what are interesting fields?
 defaultConfig :: Config
-defaultConfig = Config { parsableProcessor = parsableProcessor_ 
+defaultConfig = Config { processors       = processors_ 
                        , process          = process_
                        , defaultProcessor = defaultProcessor_
                        , getProcessor     = getProcessor_
@@ -122,7 +122,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
                        , version          = Version.version
                        }
 
-    where parsableProcessor_ = Methods.defaultProcessor
+    where processors_         = Methods.defaultProcessor
 
           process_ proc prob  = do gs <- askConfig getSolver
                                    slver <- gs
@@ -179,7 +179,7 @@ defaultConfig = Config { parsableProcessor = parsableProcessor_
 
 
           defaultProcessor_  = error "defaultProcessor not specified yet!"
-          getProcessor_ prob = do anyproc <- askConfig parsableProcessor
+          getProcessor_ prob = do anyproc <- askConfig processors
                                   to <- askFlag time
                                   str <- getStrategyString
                                   proc <- case str of 

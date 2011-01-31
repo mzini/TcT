@@ -44,7 +44,7 @@ import Termlib.Utils (PrettyPrintable (..))
 
 import Tct (Config (..), defaultConfig, run, TCTError)
 import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Processor (Processor (..), ParsableProcessor (..), processors, name)
+import Tct.Processor (Processor (..), ParsableProcessor (..), toProcessorList, name)
 import qualified Tct.Main.Version as V
 
 
@@ -61,10 +61,10 @@ runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolea
                 | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
                                                              p1 `ord` p2 = name p1 `compare` name p2
                                                              procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
-                                                                       Just reg -> [ proc | proc <- processors (parsableProcessor cfg)
+                                                                       Just reg -> [ proc | proc <- toProcessorList (processors cfg)
                                                                                           , matches reg (name proc) 
                                                                                                         || matches reg (unlines (description proc))]
-                                                                       Nothing  -> processors (parsableProcessor cfg)
+                                                                       Nothing  -> toProcessorList (processors cfg)
                                                          putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
                 | otherwise        = do (r,warns) <- liftIO $ run flgs cfg
                                         putWarnMsg [show $ pprint warn | warn <- warns]

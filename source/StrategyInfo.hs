@@ -39,7 +39,7 @@ descriptionOf p = Description { name                = P.name p
 
 runStrategyInfo :: Config -> IO ()
 runStrategyInfo cfg = putStrLn $ show $ vcat [ pp $ descriptionOf proc | proc <- procs ]
-    where procs = P.processors (parsableProcessor cfg)
+    where procs = P.toProcessorList (processors cfg)
           pp d = text "Strategy" 
                  <+> (braces $ vcat [ ppattrib "name" (text $ name d)
                                     , ppattrib "description" (text (show $ description d))

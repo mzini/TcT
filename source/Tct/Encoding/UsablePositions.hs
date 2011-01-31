@@ -93,7 +93,7 @@ isBlockedProperSubtermOf up s t = any (isBlockedProperSubtermOf up s . snd) uSub
                              Right f' -> f'
 
 instance PrettyPrintable (UsablePositions, Signature) where 
-  pprint (up, sig) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ symbols sig]
+  pprint (up, sig) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ Set.filter (\sym -> arity sig sym > 0) $ symbols sig]
     where pp sym = text "Uargs" <> parens (pprint (sym, sig)) <+> text "=" 
                    <+> (braces . fsep . punctuate (text ",") $ [ text $ show i | i <- usablePositions sym up])
 

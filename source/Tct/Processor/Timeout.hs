@@ -34,7 +34,6 @@ import Text.Parsec.Prim
 
 import qualified Tct.Processor.Parse as PP
 import Tct.Processor.Args 
-import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args.Instances
 import Tct.Processor hiding (Proof, (<|>))
 import Tct.Proof
@@ -47,7 +46,7 @@ timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (Timeout p)
 timeout i proc = TOInstance (i * (10^(6 :: Int))) proc
 
 
-timeoutProcessor :: Timeout (AnyProcessor SomeProcessor)
+timeoutProcessor :: Timeout AnyProcessor
 timeoutProcessor = Timeout
 
 toSeconds :: Int -> Double
@@ -69,7 +68,7 @@ instance Processor p => Processor (Timeout p) where
                       Nothing -> TimedOut t
 --    fromInstance (TOInstance i proc _) = Timeout i proc
     
-instance ParsableProcessor (Timeout (AnyProcessor SomeProcessor)) where
+instance ParsableProcessor (Timeout AnyProcessor) where
     description Timeout              = ["The processor either returns the result of the given processor"
                                        , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     synString       Timeout = [ Token "[", PosArg 1, Token "]", PosArg 2]
@@ -83,7 +82,7 @@ instance ParsableProcessor (Timeout (AnyProcessor SomeProcessor)) where
                                              , adName       = "processor"
                                              , adDefault    = Nothing
                                              , adDescr      = "The applied processor"
-                                             , adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (AnyProcessor SomeProcessor)))})
+                                             , adSynopsis   = domainName (Phantom :: Phantom (Proc AnyProcessor))})
                               ]
     parseProcessor_ Timeout = do to <- parseTimeout
                                  i <- parseAnyProcessor

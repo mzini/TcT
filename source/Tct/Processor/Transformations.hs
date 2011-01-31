@@ -48,7 +48,7 @@ import qualified Tct.Processor.Standard as S
 
 import Tct.Processor.PPrint
 import qualified Tct.Processor.Args as A
-import qualified Tct.Processor.Args.Instances ()
+import Tct.Processor.Args.Instances
 import Tct.Processor.Args hiding (name, description, synopsis)
 
 
@@ -114,7 +114,7 @@ instance ( Transformer t
          , ComplexityProof (TProof t sub)) 
     => S.Processor (Trans t sub) where
     type S.ProofOf (Trans t sub) = TProof t sub
-    type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (S.StdProcessor sub)
+    type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     name (Trans t)      = name t
     arguments (Trans t) = opt { A.name = "strict"
                                        , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
@@ -139,11 +139,12 @@ instance ( Transformer t
               strict :+: par :+: args :+: sub = S.processorArgs inst
 
 
-transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Trans t (P.AnyProcessor P.SomeProcessor))
-transformationProcessor t = S.StdProcessor (Trans t)
 
-type TransformationProcessor t = S.StdProcessor (Trans t (P.AnyProcessor P.SomeProcessor))
+type TransformationProcessor t = S.StdProcessor (Trans t P.AnyProcessor)
 type Transformation t sub = P.InstanceOf (S.StdProcessor (Trans t sub))
+
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t
+transformationProcessor t = S.StdProcessor (Trans t)
 
 calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 
               t

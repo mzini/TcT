@@ -33,7 +33,7 @@ import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import Tct.Processor.Args hiding (name, description, synopsis)
 import qualified Tct.Processor.Args as A
-import Tct.Processor.Args.Instances()
+import Tct.Processor.Args.Instances
 
 -- Proof Objects
 
@@ -62,7 +62,7 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
   name RelativeProcessor = "relative"
   description _ = ["TODO"] 
   type S.ProofOf (RelativeProcessor p sub) = RelativeProof p sub
-  type S.ArgumentsOf (RelativeProcessor p sub) = Arg (S.StdProcessor p) :+: Arg (S.StdProcessor sub)
+  type S.ArgumentsOf (RelativeProcessor p sub) = Arg (Proc p) :+: Arg (Proc sub)
   arguments _ = arg { A.name = "relativeprocessor"
                     , A.description = "The processor that is used to \"remove\" rules" }
                 :+: arg { A.name = "subprocessor"
@@ -103,5 +103,5 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
 relative :: (P.Processor sub, P.Processor relproc) => P.InstanceOf relproc -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (RelativeProcessor relproc sub))
 relative rel sub = RelativeProcessor `S.withArgs` (rel :+: sub)
 
-relativeProcessor :: S.StdProcessor (RelativeProcessor (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor))
+relativeProcessor :: S.StdProcessor (RelativeProcessor P.AnyProcessor P.AnyProcessor)
 relativeProcessor = S.StdProcessor RelativeProcessor

@@ -35,12 +35,12 @@ import Tct.Processor.Parse hiding (natural, bool)
 import qualified Tct.Processor.Parse as Parse
 import Tct.Processor.Args
 import qualified Tct.Processor as P
-import qualified Tct.Processor.Standard as S
+
 import qualified Data.List as L
+
+
 -- * Primitives
 newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Show, Num, Enum)
-
-
 nat :: Int -> Nat
 nat i | i < 0 = error "nat received negative integer"
       | otherwise = Nat i
@@ -63,16 +63,14 @@ instance Argument Bool where
 instance ParsableArgument Bool where
     parseArg Phantom = Parse.bool
 
+data Proc a = Proc a
 
--- * Processors
-
--- MA:TODO: nicer
-instance (P.Processor a) => Argument (S.StdProcessor a) where
-    type Domain (S.StdProcessor a) = P.InstanceOf a
+instance (P.Processor a) => Argument (Proc a) where
+    type Domain (Proc a) = P.InstanceOf a
     domainName _ = "<processor>"
     showArg _ a    = "<processor " ++ P.instanceName a ++ ">"
 
-instance ParsableArgument (S.StdProcessor (P.AnyProcessor P.SomeProcessor)) where
+instance ParsableArgument (Proc P.AnyProcessor) where
     parseArg Phantom = P.parseAnyProcessor
 
 -- * Compound
@@ -133,18 +131,14 @@ instance (Show a, AssocArg a) => ParsableArgument (Assoc a) where
 
 -- argument types
 
-type NaturalArg = Arg Nat
 
-natural :: NaturalArg
+natural :: Arg Nat
 natural = arg
 
-type BoolArg = Arg Bool
-bool :: BoolArg
+bool :: Arg Bool
 bool = arg
 
-type ProcessorArg = Arg (S.StdProcessor (P.AnyProcessor P.SomeProcessor))
-
-processor :: ProcessorArg
+processor :: Arg P.AnyProcessor
 processor = arg
 
 type EnumArg a = Arg (EnumOf a)
@@ -154,32 +148,3 @@ optional tpe nm def = tpe { name = nm
                           , defaultValue = def
                           , isOptional_ = True}
 
-
--- class Typeable a => Foo a where
---     foo :: a -> String
-
--- class Foo a => Bar a where
---     bar :: a -> Int
-
--- instance Foo Bool where
---     foo = show
-
--- instance Foo Int where
---     foo = show
-
--- instance Bar Int where
---     bar x = x + 1
-
--- data Somefoo = forall a. Foo a => Somefoo a
-
--- instance Show Somefoo where
---     show (Somefoo a) = foo a 
-
-
--- fromFoo :: Foo a => Somefoo -> Maybe a
--- fromFoo (Somefoo a) = cast a
-
--- baz :: (Foo a) => (a -> b) -> Somefoo -> Maybe b
--- baz f sf = case fromFoo sf of 
---             Just a  -> Just (f a)
---             Nothing -> Nothing

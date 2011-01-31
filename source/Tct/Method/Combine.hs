@@ -86,8 +86,8 @@ instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
               ub (p':ps') = foldl add p' ps'
               allcerts = all (succeeded . answer) $ ps
 
-instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.StdProcessor p)]) => S.Processor (Combine p) where
-    type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [S.StdProcessor p]
+instance (P.Processor p, [P.InstanceOf p] ~ Domain [Proc p]) => S.Processor (Combine p) where
+    type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [Proc p]
     type S.ProofOf (Combine p)     = CombineProof p
 
     name Combine        = "combine"
@@ -108,7 +108,8 @@ instance (P.Processor p, [P.InstanceOf p] ~ Domain [(S.StdProcessor p)]) => S.Pr
     solve inst prob = CombineProof split `liftM` (forM assigned $ \ (proc,prob') -> P.apply proc prob') -- TODO sequentially ! 
         where split :+: insts = S.processorArgs inst
               assigned = assign split insts prob
-combineProcessor :: S.StdProcessor (Combine (P.AnyProcessor P.SomeProcessor))
+
+combineProcessor :: S.StdProcessor (Combine P.AnyProcessor)
 combineProcessor = S.StdProcessor Combine
 
 

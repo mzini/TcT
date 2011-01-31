@@ -54,7 +54,7 @@ import qualified Tct.Main.Version as Version
 import Tct.Processor.Timeout (timeout)
 import qualified Tct.Methods as Methods
 
-data Config = Config { parsableProcessor :: AnyProcessor SomeProcessor
+data Config = Config { parsableProcessor :: AnyProcessor
                      , process           :: InstanceOf SomeProcessor -> Problem -> TCT (Proof SomeProcessor)
                      , defaultProcessor  :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)

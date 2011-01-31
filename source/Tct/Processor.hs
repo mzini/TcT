@@ -124,7 +124,7 @@ class P.ComplexityProof (ProofOf proc) => Processor proc where
     solvePartial_   :: SolverM m => InstanceOf proc -> Problem -> m (PartialProof (ProofOf proc))
     solvePartial_   _ prob = return $ PartialInapplicable prob
 
-type ProcessorParser a = CharParser (AnyProcessor SomeProcessor) a 
+type ProcessorParser a = CharParser AnyProcessor a 
 
 -- operations
 
@@ -200,7 +200,7 @@ parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse Parsec.<|> parse
     where parse = parseProcessor_ a
 
-fromString :: AnyProcessor SomeProcessor -> String -> Either ParseError (InstanceOf (AnyProcessor SomeProcessor))
+fromString :: AnyProcessor -> String -> Either ParseError (InstanceOf AnyProcessor)
 fromString p s = Parse.fromString (parseProcessor p) p "supplied strategy" s
 
 -- * proof
@@ -308,11 +308,12 @@ prob `solveBy` proc = someProof `liftM` solve proc prob
 
 -- * Any Processor
 -- AnyProcessor a implements a choice of Processors of type a
-data AnyProcessor a = OO String [a]
+data AnyOf a = OO String [a]
+type AnyProcessor = AnyOf SomeProcessor
 
-instance Processor a => Processor (AnyProcessor a) where
-    type ProofOf (AnyProcessor a)    = SomeProof
-    data InstanceOf (AnyProcessor a) = OOI (InstanceOf a)
+instance Processor a => Processor (AnyOf a) where
+    type ProofOf (AnyOf a)    = SomeProof
+    data InstanceOf (AnyOf a) = OOI (InstanceOf a)
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
@@ -320,10 +321,10 @@ instance Processor a => Processor (AnyProcessor a) where
                                         return $ modify pp
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
-instance Typeable (InstanceOf (AnyProcessor a)) where 
+instance Typeable (InstanceOf (AnyOf a)) where 
     typeOf (OOI _) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
 
-instance ParsableProcessor a => ParsableProcessor (AnyProcessor a) where
+instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
     description _             = []
     synString _               = []
     optArgs _                 = []
@@ -331,23 +332,23 @@ instance ParsableProcessor a => ParsableProcessor (AnyProcessor a) where
     parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
-instance Show (AnyProcessor p) where
-    show _ = "AnyProcessor"
-instance Show (InstanceOf (AnyProcessor p)) where
-    show _ = "InstanceOf AnyProcessor"
+instance Show (AnyOf p) where
+    show _ = "AnyOf"
+instance Show (InstanceOf (AnyOf p)) where
+    show _ = "InstanceOf AnyOf"
 
 infixr 5 <|>
-(<|>) :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor SomeProcessor -> AnyProcessor SomeProcessor
+(<|>) :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
 p <|> OO s l = OO s $ someProcessor p : l
 
 
-none :: AnyProcessor a
+none :: AnyOf a
 none = OO "any processor" []
 
-processors :: AnyProcessor p -> [p]
+processors :: AnyOf p -> [p]
 processors (OO _ l) = l
 
-parseAnyProcessor :: ProcessorParser (InstanceOf (AnyProcessor SomeProcessor))
+parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = do a <- getState
                        parseProcessor a
 

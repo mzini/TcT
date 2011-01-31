@@ -54,7 +54,7 @@ import qualified Tct.Processor.Standard as S
 import Tct.Proof
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
-import Tct.Processor.Args.Instances ()
+import Tct.Processor.Args.Instances
 import Tct.Processor.Parse
 
 -- failure and success
@@ -148,7 +148,7 @@ instance ( P.Processor g
                                          return $ IteProof { guardProof  = gproof
                                                            , branchProof = d bproof }
 
-instance P.ParsableProcessor (Ite (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor)) where
+instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) where
     description     Ite = ["This processor implements conditional branching."]
     synString       Ite = [ P.Token "if", P.PosArg 1, P.Token "then", P.PosArg 2, P.Token "else", P.PosArg 3]
     optArgs         Ite = []
@@ -156,17 +156,17 @@ instance P.ParsableProcessor (Ite (P.AnyProcessor P.SomeProcessor) (P.AnyProcess
                                            , P.adName       = "guard-processor"
                                            , P.adDefault    = Nothing
                                            , P.adDescr      = "The guard of the condition"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})            
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))})            
                           , (2, P.ArgDescr { P.adIsOptional = False
                                            , P.adName       = "then-processor"
                                            , P.adDefault    = Nothing
                                            , P.adDescr      = "The processor that is executed when the guard succeeds"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})             
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))})             
                           , (3, P.ArgDescr { P.adIsOptional = False
                                            , P.adName       = "else-processor"
                                            , P.adDefault    = Nothing
                                            , P.adDescr      = "The processor that is executed when the guard fails"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))}) ]
+                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))}) ]
     parseProcessor_ Ite = do let pb s = try (string s) >> whiteSpace >> P.parseAnyProcessor
                              ginst <- pb "if"
                              whiteSpace
@@ -179,7 +179,7 @@ instance P.ParsableProcessor (Ite (P.AnyProcessor P.SomeProcessor) (P.AnyProcess
 ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
 ite = IteInstance
 
-iteProcessor :: Ite (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor)
+iteProcessor :: Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor
 iteProcessor = Ite
 
 
@@ -207,7 +207,7 @@ instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
                                                           descr Best         = procName p <+> text "proved the best result:"
 
 instance (P.Processor p) => S.Processor (OneOf p) where
-    type S.ArgumentsOf (OneOf p) = Arg [S.StdProcessor p]
+    type S.ArgumentsOf (OneOf p) = Arg [Proc p]
     type S.ProofOf (OneOf p)     = OneOfProof p
 
     name Fastest      = "fastest"
@@ -260,13 +260,13 @@ instance (P.Processor p) => S.Processor (OneOf p) where
 
 
 
-bestProcessor :: S.StdProcessor (OneOf (P.AnyProcessor P.SomeProcessor))
+bestProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 bestProcessor = S.StdProcessor Best
 
-fastestProcessor :: S.StdProcessor (OneOf (P.AnyProcessor P.SomeProcessor))
+fastestProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 fastestProcessor = S.StdProcessor Fastest
 
-sequentiallyProcessor :: S.StdProcessor (OneOf (P.AnyProcessor P.SomeProcessor))
+sequentiallyProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.StdProcessor Sequentially
 
 best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))

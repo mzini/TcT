@@ -79,9 +79,7 @@ module Tct.Methods
     , Unit
     , (:+:)(..)
     , EnumArg
-    , NaturalArg
-    , BoolArg
-    , ProcessorArg
+    , Proc
     , Approximation(..)
     , natural
     , bool
@@ -124,9 +122,9 @@ import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 
 import Tct.Processor.Timeout
-import Tct.Processor (none, (<|>), AnyProcessor, SomeProcessor)
+import Tct.Processor (none, (<|>), AnyProcessor)
 
-defaultProcessor :: AnyProcessor SomeProcessor
+defaultProcessor :: AnyProcessor
 defaultProcessor = timeoutProcessor
                    <|> failProcessor 
                    <|> successProcessor

@@ -138,7 +138,7 @@ natural = arg
 bool :: Arg Bool
 bool = arg
 
-processor :: Arg P.AnyProcessor
+processor :: Arg (Proc P.AnyProcessor)
 processor = arg
 
 type EnumArg a = Arg (EnumOf a)

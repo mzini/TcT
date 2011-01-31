@@ -154,7 +154,7 @@ memoized f a = do ls <- State.get
 newtype ArgumentPermutation = AP (Map Symbol [Int])
 
 instance PrettyPrintable (ArgumentPermutation,Sig) where 
-  pprint (AP m, sign) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ defineds sign]
+  pprint (AP m, sign) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ defSyms sign]
     where pp sym = text "mu" <> parens (pprint (sym, sig sign)) <+> text "=" 
                    <+> (brackets . fsep . punctuate (text ",") $ [ text $ show i | i <- find sym m])
 
@@ -203,8 +203,8 @@ instance S.Processor EpoStar where
                                                                                                          case r of 
                                                                                                            Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
                                                                                                            Nothing               -> return Incompatible
-                                                                           where sign = Sig { defineds = ds
-                                                                                            , constructors = cs
+                                                                           where sign = Sig { defSyms = ds
+                                                                                            , constrSyms = cs
                                                                                             , sig = Prob.signature prob
                                                                                             , vars = Prob.variables prob}
                                                                                  ec   = S.processorArgs inst
@@ -233,31 +233,31 @@ data SafeMappingDecoder = SMDecode (Map Symbol (Relation Int ())) Sig
 type MuMapping   = Symbol -> (Relation Int Int)
 data MuMappingDecoder = MuDecode (Map Symbol (Relation Int Int))
 
-data Sig = Sig { defineds     :: Set Symbol
-               , constructors :: Set Symbol
+data Sig = Sig { defSyms      :: Set Symbol
+               , constrSyms    :: Set Symbol
                , vars         :: Variables
                , sig          :: Signature} deriving Show
                                
 isDefined :: Sig -> Symbol -> Bool
-isDefined sign f = Set.member f $ defineds sign
+isDefined sign f = Set.member f $ defSyms sign
 
 isConstructor :: Sig -> Symbol -> Bool
-isConstructor sign f = Set.member f $ constructors sign
+isConstructor sign f = Set.member f $ constrSyms sign
 
 isConstructorTerm :: Sig -> Term -> Bool
-isConstructorTerm sign t = functionSymbols t `Set.isSubsetOf` constructors sign
+isConstructorTerm sign t = functionSymbols t `Set.isSubsetOf` constrSyms sign
 
 ar :: Sig -> Symbol -> Int
 ar sign f = arity (sig sign) f
 
 symbols :: Sig -> [Symbol]
-symbols sign = Set.toList (defineds sign) ++ Set.toList (constructors sign)
+symbols sign = Set.toList (defSyms sign) ++ Set.toList (constrSyms sign)
 
 
 precedence :: Sig -> EpoSAT (Precedence, PrecedenceDecoder) 
 precedence sign = do top <- constant True
                      bot <- constant False
-                     let fs = Set.toList $ defineds sign
+                     let fs = Set.toList $ defSyms sign
                          pairs = [(f,g) | f <- fs, g <- fs]
                          bits = ceiling $ (log $ fromIntegral $ length fs :: Double)
                      lvs <- foldM (\ m f -> number bits >>= \ n -> return $ Map.insert f n m) Map.empty fs
@@ -291,7 +291,7 @@ instance Decode PrecedenceDecoder Prec.Precedence where
                                   return $ [ ord | (ord,setp) <- [(f :>: g,gtp), (f :~: g,eqp)], setp] ++ l
 
 safeMapping :: Sig -> EpoSAT (SafeMapping, SafeMappingDecoder) 
-safeMapping sign = do m <- foldM mk Map.empty (Set.toList $ defineds sign)
+safeMapping sign = do m <- foldM mk Map.empty (Set.toList $ defSyms sign)
                       top <- constant True
                       return $ (\ f i -> if isConstructor sign f 
                                          then top
@@ -303,7 +303,7 @@ safeMapping sign = do m <- foldM mk Map.empty (Set.toList $ defineds sign)
 
 instance Decode SafeMappingDecoder SM.SafeMapping where
     decode (SMDecode m sign)  = foldM mk initial (Map.toList m)
-        where initial = SM.empty (sig sign) (constructors sign)
+        where initial = SM.empty (sig sign) (constrSyms sign)
               mk sm (f, b) = do sps <- safes `liftM` decode b
                                 return $ SM.setSafes f sps sm
               safes rel = [ i | ((i,()), isSafe) <- A.assocs rel, isSafe]
@@ -411,4 +411,4 @@ orientTrs sign b (Trs rs) = Minisat.solve (run constraint)
                                              | f <- defs, g <- defs
                                            , ar sign f == ar sign g -- f ~ g implies ar(f) = ar(g)
                                            ] 
-              where defs = Set.toList $ defineds sign
+              where defs = Set.toList $ defSyms sign

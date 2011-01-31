@@ -36,7 +36,7 @@ import Tct.Proof
 import Termlib.Problem (Problem)
 
 data CPConfig arg res = CPConfig { as  :: String
-                                 , description :: [String]
+                                 , documentation :: [String]
                                  , args :: arg
                                  , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res}
 
@@ -47,7 +47,7 @@ instance (ComplexityProof res) => S.Processor (CPConfig arg res) where
   type S.ProofOf (CPConfig arg res)     = res
   type S.ArgumentsOf (CPConfig arg res) = arg
   name        = as
-  description = description
+  description = documentation
   arguments   = args
   solve inst prob = (code p) ags prob
       where p = S.processor inst
@@ -60,7 +60,7 @@ custom :: (CPConfig arg p)
 custom = CPConfig { as = "unknown"
                   , code = error "code must be specified when adding custom processor"
                   , args = error "args must be specified when adding custom processor"
-                  , description = [] }
+                  , documentation = [] }
 
 type CustomProcessor arg p = S.StdProcessor (CPConfig arg p)
 

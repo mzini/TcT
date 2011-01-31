@@ -189,13 +189,16 @@ mrSynopsis p = unwords $ map f (synString p)
           f (OptArgs)  = "#OPTIONALARGS"
 
 synopsis :: ParsableProcessor a => a -> String
-synopsis p = unwords $ map f (synString p)
+synopsis p = unwords $ deleteAll "" $ map f (synString p)
     where f (Token str) = str
           f (PosArg i) = case lookup i (posArgs p) of 
                            Just d  -> adSynopsis d
                            Nothing -> "<unspecified>"
           f (OptArgs)  = unwords [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- optArgs p]
-          
+          deleteAll _ [] = []
+          deleteAll x (y:ys) | x == y    = deleteAll x ys
+                             | otherwise = y : deleteAll x ys
+
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a = parens parse Parsec.<|> parse
     where parse = parseProcessor_ a

@@ -75,7 +75,7 @@ module Tct.Methods
     , before
 
     -- ** Argument Types
-    , Arg
+    , Arg (..)
     , Unit
     , (:+:)(..)
     , EnumArg
@@ -85,12 +85,15 @@ module Tct.Methods
     , bool
     , processor
     , optional
+    , arg
+    , opt
     , unit
 
     -- ** Argument Construction
     , NaturalMIKind (..)
     , Size (..)
     , nat
+    , Nat (..)
     , Enrichment (..)
     , InitialAutomaton (..)
 

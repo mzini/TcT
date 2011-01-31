@@ -459,10 +459,12 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                                       $+$ (indent $ pprint (urs, sig, vars)))
                                                         $+$ text ""
                                                         $+$ text (if succeeded p
-                                                                  then "The weightgap principle applies, using the following TMI:" 
+                                                                  then "The weightgap principle applies, using the following RMI:" 
                                                                   else "The weight gap principle does not apply:")
                                                         $+$ indent (pprint p)
-                                                        $+$ (text "Induced complexity for the usable rules:" <+> pprint (answer p))
+                                                        $+$ (case (pathUsables path) of
+                                                               (Trs []) -> PP.empty
+                                                               _        -> text "Induced complexity for the usable rules:" <+> pprint (answer p))
                                                         $+$ text ""
                                                         $+$ (case findPathProof (thePath path) of
                                                                Nothing -> text "We have not generated a proof for the resulting sub-problem."

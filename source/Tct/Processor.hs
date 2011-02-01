@@ -200,7 +200,7 @@ synopsis p = unwords $ deleteAll "" $ map f (synString p)
                              | otherwise = y : deleteAll x ys
 
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
-parseProcessor a = parens parse Parsec.<|> parse
+parseProcessor a =  whiteSpace >> (parens parse Parsec.<|> parse)
     where parse = parseProcessor_ a
 
 fromString :: AnyProcessor -> String -> Either ParseError (InstanceOf AnyProcessor)

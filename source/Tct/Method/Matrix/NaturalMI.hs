@@ -54,7 +54,7 @@ import Tct.Encoding.Matrix hiding (maxMatrix)
 import Tct.Encoding.Natring ()
 import Tct.Encoding.UsablePositions
 import Tct.Method.Matrix.MatrixInterpretation
-import Tct.Processor.Args
+import Tct.Processor.Args hiding (unit)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
@@ -316,6 +316,12 @@ safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> MatrixInter a -
 safeRedpairConstraints sig = bigAnd . Map.map (bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . coefficients) . compInterpretations
                              where compInterpretations = Map.filterWithKey isCompound . interpretations
                                    isCompound f _      = F.isCompound sig f
+
+slmiSafeRedpairConstraints :: (MIEntry a, AbstrOrdSemiring a b) => F.Signature -> MatrixInter a -> b
+slmiSafeRedpairConstraints sig mi = bigAnd $ Map.map (bigAnd . Map.map (.==. unit d) . coefficients) $ compInterpretations mi
+                                    where compInterpretations = Map.filterWithKey isCompound . interpretations
+                                          isCompound f _      = F.isCompound sig f
+                                          d                   = dimension mi
 
 positiveConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 positiveConstraints mi = positiveMatrices mi && positiveVectors mi

@@ -223,7 +223,7 @@ isUargsOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
 isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
 
 usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
-usableArgsWhereApplicable MWithDP sig _                     _  _     _ _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
+usableArgsWhereApplicable MWithDP sig _                     ua strat r s = (if ua then restrictToSignature compSig (usableArgs strat r s) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
 usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _  _     _ _ = fullWithSignature sig
@@ -256,7 +256,7 @@ orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs ->
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                          return $ case theMI of
-                                                   Nothing -> Incompatible
+                                                   Nothing -> Incompatible -- usefule for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
                                                    Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
                                       where addAct :: MiniSat ()
                                             addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
@@ -297,7 +297,7 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
-        dpChoice MWithDP _                     _     = safeRedpairConstraints sig
+        dpChoice MWithDP _                     _     = safeRedpairConstraints sig ua
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
@@ -312,16 +312,24 @@ uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpret
 monotoneConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 monotoneConstraints = bigAnd . Map.map (bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . coefficients) . interpretations
 
-safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> MatrixInter a -> b
-safeRedpairConstraints sig = bigAnd . Map.map (bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . coefficients) . compInterpretations
-                             where compInterpretations = Map.filterWithKey isCompound . interpretations
-                                   isCompound f _      = F.isCompound sig f
+safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
+safeRedpairConstraints sig uarg = bigAnd . Map.mapWithKey funConstraint . compInterpretations
+                                  where compInterpretations = Map.filterWithKey isCompound . interpretations
+                                        isCompound f _      = F.isCompound sig f
+                                        funConstraint f     = bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . filterUargs f . coefficients
+                                        filterUargs f       = Map.filterWithKey $ fun f
+                                        fun f (V.Canon i) _ = isUsable f i uarg
+                                        fun _ (V.User _)  _ = error "Tct.Method.Matrix.NaturalMI.safeRedPairConstraints: User variable in abstract interpretation"
 
-slmiSafeRedpairConstraints :: (MIEntry a, AbstrOrdSemiring a b) => F.Signature -> MatrixInter a -> b
-slmiSafeRedpairConstraints sig mi = bigAnd $ Map.map (bigAnd . Map.map (.==. unit d) . coefficients) $ compInterpretations mi
-                                    where compInterpretations = Map.filterWithKey isCompound . interpretations
-                                          isCompound f _      = F.isCompound sig f
-                                          d                   = dimension mi
+slmiSafeRedpairConstraints :: (MIEntry a, AbstrOrdSemiring a b) => F.Signature -> UsablePositions -> MatrixInter a -> b
+slmiSafeRedpairConstraints sig uarg mi = bigAnd $ Map.mapWithKey funConstraint $ compInterpretations mi
+                                         where compInterpretations = Map.filterWithKey isCompound . interpretations
+                                               isCompound f _      = F.isCompound sig f
+                                               d                   = dimension mi
+                                               funConstraint f     = bigAnd . Map.map (.==. unit d) . filterUargs f . coefficients
+                                               filterUargs f       = Map.filterWithKey $ fun f
+                                               fun f (V.Canon i) _ = isUsable f i uarg
+                                               fun _ (V.User _)  _ = error "Tct.Method.Matrix.NaturalMI.slmiSafeRedPairConstraints: User variable in abstract interpretation"
 
 positiveConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 positiveConstraints mi = positiveMatrices mi && positiveVectors mi

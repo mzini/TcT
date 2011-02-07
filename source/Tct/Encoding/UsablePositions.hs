@@ -34,6 +34,7 @@ import Termlib.Trs (Trs(..))
 import Termlib.Problem hiding (variables)
 import qualified Termlib.Trs as Trs
 
+import Prelude hiding (lookup)
 import qualified Data.IntSet as IntSet
 import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
@@ -41,7 +42,7 @@ import Data.IntSet (IntSet)
 import Data.IntMap (IntMap)
 import Data.List (sort, partition)
 import Data.Typeable
-import Termlib.Utils (PrettyPrintable(..), enum)
+import Termlib.Utils (PrettyPrintable(..), enum, invEnum)
 import Termlib.FunctionSymbol
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -79,6 +80,9 @@ emptyWithSignature sig = unions $ map (\ f -> singleton f []) $ Set.toList $ sym
 
 fullWithSignature :: Signature -> UsablePositions
 fullWithSignature sig = unions $ map (\ f -> singleton f $ argumentPositions sig f) $ Set.toList $ symbols sig
+
+restrictToSignature :: Signature -> UsablePositions -> UsablePositions
+restrictToSignature sig (UP ua) = UP $ IntMap.filterWithKey (\f _ -> invEnum f `lookup` sig /= Nothing) ua
 
 isUsable :: Symbol -> Int -> UsablePositions -> Bool
 isUsable sym i (UP m) = case IntMap.lookup (enum sym) m of 

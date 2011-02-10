@@ -169,9 +169,10 @@ instance PrettyPrintable EpoProof where
             ppstrict       = text "Strict Rules in Predicative Notation:" 
                              $$ (nest 1 $ pprint $ (trs, sig sign, vars sign, sm))
 
-instance (Answerable EpoProof) where 
+instance Answerable EpoProof where 
     answer _ = CertAnswer $ certified (unknown, expo $ Nothing)
 
+instance Verifiable EpoProof 
 -- instance ComplexityProof EpoProof
 
 

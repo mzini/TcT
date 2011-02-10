@@ -472,6 +472,8 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
                                                                          $+$ text ""
                                                                          $+$ pprint pp)
 
+instance T.Verifiable WdgProof
+
 instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where
     answer = T.answerTProof ans
         where ans (NA _) _                                  = MaybeAnswer

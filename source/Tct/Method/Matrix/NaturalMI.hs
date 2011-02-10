@@ -105,6 +105,7 @@ instance Answerable MatrixOrder where
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
 
+instance Verifiable MatrixOrder
 instance ComplexityProof MatrixOrder
 
 instance S.Processor NaturalMI where

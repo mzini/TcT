@@ -74,6 +74,7 @@ data Flags = Flags
   , logFile        :: Maybe FilePath
   , showHelp       :: Bool
   , showVersion    :: Bool
+  , performChecks  :: Bool
   } deriving (Eq, Show)
 
 defaultFlags :: Flags
@@ -87,7 +88,8 @@ defaultFlags = Flags { strategy         = Nothing
                      , listStrategies   = Nothing
                      , logFile          = Nothing
                      , showHelp         = False
-                     , showVersion      = False}
+                     , showVersion      = False
+                     , performChecks    = False}
 
 data Option a
   = Option
@@ -164,6 +166,12 @@ options =
     , short    = "v"
     , meaning = (\_ f -> f{ showVersion = True }) <$> argNone
     , help    = [ "Displays the version number."]
+    }
+  , Option
+    { long    = "check"
+    , short    = "c"
+    , meaning = (\_ f -> f{ showVersion = True }) <$> argNone
+    , help    = [ "Perform checks on the computed proof."]
     }
 
   ]

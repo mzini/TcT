@@ -228,6 +228,9 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
 instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
     answer p = P.answer (result p)
 
+instance (P.Verifiable (ProofOf proc)) => P.Verifiable (Proof proc) where
+    verify prob p = P.verify prob (result p)
+
 data PartialProof proof = PartialProof { ppInputProblem     :: Problem
                                        , ppResult           :: proof
                                        , ppRemovable        :: [Rule]
@@ -254,6 +257,7 @@ data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 
 instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
 instance P.Answerable SomeProof where answer (SomeProof p) = P.answer p
+instance P.Verifiable SomeProof where verify prob (SomeProof p) = P.verify prob p
 
 instance Typeable (InstanceOf SomeProcessor) where 
     typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]

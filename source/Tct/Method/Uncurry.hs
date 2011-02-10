@@ -75,6 +75,8 @@ instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
               answer' _                  [(_,ps)] = answer ps
               answer' _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
 
+instance T.Verifiable UncurryProof
+
 instance P.Processor sub => PrettyPrintable (T.TProof Uncurry sub) where
     pprint = prettyPrintTProof
 

@@ -120,6 +120,7 @@ instance Answerable PopStarOrder where
                  | popMultRecAllowed order                       = CertAnswer $ certified (unknown, expo Nothing)
                  | otherwise                                     = CertAnswer $ certified (unknown, poly Nothing)
 
+instance Verifiable PopStarOrder
 instance ComplexityProof PopStarOrder
 
 

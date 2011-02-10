@@ -77,6 +77,7 @@ instance PrettyPrintable ArcticOrder where
 instance Answerable ArcticOrder where
     answer (ArcticOrder _ _) = CertAnswer $ certified (unknown, poly (Just 1))
 
+instance Verifiable ArcticOrder
 instance ComplexityProof ArcticOrder
 
 instance S.Processor ArcticMI where

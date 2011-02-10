@@ -94,6 +94,9 @@ instance ParsableProcessor (Timeout AnyProcessor) where
 
 
 
+instance Verifiable (ProofOf p) => Verifiable (TOProof p) where
+    verify prob (TOProof p)  = verify prob p
+    verify _    (TimedOut _) = VerificationOK
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
     pprint (TOProof p)  = pprint p

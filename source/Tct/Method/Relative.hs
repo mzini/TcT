@@ -43,6 +43,8 @@ data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof
 instance Answerable (P.ProofOf sub) => Answerable (RelativeProof p sub) where 
     answer (RelativeProof _ subp) = answer subp
 
+instance Verifiable (P.ProofOf sub) => Verifiable (RelativeProof p sub) where 
+    verify _ (RelativeProof _ subp) = verify (P.inputProblem subp) (P.result subp)
 
 instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p sub) where
   pprint (RelativeProof pp subp) = case succeeded pp of

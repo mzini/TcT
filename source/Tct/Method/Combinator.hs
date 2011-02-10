@@ -70,6 +70,9 @@ instance PrettyPrintable TrivialProof where
     pprint Succeeded = text "Success"
     pprint Failed    = text "Fail"
 
+instance Verifiable TrivialProof where
+    verify _ _ = VerificationOK
+
 data Fail = Fail deriving (Show)
 
 instance S.Processor Fail where
@@ -129,6 +132,14 @@ instance ( Answerable (P.ProofOf g)
                   ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
                              $+$ (nest 3 $ either pprint pprint $ branchProof p)
                   suc      = succeeded $ guardProof p
+
+instance ( Verifiable (P.ProofOf g)
+         , Verifiable (P.ProofOf t)
+         , Verifiable (P.ProofOf e) )
+    => Verifiable (IteProof g t e) where 
+        verify prob proof = verify prob  (guardProof proof) `andVerify` vfy (branchProof proof)
+            where vfy (Left p)  = verify prob p
+                  vfy (Right p) = verify prob p
 
 instance ( P.Processor g
          , Answerable (P.ProofOf g)
@@ -193,6 +204,10 @@ data OneOfProof p = OneOfFailed (OneOf p) [P.Proof p]
 instance Answerable (P.Proof p) => Answerable (OneOfProof p) where
     answer (OneOfFailed _ _)    = MaybeAnswer
     answer (OneOfSucceeded _ p) = answer p
+
+instance Verifiable (P.Proof p) => Verifiable (OneOfProof p) where
+    verify _    (OneOfFailed _ _)    = VerificationOK
+    verify prob (OneOfSucceeded _ p) = verify prob p
 
 instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
     pprint proof = case proof of 

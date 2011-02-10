@@ -77,6 +77,8 @@ instance PrettyPrintable BoundsProof where
                              $+$ text "The enriched problem is compatible with the following automaton:"
                              $+$ pprint (toRules (automaton p), (sig p))
 
+instance Verifiable BoundsProof
+
 instance Answerable BoundsProof where
     answer (BP _ Nothing) = MaybeAnswer
     answer (BP _ _)       = CertAnswer $ certified (unknown, poly (Just 1))

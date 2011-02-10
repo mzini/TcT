@@ -28,6 +28,7 @@ module Tct.Processor.Transformations
     , Result (..)
     , TheTransformer (..)
     , Transformer(..)
+    , Verifiable (..)
     , Transformation
     , TransformationProcessor
     , transformationProcessor
@@ -39,7 +40,7 @@ module Tct.Processor.Transformations
     ) 
 where
 
-import Tct.Proof 
+import qualified Tct.Proof as Proof 
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
@@ -50,7 +51,6 @@ import Tct.Processor.PPrint
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args hiding (name, description, synopsis)
-
 
 data TProof t sub = TProof (ProofOf t) (Enumeration (Maybe (P.Proof sub)))
                   | UTProof (ProofOf t) (P.ProofOf sub)
@@ -76,7 +76,7 @@ findProof e (TProof _ ps) = find (SN e) ps >>= id
 
 prettyPrintTProof :: ( PrettyPrintable (ProofOf t)
                     , P.Processor p
-                    , Answerable (P.ProofOf p)
+                    , Proof.Answerable (P.ProofOf p)
                     , PrettyPrintable (P.ProofOf p)) => TProof t p -> Doc
 prettyPrintTProof p@(TProof tp _) = block' "Transformation Details" [tp]
                                     $+$ text ""
@@ -89,11 +89,11 @@ prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus 
                             $+$ text ""
                             $+$ block' "Application of the Sub-processor" [p]
 
-answerTProof :: (P.Processor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Answer) -> TProof t sub -> Answer
-answerTProof _ (UTProof _ sp)  = answer sp
+answerTProof :: (P.Processor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> Proof.Answer) -> TProof t sub -> Proof.Answer
+answerTProof _ (UTProof _ sp)  = Proof.answer sp
 answerTProof f p@(TProof tp _) = case subProofs p of 
                                    Just sps -> f tp sps
-                                   _        -> MaybeAnswer
+                                   _        -> Proof.MaybeAnswer
 
 class Transformer t where
     name         :: t -> String
@@ -111,7 +111,7 @@ data Trans t sub = Trans t
 
 instance ( Transformer t
          , P.Processor sub
-         , ComplexityProof (TProof t sub)) 
+         , Proof.ComplexityProof (TProof t sub)) 
     => S.Processor (Trans t sub) where
     type S.ProofOf (Trans t sub) = TProof t sub
     type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
@@ -131,7 +131,7 @@ instance ( Transformer t
                            Failure p | strict    -> return $ TProof p (enumeration' [])
                                      | otherwise -> do p' <- P.solve sub prob 
                                                        return $ UTProof p p'
-                           Success p ps -> do esubproofs <- P.evalList par (succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
+                           Success p ps -> do esubproofs <- P.evalList par (Proof.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]
                                                 Left  (fld,subs) -> return $ TProof p (mapEnum Just $ fld : subs)
@@ -146,7 +146,7 @@ type Transformation t sub = P.InstanceOf (S.StdProcessor (Trans t sub))
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t
 transformationProcessor t = S.StdProcessor (Trans t)
 
-calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 
+calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, Proof.ComplexityProof (TProof t sub)) => 
               t
               -> (Domains (ArgumentsOf t))
               -> Bool 
@@ -156,11 +156,13 @@ calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub
 t `calledWith` as = \ strict par sub -> (Trans t) `S.withArgs` (strict :+: par :+: as :+: sub)
 
 
--- :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, ComplexityProof (TProof t sub)) => 
---               t
---               -> (Domains (ArgumentsOf t))
---               -> Bool 
---               -> Bool
---               -> P.InstanceOf sub
---               -> Transformation t sub
--- apply trans args = trans `calledWith` args
+class Verifiable proof where 
+    verify :: Problem -> proof -> Enumeration (Maybe (P.Proof sub)) -> Proof.VerificationStatus
+    verify _ _ _ = Proof.NotChecked
+
+instance (Verifiable proof, Proof.Verifiable (P.ProofOf sub), ProofOf t ~ proof)  => Proof.Verifiable (TProof t sub) where
+    verify prob p@(TProof proof subps) = verify prob proof subps `Proof.andVerify` 
+                                         case subProofs p of 
+                                           Just sps -> Proof.allVerify [ Proof.verify (P.inputProblem pp) (P.result pp) | (_, pp) <- sps ]
+                                           Nothing  -> Proof.VerificationFail (text "proof of transformed problem missing")
+    verify prob (UTProof _ sub)  = Proof.verify prob sub

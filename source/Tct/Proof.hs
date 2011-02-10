@@ -21,17 +21,22 @@ module Tct.Proof
     ( ComplexityProof
     , Answer (..)
     , Answerable (..)
+    , VerificationStatus (..)
+    , Verifiable (..)
     , succeeded
     , failed
     , isTimeout
     , certificate
     , answerFromCertificate
+    , andVerify
+    , allVerify
     )
 where
 
 import Text.PrettyPrint.HughesPJ
 import Text.ParserCombinators.Parsec hiding (parse)
 import Termlib.Utils (PrettyPrintable (..), Parsable (..))
+import Termlib.Problem (Problem)
 import Tct.Certificate (Certificate, uncertified)
 
 data Answer = CertAnswer Certificate 
@@ -84,5 +89,26 @@ certificate p = case answer p of
                 CertAnswer c -> c
                 _            -> uncertified
 
-class (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
-instance (Answerable proof, PrettyPrintable proof) => ComplexityProof proof
+data VerificationStatus = NotChecked
+                        | VerificationOK
+                        | VerificationFail Doc
+
+class Verifiable proof where 
+    verify :: Problem -> proof -> VerificationStatus
+    verify _ _ = NotChecked
+
+
+andVerify :: VerificationStatus -> VerificationStatus -> VerificationStatus
+s@(VerificationFail _) `andVerify` _                      = s
+_                      `andVerify` t@(VerificationFail _) = t
+s@NotChecked           `andVerify` _                      = s
+_                      `andVerify` t@NotChecked           = t
+VerificationOK         `andVerify` VerificationOK         = VerificationOK
+
+allVerify :: [VerificationStatus] -> VerificationStatus
+allVerify = foldr andVerify VerificationOK
+
+class (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
+instance (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
+
+

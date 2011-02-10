@@ -63,6 +63,9 @@ instance PrettyPrintable PredicateProof where
         where ans | succeeded a = empty
                   | otherwise   = text "NOT"
 
+instance Verifiable PredicateProof where
+    verify _ _ = VerificationOK
+
 instance S.Processor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
     type S.ProofOf Predicate = PredicateProof

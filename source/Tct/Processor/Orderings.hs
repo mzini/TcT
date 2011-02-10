@@ -34,3 +34,8 @@ instance Answerable o => Answerable (OrientationProof o) where
     answer (Order o) = answer o
     answer Incompatible = MaybeAnswer
     answer (Inapplicable _) = MaybeAnswer
+
+instance Verifiable o => Verifiable (OrientationProof o) where
+    verify prob  (Order o)        = verify prob o
+    verify _     Incompatible     = VerificationOK
+    verify _     (Inapplicable _) = VerificationOK

@@ -86,6 +86,10 @@ instance Answerable (P.ProofOf p) => Answerable (CombineProof p) where
               ub (p':ps') = foldl add p' ps'
               allcerts = all (succeeded . answer) $ ps
 
+instance Verifiable (P.ProofOf p) => Verifiable (CombineProof p) where
+    verify _ (CombineProof _ ps) = allVerify [ verify (P.inputProblem p) (P.result p) | p <- ps] 
+-- MA:TODO verify splitting function
+
 instance (P.Processor p, [P.InstanceOf p] ~ Domain [Proc p]) => S.Processor (Combine p) where
     type S.ArgumentsOf (Combine p) = Arg (EnumOf PartitionFn) :+: Arg [Proc p]
     type S.ProofOf (Combine p)     = CombineProof p

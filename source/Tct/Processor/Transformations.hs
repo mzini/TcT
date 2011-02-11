@@ -125,7 +125,7 @@ instance ( Transformer t
                                   , A.defaultValue = True }
                           :+: arguments t 
                           :+: arg { A.name = "subprocessor"
-                                  , A.description = "The processor that is applied on the transformed problem(s)"}
+                                  , A.description = "The processor that is applied on the transformed problem(s)" }
     solve inst prob = do res <- transform (TheTransformer t args) prob
                          case res of 
                            Failure p | strict    -> return $ TProof p (enumeration' [])

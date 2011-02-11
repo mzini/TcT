@@ -60,7 +60,7 @@ data Config = Config { processors        :: AnyProcessor
                      , getProcessor      :: Problem -> TCT (InstanceOf SomeProcessor)
                      , getProblem        :: TCT Problem
                      , getSolver         :: TCT SatSolver
-                     , showProof         :: (Proof SomeProcessor) -> TCT String
+                     , showProof         :: Proof SomeProcessor -> TCT String
                      , satSolver         :: SatSolver
                      , configDir         :: IO FilePath
                      , errorMsg          :: [String]
@@ -95,14 +95,14 @@ instance Error TCTError where
 
 newtype TCT r = TCT { 
     tct :: ErrorT TCTError (RWST TCTROState [TCTWarning] TCTState IO) r
-  } deriving (Monad, MonadIO, MonadError TCTError, MonadReader TCTROState)
+  } deriving (Monad, Functor, MonadIO, MonadError TCTError, MonadReader TCTROState)
 
 getStrategyString :: TCT (Maybe String)
 getStrategyString = do mstr <- askFlag strategy
                        mfn <- askFlag strategyFile
                        case (mstr, mfn) of 
-                         (Just _, _)        -> return $ mstr
-                         (Nothing, Just fn) -> liftIO $ (Just `liftM` readFile fn) `catch` (const $ return Nothing)
+                         (Just _, _)        -> return mstr
+                         (Nothing, Just fn) -> liftIO $ (Just `liftM` readFile fn) `catch` const (return Nothing)
                          _                  -> return Nothing
 
 
@@ -140,7 +140,7 @@ defaultConfig = Config { processors       = processors_
                                   case parseResult of 
                                     Left err            -> throwError $ ProblemParseError err
                                     Right (prob, warns) -> if wellFormed prob 
-                                                           then mapM  (warn . ProblemParseWarning) warns >> overwriteAnswerType prob
+                                                           then mapM_  (warn . ProblemParseWarning) warns >> overwriteAnswerType prob
                                                            else throwError $ ProblemNotWellformed prob
 
               where overwriteAnswerType prob =
@@ -208,7 +208,7 @@ defaultConfig = Config { processors       = processors_
                     checkExe slver = do ex <- liftIO $ doesFileExist fp
                                         if ex 
                                          then do p <- liftIO $ getPermissions fp
-                                                 if executable p then return fp else throwError $ notexecutable
+                                                 if executable p then return fp else throwError notexecutable
                                          else throwError $ notexist
                         where fp = exe slver
                               exe (MiniSat n) = n
@@ -233,8 +233,7 @@ check prob = do fn <- askConfig process
                 fn proc prob
 
 readProblem :: TCT Problem
-readProblem = do r <- askConfig getProblem
-                 r
+readProblem = join $ askConfig getProblem
 
 putProof :: Proof SomeProcessor -> TCT ()
 putProof proof = do r <- askConfig showProof 
@@ -248,24 +247,24 @@ warn :: TCTWarning -> TCT ()
 warn w = liftS $ tell [w]
 
 askFlags :: TCT Flags
-askFlags = ask >>= return . flags
+askFlags = fmap flags ask
 
 askFlag :: (Flags -> a) -> TCT a
 askFlag f = f `liftM` askFlags
 
 
 askConfigs :: TCT Config
-askConfigs = ask >>= return . config
+askConfigs = fmap config ask
 
 askConfig :: (Config -> a) -> TCT a
 askConfig f = do c <- askConfigs
                  return $ f c
 
 pprintErr :: String -> Doc -> Doc
-pprintErr m e = nest 1 $ paragraph m <> text ":" $$ (nest 2 $ e)
+pprintErr m e = nest 1 $ paragraph m <> text ":" $$ (nest 2 e)
 
 instance PrettyPrintable TCTError where 
-  pprint (StrategyParseError s) = pprintErr "Error when parsing strategy" $ text $ s
+  pprint (StrategyParseError s) = pprintErr "Error when parsing strategy" $ text s
   pprint (ProblemParseError e) = pprintErr "Error when parsing problem" $ pprint e
   pprint ProblemMissingError = text "No problem supplied"
   pprint (UnknownError s) = pprintErr "Unknown error" $ text s

@@ -32,7 +32,6 @@ where
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-import Tct.Proof
 import Termlib.Problem (Problem)
 
 data CPConfig arg res = CPConfig { as  :: String
@@ -43,7 +42,7 @@ data CPConfig arg res = CPConfig { as  :: String
 --------------------------------------------------------------------------------
 -- processor instance
 
-instance (ComplexityProof res) => S.Processor (CPConfig arg res) where
+instance (P.ComplexityProof res) => S.Processor (CPConfig arg res) where
   type S.ProofOf (CPConfig arg res)     = res
   type S.ArgumentsOf (CPConfig arg res) = arg
   name        = as
@@ -70,7 +69,7 @@ customProcessor = S.StdProcessor
 proc :: (P.SolverM m, P.Processor p) => (args -> P.InstanceOf p) -> args-> Problem -> m (P.ProofOf p)
 proc p aa prob = P.solve (p aa) prob
 
-pure :: (P.SolverM m, ComplexityProof res) => (args -> Problem -> res) -> (args -> Problem -> m res)
+pure :: (P.SolverM m, P.ComplexityProof res) => (args -> Problem -> res) -> (args -> Problem -> m res)
 pure f aa prob = return $ f aa prob
 
 

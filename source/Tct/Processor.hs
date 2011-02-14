@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -21,6 +20,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor
     ( SatSolver (..)
@@ -38,6 +38,22 @@ module Tct.Processor
     , evalList'
     , parseProcessor
     , fromString
+      -- * Proofs 
+    , ComplexityProof
+    , Answer (..)
+    , Answerable (..)
+    , Verifiable (..)
+    , VerificationStatus
+    , succeeded
+    , failed
+    , isTimeout
+    , certificate
+    , answerFromCertificate
+    , andVerify
+    , allVerify
+    , verifyOK
+    , verifyFail
+    , verifyUnchecked
     -- * Some Processor
     , SomeProcessor (..)
     , SomeProof (..)
@@ -70,15 +86,14 @@ import Qlogic.MiniSat (setCmd, MiniSat)
 import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
-
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$))
+import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
+import Tct.Certificate
 import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse
-import qualified Tct.Proof as P
-
 
 data SatSolver = MiniSat FilePath
 
@@ -115,7 +130,10 @@ instance SolverM StdSolverM where
                                 
 -- processor
 
-class P.ComplexityProof (ProofOf proc) => Processor proc where
+class (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
+instance (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
+
+class ComplexityProof (ProofOf proc) => Processor proc where
     name            :: proc -> String
     instanceName    :: (InstanceOf proc) -> String
     type ProofOf proc                  
@@ -208,6 +226,60 @@ fromString p s = Parse.fromString (parseProcessor p) p "supplied strategy" s
 
 -- * proof
 
+--- * Answers
+data Answer = CertAnswer Certificate 
+            | MaybeAnswer
+            | YesAnswer
+            | NoAnswer
+            | TimeoutAnswer deriving (Eq, Ord, Show)
+
+instance Utils.Parsable Answer where
+  parse = parseYes Parsec.<|> parseMaybe Parsec.<|> parseTO
+    where parseMaybe   = Parsec.string "MAYBE" >> return MaybeAnswer
+          parseTO      = Parsec.string "TIMEOUT" >> return TimeoutAnswer
+          parseYes     = Utils.parse >>= return . CertAnswer
+
+instance PrettyPrintable Answer where 
+  pprint (CertAnswer cert) = pprint cert
+  pprint TimeoutAnswer     = text "TIMEOUT"
+  pprint MaybeAnswer       = text "MAYBE"
+  pprint YesAnswer         = text "YES"
+  pprint NoAnswer          = text "NO"
+
+
+class Answerable proof where 
+    answer :: proof -> Answer
+
+instance Answerable Answer where
+    answer = id
+
+answerFromCertificate :: Certificate -> Answer
+answerFromCertificate cert = if cert == uncertified
+                             then MaybeAnswer
+                             else CertAnswer cert
+
+succeeded :: Answerable p => p -> Bool
+succeeded p = case answer p of 
+                CertAnswer _ -> True
+                YesAnswer    -> True
+                _            -> False
+
+failed :: Answerable p => p -> Bool
+failed = not . succeeded
+
+isTimeout :: Answerable p => p -> Bool
+isTimeout p = case answer p of 
+                TimeoutAnswer -> True
+                _             -> False
+
+certificate :: Answerable p => p -> Certificate
+certificate p = case answer p of 
+                CertAnswer c -> c
+                _            -> uncertified
+                
+                
+--- * Proof Nodes
+
 data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
                         , result           :: ProofOf proc}
@@ -220,16 +292,16 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
               ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
                           $+$ nest 2 (prettyPrintRelation prob)
-              ppanswer  = pt "Answer" <+> pprint (P.answer p)
+              ppanswer  = pt "Answer" <+> pprint (answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"
               wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
 
-instance (P.Answerable (ProofOf proc)) => P.Answerable (Proof proc) where
-    answer p = P.answer (result p)
+instance (Answerable (ProofOf proc)) => Answerable (Proof proc) where
+    answer p = answer (result p)
 
-instance (P.Verifiable (ProofOf proc)) => P.Verifiable (Proof proc) where
-    verify prob p = P.verify prob (result p)
+instance (Verifiable (ProofOf proc)) => Verifiable (Proof proc) where
+    verify prob p = verify prob (result p)
 
 data PartialProof proof = PartialProof { ppInputProblem     :: Problem
                                        , ppResult           :: proof
@@ -244,20 +316,19 @@ instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
              $+$ pprint (ppResult p)
       where ip = ppInputProblem p
 
-instance (P.Answerable proof) => P.Answerable (PartialProof proof) where
-    answer = P.answer . ppResult
+instance (Answerable proof) => Answerable (PartialProof proof) where
+    answer = answer . ppResult
 
 
 -- * Someprocessor
 
 data SomeProcessor = forall p. (ParsableProcessor p) => SomeProcessor p 
-data SomeProof     = forall p. (P.ComplexityProof p) => SomeProof p
+data SomeProof     = forall p. (ComplexityProof p) => SomeProof p
 data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 
-
 instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
-instance P.Answerable SomeProof where answer (SomeProof p) = P.answer p
-instance P.Verifiable SomeProof where verify prob (SomeProof p) = P.verify prob p
+instance Answerable SomeProof where answer (SomeProof p) = answer p
+instance Verifiable SomeProof where verify prob (SomeProof p) = verify prob p
 
 instance Typeable (InstanceOf SomeProcessor) where 
     typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]
@@ -300,13 +371,13 @@ instance PrettyPrintable SomeProcessor where
 instance Show (InstanceOf SomeProcessor) where 
     show _ = "InstanceOf SomeProcessor"
 
-someProof :: (P.ComplexityProof p) => p -> SomeProof
+someProof :: (ComplexityProof p) => p -> SomeProof
 someProof = SomeProof
 
-someProcessor :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
+someProcessor :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 someProcessor = SomeProcessor
 
-someInstance :: forall p. (P.ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
+someInstance :: forall p. (ComplexityProof (ProofOf p), Processor p) => InstanceOf p -> InstanceOf SomeProcessor
 someInstance inst = SPI (SomeInstance inst)
 
 solveBy :: (Processor a, SolverM m) => Problem -> InstanceOf a -> m SomeProof
@@ -345,7 +416,7 @@ instance Show (InstanceOf (AnyOf p)) where
     show _ = "InstanceOf AnyOf"
 
 infixr 5 <|>
-(<|>) :: (P.ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
+(<|>) :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
 p <|> OO s l = OO s $ someProcessor p : l
 
 
@@ -360,4 +431,32 @@ parseAnyProcessor = do a <- getState
                        parseProcessor a
 
 
+--- * Quasi-verification
+                
+                
+data VerificationStatus = NotChecked | VerificationOK | VerificationFail SomeProof Doc
+
+verifyOK :: VerificationStatus
+verifyOK = VerificationOK
+
+verifyUnchecked :: VerificationStatus
+verifyUnchecked = NotChecked
+
+verifyFail :: ComplexityProof p => p -> Doc -> VerificationStatus
+verifyFail p = VerificationFail (SomeProof p)
+
+class Verifiable proof where 
+    verify :: Problem -> proof -> VerificationStatus
+    verify _ _ = NotChecked
+
+
+andVerify :: VerificationStatus -> VerificationStatus -> VerificationStatus
+s@(VerificationFail _ _) `andVerify` _                        = s
+_                        `andVerify` t@(VerificationFail _ _) = t
+s@NotChecked             `andVerify` _                        = s
+_                        `andVerify` t@NotChecked             = t
+VerificationOK           `andVerify` VerificationOK           = VerificationOK
+
+allVerify :: [VerificationStatus] -> VerificationStatus
+allVerify = foldr andVerify VerificationOK
 

@@ -28,9 +28,9 @@ import Text.PrettyPrint.HughesPJ
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
-import Tct.Proof
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
+import Tct.Processor (Answerable (..), Verifiable(..), succeeded)
 import Tct.Processor.Args hiding (name, description, synopsis)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances

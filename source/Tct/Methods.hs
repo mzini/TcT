@@ -123,7 +123,6 @@ import qualified Tct.Processor as P
 import Tct.Processor (solveBy)
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Standard (withArgs)
-import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 
@@ -156,7 +155,7 @@ builtInProcessors = timeoutProcessor
 -- call :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
 -- call = P.someInstance
 
-upto :: (Enum n, Ord n, ComplexityProof (P.ProofOf p), P.Processor p) =>
+upto :: (Enum n, Ord n, P.ComplexityProof (P.ProofOf p), P.Processor p) =>
         (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (OneOf p))
 upto prc (fast :+: l :+: u) | l > u     = fastest []
                             | fast      = fastest subs

@@ -45,7 +45,6 @@ Library
                     Tct.Processor.PPrint
                     Tct.Processor.Transformations
                     Tct.Processor.LoggingSolver
-                    Tct.Proof
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence
                     Tct.Encoding.Relative

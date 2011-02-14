@@ -42,9 +42,9 @@ import qualified Termlib.Trs as Trs
 import Termlib.FunctionSymbol (Signature)
 import qualified Termlib.FunctionSymbol as FS
 
-import Tct.Proof
 import Tct.Certificate (certified, unknown, poly)
 import qualified Tct.Processor as P
+import Tct.Processor (Verifiable(..), Answerable(..), Answer(..))
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances

@@ -55,9 +55,9 @@ import Termlib.Variable(Variables)
 import Termlib.Utils
 
 import Tct.Certificate
-import Tct.Proof
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
+import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
 import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..))
 import Tct.Processor.Args as A
 import Tct.Processor.PPrint

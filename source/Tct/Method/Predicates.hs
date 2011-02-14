@@ -25,11 +25,11 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 import Termlib.Utils (PrettyPrintable (..))
 import Termlib.Problem (strictTrs, weakTrs, Strategy (..), Problem (..))
-import Tct.Proof
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import qualified Tct.Processor.Standard as S
+import qualified Tct.Processor as P
 
 
 data WhichTrs = Strict
@@ -50,21 +50,21 @@ whichTrs = arg
 
 data Predicate = TrsPredicate String (Trs -> Bool)
                | ProblemPredicate String (Problem -> Bool)
-data PredicateProof = PredicateProof Predicate Answer
+data PredicateProof = PredicateProof Predicate P.Answer
 
-instance Answerable PredicateProof where
+instance P.Answerable PredicateProof where
     answer (PredicateProof _ a) = a
 
 instance PrettyPrintable PredicateProof where
     pprint (PredicateProof (TrsPredicate n _) a) = text "The input is" <+> ans <+> text n <> text "."
-        where ans | succeeded a = empty
-                  | otherwise   = text "NOT"
+        where ans | P.succeeded a = empty
+                  | otherwise     = text "NOT"
     pprint (PredicateProof (ProblemPredicate n _) a) = text "The input problem is" <+> ans <+> text n <> text "."
-        where ans | succeeded a = empty
-                  | otherwise   = text "NOT"
+        where ans | P.succeeded a = empty
+                  | otherwise     = text "NOT"
 
-instance Verifiable PredicateProof where
-    verify _ _ = VerificationOK
+instance P.Verifiable PredicateProof where
+    verify _ _ = P.verifyOK
 
 instance S.Processor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
@@ -81,8 +81,8 @@ instance S.Processor Predicate where
                               Union  -> p $ strictTrs prob `Trs.union` weakTrs prob
                               Both   -> p (strictTrs prob) &&  p (weakTrs prob)
                         ProblemPredicate _ p -> p prob                              
-              ans | holds     = YesAnswer
-                  | otherwise = NoAnswer
+              ans | holds     = P.YesAnswer
+                  | otherwise = P.NoAnswer
     arguments _ = opt { A.name = "on"
                       , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs)."]
                       , A.defaultValue = Strict}

@@ -36,7 +36,6 @@ import qualified Tct.Processor.Parse as PP
 import Tct.Processor.Args 
 import Tct.Processor.Args.Instances
 import Tct.Processor hiding (Proof, (<|>))
-import Tct.Proof
 import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ hiding (brackets)
 
@@ -96,7 +95,7 @@ instance ParsableProcessor (Timeout AnyProcessor) where
 
 instance Verifiable (ProofOf p) => Verifiable (TOProof p) where
     verify prob (TOProof p)  = verify prob p
-    verify _    (TimedOut _) = VerificationOK
+    verify _    (TimedOut _) = verifyOK
 
 instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
     pprint (TOProof p)  = pprint p

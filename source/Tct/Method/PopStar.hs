@@ -59,9 +59,9 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
 import Tct.Certificate (poly, expo, certified, uncertified, unknown)
-import Tct.Proof
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
+import Tct.Processor (Answerable (..), ComplexityProof, Answer (..), Verifiable(..))
 import Tct.Processor.Orderings
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances ()

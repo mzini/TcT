@@ -37,7 +37,6 @@ import Termlib.Utils
 import Locale
 
 import Tct.Processor as P
-import Tct.Proof
 
 -- add logging to solver monad
 data LoggingSig = LMStart 

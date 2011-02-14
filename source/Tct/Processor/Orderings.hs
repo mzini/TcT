@@ -17,9 +17,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Processor.Orderings where
 
-import Tct.Proof 
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
+import Tct.Processor (Answerable (..), Answer (..), Verifiable(..), verifyOK)
 
 data OrientationProof o = Order o
                         | Incompatible
@@ -37,5 +37,5 @@ instance Answerable o => Answerable (OrientationProof o) where
 
 instance Verifiable o => Verifiable (OrientationProof o) where
     verify prob  (Order o)        = verify prob o
-    verify _     Incompatible     = VerificationOK
-    verify _     (Inapplicable _) = VerificationOK
+    verify _     Incompatible     = verifyOK
+    verify _     (Inapplicable _) = verifyOK

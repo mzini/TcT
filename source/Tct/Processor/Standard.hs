@@ -32,7 +32,6 @@ where
 
 import Text.ParserCombinators.Parsec
 
-import Tct.Proof
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
@@ -43,7 +42,7 @@ import Tct.Processor.Parse
 data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: Domains (ArgumentsOf a) }
 
-class ComplexityProof (ProofOf proc) => Processor proc where
+class P.ComplexityProof (ProofOf proc) => Processor proc where
     type ArgumentsOf proc
     type ProofOf proc
     name         :: proc -> String

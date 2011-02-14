@@ -24,8 +24,7 @@ module Tct.Processor.PPrint where
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
 import Termlib.Problem (prettyPrintRelation)
-import Tct.Proof
-import qualified Tct.Processor as P
+import Tct.Processor as P
 import Data.Typeable 
 
 heading :: String -> Doc

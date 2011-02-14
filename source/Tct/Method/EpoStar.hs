@@ -60,9 +60,10 @@ import Termlib.Variable (Variables)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Certificate
-import Tct.Proof
 import Tct.Processor.Orderings
 import Tct.Processor.Args
+import Tct.Processor (Answerable (..), Answer (..), Verifiable(..))
+
 import Tct.Processor.Args.Instances ()
 import qualified Tct.Processor.Args as A
 import qualified Tct.Encoding.SafeMapping as SM

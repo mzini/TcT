@@ -44,9 +44,9 @@ import qualified Termlib.Trs as Trs
 import qualified Termlib.Term as T
 import Termlib.Trs (Trs(..))
 
-import Tct.Proof
 import Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
+import Tct.Processor (Answerable (..), Answer (..))
 import Tct.Processor.Args as A
 import Text.PrettyPrint.HughesPJ hiding (empty)
 

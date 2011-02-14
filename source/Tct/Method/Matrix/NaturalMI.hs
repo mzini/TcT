@@ -60,8 +60,8 @@ import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.Orderings
 import Tct.Processor.PPrint (indent)
-import Tct.Proof
 import qualified Tct.Processor as P
+import Tct.Processor (Answerable(..), Verifiable (..), Answer(..), ComplexityProof)
 import qualified Tct.Processor.Standard as S
 
 data NaturalMIKind = Triangular

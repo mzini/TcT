@@ -55,12 +55,12 @@ import Tct.Encoding.Matrix
 import Tct.Encoding.Natring ()
 import Tct.Encoding.UsablePositions
 import Tct.Method.Matrix.MatrixInterpretation
-import Tct.Proof
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
+import Tct.Processor (Answerable(..), ComplexityProof, Verifiable(..), Answer(..))
 import qualified Tct.Processor.Standard as S
 
 data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt

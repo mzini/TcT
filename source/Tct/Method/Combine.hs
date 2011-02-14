@@ -37,8 +37,8 @@ import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
+import Tct.Processor (Answerable (..), Answer (..), Verifiable(..), ComplexityProof, succeeded, certificate, allVerify)
 import Tct.Certificate
-import Tct.Proof
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), rules, union)
 import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem)

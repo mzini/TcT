@@ -31,7 +31,6 @@ import Data.Maybe (isJust, catMaybes)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Tct.Proof
 import Tct.Processor.PPrint (enumeration')
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -71,9 +70,9 @@ instance PrettyPrintable IRRProof where
                    vars    = Prob.variables $ inputProblem proof
 
 
-instance P.Processor sub => Answerable (T.TProof InnermostRuleRemoval sub) where 
+instance P.Processor sub => P.Answerable (T.TProof InnermostRuleRemoval sub) where 
     answer = T.answerTProof answer'
-        where answer' _ [(_,ps)] = answer ps
+        where answer' _ [(_,ps)] = P.answer ps
               answer' _ _        = error "Tct.Method.InnermostRuleRemoval: Proof with wrong number of subproblems received"
 instance T.Verifiable (IRRProof)
 

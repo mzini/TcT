@@ -56,7 +56,6 @@ import Control.Monad.Instances()
 import Tct.Main.Flags
 import Tct.Processor
 import Tct.Processor.LoggingSolver
-import Tct.Proof
 import qualified Tct.Main.Version as Version
 import qualified Tct.Processor.Timeout as Timeout
 import qualified Tct.Methods as Methods
@@ -195,8 +194,17 @@ findSolver mk nm = do mr <- liftIO $ findExecutable nm
                         Just s  -> return $ mk s
                         Nothing -> throwError $ SatSolverMissing $ "Cannot find sat-solver executable " ++ nm
 
-getDefaultSolver :: ErroneousIO SatSolver
-getDefaultSolver = findSolver MiniSat "minisat" `catchError` (const $ findSolver MiniSat "minisat2")
+run :: Flags -> Config -> IO (Maybe TCTError, [TCTWarning])
+run flg cfg = do let rostate = TCTROState { config    = cfg
+                                          , flags     = flg}
+                 mk `liftM` evalRWST (runErrorT (tct $ readProblem >>= check >>= putProof)) rostate TCTState 
+    where mk (Left e,r) = (Just e, r)
+          mk (_     ,r) = (Nothing, r)
+check :: Problem -> TCT (Proof SomeProcessor)
+check prob = do fn <- askConfig process
+                getProc <- askConfig getProcessor
+                proc <- getProc prob
+                fn proc prob
 
 
 processorFromString :: String -> AnyProcessor -> ErroneousIO SomeInstance

@@ -51,7 +51,6 @@ import Termlib.Utils (PrettyPrintable(..))
 import qualified Tct.Processor as P
 import Tct.Processor.PPrint
 import qualified Tct.Processor.Standard as S
-import Tct.Proof
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -62,16 +61,16 @@ import Tct.Processor.Parse
 data TrivialProof = Succeeded 
                   | Failed
 
-instance Answerable TrivialProof where 
-    answer Succeeded = YesAnswer
-    answer Failed    = NoAnswer
+instance P.Answerable TrivialProof where 
+    answer Succeeded = P.YesAnswer
+    answer Failed    = P.NoAnswer
 
 instance PrettyPrintable TrivialProof where 
     pprint Succeeded = text "Success"
     pprint Failed    = text "Fail"
 
-instance Verifiable TrivialProof where
-    verify _ _ = VerificationOK
+instance P.Verifiable TrivialProof where
+    verify _ _ = P.verifyOK
 
 data Fail = Fail deriving (Show)
 
@@ -116,12 +115,12 @@ data Ite g t e = Ite
 data IteProof g t e = IteProof { guardProof  :: P.ProofOf g
                                , branchProof :: Either (P.ProofOf t) (P.ProofOf e) }
 
-instance ( Answerable (P.ProofOf t)
-         , Answerable (P.ProofOf e))
-    => Answerable (IteProof g t e) where
-      answer p = either answer answer $ branchProof p
+instance ( P.Answerable (P.ProofOf t)
+         , P.Answerable (P.ProofOf e))
+    => P.Answerable (IteProof g t e) where
+      answer p = either P.answer P.answer $ branchProof p
 
-instance ( Answerable (P.ProofOf g)
+instance ( P.Answerable (P.ProofOf g)
          , PrettyPrintable (P.ProofOf g)
          , PrettyPrintable (P.ProofOf t)
          , PrettyPrintable (P.ProofOf e)) 
@@ -131,18 +130,18 @@ instance ( Answerable (P.ProofOf g)
                              $+$ (nest 3 $ pprint $ guardProof p)
                   ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
                              $+$ (nest 3 $ either pprint pprint $ branchProof p)
-                  suc      = succeeded $ guardProof p
+                  suc      = P.succeeded $ guardProof p
 
-instance ( Verifiable (P.ProofOf g)
-         , Verifiable (P.ProofOf t)
-         , Verifiable (P.ProofOf e) )
-    => Verifiable (IteProof g t e) where 
-        verify prob proof = verify prob  (guardProof proof) `andVerify` vfy (branchProof proof)
-            where vfy (Left p)  = verify prob p
-                  vfy (Right p) = verify prob p
+instance ( P.Verifiable (P.ProofOf g)
+         , P.Verifiable (P.ProofOf t)
+         , P.Verifiable (P.ProofOf e) )
+    => P.Verifiable (IteProof g t e) where 
+        verify prob proof = P.verify prob  (guardProof proof) `P.andVerify` vfy (branchProof proof)
+            where vfy (Left p)  = P.verify prob p
+                  vfy (Right p) = P.verify prob p
 
 instance ( P.Processor g
-         , Answerable (P.ProofOf g)
+         , P.Answerable (P.ProofOf g)
          , P.Processor t
          , P.Processor e) 
     => P.Processor (Ite g t e) where
@@ -152,7 +151,7 @@ instance ( P.Processor g
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
 --        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
         solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
-                                             if succeeded gproof 
+                                             if P.succeeded gproof 
                                               then finish gproof Left t
                                               else finish gproof Right e
             where finish gproof d p = do bproof <- P.solve p prob
@@ -201,13 +200,13 @@ data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show)
 data OneOfProof p = OneOfFailed (OneOf p) [P.Proof p]
                   | OneOfSucceeded (OneOf p) (P.Proof p)
 
-instance Answerable (P.Proof p) => Answerable (OneOfProof p) where
-    answer (OneOfFailed _ _)    = MaybeAnswer
-    answer (OneOfSucceeded _ p) = answer p
+instance P.Answerable (P.Proof p) => P.Answerable (OneOfProof p) where
+    answer (OneOfFailed _ _)    = P.MaybeAnswer
+    answer (OneOfSucceeded _ p) = P.answer p
 
-instance Verifiable (P.Proof p) => Verifiable (OneOfProof p) where
-    verify _    (OneOfFailed _ _)    = VerificationOK
-    verify prob (OneOfSucceeded _ p) = verify prob p
+instance P.Verifiable (P.Proof p) => P.Verifiable (OneOfProof p) where
+    verify _    (OneOfFailed _ _)    = P.verifyOK
+    verify prob (OneOfSucceeded _ p) = P.verify prob p
 
 instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
     pprint proof = case proof of 
@@ -250,12 +249,12 @@ instance (P.Processor p) => S.Processor (OneOf p) where
               
               solveSeq []     failures = return $ OneOfFailed Sequentially (reverse failures)
               solveSeq (p:ps) failures = do r <- P.apply p prob
-                                            if succeeded r
+                                            if P.succeeded r
                                              then return $ OneOfSucceeded Sequentially r
                                              else solveSeq ps (r:failures)
                                 
               solveBest = solvePar betterThan final 
-                  where p1 `betterThan` p2 = certificate p1 < certificate p2
+                  where p1 `betterThan` p2 = P.certificate p1 < P.certificate p2
                         final = const False
 
               solveFast= solvePar betterThan final
@@ -263,8 +262,8 @@ instance (P.Processor p) => S.Processor (OneOf p) where
                         final = const True
 
               solvePar better final ps = do actions <- mkActions ps
-                                            let sel (Left ps') proof | succeeded proof = ret proof
-                                                                     | otherwise       = Continue $ Left (proof : ps')
+                                            let sel (Left ps') proof | P.succeeded proof = ret proof
+                                                                     | otherwise         = Continue $ Left (proof : ps')
                                                 sel (Right p1) p2 | p1 `better` p2 = ret p1
                                                                   | otherwise      = ret p2
                                                 ret proof | final proof = Stop $ Right proof

@@ -100,7 +100,7 @@ module Tct.Methods
     , InitialAutomaton (..)
 
     -- ** The Default Processor Used by TCT
-    , defaultProcessor
+    , builtInProcessors
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -130,8 +130,8 @@ import Tct.Processor.Args.Instances
 import Tct.Processor.Timeout
 import Tct.Processor (none, (<|>), AnyProcessor)
 
-defaultProcessor :: AnyProcessor
-defaultProcessor = timeoutProcessor
+builtInProcessors :: AnyProcessor
+builtInProcessors = timeoutProcessor
                    <|> failProcessor 
                    <|> successProcessor
                    <|> iteProcessor

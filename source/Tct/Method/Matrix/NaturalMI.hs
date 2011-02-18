@@ -298,7 +298,7 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
-        dpChoice MWithDP _                     _     = safeRedpairConstraints sig ua
+        dpChoice MWithDP _                     u     = safeRedpairConstraints sig ua u
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
@@ -313,14 +313,14 @@ uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpret
 monotoneConstraints :: AbstrOrdSemiring a b => MatrixInter a -> b
 monotoneConstraints = bigAnd . Map.map (bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . coefficients) . interpretations
 
-safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
-safeRedpairConstraints sig uarg = bigAnd . Map.mapWithKey funConstraint . compInterpretations
-                                  where compInterpretations = Map.filterWithKey isCompound . interpretations
-                                        isCompound f _      = F.isCompound sig f
-                                        funConstraint f     = bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . filterUargs f . coefficients
-                                        filterUargs f       = Map.filterWithKey $ fun f
-                                        fun f (V.Canon i) _ = isUsable f i uarg
-                                        fun _ (V.User _)  _ = error "Tct.Method.Matrix.NaturalMI.safeRedPairConstraints: User variable in abstract interpretation"
+safeRedpairConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> Bool -> MatrixInter a -> b
+safeRedpairConstraints sig uarg uaOn = bigAnd . Map.mapWithKey funConstraint . compInterpretations
+                                       where compInterpretations = Map.filterWithKey isCompound . interpretations
+                                             isCompound f _      = F.isCompound sig f
+                                             funConstraint f     = bigAnd . Map.map ((.>=. SR.one) . entry 1 1) . filterUargs f . coefficients
+                                             filterUargs f xs    = if uaOn then Map.filterWithKey (fun f) xs else xs
+                                             fun f (V.Canon i) _ = isUsable f i uarg
+                                             fun _ (V.User _)  _ = error "Tct.Method.Matrix.NaturalMI.safeRedPairConstraints: User variable in abstract interpretation"
 
 slmiSafeRedpairConstraints :: (MIEntry a, AbstrOrdSemiring a b) => F.Signature -> UsablePositions -> MatrixInter a -> b
 slmiSafeRedpairConstraints sig uarg mi = bigAnd $ Map.mapWithKey funConstraint $ compInterpretations mi

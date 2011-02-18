@@ -241,7 +241,7 @@ instance T.Transformer Wdg where
                               isSubsumed _                = False
                               mk (PPWeightGap proof) dpss dps urs | succeeded proof = Problem { startTerms = startTerms'
                                                                                               , strategy   = strategy prob
-                                                                                              , relation   = DP dps (Trs.unions $ urs : dpss)
+                                                                                              , relation   = DP (Trs.unions $ dps : dpss) urs
                                                                                               , variables  = variables prob
                                                                                               , signature  = sig' }
                                                                   | otherwise       = Problem { startTerms = startTerms'

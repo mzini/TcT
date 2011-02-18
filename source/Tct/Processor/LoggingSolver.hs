@@ -62,7 +62,7 @@ instance PrettyPrintable LoggingMsg where
                         <+> (case sig of {LMFin p -> pprint (answer p) ; _ -> text "" })
 
               cpuTime_ms :: Int
-              cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (12.0^(9 :: Int))
+              cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (10.0^(9 :: Int))
               stars = text [ '*' | _ <- [1..indent]] 
               indent = lv * 2 - 1 -- case sig of {LMStart -> lv; _-> lv + 1}
 

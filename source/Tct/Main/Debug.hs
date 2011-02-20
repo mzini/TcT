@@ -16,6 +16,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Tct.Main.Debug where
+-- MA:TODO: output to stream specified in Tct.Config, integrate in solver monad
 
 import Control.Monad.Trans (MonadIO, liftIO)
 import Control.Monad (liftM)

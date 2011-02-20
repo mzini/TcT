@@ -21,109 +21,61 @@ module Tct.Main
     ( tct
     , Config (..)
     , defaultConfig
-    , runTct
-    , tctWith
     )
 where
 
 
 import Control.Concurrent (killThread, forkOS)
 import Control.Concurrent.MVar (putMVar, readMVar, newEmptyMVar)
-import Control.Exception (throw)
+import Control.Monad.Error (runErrorT, Error (..))
 import Control.Monad.Trans (liftIO)
-import Data.Maybe (isJust, fromMaybe)
-import Data.List (sortBy)
 import System
 import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
-import Text.PrettyPrint.HughesPJ
-import Text.Regex (mkRegex, matchRegex)
 import qualified Config.Dyre as Dyre
 import qualified Control.Exception as C
 
-import Termlib.Utils (PrettyPrintable (..))
-
-import Tct (Config (..), defaultConfig, run, TCTError)
-import Tct.Main.Flags (getFlags, Flags(..), helpMessage)
-import Tct.Processor (Processor (..), ParsableProcessor (..), toProcessorList, name)
+import Tct (Config (..), defaultConfig, runTct, TCTError (..), parseArguments, runErroneous)
 import qualified Tct.Main.Version as V
 
 
 
-instance C.Exception Tct.TCTError where
-
-
-showError :: Config -> String -> Config
-showError cfg msg = cfg { errorMsg = msg : errorMsg cfg }
-
-runTct :: Config -> Flags -> IO ()
-runTct cfg flgs | showVersion flgs                  = do putStrLn $ "The Tyrolean Complexity Tool, Version " ++ version cfg
-                | showHelp flgs                     = do putStrLn $ unlines helpMessage
-                | listStrategies flgs /= Nothing    = do let matches reg str = isJust $ matchRegex (mkRegex reg) str
-                                                             p1 `ord` p2 = name p1 `compare` name p2
-                                                             procs = case fromMaybe (error "cannot happen") (listStrategies flgs) of 
-                                                                       Just reg -> [ proc | proc <- toProcessorList (processors cfg)
-                                                                                          , matches reg (name proc) 
-                                                                                                        || matches reg (unlines (description proc))]
-                                                                       Nothing  -> toProcessorList (processors cfg)
-                                                         putStrLn $ show $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
-                | otherwise        = do (r,warns) <- liftIO $ run flgs cfg
-                                        putWarnMsg [show $ pprint warn | warn <- warns]
-                                        case r of 
-                                          Just e  -> throw $ C.SomeException e
-                                          Nothing -> return ()
-
-
-putErrorMsg :: [String] -> IO ()
-putErrorMsg str = do putStrLn "MAYBE"
-                     putStrLn ""
-                     putStrLn $ unlines $ "The following error(s) occured:" : "" : str
-
-putWarnMsg :: [String] -> IO ()
-putWarnMsg []  = return ()
-putWarnMsg str = do putStrLn $ unlines $ "The following warning(s) occured:" : "" : str
+instance C.Exception Tct.TCTError
 
 
 exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
 tct :: Config -> IO ()
-tct = tctWith runTct
+tct conf = do ecfg <- runErrorT (configDir conf) 
+              case ecfg of 
+                Left e -> putErrorMsg e
+                Right dir -> flip Dyre.wrapMain conf Dyre.defaultParams { Dyre.projectName = "tct"
+                                                                        , Dyre.realMain    = realMain
+                                                                        , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                                                        , Dyre.configDir   = Just $ return dir
+                                                                        , Dyre.cacheDir    = Just $ return dir
+                                                                        , Dyre.statusOut   = const $ return ()
+                                                                        , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
+  where putErrorMsg = putError conf
+        putWarnings = mapM (putWarning conf)
+        realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
+                     | otherwise          = C.block $ do mv   <- newEmptyMVar
+                                                         _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
+                                                         _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing
+                                                         let main pid = do {e <- readMVar mv; killThread pid; return e}
+                                                             child = (C.unblock tctProcess >>= putMVar mv) 
+                                                                     `C.catch` \ (e :: C.SomeException) -> putErrorMsg (SomeExceptionRaised e) >> putMVar mv exitFail
+                                                             handler pid (e :: C.SomeException) = do killThread pid
+                                                                                                     putErrorMsg $ (SomeExceptionRaised e)
+                                                                                                     exitWith exitFail
+                                                         pid <- forkOS $ child
+                                                         e <- main pid `C.catch` handler pid
+                                                         exitWith e
+        tctProcess = do r <- runErroneous $ do warns <- parseArguments conf >>= runTct
+                                               liftIO $ putWarnings warns
+                                               return ExitSuccess
+                        case r of 
+                          Left err  -> putErrorMsg err >> return exitFail
+                          _         -> return ExitSuccess
 
--- 
-tctWith :: (Config -> Flags -> IO ()) -> Config -> IO ()
-tctWith runm conf = flip Dyre.wrapMain conf params
-    where params = Dyre.defaultParams 
-                   { Dyre.projectName = "tct"
-                   , Dyre.realMain    = realMain
-                   , Dyre.showError   = showError
---                   , Dyre.configCheck = False
-                   , Dyre.configDir   = Just $ configDir conf
-                   , Dyre.cacheDir    = Just $ configDir conf
-                   , Dyre.statusOut   = const $ return ()
-                   , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version]
-                   } 
-
-          realMain cfg | errorMsg cfg /= [] = C.block $ putErrorMsg (errorMsg cfg) >> exitWith exitFail
-                       | otherwise          = C.block $ do flgs <- readFlags
-                                                           mv   <- newEmptyMVar
-                                                           _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
-                                                           _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing
-                                                           let main pid = do e <- readMVar mv
-                                                                             killThread pid
-                                                                             return e
-                                                               child = (C.unblock (runm cfg flgs) >> putMVar mv ExitSuccess) 
-                                                                       `C.catch` \ (e :: C.SomeException) -> putErrorMsg [show e] >> putMVar mv exitFail
-                                                               handler pid (e :: C.SomeException) = do { killThread pid;
-                                                                                                         putErrorMsg $ [show e];
-                                                                                                         exitWith exitFail}
-                                                           pid <- forkOS $ child
-                                                           e <- main pid `C.catch` handler pid
-                                                           exitWith e
-
-          
-          readFlags = do fl <- getFlags
-                         case fl of  
-                           Left err   -> putErrorMsg err >> exitWith exitFail
-                           Right flgs -> return flgs
-                                                    
                                                               

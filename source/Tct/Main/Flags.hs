@@ -24,15 +24,23 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 {-# LANGUAGE FlexibleInstances #-}
 
 module Tct.Main.Flags
- -- ( Flags(..)
- -- , AnswerType (..)
- -- , AT (..)
- -- , getFlags
- -- , helpMessage
- -- )
+ ( AnswerType (..)
+ , AT (..)
+ , makeHelpMessage
+ , parseOptions
+ , Options
+ , Option (..)
+ , (<$>)
+ , unit
+ , argNum 
+ , argAT
+ , argFile
+ , argString
+ , argNone
+ , argOptString
+ )
 where 
 
-import System
 import Data.List (intersperse, isPrefixOf)
 import Char
 import GHC.Conc (numCapabilities)
@@ -53,7 +61,6 @@ instance Show AnswerType where
           toStr IDC = "idc"
           toStr RC  = "rc"
           toStr IRC = "irc"
-
 
 -------------------------------------------------------------------------
 -- flags
@@ -143,8 +150,8 @@ type Options a = [Option a]
 ----------------------------------------------------------------------
 --- Options
 
-helpMessage :: Options a -> [String]
-helpMessage options =
+makeHelpMessage :: Options a -> [String]
+makeHelpMessage options =
   [ "Usage: tct <option>* <file>"
   , ""
   , "<file> refers to a problem specification as TPDB .xml or .trs file."
@@ -175,13 +182,3 @@ parseOptions' options setInput f isShort x xs =
       where MkArg _ h = meaning opt
     []     -> Left ["Unrecognized option: '" 
                    ++ (if isShort then "-" else "--") ++ x ++ "'"]
-
-
-
-getFlags :: Options a -> (FilePath -> a -> a) -> a -> IO (Either [String] a)
-getFlags options setInputFile defaults = 
-    do as <- getArgs
-       case parseOptions options setInputFile defaults as of
-         Right f  -> return $ Right f
-         Left []  -> return $ Left ["Unknown error when parsing arguments."]
-         Left err -> return $ Left err

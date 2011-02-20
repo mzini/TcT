@@ -22,6 +22,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+
+--MA:TODO explicit applicable methods => only applicable processors get applied in solve?
+
 module Tct.Processor
     ( SatSolver (..)
     , Processor (..)
@@ -54,6 +57,7 @@ module Tct.Processor
     , verifyOK
     , verifyFail
     , verifyUnchecked
+    , isFail 
     -- * Some Processor
     , SomeProcessor (..)
     , SomeProof (..)
@@ -98,6 +102,8 @@ import qualified Tct.Processor.Parse as Parse
 data SatSolver = MiniSat FilePath
 
 -- * The Solver Monad
+
+
 
 class MonadIO m => SolverM m where
     type St m
@@ -221,9 +227,10 @@ parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a =  whiteSpace >> (parens parse Parsec.<|> parse)
     where parse = parseProcessor_ a
 
-fromString :: AnyProcessor -> String -> Either ParseError (InstanceOf AnyProcessor)
-fromString p s = Parse.fromString (parseProcessor p) p "supplied strategy" s
-
+fromString :: AnyProcessor -> String -> Either ParseError (InstanceOf SomeProcessor)
+fromString p s = mk $ Parse.fromString (parseProcessor p) p "supplied strategy" s
+  where mk (Right (OOI inst)) = Right $ SPI $ SomeInstance inst
+        mk (Left e)           = Left e
 -- * proof
 
 --- * Answers
@@ -436,6 +443,13 @@ parseAnyProcessor = do a <- getState
                 
 data VerificationStatus = NotChecked | VerificationOK | VerificationFail SomeProof Doc
 
+instance PrettyPrintable VerificationStatus where
+  pprint NotChecked = text "Proof not Checked"
+  pprint VerificationOK = text "Proof checked"
+  pprint (VerificationFail p r) = text ",VERIFICATION' FAILED:"
+                                  $+$ r
+                                  $+$ pprint p
+
 verifyOK :: VerificationStatus
 verifyOK = VerificationOK
 
@@ -460,3 +474,6 @@ VerificationOK           `andVerify` VerificationOK           = VerificationOK
 allVerify :: [VerificationStatus] -> VerificationStatus
 allVerify = foldr andVerify VerificationOK
 
+isFail :: VerificationStatus -> Bool
+isFail (VerificationFail _ _) = True
+isFail _                      = False

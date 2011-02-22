@@ -19,8 +19,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Main 
     ( tct
-    , Config (..)
     , defaultConfig
+    , Config (..)
     )
 where
 
@@ -36,8 +36,6 @@ import qualified Control.Exception as C
 
 import Tct (Config (..), defaultConfig, runTct, TCTError (..), parseArguments, runErroneous)
 import qualified Tct.Main.Version as V
-
-
 
 instance C.Exception Tct.TCTError
 
@@ -57,7 +55,7 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                                         , Dyre.statusOut   = const $ return ()
                                                                         , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
   where putErrorMsg = putError conf
-        putWarnings = mapM (putWarning conf)
+        putWarnings = mapM_ (putWarning conf)
         realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
                      | otherwise          = C.block $ do mv   <- newEmptyMVar
                                                          _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing

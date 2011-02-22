@@ -52,6 +52,7 @@ import Control.Monad.Instances()
 
 import Tct.Main.Flags
 import Tct.Processor
+import qualified Tct.Processor.Timeout as Timeout
 import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as Version
 import qualified Tct.Methods as Methods
@@ -93,7 +94,6 @@ type ErroneousIO = ErrorT TCTError IO
 runErroneous :: ErroneousIO a -> IO (Either TCTError a)
 runErroneous = runErrorT
 
-
 ----------------------------------------------------------------------
 -- Warning
 data TCTWarning = ProblemParseWarning ProblemPEs.ParseWarning deriving Show
@@ -112,7 +112,7 @@ instance PrettyPrintable [TCTWarning] where
 ----------------------------------------------------------------------
 --- Config
 
-data Config = Config { processor         :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
+data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
                      , processors        :: AnyProcessor
                      , problemFile       :: String
                      , getSolver         :: ErroneousIO SatSolver
@@ -135,7 +135,7 @@ data Config = Config { processor         :: Problem -> AnyProcessor -> Erroneous
 
 
 defaultConfig :: Config
-defaultConfig = Config { processor       = defaultProcessor
+defaultConfig = Config { makeProcessor   = defaultProcessor
                        , processors      = Methods.builtInProcessors
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
@@ -228,13 +228,13 @@ options =
   , Option
     { long    = "strategy"
     , short    = "s"
-    , meaning = (\n f -> f{ processor = const $ processorFromString n }) <$> argString
+    , meaning = (\n f -> f{ makeProcessor = const $ processorFromString n }) <$> argString
     , help    = [ "Specifies the strategy. For a list of strategies see '-l'."]
     }
   , Option
     { long    = "strategyfile"
     , short    = "S"
-    , meaning = (\n f -> f{ processor = const $ processorFromFile n }) <$> argFile
+    , meaning = (\n f -> f{ makeProcessor = const $ processorFromFile n }) <$> argFile
     , help    = [ "Like '-s', but reads the strategy from the given file."]
     }
   , Option
@@ -312,9 +312,10 @@ runTct cfg = snd `liftM` evalRWST (tct m) TCTROState { config    = cfg }  TCTSta
                                              putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
           | otherwise                   = do prob <- readProblem
                                              procs <- fromConfig processors
-                                             getProc <- fromConfig processor
+                                             getProc <- fromConfig makeProcessor
                                              proc <- liftEIO $ getProc prob procs
-                                             proof <- process proc prob
+                                             tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeout
+                                             proof <- process tproc prob
                                              putPretty (pprint $ answer proof)
                                              when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
                  

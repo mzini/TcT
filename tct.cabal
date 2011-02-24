@@ -16,7 +16,7 @@ Description:
   of terminating term rewriting systems.
 cabal-version:      >= 1.6
 build-type:         Simple
-Executable tct
+Executable tct18
  main-is:           Main.hs
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time
  hs-source-dirs:    source

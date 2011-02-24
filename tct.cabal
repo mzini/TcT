@@ -31,7 +31,6 @@ Executable tct_info
 Library
  exposed-modules:   Tct
                     Tct.Certificate
-                    Tct.Main
                     Tct.Main.Flags
                     Tct.Main.Debug
                     Tct.Main.Version

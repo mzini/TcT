@@ -18,6 +18,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Tct 
     ( Config (..)
     , TCTError (..)
@@ -25,20 +27,27 @@ module Tct
     , defaultConfig
     , runTct
     , parseArguments
-    , runErroneous)
+    , runErroneous
+    , tct )
 where 
 
+import Control.Concurrent (killThread, forkOS)
+import Control.Concurrent.MVar (putMVar, readMVar, newEmptyMVar)
 import Control.Monad.Error
+import Control.Monad.Instances( )
 import Control.Monad.RWS.Lazy
-import Data.Typeable 
-import System.Directory
-import System.IO
-import System.FilePath ((</>))
-import Text.PrettyPrint.HughesPJ
-import qualified Control.Exception as C
-import Data.Maybe (isJust)
 import Data.List (sortBy)
+import Data.Maybe (isJust)
+import Data.Typeable 
+import System
+import System.Directory
+import System.FilePath ((</>))
+import System.IO
+import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
+import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
+import qualified Config.Dyre as Dyre
+import qualified Control.Exception as C
 
 import Termlib.Problem (Problem, onProblem, standardProblem, dpProblem, relativeProblem, wellFormed)
 import qualified Termlib.Problem as Prob
@@ -47,17 +56,14 @@ import qualified Termlib.Problem.ParseErrors as ProblemPEs
 import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
-import System
-import Control.Monad.Instances()
-
 import Tct.Main.Flags
+import Tct.Methods (Nat (..), Size (..))
 import Tct.Processor
-import qualified Tct.Processor.Timeout as Timeout
 import Tct.Processor.LoggingSolver
+import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
 import qualified Tct.Methods as Methods
-import Tct.Methods (Nat (..), Size (..))
-
+import qualified Tct.Processor.Timeout as Timeout
 
 ----------------------------------------------------------------------
 -- TCT error
@@ -72,6 +78,8 @@ data TCTError = StrategyParseError String
               | SomeExceptionRaised C.SomeException
               | FlagsParseError [String]
               | UnknownError String deriving (Typeable)
+
+instance C.Exception Tct.TCTError
 
 instance PrettyPrintable TCTError where 
   pprint (StrategyParseError s)      = pprintErr "Error when parsing strategy" $ text s
@@ -277,9 +285,8 @@ options =
 data TCTState = TCTState
 data TCTROState = TCTROState { config    :: Config }
 
-newtype TCT r = TCT { 
-    tct :: RWST TCTROState [TCTWarning] TCTState ErroneousIO r
-    } deriving (Monad, Functor, MonadIO, MonadError TCTError, MonadReader TCTROState, MonadWriter [TCTWarning])
+newtype TCT r = TCT (RWST TCTROState [TCTWarning] TCTState ErroneousIO r)
+    deriving (Monad, Functor, MonadIO, MonadError TCTError, MonadReader TCTROState, MonadWriter [TCTWarning])
 
 
 fromConfig :: (Config -> c) -> TCT c
@@ -298,26 +305,26 @@ putPretty :: (MonadIO m) => Doc -> m ()
 putPretty a = liftIO $ putStrLn $ show a
 
 runTct :: Config -> ErroneousIO [TCTWarning]
-runTct cfg = snd `liftM` evalRWST (tct m) TCTROState { config    = cfg }  TCTState
-  where m | showVersion cfg             = do vs <- fromConfig version
-                                             putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
-          | showHelp cfg                = putPretty $ text $ unlines (makeHelpMessage options)
-          | isJust $ listStrategies cfg = do Just mreg <- fromConfig listStrategies
-                                             let procs = case mreg of 
-                                                   Just reg -> [ proc | proc <- toProcessorList (processors cfg)
-                                                                      , matches reg (name proc) || matches reg (unlines (description proc))]
-                                                   Nothing  -> toProcessorList (processors cfg)
-                                                 p1 `ord` p2     = name p1 `compare` name p2 ;
-                                                 matches reg str = isJust $ matchRegex (mkRegex reg) str ;
-                                             putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
-          | otherwise                   = do prob <- readProblem
-                                             procs <- fromConfig processors
-                                             getProc <- fromConfig makeProcessor
-                                             proc <- liftEIO $ getProc prob procs
-                                             tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeout
-                                             proof <- process tproc prob
-                                             putPretty (pprint $ answer proof)
-                                             when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
+runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
+  where (TCT m) | showVersion cfg             = do vs <- fromConfig version
+                                                   putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
+                | showHelp cfg                = putPretty $ text $ unlines (makeHelpMessage options)
+                | isJust $ listStrategies cfg = do Just mreg <- fromConfig listStrategies
+                                                   let procs = case mreg of 
+                                                                 Just reg -> [ proc | proc <- toProcessorList (processors cfg)
+                                                                            , matches reg (name proc) || matches reg (unlines (description proc))]
+                                                                 Nothing  -> toProcessorList (processors cfg)
+                                                       p1 `ord` p2     = name p1 `compare` name p2 ;
+                                                       matches reg str = isJust $ matchRegex (mkRegex reg) str ;
+                                                   putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
+                | otherwise                   = do prob <- readProblem
+                                                   procs <- fromConfig processors
+                                                   getProc <- fromConfig makeProcessor
+                                                   proc <- liftEIO $ getProc prob procs
+                                                   tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeout
+                                                   proof <- process tproc prob
+                                                   putPretty (pprint $ answer proof)
+                                                   when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 
@@ -333,7 +340,7 @@ runTct cfg = snd `liftM` evalRWST (tct m) TCTROState { config    = cfg }  TCTSta
                                 lf <- fromConfig logFile
                                 liftIO $ case lf of
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
-                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- TODO error handling
+                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- MA:TODO error handling
                                                                       st <- initialState h (SolverState slver)
                                                                       r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
                                                                       hFlush h >> hClose h
@@ -370,12 +377,6 @@ runTct cfg = snd `liftM` evalRWST (tct m) TCTROState { config    = cfg }  TCTSta
                    strat RC  = Prob.Full
                    strat IRC = Prob.Innermost
                    consistent p1 p2 = if isStrict at then p1 == p2 else True                   
--- -check :: Problem -> TCT (Proof SomeProcessor)
--- -check prob = do fn <- askConfig process
--- -                getProc <- askConfig getProcessor
--- -                proc <- getProc prob
--- -                fn proc probundefined
-
 
 parseArguments :: Config -> ErroneousIO Config
 parseArguments defaults = 
@@ -383,3 +384,39 @@ parseArguments defaults =
        case parseOptions options (\inputFile f -> f {problemFile = inputFile}) defaults as of
          Right f  -> return f
          Left err  -> throwError $ FlagsParseError err
+
+exitFail :: ExitCode
+exitFail = ExitFailure $ -1 
+
+tct :: Config -> IO ()
+tct conf = do ecfg <- runErrorT (configDir conf) 
+              case ecfg of 
+                Left e -> putErrorMsg e
+                Right dir -> flip Dyre.wrapMain conf Dyre.defaultParams { Dyre.projectName = "tct"
+                                                                        , Dyre.realMain    = realMain
+                                                                        , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                                                        , Dyre.configDir   = Just $ return dir
+                                                                        , Dyre.cacheDir    = Just $ return dir
+                                                                        , Dyre.statusOut   = const $ return ()
+                                                                        , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
+  where putErrorMsg = putError conf
+        putWarnings = mapM_ (putWarning conf)
+        realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
+                     | otherwise          = C.block $ do mv   <- newEmptyMVar
+                                                         _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
+                                                         _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing
+                                                         let main pid = do {e <- readMVar mv; killThread pid; return e}
+                                                             child = (C.unblock tctProcess >>= putMVar mv) 
+                                                                     `C.catch` \ (e :: C.SomeException) -> putErrorMsg (SomeExceptionRaised e) >> putMVar mv exitFail
+                                                             handler pid (e :: C.SomeException) = do killThread pid
+                                                                                                     putErrorMsg $ (SomeExceptionRaised e)
+                                                                                                     exitWith exitFail
+                                                         pid <- forkOS $ child
+                                                         e <- main pid `C.catch` handler pid
+                                                         exitWith e
+        tctProcess = do r <- runErroneous $ do warns <- parseArguments conf >>= runTct
+                                               liftIO $ putWarnings warns
+                                               return ExitSuccess
+                        case r of 
+                          Left err  -> putErrorMsg err >> return exitFail
+                          _         -> return ExitSuccess

@@ -17,7 +17,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 
 module Main where
-import Tct.Main 
+import Tct
 
 main :: IO ()
 main = tct defaultConfig

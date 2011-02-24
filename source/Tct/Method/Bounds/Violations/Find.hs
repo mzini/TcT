@@ -52,7 +52,7 @@ decidingLabel e str wb ml (R.Rule lhs rhs) = case e of {Top -> mtop; Match -> ca
                     mroof'  s          t            = error $ "Bounds.decidingLabel.mroof': called with strange arguments " ++ show (pprint s) ++ " and " ++ show (pprint t)
                     isRoof (Var _) = False
                     isRoof u       = rvars `Set.isSubsetOf` variables u
-                    rvars = variables $ rhs
+                    rvars = variables rhs
 
 reachableFromLifted :: Automaton -> Term -> Set.Set State -> Set.Set (LTerm, State)
 reachableFromLifted a t qs = runMemoAction reachableFromLiftedM

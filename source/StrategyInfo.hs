@@ -16,8 +16,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Main where
-import Tct.Main
-import Tct (Config (..))
+import Tct (Config (..), defaultConfig)
 import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..))

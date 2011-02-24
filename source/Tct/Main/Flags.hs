@@ -127,6 +127,7 @@ argAT = mk <$> argOption (ats ++ [a ++ "!" | a <- ats])
                | "rc"  `isPrefixOf` s = RC
                | "irc" `isPrefixOf` s = IRC
                | "idc" `isPrefixOf` s = IDC
+               | otherwise            = error "Cannot happen: Bug in Tct.Main.Flags.argOption"
 
 argOptString :: Arg (Maybe String)
 argOptString = MkArg ["<string>"] $ \xs ->

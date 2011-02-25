@@ -115,6 +115,7 @@ instance ( Transformer t
     type S.ProofOf (Trans t sub) = TProof t sub
     type S.ArgumentsOf (Trans t sub) = Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     name (Trans t)      = name t
+    description (Trans t) = description t
     arguments (Trans t) = opt { A.name = "strict"
                                        , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
                                                                  , "Otherwise, it applies the subprocessor on the untransformed input."] 

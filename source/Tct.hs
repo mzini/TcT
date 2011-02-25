@@ -26,7 +26,6 @@ module Tct
     , TCTWarning (..)
     , defaultConfig
     , runTct
-    , parseArguments
     , runErroneous
     , tct )
 where 

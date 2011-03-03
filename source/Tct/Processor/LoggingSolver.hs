@@ -128,7 +128,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
     mkIO m = do (chan,time) <- ask
                 lv   <- get
                 m' <- lift $ mkIO $ runLS m chan time lv
-                return $ C.block $ m'
+                return $ m'
 
     runSolver st m = do chan <- liftIO $ newChan
                         mv <- liftIO $ newEmptyMVar
@@ -145,12 +145,12 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                                                             hFlush handle
                                                             logThread
                                              Nothing -> putMVar mv ()
-                            run = const $ C.block $ runSolver (subState st) $ runLS m chan time (level st)
+                            run = const $ {- C.block $ -} runSolver (subState st) $ runLS m chan time (level st) -- MA:TODO:
                         C.bracket (forkIO logThread) (const $ writeChan chan Nothing >> readMVar mv) run
                         
 
     minisatValue m e = lift $ minisatValue m e 
-                       
+    -- MA:TODO: check block/unblock
     solve proc prob = do lv <- get 
                          uid <- liftIO $ uuid
                          put $ lv + 1

@@ -339,7 +339,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                 lf <- fromConfig logFile
                                 liftIO $ case lf of
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
-                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- MA:TODO error handling
+                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- MA:TODO error handling, unblocking
                                                                       st <- initialState h (SolverState slver)
                                                                       r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
                                                                       hFlush h >> hClose h
@@ -397,7 +397,7 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                                         , Dyre.configDir   = Just $ return dir
                                                                         , Dyre.cacheDir    = Just $ return dir
                                                                         , Dyre.statusOut   = const $ return ()
-                                                                        , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
+                                                                        , Dyre.ghcOpts     = ["-with-rtsopts=-N", "-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
         realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail

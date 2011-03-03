@@ -149,14 +149,14 @@ instance ( P.Processor g
         data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
         name Ite = "if-then-else processor"
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
---        fromInstance (IteInstance instg instt inste)  = Ite (P.fromInstance instg) (P.fromInstance instt) (P.fromInstance inste)
         solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
                                              if P.succeeded gproof 
-                                              then finish gproof Left t
-                                              else finish gproof Right e
-            where finish gproof d p = do bproof <- P.solve p prob
-                                         return $ IteProof { guardProof  = gproof
-                                                           , branchProof = d bproof }
+                                              then do bproof <- P.solve t prob
+                                                      return $ IteProof { guardProof  = gproof
+                                                                        , branchProof = Left bproof }
+                                              else do bproof <- P.solve e prob
+                                                      return $ IteProof { guardProof  = gproof
+                                                                        , branchProof = Right bproof }
 
 instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) where
     description     Ite = ["This processor implements conditional branching."]

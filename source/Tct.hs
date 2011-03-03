@@ -147,7 +147,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
                        , putProof        = hPutPretty stdout
-                       , putError        = \ e -> hPutStrLn stderr "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr e
+                       , putError        = \ e -> hPutStrLn stdout "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr e
                        , putWarning      = hPutPretty stderr
                        , configDir       = do home <- liftIO $ getHomeDirectory 
                                               return $ home </> ".tct"
@@ -396,11 +396,11 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                                         , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
                                                                         , Dyre.configDir   = Just $ return dir
                                                                         , Dyre.cacheDir    = Just $ return dir
-                                                                        , Dyre.statusOut   = const $ return ()
+                                                                        , Dyre.statusOut   = hPutStrLn stderr
                                                                         , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
-        realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
+        realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
                      | otherwise          = C.block $ do mv   <- newEmptyMVar
                                                          _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
                                                          _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing

@@ -397,7 +397,7 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                                         , Dyre.configDir   = Just $ return dir
                                                                         , Dyre.cacheDir    = Just $ return dir
                                                                         , Dyre.statusOut   = const $ return ()
-                                                                        , Dyre.ghcOpts     = ["-with-rtsopts=-N", "-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?
+                                                                        , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
         realMain cfg | errorMsg cfg /= [] = C.block $ mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail

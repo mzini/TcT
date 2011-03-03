@@ -110,7 +110,7 @@ instance PrettyPrintable a => PrettyPrintable (LInter a, V.Variables) where
 
 pprintLI :: PrettyPrintable a => (V.Variable -> Doc) -> LInter a -> Doc
 pprintLI f (LI ms vec) = foldr handleLine empty [1..d]
-    where handleLine i doc       = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc
+    where handleLine i doc       = Map.foldrWithKey (handleMatrix i) (vLine i) ms $$ doc
           handleMatrix i v m doc = mLine i m <+> mVar i v <+> doc
           colWidths m            = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
           mLine i m              = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))

@@ -36,11 +36,12 @@ import Tct.Processor (Answerable (..), Verifiable(..), succeeded)
 import Tct.Processor.Args hiding (name, description, synopsis)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
-import Tct.Certificate (upperBound, unknown, certified, mult, compose, poly, add, iter)
+import Tct.Certificate (upperBound, unknown, certified, mult, compose, poly, add, iter, constant)
 -- Proof Objects
 
 data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof sub)
                          | RelativeDirect String (P.Proof sub)
+                         | RelativeEmpty 
 
 removedRules :: RelativeProof p sub -> [Rule]
 removedRules (RelativeProof rp _) = P.ppRemovable rp
@@ -69,9 +70,7 @@ instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (R
                                 | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
                                 | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)
     answer (RelativeDirect _ subp) = P.answer subp
-
-
-
+    answer RelativeEmpty = P.answerFromCertificate $ certified (constant, constant)
 
 instance Verifiable (P.ProofOf sub) => Verifiable (RelativeProof p sub) where 
     verify _ (RelativeProof _ subp) = verify (P.inputProblem subp) (P.result subp)
@@ -89,7 +88,7 @@ instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p su
               $+$ pprint subp
   pprint (RelativeDirect reason subp) = text ("We apply the given subprocessor directly since " ++ reason)
                                         $+$ pprint subp
-                                 
+  pprint RelativeEmpty = text "The strict component of the problem is empty"                                 
 -- Relative Processor
 
 data RelativeProcessor p sub = RelativeProcessor
@@ -104,7 +103,8 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
                 :+: arg { A.name = "subprocessor"
                         , A.description = "The processor that is applied after removing rules"}
 
-  solve inst prob | not applicable = RelativeDirect reason `liftM` P.apply subproc prob
+  solve inst prob | Trs.isEmpty (strictTrs prob) = return $ RelativeEmpty 
+                  | not applicable = RelativeDirect reason `liftM` P.apply subproc prob
                   | otherwise = 
            do res <- P.solvePartial remproc prob
               let removed = Trs.fromRules (P.ppRemovable res)

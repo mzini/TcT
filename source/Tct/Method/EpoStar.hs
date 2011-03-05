@@ -59,7 +59,7 @@ import Termlib.Variable (Variables)
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
-import Tct.Certificate
+import qualified Tct.Certificate as C
 import Tct.Processor.Orderings
 import Tct.Processor.Args
 import Tct.Processor (Answerable (..), Answer (..), Verifiable(..))
@@ -171,7 +171,7 @@ instance PrettyPrintable EpoProof where
                              $$ (nest 1 $ pprint $ (trs, sig sign, vars sign, sm))
 
 instance Answerable EpoProof where 
-    answer _ = CertAnswer $ certified (unknown, expo $ Nothing)
+    answer _ = CertAnswer $ C.certified (C.unknown, C.expo $ Nothing)
 
 instance Verifiable EpoProof 
 -- instance ComplexityProof EpoProof

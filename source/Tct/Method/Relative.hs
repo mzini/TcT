@@ -24,7 +24,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Relative where
 
 import Text.PrettyPrint.HughesPJ
-
+import Control.Monad (liftM)
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
@@ -40,7 +40,7 @@ import Tct.Certificate (upperBound, unknown, certified, mult, compose, poly, add
 -- Proof Objects
 
 data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof sub)
-                         | RelativeFail String
+                         | RelativeDirect String (P.Proof sub)
 
 removedRules :: RelativeProof p sub -> [Rule]
 removedRules (RelativeProof rp _) = P.ppRemovable rp
@@ -59,7 +59,7 @@ instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (R
                                   && not sizeIncreasingR  = ubRModS `mult` ubS
                                 | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
                                 | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)
-    answer RelativeFail{} = P.MaybeAnswer
+    answer (RelativeDirect _ subp) = P.answer subp
 
 
 
@@ -78,7 +78,8 @@ instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p su
               $+$ pprint subp
       False -> text "The relative processor was not successful. We apply the subprocessor directly"
               $+$ pprint subp
-  pprint (RelativeFail reason) = text $ "We fail since: " ++ reason
+  pprint (RelativeDirect reason subp) = text ("We apply the given subprocessor directly since " ++ reason)
+                                        $+$ pprint subp
                                  
 -- Relative Processor
 
@@ -94,9 +95,8 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
                 :+: arg { A.name = "subprocessor"
                         , A.description = "The processor that is applied after removing rules"}
 
-  solve inst prob | isDpProblem            = return $ RelativeFail "Relative not implemented for DP problems" 
-                  | weakNoneSizeIncreasing = return $ RelativeFail "The weak TRS is size-increasing"
-                  | otherwise              =
+  solve inst prob | isDpProblem || weakNoneSizeIncreasing = RelativeDirect reason `liftM` P.apply subproc prob
+                  | otherwise = 
            do res <- P.solvePartial remproc prob
               let removed = Trs.fromRules (P.ppRemovable res)
                   subprob = case relation prob of
@@ -109,7 +109,9 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
             weakNoneSizeIncreasing = Trs.isNonSizeIncreasing $ weakTrs prob
             prob'                  = prob{startTerms = TermAlgebra}
             remproc :+: subproc    = S.processorArgs inst
-                   
+            reason | isDpProblem = "Relative not implemented for DP problems" 
+                   | otherwise   = "The weak TRS is size-increasing"                   
+
 relative :: (P.Processor sub, P.Processor relproc) => P.InstanceOf relproc -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (RelativeProcessor relproc sub))
 relative rel sub = RelativeProcessor `S.withArgs` (rel :+: sub)
 

@@ -46,6 +46,15 @@ removedRules :: RelativeProof p sub -> [Rule]
 removedRules (RelativeProof rp _) = P.ppRemovable rp
 removedRules _= []
 
+-- MA:TODO: think about applicable predicate
+appliesTo :: Problem -> (Bool, String)
+appliesTo prob = (not isDpProblem && weakNoneSizeIncreasing, reason)
+  where isDpProblem            = case relation prob of {DP{} -> True; _ -> False}
+        weakNoneSizeIncreasing = Trs.isEmpty weak || Trs.isNonSizeIncreasing weak
+          where weak = weakTrs prob
+        reason | isDpProblem = "the relative processor is not implemented for DP problems" 
+               | otherwise   = "the weak TRS is size-increasing"                   
+
 instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (RelativeProof p sub) where 
     answer (RelativeProof relp subp) = P.answerFromCertificate $ certified (unknown, res)
     -- note that weak trs is guarded to be non-size-increasing
@@ -95,7 +104,7 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
                 :+: arg { A.name = "subprocessor"
                         , A.description = "The processor that is applied after removing rules"}
 
-  solve inst prob | isDpProblem || weakNoneSizeIncreasing = RelativeDirect reason `liftM` P.apply subproc prob
+  solve inst prob | not applicable = RelativeDirect reason `liftM` P.apply subproc prob
                   | otherwise = 
            do res <- P.solvePartial remproc prob
               let removed = Trs.fromRules (P.ppRemovable res)
@@ -105,12 +114,10 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
                                        DP       _      _    -> error "Relative Rule Removal inapplicable for DP problems"
               subproof <- P.apply subproc subprob
               return $ RelativeProof res subproof
-      where isDpProblem            = case relation prob of {DP{} -> True; _ -> False}
-            weakNoneSizeIncreasing = Trs.isNonSizeIncreasing $ weakTrs prob
+      where 
             prob'                  = prob{startTerms = TermAlgebra}
             remproc :+: subproc    = S.processorArgs inst
-            reason | isDpProblem = "Relative not implemented for DP problems" 
-                   | otherwise   = "The weak TRS is size-increasing"                   
+            (applicable, reason)   = appliesTo prob
 
 relative :: (P.Processor sub, P.Processor relproc) => P.InstanceOf relproc -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (RelativeProcessor relproc sub))
 relative rel sub = RelativeProcessor `S.withArgs` (rel :+: sub)

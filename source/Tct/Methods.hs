@@ -45,6 +45,7 @@ module Tct.Methods
     , bounds
     , combine
     , epostar
+    , empty
     , fail
     , fastest
     , ite
@@ -61,7 +62,6 @@ module Tct.Methods
     , custom
     , customProcessor
     , relative
-    , relativeProcessor
 
     -- * Predicates
     , isDuplicating
@@ -152,6 +152,7 @@ builtInProcessors = timeoutProcessor
                    <|> arcticProcessor
                    <|> combineProcessor
                    <|> relativeProcessor
+                   <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 
 -- combinators

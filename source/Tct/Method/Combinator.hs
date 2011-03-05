@@ -41,15 +41,17 @@ where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Control.Concurrent.PFold (pfoldA, Return (..))
-import Text.Parsec.Prim
+import Text.Parsec.Prim hiding (Empty)
 import Text.Parsec.Char
 import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
 
 import Termlib.Utils (PrettyPrintable(..))
-
+import qualified Termlib.Trs as Trs
+import Termlib.Problem (strictTrs) 
 import qualified Tct.Processor as P
 import Tct.Processor.PPrint
+import Tct.Certificate (certified, constant)
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
@@ -60,14 +62,19 @@ import Tct.Processor.Parse
 
 data TrivialProof = Succeeded 
                   | Failed
+                  | Empty Bool
 
 instance P.Answerable TrivialProof where 
     answer Succeeded = P.YesAnswer
     answer Failed    = P.NoAnswer
+    answer (Empty True)    = P.answerFromCertificate $ certified (constant,constant)
+    answer (Empty False)   = P.NoAnswer
 
 instance PrettyPrintable TrivialProof where 
     pprint Succeeded = text "Success"
     pprint Failed    = text "Fail"
+    pprint (Empty True)  = text "Empty rules are trivially bounded"
+    pprint (Empty False) = text "Empty strict component of the problem is NOT empty."
 
 instance P.Verifiable TrivialProof where
     verify _ _ = P.verifyOK
@@ -94,17 +101,34 @@ instance S.Processor Success where
     description Success        = ["Processor 'success' always returns the answer 'Yes'."]
     arguments   Success        = Unit
 
+data EmptyRules = EmptyRules deriving (Show)
+
+instance S.Processor EmptyRules where
+    type S.ArgumentsOf EmptyRules = Unit
+    type S.ProofOf EmptyRules     = TrivialProof
+    name EmptyRules               = "empty"
+    solve _ prob | Trs.isEmpty $ strictTrs prob = return $ Empty True
+                 | otherwise                    = return $ Empty False
+    description EmptyRules       = ["Processor 'empty' returns 'Yes(O(1),O(1))' if the strict component of the problem is empty."]
+    arguments   EmptyRules       = Unit
+
 failProcessor :: S.StdProcessor Fail
 failProcessor = S.StdProcessor Fail
 
 successProcessor :: S.StdProcessor Success
 successProcessor = S.StdProcessor Success
 
+emptyProcessor :: S.StdProcessor EmptyRules
+emptyProcessor = S.StdProcessor EmptyRules
+
 fail :: P.InstanceOf (S.StdProcessor Fail)
 fail = Fail `S.withArgs` ()
 
 success :: P.InstanceOf (S.StdProcessor Success)
 success = Success `S.withArgs` ()
+
+empty :: P.InstanceOf (S.StdProcessor EmptyRules)
+empty = EmptyRules `S.withArgs` ()
 
 
 

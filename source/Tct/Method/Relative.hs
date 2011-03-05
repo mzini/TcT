@@ -29,6 +29,7 @@ import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs ((\\))
+import Termlib.Rule (Rule)
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import Tct.Processor (Answerable (..), Verifiable(..), succeeded)
@@ -41,6 +42,8 @@ import Tct.Certificate (upperBound, unknown, certified, mult, compose, poly, add
 data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof sub)
                          | RelativeFail String
 
+removedRules :: RelativeProof p sub -> [Rule]
+removedRules (RelativeProof rp _) = P.ppRemovable rp
 
 instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (RelativeProof p sub) where 
     answer (RelativeProof relp subp) = P.answerFromCertificate $ certified (unknown, res)

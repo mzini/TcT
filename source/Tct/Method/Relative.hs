@@ -28,33 +28,52 @@ import Text.PrettyPrint.HughesPJ
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
+import Termlib.Trs ((\\))
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import Tct.Processor (Answerable (..), Verifiable(..), succeeded)
 import Tct.Processor.Args hiding (name, description, synopsis)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
-
+import Tct.Certificate (upperBound, unknown, certified, mult, compose, poly, add, iter)
 -- Proof Objects
 
 data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof sub)
+                         | RelativeFail String
 
 
-instance Answerable (P.ProofOf sub) => Answerable (RelativeProof p sub) where 
-    answer (RelativeProof _ subp) = answer subp
+instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (RelativeProof p sub) where 
+    answer (RelativeProof relp subp) = P.answerFromCertificate $ certified (unknown, res)
+    -- note that weak trs is guarded to be non-size-increasing
+      where res = combine (upperBound $ P.certificate relp) (upperBound $ P.certificate subp)
+            r       = Trs.fromRules $ P.ppRemovable relp
+            s       = strictTrs $ P.inputProblem subp
+--            w       = weakTrs   $ P.inputProblem subp 
+            sizeIncreasingR = Trs.isSizeIncreasing r
+            sizeIncreasingS = Trs.isSizeIncreasing s
+            combine ubRModS ubS | not sizeIncreasingS
+                                  && not sizeIncreasingR  = ubRModS `mult` ubS
+                                | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
+                                | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)
+                                                          
+
+
+
 
 instance Verifiable (P.ProofOf sub) => Verifiable (RelativeProof p sub) where 
     verify _ (RelativeProof _ subp) = verify (P.inputProblem subp) (P.result subp)
+    verify _ _                        = P.verifyOK
 
 instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p sub) where
-  pprint (RelativeProof pp subp) = case succeeded pp of
-                                     True  -> text "First we apply the relative processor:"
-                                             $+$ pprint pp
-                                             $+$ text ""
-                                             $+$ text "Next, we apply the subprocessor:"
-                                             $+$ pprint subp
-                                     False -> text "The relative processor was not successful. We apply the subprocessor directly"
-                                             $+$ pprint subp
+  pprint (RelativeProof pp subp) = 
+    case succeeded pp of
+      True  -> text "First we apply the relative processor:"
+              $+$ pprint pp
+              $+$ text ""
+              $+$ text "Next, we apply the subprocessor:"
+              $+$ pprint subp
+      False -> text "The relative processor was not successful. We apply the subprocessor directly"
+              $+$ pprint subp
 
 -- Relative Processor
 
@@ -62,7 +81,7 @@ data RelativeProcessor p sub = RelativeProcessor
 
 instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p sub) where
   name RelativeProcessor = "relative"
-  description _ = ["TODO"] 
+  description _ = ["The processor 'relative p1 p2' first tries to remove rules using processor p1, and then continues with processor p2 on the resulting subproblem."] 
   type S.ProofOf (RelativeProcessor p sub) = RelativeProof p sub
   type S.ArgumentsOf (RelativeProcessor p sub) = Arg (Proc p) :+: Arg (Proc sub)
   arguments _ = arg { A.name = "relativeprocessor"
@@ -70,38 +89,22 @@ instance (P.Processor sub, P.Processor p) => S.Processor (RelativeProcessor p su
                 :+: arg { A.name = "subprocessor"
                         , A.description = "The processor that is applied after removing rules"}
 
-  solve inst prob = do res <- P.solvePartial remproc prob
-                       let removed = Trs.fromRules (P.ppRemovable res)
-                           subprob = case relation prob of
-                                       Standard trs         -> prob'{relation = Standard $ trs Trs.\\ removed}
-                                       Relative strict weak -> prob'{relation = Relative (strict Trs.\\ removed) weak}
+  solve inst prob | isDpProblem            = return $ RelativeFail "Relative not implemented for DP problems" 
+                  | weakNoneSizeIncreasing = return $ RelativeFail "The weak TRS is size-increasing"
+                  | otherwise              =
+           do res <- P.solvePartial remproc prob
+              let removed = Trs.fromRules (P.ppRemovable res)
+                  subprob = case relation prob of
+                                       Standard strict      -> prob'{relation = Standard $ strict \\ removed}
+                                       Relative strict weak -> prob'{relation = Relative (strict \\ removed) weak}
                                        DP       _      _    -> error "Relative Rule Removal inapplicable for DP problems"
-                       subproof <- P.apply subproc subprob
-                       return $ RelativeProof res subproof
-      where prob'     = prob{startTerms = TermAlgebra}
-            remproc :+: subproc = S.processorArgs inst
-
--- instance P.ParsableProcessor (RelativeProcessor (P.AnyProcessor P.SomeProcessor) (P.AnyProcessor P.SomeProcessor)) where
---     description _ = []
---     synString   _ = [ P.Token "relative", P.PosArg 1, P.PosArg 2]
---     optArgs     _ = []
---     posArgs     _ = [ (1, P.ArgDescr { P.adIsOptional = False
---                                      , P.adName       = "relative-processor"
---                                      , P.adDefault    = Nothing
---                                      , P.adDescr      = "The processor to remove rules with."
---                                      , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})
---                     , (2, P.ArgDescr { P.adIsOptional = False
---                                     , P.adName       = "subprocessor"
---                                     , P.adDefault    = Nothing
---                                     , P.adDescr      = "The processor to apply after rules have been removed."
---                                     , P.adSynopsis   = domainName (Phantom :: Phantom (S.StdProcessor (P.AnyProcessor P.SomeProcessor)))})]
---     parseProcessor_ _ = do _ <- try (string "relative")
---                            rel <- P.parseAnyProcessor
---                            whiteSpace 
---                            sub <- P.parseAnyProcessor
---                            return $ RelativeInstance { remProc = rel, subProc = sub }
-
-
+              subproof <- P.apply subproc subprob
+              return $ RelativeProof res subproof
+      where isDpProblem            = case relation prob of {DP{} -> True; _ -> False}
+            weakNoneSizeIncreasing = Trs.isNonSizeIncreasing $ weakTrs prob
+            prob'                  = prob{startTerms = TermAlgebra}
+            remproc :+: subproc    = S.processorArgs inst
+                   
 relative :: (P.Processor sub, P.Processor relproc) => P.InstanceOf relproc -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (RelativeProcessor relproc sub))
 relative rel sub = RelativeProcessor `S.withArgs` (rel :+: sub)
 

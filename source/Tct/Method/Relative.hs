@@ -44,6 +44,7 @@ data RelativeProof p sub = RelativeProof (P.PartialProof (P.ProofOf p)) (P.Proof
 
 removedRules :: RelativeProof p sub -> [Rule]
 removedRules (RelativeProof rp _) = P.ppRemovable rp
+removedRules _= []
 
 instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (RelativeProof p sub) where 
     answer (RelativeProof relp subp) = P.answerFromCertificate $ certified (unknown, res)
@@ -58,7 +59,7 @@ instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (R
                                   && not sizeIncreasingR  = ubRModS `mult` ubS
                                 | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
                                 | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)
-                                                          
+    answer RelativeFail{} = P.MaybeAnswer
 
 
 
@@ -77,7 +78,8 @@ instance (P.Processor p, P.Processor sub) => PrettyPrintable (RelativeProof p su
               $+$ pprint subp
       False -> text "The relative processor was not successful. We apply the subprocessor directly"
               $+$ pprint subp
-
+  pprint (RelativeFail reason) = text $ "We fail since: " ++ reason
+                                 
 -- Relative Processor
 
 data RelativeProcessor p sub = RelativeProcessor

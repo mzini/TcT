@@ -138,6 +138,9 @@ natural = arg
 bool :: Arg Bool
 bool = arg
 
+some :: Arg a -> Arg (Maybe a)
+some a = a {defaultValue = Just $ defaultValue a}
+
 processor :: Arg (Proc P.AnyProcessor)
 processor = arg
 

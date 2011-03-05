@@ -60,6 +60,9 @@ module Tct.Methods
     , CPConfig(..)
     , custom
     , customProcessor
+    , relative
+    , relativeProcessor
+
     -- * Predicates
     , isDuplicating
     , isConstructor
@@ -85,6 +88,7 @@ module Tct.Methods
     , Approximation(..)
     , natural
     , bool
+    , some
     , processor
     , optional
     , arg

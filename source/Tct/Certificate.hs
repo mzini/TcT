@@ -26,6 +26,7 @@ module Tct.Certificate
     , mult
     , compose
     , iter
+    , constant
     , poly
     , expo
     , primrec
@@ -116,6 +117,9 @@ upperBound (Cert (_,u)) = u
 
 poly :: Maybe Int -> Complexity
 poly = Poly
+
+constant :: Complexity
+constant = Poly (Just 0)
 
 expo :: Maybe Int -> Complexity
 expo = Exp

@@ -27,7 +27,6 @@ import Prelude hiding (uncurry)
 import Data.Map (Map)
 import Control.Monad
 import qualified Data.Map as M
-import qualified Data.List as L
 import Data.Typeable
 import Data.Maybe (fromMaybe)
 
@@ -41,7 +40,6 @@ import Termlib.Signature (runSignature )
 import Termlib.Term (Term(..))
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
-import qualified Termlib.Term as T
 import Termlib.Trs (Trs(..))
 
 import Tct.Processor.Transformations as T
@@ -135,12 +133,12 @@ applicativeSignature sig trs = case Trs.foldlRules f (Just (Nothing, M.empty)) t
           fTerm (Var _)       r                                          = Just $ r
           fTerm (Fun g [])    r                                          = Just $ inst g 0 r
           fTerm t@(Fun g _)   (Nothing, syms)                            = fTerm t ((Just g), syms)
-          fTerm (Fun g [a,b]) (mapp@(Just appsym), syms)  | appsym /= g  = Nothing
-                                                          | otherwise = case leftmst a 1 of
-                                                                          Just (c,i) -> rec >>= return . (inst c i)
-                                                                          Nothing    -> rec
+          fTerm (Fun g [a,b]) (mapp@(Just appsym), syms)  | appsym /= g = Nothing
+                                                          | otherwise  = case leftmst a 1 of
+                                                                           Just (c,i) -> rec >>= return . (inst c i)
+                                                                           Nothing    -> rec
                                                        where rec = fTerm a (mapp,syms) >>= fTerm b
-          fTerm _             _                                     = Nothing
+          fTerm _             _                                          = Nothing
 
           leftmst (Var _)       _ = Nothing
           leftmst (Fun g [])    i = Just (g,i)
@@ -192,34 +190,30 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
     where mkRule (R.Rule lhs rhs) = do lhs' <- mk lhs
                                        rhs' <- mk rhs
                                        return $ R.Rule lhs' rhs'
-              where mk = uncurrySexpr . sexpr
+          mk = fresh . uncurry
+          (appsym,_)    = app asig
+          s `apply` t = Fun appsym [s,t] 
+          symOf g ar = do attribs <- F.getAttributes g 
+                          case M.lookup g $ consts asig of 
+                                 Just (gattribs,_) -> F.maybeFresh (alterAttributes ar gattribs) 
+                                 Nothing           -> error $ show $ F.symIdent attribs
+          -- symOf g ar = F.maybeFresh (alterAttributes ar gattribs) 
+          --     where gattribs = case M.lookup g $ consts asig of 
+          --                        Just (attribs,_) -> attribs
+          --                        Nothing          -> error $ show g
 
-          sexpr = rev . revSexpr
-          revSexpr v@(Var _)    = v
-          revSexpr g@(Fun _ []) = g
-          revSexpr (Fun _ [a,b]) | isAtom a  = Fun undefined [revSexpr b, a]
-                                 | otherwise = Fun undefined (revSexpr b : (T.immediateSubterms $ revSexpr a))
-          revSexpr _            = error "Uncurry.uncurryTrs: non-applicative system given"
-          isAtom (Var _)    = True
-          isAtom (Fun _ []) = True
-          isAtom _          = False
+          uncurry (Fun _ [t1,t2]) = case u1 of 
+                                      Var{}     -> u1 `apply` u2
+                                      Fun g u1s | g == appsym -> u1 `apply` u2
+                                                | otherwise  -> Fun g (u1s ++ [u2])
+              where u1 = uncurry t1
+                    u2 = uncurry t2
+          uncurry t               =  t
+          fresh v@(Var _)               = return v
+          fresh (Fun g ts) | g == appsym = fresh' g
+                           | otherwise  = symOf g (length ts) >>= fresh'
+              where fresh' g' = Fun g' `liftM` mapM fresh ts
 
-          rev (Fun a l) = Fun a [rev l_i | l_i <- L.reverse l]
-          rev a         = a
-
-          uncurrySexpr v@(Var _)        = return $ v
-          uncurrySexpr (Fun g [])       = do g' <- symOf g 0
-                                             return $ Fun g' []
-          uncurrySexpr (Fun _ (v@(Var _):args)) = do args' <- uncurrySexprs args 
-                                                     return $ Fun appsym (v : args')
-          uncurrySexpr (Fun _ (Fun g []:args)) = do args' <- uncurrySexprs args 
-                                                    g' <- symOf g (length args)
-                                                    return $ Fun g' args'
-          uncurrySexpr _                = error "Uncurry.uncurryTrs: non-left-head-variable free TRS"
-          uncurrySexprs = mapM uncurrySexpr
-
-          (appsym,_) = app asig
-          symOf g ar = F.maybeFresh (alterAttributes ar gattribs) where Just (gattribs,_) = M.lookup g $ consts asig
 
 mkUncurry :: AppSignature -> Trs -> SignatureMonad (Trs,Trs)
 mkUncurry asig trs = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2

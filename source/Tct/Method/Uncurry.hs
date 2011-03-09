@@ -61,7 +61,7 @@ instance PrettyPrintable UncurryProof where
     pprint (NotUncurryable r) = text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
     pprint proof | Trs.isEmpty $ uncurriedTrs proof = text "The given TRS is empty, hence nothing to do." 
                  | otherwise = text "We uncurry the input using the following uncurry rules."
-                   $+$ (nest 2 $ pptrs $ uncurriedTrs proof)
+                   $+$ (nest 2 $ pptrs $ uncurryTrs proof)
              where pptrs trs = pprint (trs,sig,vars)
                    sig = newSignature proof
                    vars = Prob.variables $ inputProblem proof
@@ -114,6 +114,22 @@ uncurry = Uncurry `T.calledWith` ()
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show
 
+
+appSymbol :: AppSignature -> Symbol
+appSymbol = fst . app
+
+appArity :: AppSignature -> Symbol -> Int
+appArity asig sym = case M.lookup sym (consts asig) of 
+                      Just (_,i) -> i
+                      Nothing    -> error "Uncurry.appArity: cannot find symbol"
+
+applicativeArity :: AppSignature -> Term -> Int
+applicativeArity asig (Fun g []) = case M.lookup g $ consts asig of 
+                                     Just (_,ar) -> ar
+                                     _           -> error "Uncurry.applicativeArity: cannot find constant in applicative signature"
+applicativeArity asig (Fun _ [a,_]) = applicativeArity asig a - 1
+applicativeArity _    _             = error "Uncurry.applicativeArity: non-applicative term given"
+
 isLeftHeadVariableFree :: Trs -> Bool
 isLeftHeadVariableFree = Trs.allrules (lhvfree . R.lhs)
     where lhvfree (Var _)             = True
@@ -151,12 +167,6 @@ applicativeSignature sig trs = case Trs.foldlRules f (Just (Nothing, M.empty)) t
                     updateVal (Just (attribs,ar')) = Just (attribs, (max ar' ar))
 
 
-applicativeArity :: AppSignature -> Term -> Int
-applicativeArity asig (Fun g []) = case M.lookup g $ consts asig of 
-                                     Just (_,ar) -> ar
-                                     _           -> error "Uncurry.applicativeArity: cannot find constant in applicative signature"
-applicativeArity asig (Fun _ [a,_]) = applicativeArity asig a - 1
-applicativeArity _    _             = error "Uncurry.applicativeArity: non-applicative term given"
 
 etaSaturate :: AppSignature -> Trs -> Trs
 etaSaturate asig = Trs.mapRules saturateRule 
@@ -167,7 +177,9 @@ etaSaturate asig = Trs.mapRules saturateRule
                     (appsym,_) = app asig
 
 alterAttributes ::  Int -> F.Attributes -> F.Attributes
-alterAttributes ar attribs = attribs{symArity = ar, symIdent=symIdent attribs ++ "_" ++ show ar}
+alterAttributes ar attribs = attribs{symArity = ar, symIdent=symIdent attribs ++ num}
+    where num | ar == 0    = ""
+              | otherwise = "_" ++ show ar
 
 mkUncurrySystem :: AppSignature -> SignatureMonad Trs
 mkUncurrySystem asig = Trs.Trs `liftM` foldM mk [] (M.toList $ consts asig)
@@ -191,7 +203,7 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
                                        rhs' <- mk rhs
                                        return $ R.Rule lhs' rhs'
           mk = fresh . uncurry
-          (appsym,_)    = app asig
+          appsym      = appSymbol asig
           s `apply` t = Fun appsym [s,t] 
           symOf g ar = do attribs <- F.getAttributes g 
                           case M.lookup g $ consts asig of 
@@ -204,8 +216,8 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
 
           uncurry (Fun _ [t1,t2]) = case u1 of 
                                       Var{}     -> u1 `apply` u2
-                                      Fun g u1s | g == appsym -> u1 `apply` u2
-                                                | otherwise  -> Fun g (u1s ++ [u2])
+                                      Fun g u1s | appArity asig g > length u1s  -> Fun g (u1s ++ [u2])
+                                                | otherwise                     -> u1 `apply` u2
               where u1 = uncurry t1
                     u2 = uncurry t2
           uncurry t               =  t

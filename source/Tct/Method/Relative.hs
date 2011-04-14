@@ -49,11 +49,13 @@ removedRules _= []
 
 -- MA:TODO: think about applicable predicate
 appliesTo :: Problem -> (Bool, String)
-appliesTo prob = (not isDpProblem && weakNoneSizeIncreasing, reason)
+appliesTo prob = (not isRcProblem && not isDpProblem && weakNoneSizeIncreasing, reason)
   where isDpProblem            = case relation prob of {DP{} -> True; _ -> False}
+        isRcProblem            = case startTerms prob of {TermAlgebra{} -> False; _ -> True}
         weakNoneSizeIncreasing = Trs.isEmpty weak || Trs.isNonSizeIncreasing weak
           where weak = weakTrs prob
         reason | isDpProblem = "the relative processor is not implemented for DP problems" 
+               | isRcProblem = "the relative processor is not applicable to runtime complexity problems"
                | otherwise   = "the weak TRS is size-increasing"                   
 
 instance (Answerable (P.ProofOf p), Answerable (P.ProofOf sub)) => Answerable (RelativeProof p sub) where 

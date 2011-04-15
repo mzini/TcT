@@ -324,7 +324,8 @@ instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
       where ip = ppInputProblem p
 
 instance (Answerable proof) => Answerable (PartialProof proof) where
-    answer = answer . ppResult
+    answer p | length (ppRemovable p) == 0 = CertAnswer $ certified (constant, constant)
+             | otherwise = answer $ ppResult p
 
 
 -- * Someprocessor

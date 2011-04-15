@@ -43,7 +43,8 @@ module Tct.Methods
     , arctic
     , best
     , bounds
-    , combine
+    , combineDynamic
+    , combineStatic
     , epostar
     , empty
     , fail

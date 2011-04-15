@@ -46,7 +46,6 @@ Library
                     Tct.Processor.LoggingSolver
                     Tct.Encoding.ArgumentFiltering
                     Tct.Encoding.Precedence
-                    Tct.Encoding.Relative
                     Tct.Encoding.SafeMapping
                     Tct.Encoding.UsablePositions
                     Tct.Encoding.Matrix
@@ -58,7 +57,6 @@ Library
                     Tct.Method.PopStar
                     Tct.Method.EpoStar
                     Tct.Method.Combine
-                    Tct.Method.Relative
                     Tct.Method.Uncurry
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI

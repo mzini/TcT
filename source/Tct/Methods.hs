@@ -62,7 +62,6 @@ module Tct.Methods
     , CPConfig(..)
     , custom
     , customProcessor
-    , relative
 
     -- * Predicates
     , isDuplicating
@@ -122,7 +121,6 @@ import Tct.Method.Predicates
 import Tct.Method.Uncurry
 import Tct.Method.Wdg
 import Tct.Method.InnermostRuleRemoval
-import Tct.Method.Relative
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import Tct.Processor (solveBy)
@@ -152,7 +150,6 @@ builtInProcessors = timeoutProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
                    <|> combineProcessor
-                   <|> relativeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 

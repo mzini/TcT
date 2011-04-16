@@ -318,9 +318,11 @@ data PartialProof proof = PartialProof { ppInputProblem     :: Problem
 
 instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
   pprint p = text "The following rules were strictly oriented by the relative processor:"
-             $+$ pprint (Trs.fromRules (ppRemovable p), signature $ ip, variables $ ip)
              $+$ text ""
-             $+$ pprint (ppResult p)
+             $+$ nest 2 (pprint (Trs.fromRules (ppRemovable p), signature $ ip, variables $ ip))
+             $+$ text ""
+             $+$ text "Details:"
+             $+$ nest 2 (pprint (ppResult p))
       where ip = ppInputProblem p
 
 instance (Answerable proof) => Answerable (PartialProof proof) where
@@ -368,8 +370,7 @@ instance PrettyPrintable SomeProcessor where
               ppsyn     = block "Usage" $ text (synopsis proc)
               ppargdescr | length l == 0 = empty
                          | otherwise     = block "Arguments" $ vcat l
-                  where l = [text (adName d) <> text ":" 
-                             <+> paragraph (adDescr d ++ mshow (adDefault d)) | d <- optArgs proc]
+                  where l = [hang (text (adName d) <> text ":") 10 (paragraph (adDescr d ++ mshow (adDefault d))) $+$ text "" | d <- optArgs proc]
                         mshow Nothing    = "" 
                         mshow (Just def) = " The default is set to '" ++ def ++ "'."
               sname = name proc 

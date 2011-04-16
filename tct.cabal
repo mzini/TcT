@@ -49,6 +49,7 @@ Library
                     Tct.Encoding.SafeMapping
                     Tct.Encoding.UsablePositions
                     Tct.Encoding.Matrix
+                    Tct.Encoding.Relative
                     Tct.Encoding.Natring
                     Tct.Encoding.AbstractInterpretation
                     Tct.Encoding.HomomorphicInterpretation

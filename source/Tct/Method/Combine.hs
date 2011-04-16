@@ -58,7 +58,7 @@ staticAssign Random problem _ = (mkProb r_1 r_2, mkProb r_2 r_1)
           mkRel = case relation problem of DP _ _ -> DP; _ -> Relative
           halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule | (b,rule) <- zip (intersperse True (repeat False)) rs]
 
--- Waldmann Conditions
+-- Waldmann/Hofbauer Conditions
 
 -- MA:TODO: think about applicable predicate
 wcAppliesTo :: Problem -> (Bool, String)
@@ -99,6 +99,7 @@ instance (P.Processor p1, ComplexityProof (P.ProofOf p1)
         $+$ text ""
         $+$ paragraph (unlines [ if relApplied then "Above strictly oriented rules were removed." else "Above strict rules are moved into the weak component." 
                                , "The proof for the resulting subproblem looks as follows."])
+        $+$ text ""
         $+$ pprint subproof
 
 
@@ -139,33 +140,37 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Combine p1 p2) where
 
     instanceName inst   = (S.name $ S.processor inst) ++ if isStatic then "" else " (dynamic)"
         where _ :+: isStatic :+: _ :+: _ :+: _ = S.processorArgs inst
-    description Combine = [ unlines [ "Given a TRS R, 'combine p_1 ... p_n' partitions R into TRSs R_1, ..., R_n" 
-                                    , "and applies each processor p_i on the (relative) problem R_i modulo R\\R_i,"
-                                    , "i.e., processor p_i is used to measure the number of R_i steps in R-derivations."]
-                          , "The (asymptotic) upper-bound for the complexity of R is the worst upper-bound of the R_i's." ]
+    description Combine = [ unwords [ "Given a TRS R, 'combine p1 p2' partitions R into a pair of TRSs (R_1,R_2)" 
+                                    , "and applies processor 'p1' on the (relative) problem R_1 modulo R_2."
+                                    , "Depending on the flag 'relative' the second processor 'p2' is either applied"
+                                    , "on the relative problem R_2 modulo R_1 or the TRS R_2."
+                                    , "In the former case the asymptotic upper-bound for the complexity of R is the worst upper-bound of R_1 modulo R_2 and R_2 modulo R_1.\n"
+                                    , "In the latter case the complexity of R is computed based on the complexity"
+                                    , "of R_1 modulo R_2 and the TRS R_2 as follows.\n"
+                                    , "  1) if R_1 and R_2 are non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R_1/R_2) * dc(n, ->_R_2))\n"
+                                    , "  2) if R_2 is non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R/S) * dc(n + dc(n,->_R_1/R_2), ->_R_2))\n"
+                                    , "  3) otherwise dc(n, ->_R) = O(dc(n, ->_R/S) * f(n)) where f(n) denotes m-times iteration of the function \\n. dc(n,->_R_2) where m :=  dc(n,->_R_1/R_2) + 1.\n\n"
+                                    , "Note that criteria 1--3 are only applied for derivational complexity analysis.\n\n"
+                                    , "The processor is also applicable in the dependency pair setting and on relative input problems (without criteria 1--3)."
+                                    ]
+                          ]
     arguments Combine   = opt { A.name = "split" 
                               , A.defaultValue = Random
-                              , A.description = unlines ["This flag defines how the input TRS R is partitioned into the TRSs (R_1, R_2) if the option '-static' is set."
-                                                        , "Currently only 'random' is implemented, which randomly partitions R into two equally sized TRSs."]}
+                              , A.description = unwords ["This flag defines how the input TRS R is partitioned into the TRSs (R_1,R_2) if the option 'static' is set."
+                                                       , "Currently only 'Random' is implemented, which randomly partitions R into two equally sized TRSs."]}
                           :+: opt { A.name = "static"
                                   , A.defaultValue = False
-                                  , A.description = unlines [ "If this argument is set then the input TRS R is partitioned into TRSs (R_1,R_2) according to the flag 'split'."
-                                                            , "Otherwise the first given processor selects the TRS R_1" ] }
+                                  , A.description = unwords [ "If this argument is set then the input TRS R is partitioned into TRSs (R_1,R_2) according to the flag 'split'."
+                                                            , "Otherwise the first given processor selects the TRS R_1." ] }
                           :+: opt { A.name = "relative"
                                   , A.defaultValue = False
-                                  , A.description = unlines [ "This flag specifies how the second component R_2 is handled by the second given processor 'p2'"
-                                                            , "If this flag is set, and one of the following criteria applies, processor 'p2' is used to estimate the complexity of R_2."
-                                                            , "Otherwise, the subproblem is R_2 modulo R_1."
-                                                            , "Criteria (aka Waldmann's relative criteria): (TODO ADAPT!)"
-                                                            , "Let R = R_1 \\cup R_2"
-                                                            , "  1) if R_1 and R_2 are non-size-increasing then dc(n, ->_R) = O(dc(n, ->R_1/R_2) * dc(n, ->_R_1/R_2))"
-                                                            , "  2) if R_2 is non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R/S) * dc(n, ->_S))"
-                                                            , "  3) if R_2 is non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R/S) * dc(n, ->_S))"
-                                                            , "Above criteria applie only for derivational complexity"] }
+                                  , A.description = unwords [ "This flag specifies how the second component R_2 is handled by the second given processor 'p2'."
+                                                            , "If this flag is set, and one of the above criteria 1--3 applies, processor 'p2' is used to estimate the complexity of R_2."
+                                                            , "Otherwise, the processor 'p2' is applied on the subproblem R_2 modulo R_1."] }
                           :+: arg { A.name = "Subprocessor 1"
-                                  , A.description = unlines ["The Processor to estimate the complexity of R_1 modulo R_2"]}
+                                  , A.description = unlines ["The Processor to estimate the complexity of R_1 modulo R_2."]}
                           :+: arg { A.name = "Subprocessor 2"
-                                  , A.description = unlines ["The Processor to estimate the complexity of R_2 modulo R_1, or respectively R_2"] }
+                                  , A.description = unlines ["The Processor to estimate the complexity of R_2 modulo R_1, or respectively R_2."] }
 
     solve inst prob | Trs.isEmpty (strictTrs prob) = return RelativeEmpty 
                     | static    = solveStatic

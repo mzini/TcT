@@ -77,6 +77,7 @@ data Combine p1 p2 = Combine
 
 data CombineProof p1 p2 = StaticPartitioned PartitionFn (P.Proof p1) (P.Proof p2)
                         | DynamicPartitioned Bool (P.PartialProof (P.ProofOf p1)) (P.Proof p2)
+                        | NoRuleRemoved
                         | RelativeEmpty 
 
 removedRules :: CombineProof p1 p2 -> [Rule]
@@ -87,6 +88,7 @@ instance (P.Processor p1, ComplexityProof (P.ProofOf p1)
          , P.Processor p2, ComplexityProof (P.ProofOf p2))
     => PrettyPrintable (CombineProof p1 p2) where
     pprint RelativeEmpty = paragraph "The strict component is empty."
+    pprint NoRuleRemoved = paragraph "No rule was removed, we abort."
     pprint (StaticPartitioned split proof1 proof2) = 
         paragraph (unlines [ "We have partition the strict rules into the pair (R_1,R_2) using the function "
                        , "'" ++ show split ++ "'." ])
@@ -108,6 +110,7 @@ ub = upperBound . certificate . answer
 
 instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (CombineProof p1 p2) where
     answer RelativeEmpty = CertAnswer $ certified (constant, constant)
+    answer NoRuleRemoved = MaybeAnswer
     answer (StaticPartitioned _ p1 p2) | success   = CertAnswer $ certified (unknown, ub p1 `add` ub p2)
                                        | otherwise = MaybeAnswer
         where success = succeeded p1 && succeeded p2
@@ -193,7 +196,9 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Combine p1 p2) where
                                                                             Standard strict      -> Relative (strict \\ removed) removed
                                                                             Relative strict weak -> Relative (strict \\ removed) (weak `union` removed)
                                                                             DP       strict weak -> DP (strict \\ removed) (weak `union` removed) }
-                                DynamicPartitioned relApplied res `liftM` P.apply inst2 subprob
+                                case null $ Trs.rules removed of 
+                                  True  -> return $ NoRuleRemoved
+                                  False -> DynamicPartitioned relApplied res `liftM` P.apply inst2 subprob
 
 
 

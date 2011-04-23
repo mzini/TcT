@@ -317,13 +317,17 @@ data PartialProof proof = PartialProof { ppInputProblem     :: Problem
                         | PartialInapplicable { ppInputProblem :: Problem }
 
 instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
-  pprint p = text "The following rules were strictly oriented by the relative processor:"
-             $+$ text ""
-             $+$ nest 2 (pprint (Trs.fromRules (ppRemovable p), signature $ ip, variables $ ip))
+  pprint p = ppRemoveds
              $+$ text ""
              $+$ text "Details:"
              $+$ nest 2 (pprint (ppResult p))
       where ip = ppInputProblem p
+            removeds = ppRemovable p
+            ppRemoveds | null removeds = text "No rule was removed:"
+                       | otherwise     = text "The following rules were strictly oriented by the relative processor:"
+                                         $+$ text ""
+                                         $+$ nest 2 (pprint (Trs.fromRules removeds, signature $ ip, variables $ ip))
+
 
 instance (Answerable proof) => Answerable (PartialProof proof) where
     answer p | length (ppRemovable p) == 0 = CertAnswer $ certified (constant, constant)

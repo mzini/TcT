@@ -1,0 +1,5 @@
+* Relative Rule Removal for DP-Problems
+* Rewrite RHSs
+* Knowledge-Propagation 
+** DG in RC problem speichern & Prozessor implementieren?
+* WeightGap prozessor implementieren?

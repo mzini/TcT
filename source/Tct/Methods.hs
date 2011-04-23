@@ -23,7 +23,7 @@ module Tct.Methods
      failProcessor
     , bestProcessor
     , boundsProcessor
-    , combineProcessor
+    , composeProcessor
     , epostarProcessor
     , fastestProcessor
     , iteProcessor
@@ -43,7 +43,8 @@ module Tct.Methods
     , arctic
     , best
     , bounds
-    , combine
+    , composeDynamic
+    , composeStatic
     , epostar
     , empty
     , fail
@@ -61,7 +62,6 @@ module Tct.Methods
     , CPConfig(..)
     , custom
     , customProcessor
-    , relative
 
     -- * Predicates
     , isDuplicating
@@ -112,7 +112,7 @@ import Prelude hiding (fail, uncurry)
 import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
-import Tct.Method.Combine
+import Tct.Method.Compose
 import Tct.Method.Bounds
 import Tct.Method.Matrix.ArcticMI
 import Tct.Method.Matrix.NaturalMI
@@ -121,7 +121,6 @@ import Tct.Method.Predicates
 import Tct.Method.Uncurry
 import Tct.Method.Wdg
 import Tct.Method.InnermostRuleRemoval
-import Tct.Method.Relative
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import Tct.Processor (solveBy)
@@ -150,8 +149,7 @@ builtInProcessors = timeoutProcessor
                    <|> wdgProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
-                   <|> combineProcessor
-                   <|> relativeProcessor
+                   <|> composeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 

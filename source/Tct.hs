@@ -167,7 +167,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
           Prob.TermAlgebra -> someInstance $ matrices Methods.Triangular
           _                -> someInstance $ wdg (matrices Methods.Constructor)
         matrices kind = Methods.fastest [ Methods.matrix kind (Nat dim) (Bits 3) (Just $ Nat 4) True | dim <- [1, 2, 3] ]
-        wdg           = Methods.wdg Methods.Edg True Methods.Default (Nat 2) (Bits 3) (Just $ Nat 4) True False True
+        wdg           = Methods.wdg Methods.Edg True Methods.Default (Nat 2) (Bits 3) (Just $ Nat 4) True False True False
         getDefaultSolver = findSatSolver MiniSat "minisat" `catchError` (const $ findSatSolver MiniSat "minisat2")
 
 

@@ -121,7 +121,8 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
                          , usableRules       :: Trs
                          , newSignature      :: Signature
                          , newVariables      :: Variables
-                         , containsNoEdgesEmptyUrs :: Bool}
+                         , containsNoEdgesEmptyUrs :: Bool
+                         , tuplesUsed        :: Bool}
               | NA { reason :: String }
 
 
@@ -139,14 +140,14 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
-wdg approx weightgap wgkind wgdim wgsize wgcbits ua = Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua)
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg approx weightgap wgkind wgdim wgsize wgcbits ua tuples = Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool)
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
@@ -195,20 +196,20 @@ instance T.Transformer Wdg where
                       , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
                                                 , "in order to relax the monotonicity constraints on the interpretation."]
                       , A.defaultValue = True }
---                   :+:
---                   opt { A.name = "uargs"
---                       , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument"
---                                                 , "positions for the weight gap condition."
---                                                 , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
---                                                 , "to using a tcap-like function." ]
---                       , A.defaultValue = UArgByCap }
+                  :+:
+                  opt { A.name = "tuples"
+                      , A.description = unlines [ "Specifies whether Dependency-Tuples should be used for the innermost case."]
+                      , A.defaultValue = False }
+
     transform inst prob =
         case (startTerms prob, relation prob) of 
           (TermAlgebra, _) -> return $ T.Failure $ NA {reason = "derivational complexity"}
           (_, DP _ _) -> return $ T.Failure $ NA {reason = "DP problems"}
           (_, Relative _ _) -> return $ T.Failure $ NA {reason = "relative problems"}
-          (BasicTerms _ _, Standard trs) -> do (_,ps) <- traverseNodes [] (roots ewdgSCC) [] Trs.empty
-                                               return $ T.Success (mkProof ps) (mkProbs ps)
+          (BasicTerms _ _, Standard trs) -> case useTuples && strategy prob /= Innermost of 
+                                             True -> return $ T.Failure $ NA {reason = "non-innermost rewriting and dependency tuples"}
+                                             False -> do (_,ps) <- traverseNodes [] (roots ewdgSCC) [] Trs.empty
+                                                         return $ T.Success (mkProof ps) (mkProbs ps)
 
               where traverseNodes pth ns dpss urs = do rs <- P.evalList' False [ traverse pth n_i dpss urs | n_i <- ns ]
                                                        return (List.find isJust [ ms | (ms,_) <- rs] >>= id, concatMap snd rs)
@@ -233,7 +234,8 @@ instance T.Transformer Wdg where
                                           , usableRules      = allUsableRules
                                           , newSignature     = sig'
                                           , newVariables     = variables prob
-                                          , containsNoEdgesEmptyUrs  = simple}
+                                          , containsNoEdgesEmptyUrs  = simple
+                                          , tuplesUsed       = useTuples}
 
                     mkProbs ps | simple    = []
                                | otherwise = [(SN gpath, mk proof dpss dps urs) | (Path gpath (dpss,dps) urs, proof) <- ps, not $ isSubsumed proof]
@@ -251,12 +253,12 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    approx :+: _ :+: wgMatrixShape :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa = T.transformationArgs inst
+                    approx :+: _ :+: wgMatrixShape :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa :+: useTuples = T.transformationArgs inst
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
                                                   Just (Nat b) -> N.Bits b
 
-                    (startTerms', sig', wdps) = weakDependencyPairs prob
+                    (startTerms', sig', wdps) = weakDependencyPairs useTuples prob
 
                     allUsableRules            = mkUsableRules wdps trs
 
@@ -273,12 +275,12 @@ instance T.Transformer Wdg where
 
 -- dependency pairs and usable rules
 
-weakDependencyPairs :: Problem -> (StartTerms, Signature, Trs)
-weakDependencyPairs prob = 
+weakDependencyPairs :: Bool -> Problem -> (StartTerms, Signature, Trs)
+weakDependencyPairs useTuples prob = 
     case (startTerms prob, relation prob) of 
       (BasicTerms ds cs, Standard trs) -> (BasicTerms dssharp cs, sig, wdps)
           where ((wdps,dssharp),sig) = flip Sig.runSignature (signature prob) $ 
-                                       do dps <- weakDPs (strategy prob) trs 
+                                       do dps <- weakDPs useTuples (strategy prob) trs 
                                           ds' <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
                                           return (dps, ds')
       _                -> error "Wdp.weakDependencyPairs called with non-basic terms"
@@ -290,15 +292,15 @@ markSymbol f = do fa <- getAttributes f
 -- AS: MA and GM say that not leaving out unary compound symbols obviously does not make any difference at all for the currently used techniques
 --     AS does not know about this, however, not leaving that symbol does no harm, either
 --     GM wants that these facts are explicitly written down as a comment in the code
-weakDPs :: Strategy -> Trs -> SignatureMonad Trs
-weakDPs strat trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
+weakDPs :: Bool -> Strategy -> Trs ->  SignatureMonad Trs
+weakDPs useTuples strat trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
   where ds = definedSymbols trs 
         mk (rule,i) = do lhs' <- mrk $ R.lhs rule
                          rhs' <- mkRhs i $ R.rhs rule
                          return $ R.fromPair (lhs',rhs')
         mkRhs i t   = fromSubterms $ gatherSubterms p t
-          where p (Left _)  = not (strat == Innermost)
-                p (Right f) = f `Set.member` ds
+          where p (Left _)  = not (strat == Innermost) -- variable
+                p (Right f) = f `Set.member` ds     -- function symbol
                 fromSubterms ts = do c <- fresh (defaultAttribs ("c_" ++ show i) (length ts)) {symIsCompound = True}
                                      ts' <- mapM mrk ts
                                      return $ Term.Fun c ts'

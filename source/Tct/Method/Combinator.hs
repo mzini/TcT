@@ -41,6 +41,7 @@ where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Control.Concurrent.PFold (pfoldA, Return (..))
+import Control.Concurrent.Utils (threadKilled)
 import Text.Parsec.Prim hiding (Empty)
 import Text.Parsec.Char
 import Control.Monad (forM)
@@ -239,7 +240,7 @@ instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
                                                 $+$ detailsFailed (enumeration' failures)
                      (OneOfSucceeded o p)     -> descr o
                                                 $+$ text ""
-                                                $+$ detailsSuccess (enumeration' [p])
+                                                $+$ pprint (P.result p)
                                                     where descr Sequentially = procName p <+> text "succeeded:"
                                                           descr Fastest      = procName p <+> text "proved the goal fastest:"
                                                           descr Best         = procName p <+> text "proved the best result:"

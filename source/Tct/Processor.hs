@@ -103,8 +103,6 @@ data SatSolver = MiniSat FilePath
 
 -- * The Solver Monad
 
-
-
 class MonadIO m => SolverM m where
     type St m
     runSolver    :: St m -> m a -> IO a

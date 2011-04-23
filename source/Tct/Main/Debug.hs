@@ -27,50 +27,55 @@ import System.IO.Unsafe
 
 import Termlib.Utils (PrettyPrintable (..))
 
-debugEnabled :: Bool
-debugEnabled = False
+data Message = SolveStart 
+             | SolveFinish (Proof SomeProcessor)
 
+
+class DebugM m where
+  setDebug     :: Bool -> m ()
+  debugEnabled :: m Bool
+  debugMsgPut  :: PrettyPrintable body => Int -> String -> Maybe body -> m ()
+  
 putErrLn :: String -> IO ()
 putErrLn s = hPutStr stderr (s ++ "\n")
 
-whenDebug :: a -> a -> a
-whenDebug a b = if debugEnabled then a else b
+-- whenDebug :: a -> a -> a
+-- whenDebug a b = if debugEnabled then a else b
 
-printTime :: Integer -> String
-printTime t = show $ (fromIntegral t / (10^(9::Integer)) :: Double)
+-- printTime :: Integer -> String
+-- printTime t = show $ (fromIntegral t / (10^(9::Integer)) :: Double)
 
-printTimeLn :: MonadIO m => Maybe Integer -> String -> m Integer
-printTimeLn mt s = liftIO $ do {t <- getCPUTime; putErrLn $ "[" ++ ts t ++ "] " ++ s ++ " " ++ e; return t}
-    where e = maybe "start" (const "end") mt
-          ts t2 = maybe (printTime t2) (\ t1 -> printTime t1 ++ "+" ++ printTime (t2 - t1)) mt
+-- printTimeLn :: MonadIO m => Maybe Integer -> String -> m Integer
+-- printTimeLn mt s = liftIO $ do {t <- getCPUTime; putErrLn $ "[" ++ ts t ++ "] " ++ s ++ " " ++ e; return t}
+--     where e = maybe "start" (const "end") mt
+--           ts t2 = maybe (printTime t2) (\ t1 -> printTime t1 ++ "+" ++ printTime (t2 - t1)) mt
 
-
-timedLog :: MonadIO m => String -> m a -> m a
-timedLog s m = whenDebug dm m
-        where dm = do t1 <- printTimeLn Nothing s
-                      a <- seq t1 m
-                      _ <- seq a $ printTimeLn (Just t1) s
-                      return a
-
-
-timedLogCatchErr :: (MonadIO m, MonadError e m) => String -> m a -> m a
-timedLogCatchErr s m = whenDebug dm m
-        where dm = do t1 <- printTimeLn Nothing s
-                      a <- seq t1 ((Right `liftM` m) `catchError` (return . Left))
-                      _ <- seq a $ printTimeLn (Just t1) s
-                      case a of 
-                        Right a' -> return a'
-                        Left e -> throwError e
-
-debugMsg :: MonadIO m => String -> m ()
-debugMsg = whenDebug (liftIO . putErrLn) (const $ return ())
-
-debugMsgPP :: (MonadIO m, PrettyPrintable a) => a -> m ()
-debugMsgPP a = debugMsg (show $ pprint $ a)
+-- timedLog :: MonadIO m => String -> m a -> m a
+-- timedLog s m = whenDebug dm m
+--         where dm = do t1 <- printTimeLn Nothing s
+--                       a <- seq t1 m
+--                       _ <- seq a $ printTimeLn (Just t1) s
+--                       return a
 
 
-unsafeDebugMsg :: Show a => a -> a
-unsafeDebugMsg a = unsafePerformIO (debugMsg (show a) >> return a)
+-- timedLogCatchErr :: (MonadIO m, MonadError e m) => String -> m a -> m a
+-- timedLogCatchErr s m = whenDebug dm m
+--         where dm = do t1 <- printTimeLn Nothing s
+--                       a <- seq t1 ((Right `liftM` m) `catchError` (return . Left))
+--                       _ <- seq a $ printTimeLn (Just t1) s
+--                       case a of 
+--                         Right a' -> return a'
+--                         Left e -> throwError e
 
-unsafeDebugMsgPP :: PrettyPrintable a => a -> a
-unsafeDebugMsgPP a = unsafePerformIO $ debugMsgPP a >> return a
+-- debugMsg :: MonadIO m => String -> m ()
+-- debugMsg = whenDebug (liftIO . putErrLn) (const $ return ())
+
+-- debugMsgPP :: (MonadIO m, PrettyPrintable a) => a -> m ()
+-- debugMsgPP a = debugMsg (show $ pprint $ a)
+
+
+-- unsafeDebugMsg :: Show a => a -> a
+-- unsafeDebugMsg a = unsafePerformIO (debugMsg (show a) >> return a)
+
+-- unsafeDebugMsgPP :: PrettyPrintable a => a -> a
+-- unsafeDebugMsgPP a = unsafePerformIO $ debugMsgPP a >> return a

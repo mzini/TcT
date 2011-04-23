@@ -249,7 +249,7 @@ orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv (Prob.
 
           sig  = Prob.signature prob
  
-solveConstraint:: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
+solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
 solveConstraint constraint initial makeResult = 
     do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
        return $ makeResult `liftM` r

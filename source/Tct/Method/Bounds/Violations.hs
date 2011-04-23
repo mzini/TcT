@@ -32,7 +32,6 @@ import Tct.Processor (SolverM)
 import Tct.Method.Bounds.Automata
 import Tct.Method.Bounds.Violations.Find
 import Tct.Method.Bounds.Violations.Fix
-import Tct.Main.Debug (debugMsg)
 
 makeRuleCompatible :: R.Rule -> Enrichment -> Strictness -> WeakBoundedness -> Label -> Automaton -> Either Automaton Automaton
 makeRuleCompatible r !e !str !wb !ml !a = case null violations of
@@ -48,10 +47,11 @@ compatibleAutomaton strict weak e a = eitherVal `liftM` (iter a (1 :: Int))
                            Left  a'' -> iter a'' (i + 1)
                            Right a'' -> return $ Right a''
           f i str ml a' rule = case a' of 
-                                (Left a'')  -> tl $ Left $ eitherVal $ makeRuleCompatible rule e str wb ml a''
-                                (Right a'') -> tl $ makeRuleCompatible rule e str wb ml a''
-              where tl v = do debugMsg $ show $ (brackets $ text $ show i) <+> text "processing rule" <+> pprint rule $$ pprint (eitherVal v)
-                              return v
+                                (Left a'')  -> return $ Left $ eitherVal $ makeRuleCompatible rule e str wb ml a''
+                                (Right a'') -> return $ makeRuleCompatible rule e str wb ml a''
+              -- where tl v = do debugMsg $ show $ (brackets $ text $ show i) <+> text "processing rule" <+> pprint rule $$ pprint (eitherVal v)
+              -- return v
+
           eitherVal (Left v)  = v
           eitherVal (Right v) = v
           srs = Trs.rules strict

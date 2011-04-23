@@ -39,8 +39,6 @@ import Locale
 import Tct.Processor as P
 
 -- add logging to solver monad
-data LoggingSig = LMStart 
-                | LMFin (Proof SomeProcessor)
 data LoggingMsg = LoggingMsg UUID LoggingSig Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
 
 toSec :: Integer -> Double
@@ -53,17 +51,17 @@ instance PrettyPrintable LoggingMsg where
                    $+$ text "" 
                    $+$ body 
                    $+$ text "")
-        where heading = text (case sig of {LMStart -> "START"; _ -> "END"})
+        where heading = text (case sig of {SolveStart -> "START"; _ -> "END"})
                         <+> brackets ppId
                         <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> text "@"
                         <+> text (show cpuTime_ms ++ "ms")
-                        <+> (case sig of {LMFin p -> pprint (answer p) ; _ -> text "" })
+                        <+> (case sig of {SolveFinish p -> pprint (answer p) ; _ -> text "" })
 
               cpuTime_ms :: Int
               cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (10.0^(9 :: Int))
               stars = text [ '*' | _ <- [1..indent]] 
-              indent = lv * 2 - 1 -- case sig of {LMStart -> lv; _-> lv + 1}
+              indent = lv * 2 - 1 -- case sig of {SolveStart -> lv; _-> lv + 1}
 
               ppId = text $ take 8 $ show $ uid
 
@@ -73,8 +71,8 @@ instance PrettyPrintable LoggingMsg where
 
               body = text "#+BEGIN_EXAMPLE"
                      $+$ (case sig of 
-                            LMStart -> prettyPrintRelation prob
-                            LMFin p -> pprint p)
+                            SolveStart -> prettyPrintRelation prob
+                            SolveFinish p -> pprint p)
                      $+$ text "#+END_EXAMPLE"
 
               ppPropertyName n = text $ ":" ++ n ++ ":"
@@ -84,10 +82,10 @@ instance PrettyPrintable LoggingMsg where
                            $+$ ppPropertyName "COLUMNS" <+> hsep [text "%" <> text n | (n,_) <- props]
                            $+$ text ":END:"
                   where props = case sig of
-                                  LMStart -> globalProps ++ [("Answer", empty)]
-                                  (LMFin r) -> globalProps ++ [("Answer", pprint $ answer r)]
+                                  SolveStart    -> globalProps ++ [("Answer", empty)]
+                                  SolveFinish r -> globalProps ++ [("Answer", pprint $ answer r)]
                         globalProps =  [ ("Status", case sig of 
-                                                      LMStart -> text $ "START"
+                                                      SolveStart -> text $ "START"
                                                       _       -> text $ "END")
                                        , ("Processor", text $ instanceName inst)
                                        , ("Thread", text $ show thread)
@@ -154,11 +152,11 @@ instance SolverM m => SolverM (LoggingSolverM m) where
     solve proc prob = do lv <- get 
                          uid <- liftIO $ uuid
                          put $ lv + 1
-                         sendMsg uid lv LMStart
+                         sendMsg uid lv SolveStart
                          r <- solve_ proc prob 
-                         sendMsg uid lv $ LMFin $ Proof { appliedProcessor = someInstance proc 
-                                                        , inputProblem = prob
-                                                        , result = someProof r}
+                         sendMsg uid lv $ SolveFinish $ Proof { appliedProcessor = someInstance proc 
+                                                              , inputProblem = prob
+                                                              , result = someProof r}
                          return r
         where sendMsg uid lv sig = do (chan, UTCTime day time) <- ask
                                       liftIO $ do pid <- myThreadId

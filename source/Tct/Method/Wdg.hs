@@ -297,8 +297,8 @@ weakDPs strat trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
                          rhs' <- mkRhs i $ R.rhs rule
                          return $ R.fromPair (lhs',rhs')
         mkRhs i t   = fromSubterms $ gatherSubterms p t
-          where p (Left _)  = not (strat == Innermost)
-                p (Right f) = f `Set.member` ds
+          where p (Left _)  = not (strat == Innermost) -- variable
+                p (Right f) = f `Set.member` ds     -- function symbol
                 fromSubterms ts = do c <- fresh (defaultAttribs ("c_" ++ show i) (length ts)) {symIsCompound = True}
                                      ts' <- mapM mrk ts
                                      return $ Term.Fun c ts'

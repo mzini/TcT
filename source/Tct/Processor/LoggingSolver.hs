@@ -52,7 +52,7 @@ instance PrettyPrintable LoggingMsg where
                    $+$ text "" 
                    $+$ body 
                    $+$ text "")
-        where heading = text (case sig of {SolveStart -> "START"; _ -> "END"})
+        where heading = text (case sig of {SolveStart -> "START"; _ -> "FINISH"})
                         <+> brackets ppId
                         <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> text "@"

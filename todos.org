@@ -1,5 +1,8 @@
-* Relative Rule Removal for DP-Problems
-* Rewrite RHSs
-* Knowledge-Propagation 
+* Relative Rule Removal for DP-Problems!			     :MATRIX:
+* Rewrite RHSs							       :PROC:
+* Knowledge-Propagation						       :PROC:
 ** DG in RC problem speichern & Prozessor implementieren?
-* WeightGap prozessor implementieren?
+* WeightGap prozessor implementieren?				       :PROC:
+* fixe interpretation fuer compound symbole?			     :MATRIX:
+* AG01/3.17 : remove unreachable rules fuer runtime, aehnlich irr      :PROC:
+** braucht man hier narrowing?

@@ -264,11 +264,12 @@ instance (P.Processor p) => S.Processor (OneOf p) where
 
     arguments _ = arg { A.name        = "subprocessors"
                       , A.description = "a list of subprocessors"}
-    solve theproc prob | S.processor theproc == Sequentially = solveSeq (S.processorArgs theproc) []
-                       | S.processor theproc == Best         = solveBest (S.processorArgs theproc)
-                       | otherwise                           = solveFast (S.processorArgs theproc)
+    solve theproc prob | proc == Sequentially = solveSeq (S.processorArgs theproc) []
+                       | proc == Best         = solveBest (S.processorArgs theproc)
+                       | otherwise           = solveFast (S.processorArgs theproc)
 
-        where mkActions ps = forM ps $ \ proc -> P.mkIO $ P.apply proc prob
+        where proc = S.processor theproc 
+              mkActions ps = forM ps $ \ proc -> P.mkIO $ P.apply proc prob
               ofResult o (Left faileds) = OneOfFailed o faileds
               ofResult o (Right proof) = OneOfSucceeded o proof
               
@@ -294,7 +295,7 @@ instance (P.Processor p) => S.Processor (OneOf p) where
                                                 ret proof | final proof = Stop $ Right proof
                                                           | otherwise   = Continue $ Right proof
                                             r <- liftIO $ pfoldA sel (Left []) actions
-                                            return $ ofResult Best r
+                                            return $ ofResult proc r
 
 
 

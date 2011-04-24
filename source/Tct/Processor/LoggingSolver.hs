@@ -36,10 +36,11 @@ import Termlib.Problem
 import Termlib.Utils
 import Locale
 
+import Tct.Main.Debug
 import Tct.Processor as P
 
 -- add logging to solver monad
-data LoggingMsg = LoggingMsg UUID LoggingSig Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
+data LoggingMsg = LoggingMsg UUID Message Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
 
 toSec :: Integer -> Double
 toSec i = fromInteger i / fromInteger ((10 :: Integer)^(12 :: Integer))

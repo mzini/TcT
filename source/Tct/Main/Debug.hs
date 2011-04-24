@@ -24,6 +24,7 @@ import Control.Monad.Error (MonadError, catchError, throwError)
 import System.CPUTime (getCPUTime)
 import System.IO
 import System.IO.Unsafe
+import Tct.Processor(Proof, SomeProcessor)
 
 import Termlib.Utils (PrettyPrintable (..))
 

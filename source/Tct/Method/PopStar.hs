@@ -92,8 +92,9 @@ instance PrettyPrintable PopStarOrder where
                  $++$ pparam (popSafeMapping order) <+> text "."
                  $+$ (case popArgumentFiltering order of 
                                Nothing -> PP.empty
-                               Just af -> text "Further, following argument filtering is employed:"
-                                         $++$ pparam af)
+                               Just af -> text "" 
+                                          $+$ text "Further, following argument filtering is employed:"
+                                          $++$ pparam af)
                  $++$ text "For your convenience, here is the input in predicative notation:"
                  $++$ nest 1 (ppstrict $+$ ppweak)
       where pparam :: PrettyPrintable p => p -> Doc 

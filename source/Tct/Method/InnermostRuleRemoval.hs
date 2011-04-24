@@ -31,11 +31,10 @@ import Data.Maybe (isJust, catMaybes)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Tct.Processor.PPrint (enumeration')
+import Tct.Processor.PPrint (enumeration', details)
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
-
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import Termlib.Rule (Rule, rewrite)
 import Termlib.Term (immediateSubterms)
@@ -72,8 +71,12 @@ instance PrettyPrintable IRRProof where
 
 instance P.Processor sub => P.Answerable (T.TProof InnermostRuleRemoval sub) where 
     answer = T.answerTProof answer'
-        where answer' _ [(_,ps)] = P.answer ps
-              answer' _ _        = error "Tct.Method.InnermostRuleRemoval: Proof with wrong number of subproblems received"
+        where answer' NotApplicable{} _ = P.MaybeAnswer
+              answer' _ [(_,ps)]        = P.answer ps
+              answer' _ ls              = error $ show msg 
+                where msg = text ("Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ls))
+                            $$ details ls
+              
 instance T.Verifiable (IRRProof)
 
 

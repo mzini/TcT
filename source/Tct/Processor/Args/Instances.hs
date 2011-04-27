@@ -24,16 +24,20 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Tct.Processor.Args.Instances 
-       ( naturalArg
+       ( Proc (..)
+       , Processor
+       , Assoc (..)
+       , AssocArgument (..)
+       , EnumOf (..)
+       , Nat (..)
+       , nat
+       -- * Constructors for Arguments
+       , naturalArg
        , boolArg
        , maybeArg
        , processorArg
        , enumArg
-       , Proc
-       , Processor
-       , EnumOf
-       , Nat (..)
-       , nat
+       , assocArg
        ) 
        where
 
@@ -128,21 +132,21 @@ instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) 
     parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
 
 
-newtype Assoc a = Assoc a
 
-class AssocArg a where 
+class AssocArgument a where 
     assoc :: Phantom a -> [(String, a)]
 
-instance (Show a, AssocArg a) => Argument (Assoc a) where
+newtype Assoc a = Assoc a
+
+instance (Show a, AssocArgument a) => Argument (Assoc a) where
     type Domain (Assoc a) = a
     domainName _ = domainNameList [ s | (s,_) <- assoc (Phantom :: Phantom a)]
     showArg _ a  = show a
 
-instance (Show a, AssocArg a) => ParsableArgument (Assoc a) where
+instance (Show a, AssocArgument a) => ParsableArgument (Assoc a) where
     parseArg _ = parseArgAssoc $ assoc (Phantom :: Phantom a)
 
 -- argument types
-
 
 naturalArg :: Arg Nat
 naturalArg = arg
@@ -152,6 +156,9 @@ boolArg = arg
 
 maybeArg :: Arg a -> Arg (Maybe a)
 maybeArg a = a {defaultValue = Just $ defaultValue a}
+
+assocArg :: (Show a, AssocArgument a) => Arg (Assoc a)
+assocArg = arg
 
 type Processor = Proc P.AnyProcessor
 

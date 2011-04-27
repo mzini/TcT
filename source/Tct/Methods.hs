@@ -79,31 +79,30 @@ module Tct.Methods
     , orBetter
     , before
 
-    -- ** Argument Types
+    -- ** Argument Type
+    -- *** Argument lists      
     , Arg (..)
-    , Unit
+    , Unit    
     , (:+:)(..)
-    , EnumArg
-    , Proc
-    , Approximation(..)
-    , natural
-    , bool
-    , some
-    , processor
-    , optional
     , arg
-    , opt
-    , unit
-
-    -- ** Argument Construction
-    , NaturalMIKind (..)
-    , Size (..)
-    , nat
+    , optional
+    , none
+      
+    -- *** Additional Arguments
     , Nat (..)
+    , nat
+    , Size (..)
+    , NaturalMIKind (..)
+    , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)
-
-    -- ** The Default Processor Used by TCT
+    -- *** Argument Types  
+    , naturalArg
+    , boolArg
+    , maybeArg
+    , processorArg
+    
+      -- ** The Default Processor Used by TCT
     , builtInProcessors
     )
 where

@@ -47,7 +47,7 @@ import qualified Tct.Processor as P
 import Tct.Processor (Verifiable(..), Answerable(..), Answer(..))
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
-import Tct.Processor.Args.Instances hiding (enum)
+import Tct.Processor.Args.Instances
 import Tct.Processor.Args
 import Tct.Method.Bounds.Automata
 import Tct.Method.Bounds.Violations

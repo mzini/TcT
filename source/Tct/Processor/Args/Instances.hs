@@ -24,14 +24,15 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Tct.Processor.Args.Instances 
-       ( natural 
-       , bool
-       , some  
-       , processor
-       , enum 
+       ( naturalArg
+       , boolArg
+       , maybeArg
+       , processorArg
+       , enumArg
        , Proc
        , EnumOf
        , Nat (..)
+       , nat
        ) 
        where
 
@@ -142,19 +143,17 @@ instance (Show a, AssocArg a) => ParsableArgument (Assoc a) where
 -- argument types
 
 
-natural :: Arg Nat
-natural = arg
+naturalArg :: Arg Nat
+naturalArg = arg
 
-bool :: Arg Bool
-bool = arg
+boolArg :: Arg Bool
+boolArg = arg
 
-some :: Arg a -> Arg (Maybe a)
-some a = a {defaultValue = Just $ defaultValue a}
+maybeArg :: Arg a -> Arg (Maybe a)
+maybeArg a = a {defaultValue = Just $ defaultValue a}
 
-processor :: Arg (Proc P.AnyProcessor)
-processor = arg
+processorArg :: Arg (Proc P.AnyProcessor)
+processorArg = arg
 
-enum :: Arg (EnumOf a)
-enum = arg
-
-
+enumArg :: Arg (EnumOf a)
+enumArg = arg

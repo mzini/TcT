@@ -59,8 +59,7 @@ module Tct.Methods
     , uncurry
     , wdg
     , CustomProcessor
-    , CPConfig(..)
-    , custom
+    , Description(..)
     , customProcessor
     , AnyProcessor
 
@@ -84,7 +83,7 @@ module Tct.Methods
     , Nat (..)
     , nat
     , Size (..)
-    , EnumOf (..)
+    , EnumOf
     , NaturalMIKind (..)
     , Approximation(..)
     , Enrichment (..)

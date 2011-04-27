@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -21,10 +22,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE PolymorphicComponents #-}
 
 module Tct.Method.Custom 
-    ( CPConfig (..)
+    ( Description (..)
     , CustomProcessor
     , customProcessor
-    , custom
     , proc
     , pure)
 where
@@ -34,20 +34,22 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Termlib.Problem (Problem)
 
-data CPConfig arg res = CPConfig { as  :: String
-                                 , documentation :: [String]
-                                 , args :: arg
-                                 , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res}
+data Description arg = Description { as    :: String
+                                   , descr :: [String]
+                                   , args  :: arg}
+
+data CP arg res = CP { description :: Description arg
+                     , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res} 
 
 --------------------------------------------------------------------------------
 -- processor instance
 
-instance (P.ComplexityProof res) => S.Processor (CPConfig arg res) where
-  type S.ProofOf (CPConfig arg res)     = res
-  type S.ArgumentsOf (CPConfig arg res) = arg
-  name        = as
-  description = documentation
-  arguments   = args
+instance (P.ComplexityProof res) => S.Processor (CP arg res) where
+  type S.ProofOf (CP arg res)     = res
+  type S.ArgumentsOf (CP arg res) = arg
+  name        = as . description
+  description = descr . description
+  arguments   = args . description
   solve inst prob = (code p) ags prob
       where p = S.processor inst
             ags = S.processorArgs inst
@@ -55,16 +57,13 @@ instance (P.ComplexityProof res) => S.Processor (CPConfig arg res) where
 --------------------------------------------------------------------------------
 -- convenience
 
-custom :: (CPConfig arg p)
-custom = CPConfig { as = "unknown"
-                  , code = error "code must be specified when adding custom processor"
-                  , args = error "args must be specified when adding custom processor"
-                  , documentation = [] }
+-- customProcessor fn Description { as = "foo"
+--                                , descr = ["bar"]}
+         
+type CustomProcessor arg p = S.StdProcessor (CP arg p)
 
-type CustomProcessor arg p = S.StdProcessor (CPConfig arg p)
-
-customProcessor :: (CPConfig arg p) -> (CustomProcessor arg p)
-customProcessor = S.StdProcessor
+customProcessor :: (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> (Description arg) -> (CustomProcessor arg res)
+customProcessor f descr = S.StdProcessor CP {description = descr , code       = f }
 
 proc :: (P.SolverM m, P.Processor p) => (args -> P.InstanceOf p) -> args-> Problem -> m (P.ProofOf p)
 proc p aa prob = P.solve (p aa) prob

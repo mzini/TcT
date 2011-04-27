@@ -62,8 +62,9 @@ module Tct.Methods
     , CPConfig(..)
     , custom
     , customProcessor
+    , AnyProcessor
 
-    -- * Predicates
+    -- ** Predicates
     , isDuplicating
     , isConstructor
     , isCollapsing
@@ -71,7 +72,7 @@ module Tct.Methods
     , isRightLinear
     , isWellFormed
 
-    -- * Processor Combinators and Utilities
+    -- ** Processor Combinators
     , withArgs
     , upto
     , solveBy
@@ -79,30 +80,32 @@ module Tct.Methods
     , orBetter
     , before
 
-    -- ** Argument Type
-    -- *** Argument lists      
+    -- * Arguments
+    , Nat (..)
+    , nat
+    , Size (..)
+    , EnumOf (..)
+    , NaturalMIKind (..)
+    , Approximation(..)
+    , Enrichment (..)
+    , InitialAutomaton (..)
+      
+    -- ** Argument Descriptions
     , Arg (..)
     , Unit    
     , (:+:)(..)
     , arg
     , optional
-    , none
+    , none      
       
-    -- *** Additional Arguments
-    , Nat (..)
-    , nat
-    , Size (..)
-    , NaturalMIKind (..)
-    , Approximation(..)
-    , Enrichment (..)
-    , InitialAutomaton (..)
-    -- *** Argument Types  
+    -- *** Argument Description constructors  
     , naturalArg
     , boolArg
     , maybeArg
     , processorArg
+    , enumArg
     
-      -- ** The Default Processor Used by TCT
+      -- * The Default Processor Used by TCT
     , builtInProcessors
     )
 where

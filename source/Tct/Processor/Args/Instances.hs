@@ -30,6 +30,7 @@ module Tct.Processor.Args.Instances
        , processorArg
        , enumArg
        , Proc
+       , Processor
        , EnumOf
        , Nat (..)
        , nat
@@ -152,7 +153,9 @@ boolArg = arg
 maybeArg :: Arg a -> Arg (Maybe a)
 maybeArg a = a {defaultValue = Just $ defaultValue a}
 
-processorArg :: Arg (Proc P.AnyProcessor)
+type Processor = Proc P.AnyProcessor
+
+processorArg :: Arg Processor
 processorArg = arg
 
 enumArg :: Arg (EnumOf a)

@@ -84,6 +84,7 @@ module Tct.Methods
     , nat
     , Size (..)
     , EnumOf
+    , Processor
     , NaturalMIKind (..)
     , Approximation(..)
     , Enrichment (..)

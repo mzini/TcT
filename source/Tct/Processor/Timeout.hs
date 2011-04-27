@@ -34,7 +34,7 @@ import Text.Parsec.Prim
 
 import qualified Tct.Processor.Parse as PP
 import Tct.Processor.Args 
-import Tct.Processor.Args.Instances
+import Tct.Processor.Args.Instances hiding (Processor)
 import Tct.Processor hiding (Proof, (<|>))
 import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ hiding (brackets)
@@ -65,7 +65,6 @@ instance Processor p => Processor (Timeout p) where
            return $ case r of 
                       Just p  -> TOProof (result p)
                       Nothing -> TimedOut t
---    fromInstance (TOInstance i proc _) = Timeout i proc
     
 instance ParsableProcessor (Timeout AnyProcessor) where
     description Timeout              = ["The processor either returns the result of the given processor"

@@ -86,15 +86,15 @@ mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (D
 mkParseProcessor nm args = do _ <- try $ string nm >> whiteSpace
                               parseArguments nm args
 
-withArgs :: Processor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
-p `withArgs` a = TP $ TheProcessor { processor = p
-                                     , processorArgs = a }
+withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
+(StdProcessor p) `withArgs` a = TP $ TheProcessor { processor = p
+                                                  , processorArgs = a }
 
 modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (P.InstanceOf (StdProcessor a) -> P.InstanceOf (StdProcessor a))
 modifyArguments f (TP (TheProcessor a args)) = TP (TheProcessor a (f args))
                                    
 apply :: (P.SolverM m, Processor p, Arguments (ArgumentsOf p)) =>
-        p -> A.Domains (ArgumentsOf p) -> Problem -> m (P.Proof (StdProcessor p))
+        (StdProcessor p) -> A.Domains (ArgumentsOf p) -> Problem -> m (P.Proof (StdProcessor p))
 apply proc args prob = P.apply inst prob
     where inst = proc `withArgs` args
 

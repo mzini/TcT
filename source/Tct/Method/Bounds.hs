@@ -126,7 +126,7 @@ instance S.Processor Bounds where
                     Minimal   -> minimalInitialAutomaton strict weak st sign
 
 bounds :: InitialAutomaton -> Enrichment -> P.InstanceOf (S.StdProcessor Bounds)
-bounds initialAutomaton enrichment = Bounds `S.withArgs` (initialAutomaton :+: enrichment)
+bounds initialAutomaton enrichment = S.StdProcessor Bounds `S.withArgs` (initialAutomaton :+: enrichment)
 
 boundsProcessor :: S.StdProcessor Bounds
 boundsProcessor = S.StdProcessor Bounds

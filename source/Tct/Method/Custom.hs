@@ -25,6 +25,7 @@ module Tct.Method.Custom
     ( Description (..)
     , CustomProcessor
     , customProcessor
+    , localProcessor
     , proc
     , pure)
 where
@@ -54,23 +55,29 @@ instance (P.ComplexityProof res) => S.Processor (CP arg res) where
       where p = S.processor inst
             ags = S.processorArgs inst
 
---------------------------------------------------------------------------------
--- convenience
 
--- customProcessor fn Description { as = "foo"
---                                , descr = ["bar"]}
          
 type CustomProcessor arg p = S.StdProcessor (CP arg p)
 
 customProcessor :: (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> (Description arg) -> (CustomProcessor arg res)
-customProcessor f descr = S.StdProcessor CP {description = descr , code       = f }
+customProcessor f d = S.StdProcessor CP {description = d, code = f }
+
+
+               -- local :: P.ComplexityProof res =>
+               --          String -> t -> P.InstanceOf (S.StdProcessor (CP A.Unit res))
+
+localProcessor :: P.ComplexityProof res => String -> (forall m. P.SolverM m => Problem -> m res) -> P.InstanceOf (CustomProcessor A.Unit res)
+localProcessor name f = S.StdProcessor (CP  d (\ () -> f)) `S.withArgs` ()
+  where d = Description { as = name, descr = [], args = A.unit }
+                               
+            
+
+
+--------------------------------------------------------------------------------
+-- convenience
 
 proc :: (P.SolverM m, P.Processor p) => (args -> P.InstanceOf p) -> args-> Problem -> m (P.ProofOf p)
 proc p aa prob = P.solve (p aa) prob
 
 pure :: (P.SolverM m, P.ComplexityProof res) => (args -> Problem -> res) -> (args -> Problem -> m res)
 pure f aa prob = return $ f aa prob
-
-
--- withArgs :: ComplexityProof p => CustomProcessor arg p -> A.Domains arg -> P.InstanceOf (S.StdProcessor (CustomProcessor arg p))
--- p `withArgs` a = p `S.withArgs` a

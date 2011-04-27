@@ -208,7 +208,7 @@ composeProcessor = S.StdProcessor Compose
 type ComposeInstance p1 p2 = P.InstanceOf (S.StdProcessor (Compose p1 p2))
 
 composeDynamic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> ComposeInstance p1 p2
-composeDynamic relative p1 p2 = Compose `S.withArgs` (Random :+: False :+: relative :+: p1 :+: p2)
+composeDynamic relative p1 p2 = S.StdProcessor Compose `S.withArgs` (Random :+: False :+: relative :+: p1 :+: p2)
 
 composeStatic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> ComposeInstance p1 p2
-composeStatic relative p1 p2 = Compose `S.withArgs` (Random :+: True :+: relative :+: p1 :+: p2)
+composeStatic relative p1 p2 = S.StdProcessor Compose `S.withArgs` (Random :+: True :+: relative :+: p1 :+: p2)

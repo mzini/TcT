@@ -150,7 +150,7 @@ arcticProcessor = S.StdProcessor ArcticMI
 
 arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor ArcticMI)
 arctic matrixdimension coefficientsize constraintbits ua =
-    ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
+    S.StdProcessor ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 
 -- argument accessors
 

@@ -41,7 +41,6 @@ where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Control.Concurrent.PFold (pfoldA, Return (..))
-import Control.Concurrent.Utils (threadKilled)
 import Text.Parsec.Prim hiding (Empty)
 import Text.Parsec.Char
 import Control.Monad (forM)
@@ -123,13 +122,13 @@ emptyProcessor :: S.StdProcessor EmptyRules
 emptyProcessor = S.StdProcessor EmptyRules
 
 fail :: P.InstanceOf (S.StdProcessor Fail)
-fail = Fail `S.withArgs` ()
+fail = S.StdProcessor Fail `S.withArgs` ()
 
 success :: P.InstanceOf (S.StdProcessor Success)
-success = Success `S.withArgs` ()
+success = S.StdProcessor Success `S.withArgs` ()
 
 empty :: P.InstanceOf (S.StdProcessor EmptyRules)
-empty = EmptyRules `S.withArgs` ()
+empty = S.StdProcessor EmptyRules `S.withArgs` ()
 
 
 
@@ -310,10 +309,10 @@ sequentiallyProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.StdProcessor Sequentially
 
 best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-best ps = Best `S.withArgs` ps
+best ps = S.StdProcessor Best `S.withArgs` ps
 
 fastest :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-fastest ps = Fastest `S.withArgs` ps
+fastest ps = S.StdProcessor Fastest `S.withArgs` ps
 
 sequentially :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
-sequentially ps = Sequentially `S.withArgs` ps
+sequentially ps = S.StdProcessor Sequentially `S.withArgs` ps

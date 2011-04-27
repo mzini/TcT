@@ -61,6 +61,7 @@ module Tct.Methods
     , CustomProcessor
     , Description(..)
     , customProcessor
+    , localProcessor 
     , AnyProcessor
 
     -- ** Predicates
@@ -83,7 +84,7 @@ module Tct.Methods
     , nonstrict
     , sequentialSubgoals
     , parallelSubgoals
-      
+    
     -- * Arguments
     , Nat (..)
     , nat

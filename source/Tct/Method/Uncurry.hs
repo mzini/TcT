@@ -109,7 +109,7 @@ uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
 uncurry :: (P.Processor sub) => Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
-uncurry = Uncurry `T.calledWith` ()
+uncurry = transformationProcessor Uncurry `T.calledWith` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show

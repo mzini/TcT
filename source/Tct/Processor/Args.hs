@@ -149,6 +149,12 @@ arg = Arg { name         = "unspecified"
 opt :: Arg a
 opt = arg { isOptional_ = True }
 
+optional :: Arg t -> String -> Domain t -> Arg t
+optional tpe nm def = tpe { name = nm
+                          , defaultValue = def
+                          , isOptional_ = True}
+
+
 unit :: Unit
 unit = Unit
 

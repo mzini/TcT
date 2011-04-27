@@ -23,7 +23,17 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Tct.Processor.Args.Instances where
+module Tct.Processor.Args.Instances 
+       ( natural 
+       , bool
+       , some  
+       , processor
+       , enum 
+       , Proc
+       , EnumOf
+       , Nat (..)
+       ) 
+       where
 
 import Data.Typeable
 import Control.Monad (liftM)
@@ -144,10 +154,7 @@ some a = a {defaultValue = Just $ defaultValue a}
 processor :: Arg (Proc P.AnyProcessor)
 processor = arg
 
-type EnumArg a = Arg (EnumOf a)
+enum :: Arg (EnumOf a)
+enum = arg
 
-optional :: Arg t -> String -> Domain t -> Arg t
-optional tpe nm def = tpe { name = nm
-                          , defaultValue = def
-                          , isOptional_ = True}
 

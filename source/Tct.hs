@@ -56,7 +56,8 @@ import qualified Termlib.Problem.Parser as ProblemParser
 import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags
-import Tct.Methods (Nat (..), Size (..))
+import Tct.Methods (Size (..))
+import Tct.Processor.Args.Instances (Nat (..))
 import Tct.Processor
 import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as V

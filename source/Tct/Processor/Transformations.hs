@@ -40,6 +40,8 @@ module Tct.Processor.Transformations
     ) 
 where
 
+import Control.Monad (liftM)
+
 import Termlib.Problem
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
@@ -117,9 +119,9 @@ instance ( Transformer t
     name (Trans t)      = name t
     description (Trans t) = description t
     arguments (Trans t) = opt { A.name = "strict"
-                                       , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
-                                                                 , "Otherwise, it applies the subprocessor on the untransformed input."] 
-                                       , A.defaultValue = True }
+                              , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
+                                                        , "Otherwise, it applies the subprocessor on the untransformed input."] 
+                              , A.defaultValue = True }
                           :+: opt { A.name = "parallel"
                                   , A.description = "Decides whether the given subprocessor should be applied in parallel"
                                   , A.defaultValue = True }
@@ -129,8 +131,7 @@ instance ( Transformer t
     solve inst prob = do res <- transform (TheTransformer t args) prob
                          case res of 
                            Failure p | strict    -> return $ TProof p (enumeration' [])
-                                     | otherwise -> do p' <- P.solve sub prob 
-                                                       return $ UTProof p p'
+                                     | otherwise -> UTProof p `liftM`  P.solve sub prob 
                            Success p ps -> do esubproofs <- P.evalList par (P.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]

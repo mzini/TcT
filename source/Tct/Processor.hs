@@ -440,8 +440,7 @@ toProcessorList :: AnyOf p -> [p]
 toProcessorList (OO _ l) = l
 
 parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
-parseAnyProcessor = do a <- getState
-                       parseProcessor a
+parseAnyProcessor = getState >>= parseProcessor
 
 
 --- * Quasi-verification

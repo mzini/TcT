@@ -120,7 +120,7 @@ instance ( Transformer t
     arguments (Trans t) = opt { A.name = "strict"
                               , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
                                                         , "Otherwise, it applies the subprocessor on the untransformed input."] 
-                              , A.defaultValue = True }
+                              , A.defaultValue = False }
                           :+: opt { A.name = "parallel"
                                   , A.description = "Decides whether the given subprocessor should be applied in parallel"
                                   , A.defaultValue = True }

@@ -36,6 +36,10 @@ module Tct.Processor.Transformations
     , calledWith
     , enumeration
     , enumeration'
+    , strict
+    , nonstrict
+    , sequentialSubgoals
+    , parallelSubgoals      
     ) 
 where
 
@@ -153,6 +157,18 @@ calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub
               -> P.InstanceOf sub
               -> P.InstanceOf (TransformationProcessor t sub)
 t `calledWith` as = \ strict par sub -> (Trans t) `S.withArgs` (strict :+: par :+: as :+: sub)
+
+strict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+strict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> True :+: par :+: as :+: sub
+
+nonstrict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+nonstrict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> False :+: par :+: as :+: sub
+
+sequentialSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+sequentialSubgoals = S.modifyArguments $ \ (strict :+: _ :+: as :+: sub) -> strict :+: False :+: as :+: sub
+
+parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+parallelSubgoals = S.modifyArguments $ \ (strict :+: _ :+: as :+: sub) -> strict :+: True :+: as :+: sub
 
 
 class Verifiable proof where 

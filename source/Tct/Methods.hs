@@ -78,7 +78,12 @@ module Tct.Methods
     , orFaster
     , orBetter
     , before
-
+    -- ** Transformations
+    , strict      
+    , nonstrict
+    , sequentialSubgoals
+    , parallelSubgoals
+      
     -- * Arguments
     , Nat (..)
     , nat
@@ -89,7 +94,8 @@ module Tct.Methods
     , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)
-      
+    , AssocArgument (..)      
+    , Assoc 
     -- ** Argument Descriptions
     , Arg (..)
     , Unit    
@@ -104,6 +110,7 @@ module Tct.Methods
     , maybeArg
     , processorArg
     , enumArg
+    , assocArg 
     
       -- * The Default Processor Used by TCT
     , builtInProcessors
@@ -130,7 +137,7 @@ import qualified Tct.Processor.Standard as S
 import Tct.Processor.Standard (withArgs)
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
-
+import Tct.Processor.Transformations (strict, nonstrict, parallelSubgoals, sequentialSubgoals)
 import Tct.Processor.Timeout
 import Tct.Processor (none, (<|>), AnyProcessor)
 

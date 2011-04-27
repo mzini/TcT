@@ -27,7 +27,8 @@ module Tct.Processor.Standard
     , StdProcessor(..)
     , theInstance
     , apply
-    , withArgs)
+    , withArgs
+    , modifyArguments)
 where
 
 import Text.ParserCombinators.Parsec
@@ -89,7 +90,11 @@ withArgs :: Processor a => a -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProc
 p `withArgs` a = TP $ TheProcessor { processor = p
                                      , processorArgs = a }
 
+modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (P.InstanceOf (StdProcessor a) -> P.InstanceOf (StdProcessor a))
+modifyArguments f (TP (TheProcessor a args)) = TP (TheProcessor a (f args))
+                                   
 apply :: (P.SolverM m, Processor p, Arguments (ArgumentsOf p)) =>
         p -> A.Domains (ArgumentsOf p) -> Problem -> m (P.Proof (StdProcessor p))
 apply proc args prob = P.apply inst prob
     where inst = proc `withArgs` args
+

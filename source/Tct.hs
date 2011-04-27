@@ -400,7 +400,7 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                                         , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
-        realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg conf) >> exitWith exitFail
+        realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg cfg) >> exitWith exitFail
                      | otherwise          = C.block $ do mv   <- newEmptyMVar
                                                          _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
                                                          _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing

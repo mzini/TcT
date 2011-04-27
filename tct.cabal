@@ -57,7 +57,7 @@ Library
                     Tct.Method.InnermostRuleRemoval
                     Tct.Method.PopStar
                     Tct.Method.EpoStar
-                    Tct.Method.Combine
+                    Tct.Method.Compose
                     Tct.Method.Uncurry
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI

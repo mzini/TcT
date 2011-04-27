@@ -92,8 +92,9 @@ instance PrettyPrintable PopStarOrder where
                  $++$ pparam (popSafeMapping order) <+> text "."
                  $+$ (case popArgumentFiltering order of 
                                Nothing -> PP.empty
-                               Just af -> text "Further, following argument filtering is employed:"
-                                         $++$ pparam af)
+                               Just af -> text "" 
+                                          $+$ text "Further, following argument filtering is employed:"
+                                          $++$ pparam af)
                  $++$ text "For your convenience, here is the input in predicative notation:"
                  $++$ nest 1 (ppstrict $+$ ppweak)
       where pparam :: PrettyPrintable p => p -> Doc 
@@ -249,7 +250,7 @@ orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv (Prob.
 
           sig  = Prob.signature prob
  
-solveConstraint:: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
+solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
 solveConstraint constraint initial makeResult = 
     do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
        return $ makeResult `liftM` r

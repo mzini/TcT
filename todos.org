@@ -1,0 +1,117 @@
+* Relative Rule Removal for DP-Problems!			     :MATRIX:
+* Remove Trailing Dingsbums					   :WDG:PROC:
+** veraendert auch rhss von anderen paaren, zb. nuetzlich in AG01/3.2
+* Rewrite RHSs							       :PROC:
+* Knowledge-Propagation						       :PROC:
+** DG in RC problem speichern & Prozessor implementieren?
+** Beispiel:
+        f(0, 1, x) -> f(s(x), x, x)
+        f(x, y, s(z)) -> s(f(0, 1, z))
+
+* WeightGap prozessor implementieren?				       :PROC:
+* fixe interpretation fuer compound symbole?			     :MATRIX:
+* AG01/3.17 : remove unreachable rules fuer runtime, aehnlich irr :PROC:NARROW:
+** braucht man hier narrowing?				       
+* AG01/#3.42.xml						:PROC:NARROW:
+** braucht man hier narrowing?
+        Strict Rules: {lastbit^#(s(s(x))) -> c_5(lastbit^#(x))}
+        Weak Rules:
+          {  conv^#(s(x)) -> c_7(conv^#(half(s(x))), lastbit^#(s(x)))
+           , half(0()) -> 0()
+           , half(s(0())) -> 0()
+           , half(s(s(x))) -> s(half(x))}
+
+* AG01/3.17: warum koennen wir folgendes system nicht orientieren?
+** Ein Pfad in AG01/3.17:
+tct -g foo.org -a irc -s "(fastest pop* (matrices 1 4))"  ~/foo.trs 
+Launching custom binary /home/zini-deb/.tct/tct-linux-x86_64
+
+MAYBE
+
+'Fastest'
+---------
+Answer:           MAYBE
+Input Problem:    innermost runtime-complexity with respect to
+  Rules:
+    {  plus(0(), y) -> y
+     , plus(s(x), y) -> s(plus(x, y))
+     , sum^#(cons(x, cons(y, l))) -> c_2(sum^#(cons(plus(x, y), l)))}
+
+Proof Output:    
+  None of the processors succeeded.
+  
+  Details of failed attempt(s):
+  -----------------------------
+    1) 'matrices' failed due to the following reason:
+         None of the processors succeeded.
+         
+         Details of failed attempt(s):
+         -----------------------------
+           1) 'matrix-interpretation of dimension 3' failed due to the following reason:
+                The input cannot be shown compatible
+           
+           2) 'matrix-interpretation of dimension 2' failed due to the following reason:
+                The input cannot be shown compatible
+           
+           3) 'matrix-interpretation of dimension 1' failed due to the following reason:
+                The input cannot be shown compatible
+           
+    
+    2) 'Pop* with parameter subtitution' failed due to the following reason:
+         The input cannot be shown compatible
+* AG01/3.16: warum koennen wir folgendes system nicht orientieren?
+** Ein Pfad in AG01/3.17:
+      We apply the sub-processor on the resulting sub-problem:
+      
+      'Fastest'
+      ---------
+      Answer:           MAYBE
+      Input Problem:    innermost runtime-complexity with respect to
+        Rules:
+          {  times^#(x, s(y)) -> c_1(plus^#(times(x, y), x))
+           , plus^#(0(), x) -> c_3()
+           , times(x, 0()) -> 0()
+           , times(x, s(y)) -> plus(times(x, y), x)
+           , plus(x, 0()) -> x
+           , plus(0(), x) -> x
+           , plus(x, s(y)) -> s(plus(x, y))
+           , plus(s(x), y) -> s(plus(x, y))}
+      
+      Proof Output:    
+        None of the processors succeeded.
+        
+        Details of failed attempt(s):
+        -----------------------------
+          1) 'matrices' failed due to the following reason:
+               None of the processors succeeded.
+               
+               Details of failed attempt(s):
+               -----------------------------
+                 1) 'matrix-interpretation of dimension 3' failed due to the following reason:
+                      The input cannot be shown compatible
+                 
+                 2) 'matrix-interpretation of dimension 2' failed due to the following reason:
+                      The input cannot be shown compatible
+                 
+                 3) 'matrix-interpretation of dimension 1' failed due to the following reason:
+                      The input cannot be shown compatible
+                 
+          
+          2) 'Pop* with parameter subtitution' failed due to the following reason:
+               The input cannot be shown compatible
+* funktioniert AG01/3.2 nur mit polynomen?			       :POLY:
+    QUOT(s(z0), s(z1)) → c4(QUOT(minus(z0, z1), s(z1)), MINUS(z0, z1))
+    MINUS(z0, s(z1)) → c2(MINUS(z0, z1))
+
+The order we found is given by the following interpretation:
+Polynomial interpretation :
+
+
+    POL(0) = 0   
+    POL(MINUS(x1, x2)) = [3] + [2]x2   
+    POL(QUOT(x1, x2)) = [2]x1 + [2]x1·x2   
+    POL(c2(x1)) = x1   
+    POL(c4(x1, x2)) = x1 + x2   
+    POL(minus(x1, x2)) = x1   
+    POL(pred(x1)) = x1   
+    POL(s(x1)) = [2] + x1   

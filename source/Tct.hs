@@ -274,7 +274,6 @@ options =
     , meaning = (\_ f -> f{ performChecks = True }) <$> argNone
     , help    = [ "Perform checks on the computed proof."]
     }
-
   ]
 
 
@@ -286,7 +285,6 @@ data TCTROState = TCTROState { config    :: Config }
 
 newtype TCT r = TCT (RWST TCTROState [TCTWarning] TCTState ErroneousIO r)
     deriving (Monad, Functor, MonadIO, MonadError TCTError, MonadReader TCTROState, MonadWriter [TCTWarning])
-
 
 fromConfig :: (Config -> c) -> TCT c
 fromConfig f = (f . config) `liftM` ask
@@ -324,6 +322,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                                    proof <- process tproc prob
                                                    putPretty (pprint $ answer proof)
                                                    when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
+                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof then text "Hurray" else text "Arrrr..")
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 
@@ -339,11 +338,11 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                 lf <- fromConfig logFile
                                 liftIO $ case lf of
                                               Nothing -> runSolver (SolverState slver) (apply proc prob :: StdSolverM (Proof SomeProcessor))
-                                              Just f  -> C.block $ do h <- openFile f WriteMode  -- MA:TODO error handling, unblocking
-                                                                      st <- initialState h (SolverState slver)
-                                                                      r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
-                                                                      hFlush h >> hClose h
-                                                                      return r
+                                              Just f  -> do h <- openFile f WriteMode  -- MA:TODO error handling, unblocking
+                                                            st <- initialState h (SolverState slver)
+                                                            r <- runSolver st (apply proc prob :: LoggingSolverM StdSolverM (Proof SomeProcessor))
+                                                            hFlush h >> hClose h
+                                                            return r
 
 
                          

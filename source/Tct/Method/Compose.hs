@@ -24,7 +24,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Tct.Method.Combine where
+module Tct.Method.Compose where
 
 import Data.Typeable (Typeable)
 import Control.Monad (liftM,liftM2)
@@ -73,20 +73,20 @@ wcAppliesTo prob = (not isRcProblem && not isDpProblem && weakNoneSizeIncreasing
 
 -- Processor
 
-data Combine p1 p2 = Combine
+data Compose p1 p2 = Compose
 
-data CombineProof p1 p2 = StaticPartitioned PartitionFn (P.Proof p1) (P.Proof p2)
+data ComposeProof p1 p2 = StaticPartitioned PartitionFn (P.Proof p1) (P.Proof p2)
                         | DynamicPartitioned Bool (P.PartialProof (P.ProofOf p1)) (P.Proof p2)
                         | NoRuleRemoved (P.PartialProof (P.ProofOf p1))
                         | RelativeEmpty 
 
-removedRules :: CombineProof p1 p2 -> [Rule]
+removedRules :: ComposeProof p1 p2 -> [Rule]
 removedRules (DynamicPartitioned _ rp _) = P.ppRemovable rp
 removedRules _= []
              
 instance (P.Processor p1, ComplexityProof (P.ProofOf p1) 
          , P.Processor p2, ComplexityProof (P.ProofOf p2))
-    => PrettyPrintable (CombineProof p1 p2) where
+    => PrettyPrintable (ComposeProof p1 p2) where
     pprint RelativeEmpty = paragraph "The strict component is empty."
     pprint (NoRuleRemoved p) = pprint p
     pprint (StaticPartitioned split proof1 proof2) = 
@@ -108,7 +108,7 @@ instance (P.Processor p1, ComplexityProof (P.ProofOf p1)
 ub :: Answerable a => a -> Complexity
 ub = upperBound . certificate . answer
 
-instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (CombineProof p1 p2) where
+instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (ComposeProof p1 p2) where
     answer RelativeEmpty = CertAnswer $ certified (constant, constant)
     answer (NoRuleRemoved _) = MaybeAnswer
     answer (StaticPartitioned _ p1 p2) | success   = CertAnswer $ certified (unknown, ub p1 `add` ub p2)
@@ -117,17 +117,17 @@ instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (C
     answer (DynamicPartitioned relApplied  prel psub) | succeeded psub = CertAnswer $ certified (unknown, res)
                                                       | otherwise = MaybeAnswer
         where res | not relApplied = ub prel `add` ub psub
-                  | otherwise    = combine (upperBound $ P.certificate prel) (upperBound $ P.certificate psub)
+                  | otherwise    = compose (upperBound $ P.certificate prel) (upperBound $ P.certificate psub)
               r       = Trs.fromRules $ P.ppRemovable prel
               s       = strictTrs $ P.inputProblem psub
               sizeIncreasingR = Trs.isSizeIncreasing r
               sizeIncreasingS = Trs.isSizeIncreasing s
-              combine ubRModS ubS | not sizeIncreasingS
+              compose ubRModS ubS | not sizeIncreasingS
                                     && not sizeIncreasingR  = ubRModS `mult` ubS
                                   | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
                                   | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)
 
-instance (Verifiable (P.ProofOf p1), Verifiable (P.ProofOf p2)) => Verifiable (CombineProof p1 p2) where
+instance (Verifiable (P.ProofOf p1), Verifiable (P.ProofOf p2)) => Verifiable (ComposeProof p1 p2) where
     -- MA:TODO verify splitting function
     verify _ (StaticPartitioned _ p1 p2) = P.verify (P.inputProblem p1) (P.result p1)
                                            `P.andVerify` P.verify (P.inputProblem p2) (P.result p2)
@@ -135,15 +135,15 @@ instance (Verifiable (P.ProofOf p1), Verifiable (P.ProofOf p2)) => Verifiable (C
     verify _ _                             = P.verifyOK
 
 
-instance (P.Processor p1, P.Processor p2) => S.Processor (Combine p1 p2) where
-    type S.ArgumentsOf (Combine p1 p2) = Arg (EnumOf PartitionFn) :+: Arg Bool :+: Arg Bool :+: Arg (Proc p1) :+: Arg (Proc p2)
-    type S.ProofOf (Combine p1 p2)     = CombineProof p1 p2
+instance (P.Processor p1, P.Processor p2) => S.Processor (Compose p1 p2) where
+    type S.ArgumentsOf (Compose p1 p2) = Arg (EnumOf PartitionFn) :+: Arg Bool :+: Arg Bool :+: Arg (Proc p1) :+: Arg (Proc p2)
+    type S.ProofOf (Compose p1 p2)     = ComposeProof p1 p2
 
-    name Combine        = "combine"
+    name Compose        = "compose"
 
     instanceName inst   = (S.name $ S.processor inst) ++ if isStatic then "" else " (dynamic)"
         where _ :+: isStatic :+: _ :+: _ :+: _ = S.processorArgs inst
-    description Combine = [ unwords [ "Given a TRS R, 'combine p1 p2' partitions R into a pair of TRSs (R_1,R_2)" 
+    description Compose = [ unwords [ "Given a TRS R, 'compose p1 p2' partitions R into a pair of TRSs (R_1,R_2)" 
                                     , "and applies processor 'p1' on the (relative) problem R_1 modulo R_2."
                                     , "Depending on the flag 'relative' the second processor 'p2' is either applied"
                                     , "on the relative problem R_2 modulo R_1 or the TRS R_2."
@@ -157,7 +157,7 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Combine p1 p2) where
                                     , "The processor is also applicable in the dependency pair setting and on relative input problems (without criteria 1--3)."
                                     ]
                           ]
-    arguments Combine   = opt { A.name = "split" 
+    arguments Compose   = opt { A.name = "split" 
                               , A.defaultValue = Random
                               , A.description = unwords ["This flag defines how the input TRS R is partitioned into the TRSs (R_1,R_2) if the option 'static' is set."
                                                        , "Currently only 'Random' is implemented, which randomly partitions R into two equally sized TRSs."]}
@@ -202,13 +202,13 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Combine p1 p2) where
 
 
 
-combineProcessor :: S.StdProcessor (Combine P.AnyProcessor P.AnyProcessor)
-combineProcessor = S.StdProcessor Combine
+composeProcessor :: S.StdProcessor (Compose P.AnyProcessor P.AnyProcessor)
+composeProcessor = S.StdProcessor Compose
 
-type CombineInstance p1 p2 = P.InstanceOf (S.StdProcessor (Combine p1 p2))
+type ComposeInstance p1 p2 = P.InstanceOf (S.StdProcessor (Compose p1 p2))
 
-combineDynamic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> CombineInstance p1 p2
-combineDynamic relative p1 p2 = Combine `S.withArgs` (Random :+: False :+: relative :+: p1 :+: p2)
+composeDynamic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> ComposeInstance p1 p2
+composeDynamic relative p1 p2 = Compose `S.withArgs` (Random :+: False :+: relative :+: p1 :+: p2)
 
-combineStatic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> CombineInstance p1 p2
-combineStatic relative p1 p2 = Combine `S.withArgs` (Random :+: True :+: relative :+: p1 :+: p2)
+composeStatic :: (P.Processor p1, P.Processor p2) => Bool -> P.InstanceOf p1 -> P.InstanceOf p2 -> ComposeInstance p1 p2
+composeStatic relative p1 p2 = Compose `S.withArgs` (Random :+: True :+: relative :+: p1 :+: p2)

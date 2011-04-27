@@ -23,7 +23,7 @@ module Tct.Methods
      failProcessor
     , bestProcessor
     , boundsProcessor
-    , combineProcessor
+    , composeProcessor
     , epostarProcessor
     , fastestProcessor
     , iteProcessor
@@ -43,8 +43,8 @@ module Tct.Methods
     , arctic
     , best
     , bounds
-    , combineDynamic
-    , combineStatic
+    , composeDynamic
+    , composeStatic
     , epostar
     , empty
     , fail
@@ -112,7 +112,7 @@ import Prelude hiding (fail, uncurry)
 import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
-import Tct.Method.Combine
+import Tct.Method.Compose
 import Tct.Method.Bounds
 import Tct.Method.Matrix.ArcticMI
 import Tct.Method.Matrix.NaturalMI
@@ -149,7 +149,7 @@ builtInProcessors = timeoutProcessor
                    <|> wdgProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
-                   <|> combineProcessor
+                   <|> composeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 

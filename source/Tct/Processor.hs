@@ -86,7 +86,7 @@ import Data.Typeable
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
-import Qlogic.MiniSat (setCmd, MiniSat)
+import Qlogic.MiniSat (setCmd, MiniSat, setDebug)
 import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
@@ -102,8 +102,6 @@ import qualified Tct.Processor.Parse as Parse
 data SatSolver = MiniSat FilePath
 
 -- * The Solver Monad
-
-
 
 class MonadIO m => SolverM m where
     type St m

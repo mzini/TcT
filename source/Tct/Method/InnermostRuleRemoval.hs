@@ -23,6 +23,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.InnermostRuleRemoval
     ( irr
     , irrProcessor
+    , InnermostRuleRemoval
     , IRRProof (..)
     ) 
 where
@@ -105,9 +106,9 @@ instance T.Transformer InnermostRuleRemoval where
                    _                         ->  T.Failure $ NotApplicable "Input problem is not restricted to innermost rewriting"
 
 
-irrProcessor :: T.TransformationProcessor InnermostRuleRemoval
+irrProcessor :: T.TransformationProcessor InnermostRuleRemoval P.AnyProcessor
 irrProcessor = T.transformationProcessor InnermostRuleRemoval
 
 
-irr :: P.Processor sub => Bool -> Bool -> P.InstanceOf sub -> T.Transformation InnermostRuleRemoval sub
+irr :: P.Processor sub => Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
 irr = InnermostRuleRemoval `T.calledWith` ()

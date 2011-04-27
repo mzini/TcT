@@ -132,15 +132,15 @@ data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
 
 data Approximation = Edg | Trivial deriving (Bounded, Ord, Eq, Typeable, Enum) 
 instance Show Approximation where 
-    show Edg = "edg"
+    show Edg     = "edg"
     show Trivial = "trivial"
 
 data Wdg = Wdg
 
-wdgProcessor :: T.TransformationProcessor Wdg
+wdgProcessor :: T.TransformationProcessor Wdg P.AnyProcessor
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> Bool -> P.InstanceOf sub -> T.Transformation Wdg sub
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
 wdg approx weightgap wgkind wgdim wgsize wgcbits ua tuples = Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 
 instance T.Transformer Wdg where

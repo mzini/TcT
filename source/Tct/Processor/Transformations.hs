@@ -29,7 +29,6 @@ module Tct.Processor.Transformations
     , TheTransformer (..)
     , Transformer(..)
     , Verifiable (..)
-    , Transformation
     , TransformationProcessor
     , transformationProcessor
     , answerTProof
@@ -141,10 +140,9 @@ instance ( Transformer t
 
 
 
-type TransformationProcessor t = S.StdProcessor (Trans t P.AnyProcessor)
-type Transformation t sub = P.InstanceOf (S.StdProcessor (Trans t sub))
+type TransformationProcessor t sub = S.StdProcessor (Trans t sub)
 
-transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t P.AnyProcessor
 transformationProcessor t = S.StdProcessor (Trans t)
 
 calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, P.ComplexityProof (TProof t sub)) => 
@@ -153,7 +151,7 @@ calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub
               -> Bool 
               -> Bool
               -> P.InstanceOf sub
-              -> Transformation t sub
+              -> P.InstanceOf (TransformationProcessor t sub)
 t `calledWith` as = \ strict par sub -> (Trans t) `S.withArgs` (strict :+: par :+: as :+: sub)
 
 

@@ -105,10 +105,10 @@ instance T.Transformer Uncurry where
                                                  prob' = prob{relation=Standard (uncurried `Trs.union` ucTrs), signature=sig}
                    _               ->  T.Failure $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
 
-uncurryProcessor :: TransformationProcessor Uncurry
+uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: (P.Processor sub) => Bool -> Bool -> P.InstanceOf sub -> Transformation Uncurry sub
+uncurry :: (P.Processor sub) => Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
 uncurry = Uncurry `T.calledWith` ()
 
 

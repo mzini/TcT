@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -19,73 +20,60 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeOperators #-}
 
 module Tct.Methods 
-    (  -- *  Parsable Processors
-     failProcessor
-    , bestProcessor
-    , boundsProcessor
-    , composeProcessor
-    , epostarProcessor
-    , fastestProcessor
-    , iteProcessor
-    , irrProcessor
-    , lmpoProcessor
-    , matrixProcessor
-    , arcticProcessor
-    , popstarProcessor
-    , sequentiallyProcessor
-    , successProcessor
-    , timeoutProcessor
-    , predicateProcessors
-    , uncurryProcessor
-    , wdgProcessor
-    , (<|>)
+    (  
+
     -- * Processors
-    , arctic
-    , best
+    -- ** Direct Processors
+      arctic
     , bounds
-    , composeDynamic
-    , composeStatic
-    , epostar
     , empty
+    , epostar
     , fail
-    , fastest
-    , ite
-    , irr
     , matrix
     , popstar
-    , sequentially
     , success
+
+
+    -- ** Processor Combinators
+    , before
+    , best
+    , composeDynamic
+    , composeStatic
+    , fastest
+    , ite
+    , orBetter
+    , orFaster
+    , sequentially
+    , solveBy
     , timeout
+    , upto
+    , withArgs
+
+    -- ** Transformations
+    , irr
     , uncurry
     , wdg
-    , CustomProcessor
-    , Description(..)
-    , customProcessor
-    , localProcessor 
-    , AnyProcessor
+    , parallelSubgoals
+    , sequentialSubgoals
+    , strict      
+    , nonstrict
+    , (>>>)
 
     -- ** Predicates
-    , isDuplicating
-    , isConstructor
     , isCollapsing
+    , isConstructor
+    , isDuplicating
     , isLeftLinear
     , isRightLinear
     , isWellFormed
 
-    -- ** Processor Combinators
-    , withArgs
-    , upto
-    , solveBy
-    , orFaster
-    , orBetter
-    , before
-    -- ** Transformations
-    , strict      
-    , nonstrict
-    , sequentialSubgoals
-    , parallelSubgoals
-    
-    -- * Arguments
+    -- * Custom Processors
+    , CustomProcessor
+    , Description(..)
+    , customProcessor
+    , localProcessor 
+
+    -- ** Arguments
     , Nat (..)
     , nat
     , Size (..)
@@ -97,24 +85,47 @@ module Tct.Methods
     , InitialAutomaton (..)
     , AssocArgument (..)      
     , Assoc 
-    -- ** Argument Descriptions
+    -- *** Argument Descriptions
     , Arg (..)
     , Unit    
     , (:+:)(..)
     , arg
     , optional
-    , none      
       
-    -- *** Argument Description constructors  
-    , naturalArg
-    , boolArg
-    , maybeArg
-    , processorArg
-    , enumArg
+    -- *** Argument Description Constructors  
     , assocArg 
-    
-      -- * The Default Processor Used by TCT
+    , boolArg
+    , enumArg
+    , maybeArg
+    , naturalArg
+    , processorArg
+
+    -- *  Parsable Processors
+    , (<|>)
+    , AnyProcessor
+    , arcticProcessor
+    , bestProcessor
+    , boundsProcessor
+    , composeProcessor
+    , epostarProcessor
+    , failProcessor
+    , fastestProcessor
+    , iteProcessor
+    , lmpoProcessor
+    , matrixProcessor
+    , popstarProcessor
+    , sequentiallyProcessor
+    , successProcessor
+    , timeoutProcessor
+
+      -- ** The Built-In Processor Used by TCT
     , builtInProcessors
+    , predicateProcessors
+
+    -- ** Transformations
+    , irrProcessor    
+    , uncurryProcessor
+    , wdgProcessor
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -138,7 +149,7 @@ import qualified Tct.Processor.Standard as S
 import Tct.Processor.Standard (withArgs)
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
-import Tct.Processor.Transformations (strict, nonstrict, parallelSubgoals, sequentialSubgoals)
+import Tct.Processor.Transformations -- (strict, nonstrict, parallelSubgoals, sequentialSubgoals, TransformationProcessor)
 import Tct.Processor.Timeout
 import Tct.Processor (none, (<|>), AnyProcessor)
 
@@ -188,3 +199,13 @@ before :: (P.Processor a, P.Processor b) =>
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 
+-- transformation Combinators
+
+(>>>) :: (Transformer t1, Transformer t2, P.Processor sub) => -- (Transformer t1, P.Processor sub, P.ComplexityProof (P.ProofOf (TransformationProcessor t1 sub)), Arguments (ArgumentsOf t1)
+        (P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t1 sub))
+        -> (P.InstanceOf (TransformationProcessor t1 sub) -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub)))
+        -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub))
+tfn1 >>> tfn2 = \ sub -> (tfn2 (tfn1 sub))
+
+
+-- can be used as follows :: foo = (strict . uncurry) >>> (nonstrict . irr)

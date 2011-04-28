@@ -66,6 +66,8 @@ module Tct.Methods
     , isLeftLinear
     , isRightLinear
     , isWellFormed
+    , trsPredicate
+    , problemPredicate
 
     -- * Custom Processors
     , CustomProcessor

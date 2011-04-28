@@ -20,12 +20,10 @@ module Tct.Method.Bounds.Violations where
 
 import qualified Data.Set as Set
 import Control.Monad (liftM, foldM)
-import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import qualified Termlib.Rule as R
 import Termlib.Trs (Trs)
 import Termlib.Rule (Strictness(..))
-import Termlib.Utils
 import qualified Termlib.Trs as Trs
 
 import Tct.Processor (SolverM)
@@ -46,7 +44,7 @@ compatibleAutomaton strict weak e a = eitherVal `liftM` (iter a (1 :: Int))
                          case r of
                            Left  a'' -> iter a'' (i + 1)
                            Right a'' -> return $ Right a''
-          f i str ml a' rule = case a' of 
+          f _ str ml a' rule = case a' of 
                                 (Left a'')  -> return $ Left $ eitherVal $ makeRuleCompatible rule e str wb ml a''
                                 (Right a'') -> return $ makeRuleCompatible rule e str wb ml a''
               -- where tl v = do debugMsg $ show $ (brackets $ text $ show i) <+> text "processing rule" <+> pprint rule $$ pprint (eitherVal v)

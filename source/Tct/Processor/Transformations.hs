@@ -133,14 +133,14 @@ instance ( Transformer t
                                   , A.description = "The processor that is applied on the transformed problem(s)" }
     solve inst prob = do res <- transform (TheTransformer t args) prob
                          case res of 
-                           Failure p | strict    -> return $ TProof p (enumeration' [])
+                           Failure p | str       -> return $ TProof p (enumeration' [])
                                      | otherwise -> UTProof p `liftM`  P.solve sub prob 
                            Success p ps -> do esubproofs <- P.evalList par (P.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]
                                                 Left  (fld,subs) -> return $ TProof p (mapEnum Just $ fld : subs)
         where (Trans t) = S.processor inst
-              strict :+: par :+: args :+: sub = S.processorArgs inst
+              str :+: par :+: args :+: sub = S.processorArgs inst
 
 
 
@@ -163,10 +163,10 @@ nonstrict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (Transform
 nonstrict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> False :+: par :+: as :+: sub
 
 sequentialSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
-sequentialSubgoals = S.modifyArguments $ \ (strict :+: _ :+: as :+: sub) -> strict :+: False :+: as :+: sub
+sequentialSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: False :+: as :+: sub
 
 parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
-parallelSubgoals = S.modifyArguments $ \ (strict :+: _ :+: as :+: sub) -> strict :+: True :+: as :+: sub
+parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: True :+: as :+: sub
 
 
 class Verifiable proof where 

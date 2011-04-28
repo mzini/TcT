@@ -86,7 +86,7 @@ import Data.Typeable
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
-import Qlogic.MiniSat (setCmd, MiniSat, setDebug)
+import Qlogic.MiniSat (setCmd, MiniSat)
 import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)

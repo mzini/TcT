@@ -18,12 +18,12 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Main.Debug where
 -- MA:TODO: output to stream specified in Tct.Config, integrate in solver monad
 
-import Control.Monad.Trans (MonadIO, liftIO)
-import Control.Monad (liftM)
-import Control.Monad.Error (MonadError, catchError, throwError)
-import System.CPUTime (getCPUTime)
+-- import Control.Monad.Trans (MonadIO, liftIO)
+-- import Control.Monad (liftM)
+-- import Control.Monad.Error (MonadError, catchError, throwError)
+-- import System.CPUTime (getCPUTime)
 import System.IO
-import System.IO.Unsafe
+-- import System.IO.Unsafe
 import Tct.Processor(Proof, SomeProcessor)
 
 import Termlib.Utils (PrettyPrintable (..))

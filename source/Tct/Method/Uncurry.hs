@@ -202,7 +202,7 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
     where mkRule (R.Rule lhs rhs) = do lhs' <- mk lhs
                                        rhs' <- mk rhs
                                        return $ R.Rule lhs' rhs'
-          mk = fresh . uncurry
+          mk = fresh . uc
           appsym      = appSymbol asig
           s `apply` t = Fun appsym [s,t] 
           symOf g ar = do attribs <- F.getAttributes g 
@@ -214,13 +214,13 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
           --                        Just (attribs,_) -> attribs
           --                        Nothing          -> error $ show g
 
-          uncurry (Fun _ [t1,t2]) = case u1 of 
-                                      Var{}     -> u1 `apply` u2
-                                      Fun g u1s | appArity asig g > length u1s  -> Fun g (u1s ++ [u2])
-                                                | otherwise                     -> u1 `apply` u2
-              where u1 = uncurry t1
-                    u2 = uncurry t2
-          uncurry t               =  t
+          uc (Fun _ [t1,t2]) = case u1 of 
+                                 Var{}     -> u1 `apply` u2
+                                 Fun g u1s | appArity asig g > length u1s  -> Fun g (u1s ++ [u2])
+                                           | otherwise                     -> u1 `apply` u2
+              where u1 = uc t1
+                    u2 = uc t2
+          uc t               =  t
           fresh v@(Var _)               = return v
           fresh (Fun g ts) | g == appsym = fresh' g
                            | otherwise  = symOf g (length ts) >>= fresh'

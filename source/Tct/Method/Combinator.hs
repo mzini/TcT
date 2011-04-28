@@ -268,7 +268,7 @@ instance (P.Processor p) => S.Processor (OneOf p) where
                        | otherwise           = solveFast (S.processorArgs theproc)
 
         where proc = S.processor theproc 
-              mkActions ps = forM ps $ \ proc -> P.mkIO $ P.apply proc prob
+              mkActions ps = forM ps $ \ p -> P.mkIO $ P.apply p prob
               ofResult o (Left faileds) = OneOfFailed o faileds
               ofResult o (Right proof) = OneOfSucceeded o proof
               

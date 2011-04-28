@@ -117,12 +117,12 @@ instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (C
     answer (DynamicPartitioned relApplied  prel psub) | succeeded psub = CertAnswer $ certified (unknown, res)
                                                       | otherwise = MaybeAnswer
         where res | not relApplied = ub prel `add` ub psub
-                  | otherwise    = compose (upperBound $ P.certificate prel) (upperBound $ P.certificate psub)
+                  | otherwise    = combine (upperBound $ P.certificate prel) (upperBound $ P.certificate psub)
               r       = Trs.fromRules $ P.ppRemovable prel
               s       = strictTrs $ P.inputProblem psub
               sizeIncreasingR = Trs.isSizeIncreasing r
               sizeIncreasingS = Trs.isSizeIncreasing s
-              compose ubRModS ubS | not sizeIncreasingS
+              combine ubRModS ubS | not sizeIncreasingS
                                     && not sizeIncreasingR  = ubRModS `mult` ubS
                                   | not sizeIncreasingS    = ubRModS `mult` (ubS `compose` (poly (Just 1) `add` ubRModS))
                                   | otherwise            = ubRModS `mult` (ubS `iter` ubRModS)

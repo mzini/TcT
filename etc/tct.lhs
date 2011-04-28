@@ -19,30 +19,30 @@ sort&compress
 ]{natbib}   
 \usepackage{hyperref}
 
-\usepackage{verbatim}
-\newenvironment{code}{\footnotesize\verbatim}{\endverbatim\normalsize}
+% \usepackage{verbatim}
+% \newenvironment{code}{\footnotesize\verbatim}{\endverbatim\normalsize}
 
 % does not work, why?
 
-% \usepackage{listings}
-% \lstloadlanguages{Haskell}
-% \lstnewenvironment{code}
-%     {\lstset{}%
-%       \csname lst@SetFirstLabel\endcsname}
-%     {\csname lst@SaveFirstLabel\endcsname}
-%     \lstset{
-%       basicstyle=\small\ttfamily,
-%       flexiblecolumns=false,
-%       basewidth={0.5em,0.45em},
-%       literate={+}{{$+$}}1 {/}{{$/$}}1 {*}{{$*$}}1 {=}{{$=$}}1
-%                {>}{{$>$}}1 {<}{{$<$}}1 {\\}{{$\lambda$}}1
-%                {\\\\}{{\char`\\\char`\\}}1
-%                {->}{{$\rightarrow$}}2 {>=}{{$\geq$}}2 {<-}{{$\leftarrow$}}2
-%                {<=}{{$\leq$}}2 {=>}{{$\Rightarrow$}}2 
-%                {\ .}{{$\circ$}}2 {\ .\ }{{$\circ$}}2
-%                {>>}{{>>}}2 {>>=}{{>>=}}2
-%                {|}{{$\mid$}}1               
-%     }
+\usepackage{listings}
+\lstloadlanguages{Haskell}
+\lstnewenvironment{code}
+    {\lstset{}%
+      \csname lst@SetFirstLabel\endcsname}
+    {\csname lst@SaveFirstLabel\endcsname}
+    \lstset{
+      basicstyle=\small\ttfamily,
+      flexiblecolumns=false,
+      basewidth={0.5em,0.45em},
+      literate={+}{{$+$}}1 {/}{{$/$}}1 {*}{{$*$}}1 {=}{{$=$}}1
+               {>}{{$>$}}1 {<}{{$<$}}1 {\\}{{$\lambda$}}1
+               {\\\\}{{\char`\\\char`\\}}1
+               {->}{{$\rightarrow$}}2 {>=}{{$\geq$}}2 {<-}{{$\leftarrow$}}2
+               {<=}{{$\leq$}}2 {=>}{{$\Rightarrow$}}2 
+               {\ .}{{$\circ$}}2 {\ .\ }{{$\circ$}}2
+               {>>}{{>>}}2 {>>=}{{>>=}}2
+               {|}{{$\mid$}}1               
+    }
 
 \newcommand{\cde}[1]{\texttt{#1}}
 \newcommand{\flag}[1]{\textsf{-#1}}
@@ -71,8 +71,7 @@ whose main function which evaluates the monad \cde{tct config} where \cde{config
 is used to control the behaviour of \TCT.
 In particular, it allows the definition of custom processors that are available 
 thru the flag \flag{s} (and of course \flag{l} etc).
-This file usually resides in \textsf{\${home}/.tct/}, with either the name \textsf{tct.lhs}
-or \textsf{tct.hs}. To start customising \TCT, we import some modules:
+This file resides in \textsf{\${home}/.tct/tct.hs}. To start customising \TCT, we import some modules:
 
 \begin{code}
 {-# LANGUAGE DeriveDataTypeable, TypeOperators #-}
@@ -170,11 +169,16 @@ withMeasure = customProcessor withMeasureSolve
 
 \subsection{Processor \cde{Greedy Compose}}
 \begin{code}
-greedyComposeSolve :: (P.SolverM m, P.Processor p) => (Maybe Nat :+: Bool :+: P.InstanceOf p :+: P.InstanceOf p) -> Problem -> m P.SomeProof
-greedyComposeSolve (Just (Nat 0) :+: useRelative :+: _       :+: subproc) prob = prob `solveBy` subproc 
-greedyComposeSolve (mn           :+: useRelative :+: relproc :+: subproc) prob = prob `solveBy` proc
-  where proc = composeDynamic useRelative relproc (gc `before` subproc)
-        args'= mn' :+: useRelative :+: relproc :+: subproc where mn' = (\ n -> n - 1) `fmap` mn
+greedyComposeSolve :: (P.SolverM m, P.Processor p1, P.Processor p2) => 
+  (Maybe Nat :+: Bool :+: P.InstanceOf p1 :+: P.InstanceOf p2) -> Problem -> m P.SomeProof
+
+greedyComposeSolve (Just (Nat 0) :+: _           :+: _       :+: subproc) prob = 
+   prob `solveBy` subproc 
+greedyComposeSolve (mn           :+: useRelative :+: relproc :+: subproc) prob = 
+  prob `solveBy` proc where 
+        proc = composeDynamic useRelative relproc (gc `before` subproc)
+        args'= mn' :+: useRelative :+: relproc :+: subproc 
+           where mn' = (\ n -> n - 1) `fmap` mn
         gc   = localProcessor "greedycombine (recursive)" (greedyComposeSolve args')
 
 

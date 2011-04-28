@@ -27,7 +27,8 @@ module Tct.Method.Bounds
  ( bounds
  , boundsProcessor
  , InitialAutomaton (..)
- , Enrichment (..))
+ , Enrichment (..)
+ , Bounds)
 where
 
 import Data.Typeable

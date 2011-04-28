@@ -26,7 +26,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Processor.Timeout 
     ( timeout
     , timeoutProcessor
-    , TOProof (..))
+    , TOProof (..)
+    , Timeout)
 where 
 import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)

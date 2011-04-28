@@ -29,6 +29,7 @@ module Tct.Method.EpoStar
     ( epostar
     , epostarProcessor
     , EpoProof (..)
+    , EpoStar
     )
 where
 

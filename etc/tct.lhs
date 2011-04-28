@@ -166,6 +166,29 @@ withMeasure = customProcessor withMeasureSolve
                           , descr = [ "Overwrites set of starting terms respectively"
                                     , "relation before applying the given processor." 
                                     , "UNSOUND depending on usage!"]}
+\end{code} 
 
+\subsection{Processor \cde{Greedy Compose}}
+\begin{code}
+greedyComposeSolve :: (P.SolverM m, P.Processor p) => (Maybe Nat :+: Bool :+: P.InstanceOf p :+: P.InstanceOf p) -> Problem -> m P.SomeProof
+greedyComposeSolve (Just (Nat 0) :+: useRelative :+: _       :+: subproc) prob = prob `solveBy` subproc 
+greedyComposeSolve (mn           :+: useRelative :+: relproc :+: subproc) prob = prob `solveBy` proc
+  where proc = composeDynamic useRelative relproc (gc `before` subproc)
+        args'= mn' :+: useRelative :+: relproc :+: subproc where mn' = (\ n -> n - 1) `fmap` mn
+        gc   = localProcessor "greedycombine (recursive)" (greedyComposeSolve args')
+
+
+greedyCompose = customProcessor greedyComposeSolve
+                Description { as = "greedycompose" 
+                            , args = ubound :+: useRel :+: relproc :+: subproc
+              , descr = ["This processor  applies the relative processor iteratively."]}
+            where ubound  = (optional (maybeArg naturalArg) "iterations" Nothing) 
+                            {description = "Upper bounds on iterations."}
+                  useRel  = (optional boolArg "relative" False)                   
+                            {description = "The flag is given to combine" }
+                  relproc = processorArg 
+                            {description = "The relative processor used to remove rules."}
+                  subproc = processorArg 
+                             {description = "The final processor."}
 \end{code}
 \end{document}

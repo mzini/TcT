@@ -70,6 +70,7 @@ data Arg k = Arg { name         :: String
                  , isOptional_  :: Bool}
              deriving Typeable 
 
+infixr 5 :+:
 data a :+: b = a :+: b deriving (Typeable, Show)
 
 instance Arguments Unit where 

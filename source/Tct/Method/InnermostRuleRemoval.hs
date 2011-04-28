@@ -110,5 +110,5 @@ irrProcessor :: T.TransformationProcessor InnermostRuleRemoval P.AnyProcessor
 irrProcessor = T.transformationProcessor InnermostRuleRemoval
 
 
-irr :: P.Processor sub => Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
+irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
 irr = T.transformationProcessor InnermostRuleRemoval `T.calledWith` ()

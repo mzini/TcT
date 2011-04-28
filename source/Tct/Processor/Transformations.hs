@@ -152,11 +152,9 @@ transformationProcessor t = S.StdProcessor (Trans t)
 calledWith :: (ParsableArguments (ArgumentsOf t), Transformer t, P.Processor sub, P.ComplexityProof (TProof t sub)) => 
               TransformationProcessor t sub
               -> (Domains (ArgumentsOf t))
-              -> Bool 
-              -> Bool
               -> P.InstanceOf sub
               -> P.InstanceOf (TransformationProcessor t sub)
-t `calledWith` as = \ strict par sub -> t `S.withArgs` (strict :+: par :+: as :+: sub)
+t `calledWith` as = \ sub -> t `S.withArgs` (False :+: False :+: as :+: sub)
 
 strict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 strict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> True :+: par :+: as :+: sub

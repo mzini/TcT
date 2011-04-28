@@ -140,7 +140,7 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg P.AnyProcessor
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
 wdg approx weightgap wgkind wgdim wgsize wgcbits ua tuples = T.transformationProcessor Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 
 instance T.Transformer Wdg where

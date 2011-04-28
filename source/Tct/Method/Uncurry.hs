@@ -108,7 +108,7 @@ instance T.Transformer Uncurry where
 uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: (P.Processor sub) => Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
+uncurry :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
 uncurry = transformationProcessor Uncurry `T.calledWith` ()
 
 

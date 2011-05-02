@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE Rank2Types #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -40,6 +45,7 @@ module Tct.Processor.Transformations
     , nonstrict
     , sequentialSubgoals
     , parallelSubgoals      
+    , foo 
     ) 
 where
 
@@ -50,7 +56,7 @@ import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
-
+import Data.Typeable (cast, Typeable)
 import Tct.Processor.PPrint
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -111,7 +117,7 @@ class Transformer t where
     instanceName = name . transformation
     transform    :: P.SolverM m => TheTransformer t -> Problem -> m (Result t)
 
-data Trans t sub = Trans t
+data Trans t sub = Trans t deriving (Typeable)
 
 instance ( Transformer t
          , P.Processor sub
@@ -137,7 +143,7 @@ instance ( Transformer t
                                      | otherwise -> UTProof p `liftM`  P.solve sub prob 
                            Success p ps -> do esubproofs <- P.evalList par (P.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
-                                                Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]
+                                                Right subproofs  -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]
                                                 Left  (fld,subs) -> return $ TProof p (mapEnum Just $ fld : subs)
         where (Trans t) = S.processor inst
               str :+: par :+: args :+: sub = S.processorArgs inst
@@ -169,6 +175,49 @@ parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (Tr
 parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: True :+: as :+: sub
 
 
+-- foo :: (Typeable (P.InstanceOf (TransformationProcessor t p)), Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+foo inst = case cast inst of 
+             Just (stdInst@(S.TP (S.TheProcessor  _ _))) -> strict stdInst
+             Nothing                                   -> inst
+-- class TransOps a where
+--     str :: a -> a
+--     nonstr :: a -> a
+--     parl :: a -> a
+--     seql :: a -> a
+    
+-- instance (Transformer t, S.Processor (Trans t p)) => TransOps (P.InstanceOf (TransformationProcessor t p)) where
+--     str = strict
+--     nonstr = nonstrict
+--     parl = parallelSubgoals
+--     seql = sequentialSubgoals
+    
+-- instance TransOps a where
+--     str = id
+--     nonstr = id
+--     parl = id
+--     seql = id
+
+-- data a :>>>: b = a :>>>: b
+-- type Composition t1 t2 sub = (P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t1 sub)) 
+--                              :>>>: (P.InstanceOf (TransformationProcessor t1 sub) -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub)))
+                             
+-- instance (Transformer t1, Transformer t2, S.Processor (Trans t1 sub), S.Processor (Trans t2 (S.StdProcessor (Trans t1 sub)))) => TransOps (Composition t1 t2 sub) where
+--     -- strict (A >>> B) = (nonstrict A >>> strict B)
+--     str (t1 :>>>: t2) = t1' :>>>: t2' 
+--         where t1' sub = nonstr (t1 sub)
+--               t2' sub = strict (t2 sub)
+--     -- nonstrict (A >>> B) = (nonstrict A >>> nonstrict B)
+--     nonstr (t1 :>>>: t2) = t1' :>>>: t2' 
+--         where t1' sub = nonstr (t1 sub)
+--               t2' sub = nonstr (t2 sub)
+--     -- par (A >>> B) = (par A >>> B)
+--     parl (t1 :>>>: t2) = t1' :>>>: t2
+--         where t1' sub = parl (t1 sub)
+--     -- seq (A >>> B) = (seq A >>> B)
+--     seql (t1 :>>>: t2) = t1' :>>>: t2
+--         where t1' sub = seql (t1 sub)
+
+
 class Verifiable proof where 
     verify :: Problem -> proof -> Enumeration (Maybe (P.Proof sub)) -> P.VerificationStatus
     verify _ _ _ = P.verifyUnchecked
@@ -183,3 +232,19 @@ instance ( Verifiable proof
                                            Just sps -> P.allVerify [ P.verify (P.inputProblem pp) (P.result pp) | (_, pp) <- sps ]
                                            Nothing  -> P.verifyFail p (text "proof of transformed problem missing")
     verify prob (UTProof _ sub)  = P.verify prob sub
+
+
+-- 
+
+
+-- instance (Transformer t1, Transformer t2) => Transformer (Composition t1 t2 sub) where
+--    name _ = "Composed Transformation"
+--    description _ = ["Sequencing  t1 >>> t2 of two transformations t1, t2" ]
+   
+--    type ArgumentsOf (Composition t1 t2 sub) = Unit
+--    type ProofOf    (Composition t1 t2 sub) = ProofOf (Trans t2 (TransformationProcessor t1 sub))
+           
+--    arguments _ = Unit
+--    transform inst prob = undefined
+     
+           

@@ -86,42 +86,45 @@ instance S.Processor Predicate where
     arguments _ = opt { A.name = "on"
                       , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs)."]
                       , A.defaultValue = Strict}
+
+
+type PredicateProcessor = S.StdProcessor Predicate
          
-trsPredicate :: String -> (Trs -> Bool) -> S.StdProcessor Predicate     
+trsPredicate :: String -> (Trs -> Bool) -> PredicateProcessor     
 trsPredicate s p = S.StdProcessor $ TrsPredicate s p
 
-problemPredicate :: String -> (Problem -> Bool) -> S.StdProcessor Predicate     
+problemPredicate :: String -> (Problem -> Bool) -> PredicateProcessor     
 problemPredicate s p = S.StdProcessor $ ProblemPredicate s p
 
 
-isDuplicating :: S.StdProcessor Predicate
+isDuplicating :: PredicateProcessor
 isDuplicating = trsPredicate "duplicating" Trs.isDuplicating
-isConstructor :: S.StdProcessor Predicate
+isConstructor :: PredicateProcessor
 isConstructor = trsPredicate "constructor" Trs.isConstructor
-isCollapsing :: S.StdProcessor Predicate
+isCollapsing :: PredicateProcessor
 isCollapsing = trsPredicate "collapsing" Trs.isCollapsing
-isGround :: S.StdProcessor Predicate
+isGround :: PredicateProcessor
 isGround = trsPredicate "ground" Trs.isGround
-isLeftLinear :: S.StdProcessor Predicate
+isLeftLinear :: PredicateProcessor
 isLeftLinear = trsPredicate "leftlinear" Trs.isLeftLinear
-isRightLinear :: S.StdProcessor Predicate
+isRightLinear :: PredicateProcessor
 isRightLinear = trsPredicate "rightlinear" Trs.isLeftLinear
-isWellFormed :: S.StdProcessor Predicate
+isWellFormed :: PredicateProcessor
 isWellFormed = trsPredicate "wellformed" Trs.wellFormed
 
-isStrat :: String -> (Strategy -> Bool) -> S.StdProcessor Predicate
+isStrat :: String -> (Strategy -> Bool) -> PredicateProcessor
 isStrat n check = problemPredicate n (\ prob -> check $ strategy prob)
 
-isOutermost :: S.StdProcessor Predicate
+isOutermost :: PredicateProcessor
 isOutermost = isStrat "outermost" ((==) Outermost)
-isInnermost :: S.StdProcessor Predicate
+isInnermost :: PredicateProcessor
 isInnermost = isStrat "innermost" ((==) Innermost)
-isFull :: S.StdProcessor Predicate
+isFull :: PredicateProcessor
 isFull      = isStrat "fullstrategy" ((==) Full)
-isContextSensitive :: S.StdProcessor Predicate
+isContextSensitive :: PredicateProcessor
 isContextSensitive = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
 
-predicateProcessors :: [S.StdProcessor Predicate]
+predicateProcessors :: [PredicateProcessor]
 predicateProcessors = [isDuplicating
                       , isConstructor
                       , isCollapsing

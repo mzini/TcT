@@ -43,8 +43,9 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 
 import Tct.Processor.Transformations as T
+import Tct.Processor.PPrint (enumeration')
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable (..), Answer (..))
+import Tct.Processor (Answer (..))
 import Tct.Processor.Args as A
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -67,11 +68,10 @@ instance PrettyPrintable UncurryProof where
                    vars = Prob.variables $ inputProblem proof
 
 
-instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
-    answer = T.answerTProof answer' 
-        where answer' (NotUncurryable _) _        = MaybeAnswer
-              answer' _                  [(_,ps)] = answer ps
-              answer' _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
+instance T.Answerable UncurryProof where
+    answer (NotUncurryable _) _        = MaybeAnswer
+    answer _                  [(_,ps)] = P.answer ps
+    answer _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
 
 instance T.Verifiable UncurryProof
 
@@ -108,8 +108,8 @@ instance T.Transformer Uncurry where
 uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
-uncurry = transformationProcessor Uncurry `T.calledWith` ()
+uncurry :: T.TheTransformer Uncurry
+uncurry = Uncurry `T.withArgs` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show

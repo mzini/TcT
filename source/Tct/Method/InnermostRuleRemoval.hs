@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeSynonymInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -32,7 +33,7 @@ import Data.Maybe (isJust, catMaybes)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Tct.Processor.PPrint (enumeration', details)
+import Tct.Processor.PPrint (enumeration')
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
@@ -70,13 +71,11 @@ instance PrettyPrintable IRRProof where
                    vars    = Prob.variables $ inputProblem proof
 
 
-instance P.Processor sub => P.Answerable (T.TProof InnermostRuleRemoval sub) where 
-    answer = T.answerTProof answer'
-        where answer' NotApplicable{} _ = P.MaybeAnswer
-              answer' _ [(_,ps)]        = P.answer ps
-              answer' _ ls              = error $ show msg 
-                where msg = text ("Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ls))
-                            $$ details ls
+instance T.Answerable IRRProof where 
+    answer NotApplicable{} _ = P.MaybeAnswer
+    answer _ [(_,ps)]        = P.answer ps
+    answer _ ls              = error $ show msg 
+        where msg = text ("Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ls))
               
 instance T.Verifiable (IRRProof)
 
@@ -110,5 +109,5 @@ irrProcessor :: T.TransformationProcessor InnermostRuleRemoval P.AnyProcessor
 irrProcessor = T.transformationProcessor InnermostRuleRemoval
 
 
-irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
-irr = T.transformationProcessor InnermostRuleRemoval `T.calledWith` ()
+irr :: T.TheTransformer InnermostRuleRemoval
+irr = InnermostRuleRemoval `T.withArgs` ()

@@ -66,11 +66,11 @@ class Verifiable proof where
     verify :: Problem -> proof -> Enumeration (Maybe (P.Proof sub)) -> P.VerificationStatus
     verify _ _ _ = P.verifyUnchecked
 
-class Answerable proof where 
-    answer :: proof -> Enumeration P.Answer -> P.Answer
+-- class Answerable proof where 
+--     answer :: proof -> Enumeration P.Answer -> P.Answer
 
-class (PrettyPrintable proof, Verifiable proof, Answerable proof) => TransformationProof proof
-instance (PrettyPrintable proof, Verifiable proof, Answerable proof) => TransformationProof proof
+-- class (PrettyPrintable (Proof t sub), Verifiable (Proof t sub), Answerable proof) => TransformationProof (ProofOf t)
+-- instance (PrettyPrintable proof, Verifiable proof, Answerable proof) => TransformationProof (ProofOf t)
 
 
 --------------------------------------------------------------------------------
@@ -79,13 +79,20 @@ instance (PrettyPrintable proof, Verifiable proof, Answerable proof) => Transfor
 data Result t = Failure (ProofOf t) 
               | Success (ProofOf t) (Enumeration Problem)
 
+data Proof t sub = Proof { transformationProof :: ProofOf t 
+                         , inputProblem        :: Problem
+                         , subProofs           :: Enumeration (P.Proof sub) }
+
+findProof :: (Numbering a) => a -> Proof t t1 -> Maybe (P.Proof t1)
+findProof e p = find e (subProofs p)
+findProof _ _ = Nothing
 
 data TheTransformer t = TheTransformer { transformation     :: t
                                        , isStrict           :: Bool
                                        , solveParallel      :: Bool
                                        , transformationArgs :: Domains (ArgumentsOf t)}
 
-class TransformationProof (ProofOf t) => Transformer t where
+class Transformer t where
     name         :: t -> String
     description  :: t -> [String]
     description  = const []
@@ -101,33 +108,33 @@ class TransformationProof (ProofOf t) => Transformer t where
 --------------------------------------------------------------------------------
 -- SomeTransformation
 
-data SomeTrans = forall t. (TransformationProof (ProofOf t), Transformer t) => SomeTrans t (Domains (ArgumentsOf t))
-data SomeTransProof = forall t. TransformationProof t => SomeTransProof t
+-- data SomeTrans = forall t. (Transformer t) => SomeTrans t (Domains (ArgumentsOf t))
+-- data SomeTransProof = forall t. SomeTransProof t
 
-instance PrettyPrintable SomeTransProof where
-    pprint (SomeTransProof p) = pprint p
+-- instance PrettyPrintable SomeTransProof where
+--     pprint (SomeTransProof p) = pprint p
 
-instance Answerable SomeTransProof where
-    answer (SomeTransProof p) ps = answer p ps
+-- instance Answerable SomeTransProof where
+--     answer (SomeTransProof p) ps = answer p ps
 
-instance Verifiable SomeTransProof where
-    verify prob (SomeTransProof p) ps = verify prob p ps
+-- instance Verifiable SomeTransProof where
+--     verify prob (SomeTransProof p) ps = verify prob p ps
 
-instance Transformer SomeTrans where
-    name (SomeTrans t _) = name t
-    description (SomeTrans t _) = description t
+-- instance Transformer SomeTrans where
+--     name (SomeTrans t _) = name t
+--     description (SomeTrans t _) = description t
 
-    type ArgumentsOf SomeTrans = Unit
-    type ProofOf SomeTrans     = SomeTransProof
-    arguments _ = Unit
-    transform inst@(TheTransformer (SomeTrans t as) _ _ ()) prob = 
-        mk `liftM` transform inst{transformation=t, transformationArgs = as} prob
-        where mk (Failure p) = Failure (SomeTransProof p)
-              mk (Success p ts) = Success (SomeTransProof p) ts
+--     type ArgumentsOf SomeTrans = Unit
+--     type ProofOf SomeTrans     = SomeTransProof
+--     arguments _ = Unit
+--     transform inst@(TheTransformer (SomeTrans t as) _ _ ()) prob = 
+--         mk `liftM` transform inst{transformation=t, transformationArgs = as} prob
+--         where mk (Failure p) = Failure (SomeTransProof p)
+--               mk (Success p ts) = Success (SomeTransProof p) ts
 
-someTransformation :: (P.ComplexityProof (ProofOf t), Transformer t) => TheTransformer t -> TheTransformer SomeTrans
-someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
-                               , transformationArgs = ()}
+-- someTransformation :: (P.ComplexityProof (ProofOf t), Transformer t) => TheTransformer t -> TheTransformer SomeTrans
+-- someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
+--                                , transformationArgs = ()}
 
 
 --------------------------------------------------------------------------------
@@ -141,53 +148,55 @@ t1 >>> t2 = TheTransformer { transformation = t1 :>>>: t2
                            , transformationArgs = ()}
 
 
-data ComposeProof t1 t2 = ComposeProof { firstproof :: ProofOf t1
-                                       , sndproof   :: Maybe (Enumeration (Result t2)) }
+-- data ComposeProof t1 t2 = ComposeProof { firstproof :: ProofOf t1
+--                                        , sndproof   :: Maybe (Enumeration (Result t2)) }
 
-instance (PrettyPrintable (ProofOf t1), PrettyPrintable (ProofOf t2)) => PrettyPrintable (ComposeProof t1 t2) where
-    pprint (ComposeProof p1 Nothing)    = pprint p1
-    pprint (ComposeProof p1 (Just ers)) = 
-        pprint p1
-        $+$ block "Further processing of following problems:"
-                [ (e,pp p eprobs) | (e, Success p eprobs) <- ers] where
-                    pp p eprobs = pprint p
-                                  $+$ block "resulting in:" [(e, pprint prob) | (e,prob) <- eprobs]
+-- instance (PrettyPrintable (ProofOf t1), PrettyPrintable (ProofOf t2)) => PrettyPrintable (ComposeProof t1 t2) where
+--     pprint (ComposeProof p1 Nothing)    = pprint p1
+--     pprint (ComposeProof p1 (Just ers)) = 
+--         pprint p1
+--         $+$ block "Further processing of following problems:"
+--                 [ (e,pp p eprobs) | (e, Success p eprobs) <- ers] where
+--                     pp p eprobs = pprint p
+--                                   $+$ block "resulting in:" [(e, pprint prob) | (e,prob) <- eprobs]
 
 
-instance (Verifiable (ProofOf t1), Verifiable (ProofOf t2)) => Verifiable (ComposeProof t1 t2) where
-    verify _ _ _ = P.verifyUnchecked
+-- instance (Verifiable (ProofOf t1), Verifiable (ProofOf t2)) => Verifiable (ComposeProof t1 t2) where
+--     verify _ _ _ = P.verifyUnchecked
 
-instance (Answerable (ProofOf t1), Answerable (ProofOf t2)) => Answerable (ComposeProof t1 t2) where
-    answer (ComposeProof _ Nothing)     _  = P.MaybeAnswer
-    answer (ComposeProof p1 (Just ers)) as = 
-        case sequence [ answer2 e1 res | (e1, res) <- ers]  of
-          Just as' -> answer p1 as' 
-          Nothing  -> P.MaybeAnswer
-        where
-        answer2 n1@(SN (e1 :: a)) res = (,) n1 `liftM` mans where 
-            mans = case res of 
-                     Failure _         -> find (Left e1 :: Either a Int) as
-                     Success p2 eprobs -> answer p2 `liftM` sequence [ find (Right (e1,e2) :: Either Int (a,b)) undefined | (SN (e2 :: b),_) <- eprobs]  
+-- -- instance (P.Answerable (ProofOf t1), P.Answerable (ProofOf t2)) => P.Answerable (ComposeProof t1 t2) where
+-- --     answer (ComposeProof _ Nothing)     _  = P.MaybeAnswer
+-- --     answer (ComposeProof p1 (Just ers)) as = 
+-- --         case sequence [ answer2 e1 res | (e1, res) <- ers]  of
+-- --           Just as' -> answer p1 as' 
+-- --           Nothing  -> P.MaybeAnswer
+-- --         where
+-- --         answer2 n1@(SN (e1 :: a)) res = (,) n1 `liftM` mans where 
+-- --             mans = case res of 
+-- --                      Failure _         -> find (Left e1 :: Either a Int) as
+-- --                      Success p2 eprobs -> answer p2 `liftM` sequence [ find (Right (e1,e2) :: Either Int (a,b)) undefined | (SN (e2 :: b),_) <- eprobs]  
 
-instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
-    name (t1 :>>>: t2) = take 20 (instanceName t1) ++ " >>> " ++ take 20 (instanceName t2)
-    description _ = ["Implements sequencing of two transformations"]
-    type ArgumentsOf (t1 :>>>: t2) = Unit
-    type ProofOf (t1 :>>>: t2)    = ComposeProof t1 t2
-    arguments _ = Unit
-    transform inst prob = do
-      r1 <- transform t1 prob
-      case r1 of 
-        Failure p1       -> return $ Failure $ ComposeProof p1 Nothing
-        Success p1 probs -> do r2s <- mapM transform2 probs
-                               return $ Success (ComposeProof p1 (Just $ mkSubproofs r2s)) (mkSubprobs r2s)
-        where t1 :>>>: t2 = transformation inst
-              transform2 (e, subprob) = do r <- transform t2 subprob
-                                           return (e, r, subprob)
-              mkSubproofs r2s = [(e,r) | (e,r,_) <- r2s]
-              mkSubprobs r2s = concatMap mkElt r2s
-                  where mkElt (SN (e1 :: a), (Failure _)          , subprob) = [(SN (Left e1 :: Either a Int), subprob)]
-                        mkElt (SN (e1 :: a), (Success _ esubprobs), _     )  = [(SN (Right (e1,e2) :: Either Int (a,b)), subprob) | (SN (e2 :: b), subprob) <- esubprobs ]
+-- instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
+--     name (t1 :>>>: t2) = take 20 (instanceName t1) ++ " >>> " ++ take 20 (instanceName t2)
+--     description _ = ["Implements sequencing of two transformations"]
+--     type ArgumentsOf (t1 :>>>: t2) = Unit
+--     type ProofOf (t1 :>>>: t2)    = ComposeProof t1 t2
+--     arguments _ = Unit
+--     transform inst prob = do
+--       r1 <- transform t1 prob
+--       case r1 of 
+--         Failure p1       -> return $ Failure $ ComposeProof p1 Nothing
+--         Success p1 probs -> do r2s <- mapM transform2 probs
+--                                return $ Success (ComposeProof p1 (Just $ mkSubproofs r2s)) (mkSubprobs r2s)
+--         where t1 :>>>: t2 = transformation inst
+--               transform2 (e, subprob) = do r <- transform t2 subprob
+--                                            return (e, r, subprob)
+--               mkSubproofs r2s = [(e,r) | (e,r,_) <- r2s]
+--               mkSubprobs r2s = concatMap mkElt r2s
+--                   where mkElt (SN (e1 :: a), (Failure _)          , subprob) = [(SN (Left e1 :: Either a Int), subprob)]
+--                         mkElt (SN (e1 :: a), (Success _ esubprobs), _     )  = [(SN (Right (e1,e2) :: Either Int (a,b)), subprob) | (SN (e2 :: b), subprob) <- esubprobs ]
+
+
 -- -- strict (A >>> B) = (nonstrict A >>> strict B)
 -- -- nonstrict (A >>> B) = (nonstrict A >>> nonstrict B)
 -- -- par (A >>> B) = (par A >>> B)
@@ -242,43 +251,40 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
 
 
 
-data TProof t sub = TProof (ProofOf t) (Enumeration (Maybe (P.Proof sub)))
-                  | UTProof (ProofOf t) (P.ProofOf sub)
+
+-- data Proof t sub = Proof { transformationProof :: (ProofOf t) 
+--                          , inputProblem        :: Problem
+--                          , subProofs           :: (Enumeration (P.Proof sub)) }
 
 
-subProofs :: TProof t sub -> Maybe (Enumeration (P.Proof sub))
-subProofs (UTProof _ _) = Nothing
-subProofs (TProof _ es) = mkSps es
-    where mkSps [] = Just []
-          mkSps ((n,Just e):es') = do es'' <- mkSps es'
-                                      return $ (n,e) : es''
-          mkSps _               = Nothing 
-
-findProof :: (Numbering a) => a -> TProof t t1 -> Maybe (P.Proof t1)
-findProof _ (UTProof _ _) = Nothing
-findProof e (TProof _ ps) = find e ps >>= id
-
-prettyPrintTProof :: ( PrettyPrintable (ProofOf t)
-                    , P.Processor p
-                    , P.Answerable (P.ProofOf p)
-                    , PrettyPrintable (P.ProofOf p)) => TProof t p -> Doc
-prettyPrintTProof p@(TProof tp _) = block' "Transformation Details" [tp]
-                                    $+$ text ""
-                                    $+$ (case subProofs p of
-                                           Just ps' -> overview ps' $+$ text "" $+$ details ps'
-                                           Nothing  -> text "Processing of at least one sub-problem did not finish. We abort. ")
-prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
-                            $+$ text ""
-                            $+$ block' "Transformation Details" [tp]
-                            $+$ text ""
-                            $+$ block' "Application of the Sub-processor" [p]
+data TP t sub = TPTransformed (Proof t sub)
+              | TPFailed (Proof t sub)
+              | TPUntransformed (Proof t sub) (P.ProofOf sub)
+              | TPMissing 
+                  
+instance ( PrettyPrintable (Proof t sub), PrettyPrintable (P.ProofOf sub) ) => PrettyPrintable (TP t sub) where 
+  pprint (TPTransformed tproof)            = pprint tproof
+  pprint (TPFailed tproof)                 = pprint tproof 
+  pprint (TPUntransformed tproof subproof) = 
+    text "Transforming the input failed. We thus apply the subprocessor directly."
+    $+$ text ""
+    $+$ block' "Transformation Details" [tproof]
+    $+$ text ""
+    $+$ block' "Application of the Sub-processor" [subproof]
+  pprint TPMissing                         = text "Error: SUBPROOF missing!"
 
 
-instance ( Transformer t
-         , P.Processor sub
-         , P.ComplexityProof (TProof t sub)) 
-    => S.Processor (Trans t sub) where
-    type S.ProofOf (Trans t sub) = TProof t sub
+instance ( P.Answerable (Proof t sub), P.Answerable (P.ProofOf sub) ) => P.Answerable (TP t sub) where 
+  answer (TPTransformed tproof)       = P.answer tproof
+  answer (TPFailed _)                 = P.MaybeAnswer
+  answer (TPUntransformed _ subproof) = P.answer subproof
+  answer TPMissing                    = P.MaybeAnswer
+
+instance ( P.ComplexityProof (Proof t sub)
+         , Transformer t 
+         , P.Processor sub) 
+         => S.Processor (Trans t sub) where
+    type S.ProofOf (Trans t sub) = TP t sub
     type S.ArgumentsOf (Trans t sub) = Arg (Maybe Bool) :+: Arg (Maybe Bool) :+: ArgumentsOf t :+: Arg (Proc sub)
     name (Trans t)      = name t
     description (Trans t) = description t
@@ -294,18 +300,30 @@ instance ( Transformer t
                                   , A.description = "The processor that is applied on the transformed problem(s)" }
     solve inst prob = do res <- transform (TheTransformer t False False args) prob
                          case res of 
-                           Failure p | toBool str -> return $ TProof p (enumeration' [])
-                                     | otherwise  -> UTProof p `liftM`  P.solve sub prob 
-                           Success p ps -> do esubproofs <- P.evalList (toBool par) (P.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
-                                              case esubproofs of 
-                                                Right subproofs   -> return $ TProof p [(SN e, find e subproofs) | (SN e,_) <- ps]
-                                                Left  (fld,subs) -> return $ TProof p (mapEnum Just $ fld : subs)
+                           Failure p | toBool str -> return $ TPFailed tproof
+                                     | otherwise  -> TPUntransformed tproof `liftM` P.solve sub prob 
+                                       where tproof = Proof { transformationProof = p
+                                                            , inputProblem       = prob
+                                                            , subProofs          = [] }
+                           Success p ps -> do esubproofs <- P.evalList (toBool par) (P.succeeded . snd) 
+                                                            [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
+                                              return $ case mkSubproofs esubproofs ps of 
+                                                          Just sps -> TPTransformed Proof { transformationProof = p
+                                                                                          , inputProblem        = prob
+                                                                                          , subProofs           = sps}
+                                                          Nothing  -> TPMissing
+
         where (Trans t) = S.processor inst
               str :+: par :+: args :+: sub = S.processorArgs inst
               toBool = maybe False id 
+              mkSubproofs (Right subproofs) ps = sequence [(,) (SN e) `liftM` find e subproofs | (SN e,_) <- ps]
+              mkSubproofs (Left  (fld,ss))  _  = Just (fld : ss) 
 
 
 
+-- Proof { transformationProof :: (ProofOf t) 
+--                          , inputProblem        :: Problem
+--                          , subProofs           :: (Enumeration (P.Proof sub)) }
 
 
 data Trans t sub = Trans t
@@ -332,16 +350,12 @@ sequentialSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+:
 parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: Just True :+: as :+: sub
 
-instance ( Verifiable proof
-         , P.Answerable (TProof t sub)
-         , PrettyPrintable (TProof t sub)
-         , P.Verifiable (P.ProofOf sub)
-         , ProofOf t ~ proof)  => P.Verifiable (TProof t sub) where
-    verify prob p@(TProof proof subps) = verify prob proof subps `P.andVerify` 
-                                         case subProofs p of 
-                                           Just sps -> P.allVerify [ P.verify (P.inputProblem pp) (P.result pp) | (_, pp) <- sps ]
-                                           Nothing  -> P.verifyFail p (text "proof of transformed problem missing")
-    verify prob (UTProof _ sub)  = P.verify prob sub
+instance P.Verifiable (TP t sub) -- MA:MISSING:
+    -- verify prob p@(TProof proof subps) = verify prob proof subps `P.andVerify` 
+    --                                      case subProofs p of 
+    --                                        Just sps -> P.allVerify [ P.verify (P.inputProblem pp) (P.result pp) | (_, pp) <- sps ]
+    --                                        Nothing  -> P.verifyFail p (text "proof of transformed problem missing")
+    -- verify prob (UTProof _ sub)  = P.verify prob sub
 
 
 

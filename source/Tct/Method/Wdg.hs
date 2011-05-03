@@ -140,8 +140,8 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg P.AnyProcessor
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> T.TheTransformer Wdg
-wdg approx weightgap wgkind wgdim wgsize wgcbits ua tuples = Wdg `T.withArgs` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
+wdg approx weightgap wgkind wgdim wgsize wgcbits ua tuples = T.transformationProcessor Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
@@ -390,18 +390,22 @@ etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
 
 
 
-instance PrettyPrintable WdgProof where
-    pprint (NA r) = paragraph (unlines [ "This processor is not applicable to"
+instance (P.Processor sub) => PrettyPrintable (T.TProof Wdg sub) where
+    pprint (T.UTProof _ p) = paragraph (unlines [ "This processor is only applicable to runtime-complexity analysis."
+                                                , " We continue without dependency graph transformation." ])
+                              $+$ pprint p
+
+    pprint (T.TProof (NA r) _) = paragraph (unlines [ "This processor is not applicable to"
                                                     , r ++ "."
                                                     , "We abort." ])
-    pprint tp = block' "Transformation Details" [ppTrans]
-                $+$ text ""
-                $+$ if not simple 
-                    then block' "Sub-problems" [ppDetails]
-                    else PP.empty
+    pprint proof@(T.TProof tp _) = block' "Transformation Details" [ppTrans]
+                                   $+$ text ""
+                                   $+$ if not simple 
+                                       then block' "Sub-problems" [ppDetails]
+                                       else PP.empty
         where printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- nodeSCC ewdgSCC n ]
               ppPathName (Path ns _ _) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
-              findPathProof gpth = undefined -- TODO T.findProof gpth proof
+              findPathProof gpth = T.findProof gpth proof
               findWGProof gpth = snd `liftM` List.find (\ (path, _) -> gpth == thePath path) (computedPaths tp)
               ewdgSCC = computedGraphSCC tp
               ewdg    = computedGraph tp
@@ -438,9 +442,9 @@ instance PrettyPrintable WdgProof where
               ppAns pth' Nothing                  = error $ "WDG.hs: findWGProof did not find path" ++ show pth'
               ppAns _    (Just (PPSubsumedBy _))  = text "inherited"
               ppAns pth' (Just (PPWeightGap p)) = case findPathProof pth' of
-                                                      Just pp -> undefined -- pprint $ pthAnswer p pp
+                                                      Just pp -> pprint $ pthAnswer p pp
                                                       Nothing -> text "NA"
-                where pthAnswer tmi pp = undefined -- if succeeded (answer tmi) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
+                where pthAnswer tmi pp = if succeeded (answer tmi) then answerFromCertificate (max (certificate pp) (certificate tmi)) else answer pp
 
               ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppAns (thePath path) (Just pathproof))
                                                                         $+$ text ""
@@ -464,30 +468,29 @@ instance PrettyPrintable WdgProof where
                                                                (Trs []) -> PP.empty
                                                                _        -> text "Complexity induced by the adequate RMI:" <+> pprint (answer p))
                                                         $+$ text ""
-                                                        -- $+$ (case findPathProof (thePath path) of -- MA:TODO
-                                                        --        Nothing -> text "We have not generated a proof for the resulting sub-problem."
-                                                        --        Just pp -> text "We apply the sub-processor on the resulting sub-problem:"
-                                                        --                  $+$ text ""
-                                                        --                  $+$ pprint pp)
+                                                        $+$ (case findPathProof (thePath path) of
+                                                               Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                                                               Just pp -> text "We apply the sub-processor on the resulting sub-problem:"
+                                                                         $+$ text ""
+                                                                         $+$ pprint pp)
 
 instance T.Verifiable WdgProof
 
-instance T.Answerable WdgProof where
-    answer (NA _) _                                  = MaybeAnswer
-    answer proof ass | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
-                     | otherwise = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb ans | (_,ans) <- ass] ++ [tmiUb | tmiUb <- tmiUbs])
-        where mkUb ans = assertLinear (upperBound $ certificate ans) 
--- MA:TODO:FIXME
--- case relation $ P.inputProblem p of
---                              Standard _ -> ub p
---                              _          -> assertLinear $ ub p
---               ub = upperBound
-              tmiUbs = map upperBound tmiCerts
-              tmiCerts = mapMaybe handlePathProof pathproofs
-              handlePathProof (PPSubsumedBy _) = Nothing
-              handlePathProof (PPWeightGap tmi) | succeeded tmi = Just $ certificate tmi
-                                                | otherwise     = Nothing
-              pathproofs = map snd $ computedPaths proof
-              assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
-              assertLinear (Poly Nothing)  = Poly Nothing
-              assertLinear e               = e
+instance (P.Processor sub) => Answerable (T.TProof Wdg sub) where
+    answer = T.answerTProof ans
+        where ans (NA _) _                                  = MaybeAnswer
+              ans proof sps | containsNoEdgesEmptyUrs proof = answerFromCertificate $ certified (unknown, poly (Just 0))
+                            | otherwise = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps] ++ [tmiUb | tmiUb <- tmiUbs])
+                  where mkUb (_,p) = case relation $ P.inputProblem p of
+                                       Standard _ -> ub p
+                                       _          -> assertLinear $ ub p
+                        ub = upperBound . certificate
+                        tmiUbs = map upperBound tmiCerts
+                        tmiCerts = mapMaybe handlePathProof pathproofs
+                        handlePathProof (PPSubsumedBy _) = Nothing
+                        handlePathProof (PPWeightGap tmi) | succeeded tmi = Just $ certificate tmi
+                                                          | otherwise     = Nothing
+                        pathproofs = map snd $ computedPaths proof
+                        assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
+                        assertLinear (Poly Nothing)  = Poly Nothing
+                        assertLinear e               = e

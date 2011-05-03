@@ -73,11 +73,21 @@ data NaturalMIKind = Triangular
                    | Default
                      deriving (Typeable, Bounded, Enum)
 
+data PolyCheck = Ones
+               | EDA
+               | IDA
+                 deriving (Typeable, Bounded, Enum)
+
 instance Show NaturalMIKind where 
     show Unrestricted = "unrestricted"
     show Triangular   = "triangular"
     show Constructor  = "constructor"
     show Default      = "default"
+
+instance Show PolyCheck where
+    show Ones = "ones"
+    show EDA  = "eda"
+    show IDA  = "ida"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
@@ -116,7 +126,7 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (EnumOf PolyCheck)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments NaturalMI = opt { A.name        = "kind"
                               , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation employed for complexity-analysis."
                                                         , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
@@ -129,6 +139,14 @@ instance S.Processor NaturalMI where
                                                         , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
                                                         ]
                               , A.defaultValue = Default}
+                          :+:
+                          opt { A.name        = "polyby"
+                              , A.description = unlines [ "This argument specifies how the polynomial growth of the matrix interpretation is ensured."
+                                                        , "Here 'ones' refers to triangular matrix shape, while 'eda' and 'ida' refer to the criteria"
+                                                        , "EDA and IDA for the weighted automaton based on the matrix interpretation."
+                                                        , "The default value is 'ones'."
+                                                        ]
+                              , A.defaultValue = Ones}
                           :+:
                           opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
@@ -197,34 +215,37 @@ instance S.Processor NaturalMI where
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind matrixdimension coefficientsize constraintbits ua =
-    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
+matrix :: NaturalMIKind -> PolyCheck -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
+matrix matrixkind pcheck matrixdimension coefficientsize constraintbits ua =
+    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: pcheck :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
-kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
+kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
+kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
+kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+
+polyby :: Domains (S.ArgumentsOf NaturalMI) -> PolyCheck
+polyby (_ :+: c :+: _ :+: _ :+: _ :+: _ :+: _) = c
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
-bound (_ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
-                                                      Just (Nat b) -> N.Bits b
-                                                      Nothing      -> N.Bound bnd
+bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
+                                                            Just (Nat b) -> N.Bits b
+                                                            Nothing      -> N.Bound bnd
 
 cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
-cbits (_ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
-                                             return $ N.Bits n
+cbits (_ :+: _ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
+                                                   return $ N.Bits n
 
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
-dim (_ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
+dim (_ :+: _ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
 
 isUargsOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
-isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
+isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
 
 usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
 usableArgsWhereApplicable MWithDP sig _                     ua strat r s = (if ua then restrictToSignature compSig (usableArgs strat r s) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig

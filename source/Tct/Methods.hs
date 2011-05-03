@@ -82,6 +82,7 @@ module Tct.Methods
     , EnumOf
     , Processor
     , NaturalMIKind (..)
+    , PolyCheck (..)
     , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)

@@ -76,7 +76,7 @@ data NaturalMIKind = Triangular
 data PolyCheck = Ones
                | EDA
                | IDA
-                 deriving (Typeable, Bounded, Enum)
+                 deriving (Eq, Typeable, Bounded, Enum)
 
 instance Show NaturalMIKind where 
     show Unrestricted = "unrestricted"
@@ -91,7 +91,8 @@ instance Show PolyCheck where
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
-                               , uargs    :: UsablePositions } deriving Show
+                               , uargs    :: UsablePositions
+                               , polycert :: PolyCheck } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
@@ -112,11 +113,15 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
-    answer (MatrixOrder _ UnrestrictedMatrix _)    = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m TriangularMatrix _)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
+    answer (MatrixOrder _ UnrestrictedMatrix _ _)       = CertAnswer $ certified (unknown, expo (Just 1))
+    answer (MatrixOrder m TriangularMatrix _ Ones)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs) _ Ones) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+    answer (MatrixOrder m TriangularMatrix _ EDA)       = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder m (ConstructorBased _) _ EDA)   = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder m TriangularMatrix _ IDA)       = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder m (ConstructorBased _) _ IDA)   = CertAnswer $ certified (unknown, poly (Just $ dimension m))
 
 instance Verifiable MatrixOrder
 instance ComplexityProof MatrixOrder
@@ -205,12 +210,12 @@ instance S.Processor NaturalMI where
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
-            mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
-                                                                         , P.ppResult       = res 
-                                                                         , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
-            mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
-                                                                         , P.ppResult       = res
-                                                                         , P.ppRemovable    = [] }
+            mkProof sr res@(Order (MatrixOrder mi _ _ _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                           , P.ppResult       = res 
+                                                                           , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
+            mkProof _  res                                = P.PartialProof { P.ppInputProblem = problem
+                                                                           , P.ppResult       = res
+                                                                           , P.ppRemovable    = [] }
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
@@ -282,7 +287,7 @@ orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs ->
 orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                          return $ case theMI of
                                                    Nothing -> Incompatible -- usefule for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
-                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
+                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua pcheck
                                       where addAct :: MiniSat ()
                                             addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
                                             mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
@@ -290,6 +295,7 @@ orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                             cb      = cbits mp
                                             d       = dim mp
                                             mk      = kind mp st
+                                            pcheck  = polyby mp
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative deriving Show
@@ -314,9 +320,10 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         d          = dim mp
         mk         = kind mp st
         uaOn       = isUargsOn mp
-        otherConstraints UnrestrictedMatrix mi = dpChoice mdp st uaOn mi
-        otherConstraints TriangularMatrix mi = dpChoice mdp st uaOn mi && triConstraints mi
-        otherConstraints (ConstructorBased cs) mi = dpChoice mdp st uaOn mi && triConstraints mi'
+        pcheck     = polyby mp
+        otherConstraints UnrestrictedMatrix mi    = dpChoice mdp st uaOn mi
+        otherConstraints TriangularMatrix mi      = dpChoice mdp st uaOn mi && pCheckChoice pcheck mi
+        otherConstraints (ConstructorBased cs) mi = dpChoice mdp st uaOn mi && pCheckChoice pcheck (if pcheck == Ones then mi' else mi)
                                                     where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                           filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         strictChoice MDirect    = strictTrsConstraints
@@ -326,6 +333,9 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
+        pCheckChoice Ones = triConstraints
+        pCheckChoice EDA  = edaConstraints
+        pCheckChoice IDA  = idaConstraints
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
@@ -393,7 +403,7 @@ edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVa
 edaConstraints = goneConstraints && rConstraints && dConstraints
 
 idaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-idaConstraints = undefined
+idaConstraints = error "IDA constraints not yet implemented."
 
 goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 goneConstraints mi = bigAnd $ zipWith f toD toD

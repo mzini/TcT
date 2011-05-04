@@ -290,7 +290,7 @@ orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                                    Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua pcheck
                                       where addAct :: MiniSat ()
                                             addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
-                                            mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
+                                            mi      = abstractInterpretation (if pcheck == Ones then mk else UnrestrictedMatrix) d sig :: MatrixInter (N.Size -> Int)
                                             n       = bound mp
                                             cb      = cbits mp
                                             d       = dim mp
@@ -316,7 +316,7 @@ dpConstraints = matrixConstraints MDirect MWithDP
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
-  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
+  where absmi      = abstractInterpretation (if pcheck == Ones then mk else UnrestrictedMatrix) d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         uaOn       = isUargsOn mp
@@ -388,6 +388,7 @@ applyAss mi ass = fmap (flip N.eval ass) mi
 
 data XdaVar = Ggeq Int Int
             | Ggrt Int Int
+            | Gtwo Int Int Int Int
             | R Int Int
             | D Int Int
             | Done Int Int
@@ -400,7 +401,7 @@ dioAtom :: (PropAtom a, Eq l) => a -> DioFormula l DioVar Int
 dioAtom = A . PAtom . toDioVar
 
 edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-edaConstraints = goneConstraints && rConstraints && dConstraints
+edaConstraints = goneConstraints && gtwoConstraints && rConstraints && dConstraints
 
 idaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 idaConstraints = error "IDA constraints not yet implemented."
@@ -412,6 +413,13 @@ goneConstraints mi = bigAnd $ zipWith f toD toD
         f i j = g i j && h i j
         g i j = (dioAtom $ Ggeq i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
         h i j = (dioAtom $ Ggrt i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+
+gtwoConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+gtwoConstraints mi = bigAnd $ zipWith4 f toD toD toD toD
+  where d         = dimension mi
+        toD       = [1..d]
+        f i j k l = (dioAtom $ Gtwo i j k l) <-> bigOr (map (bigOr . map (g i j k l) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+        g i j k l m = (entry i k m .>=. SR.one) && (entry j l m .>=. SR.one)
 
 rConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 rConstraints mi = reflexivity && transitivity && compatibility && nocycle
@@ -428,9 +436,9 @@ dConstraints mi = diagonal && overapprox && overcompat && underapprox && underco
         toD         = [1..d]
         diagonal    = bigAnd $ zipWith (\ x y -> if x == y then dioAtom (D x y) else not (dioAtom $ D x y)) toD toD
         overapprox  = bigAnd $ zipWith (\ x y -> dioAtom (D x y) --> dioAtom (Done x y)) toD toD
-        overcompat  = bigAnd $ zipWith4 (\ x y z u -> (dioAtom (Done x y) && dioAtom (Ggeq x z) && dioAtom (Ggeq y u)) --> dioAtom (Done z u)) toD toD toD toD
+        overcompat  = bigAnd $ zipWith4 (\ x y z u -> (dioAtom (Done x y) && dioAtom (Gtwo x y z u)) --> dioAtom (Done z u)) toD toD toD toD
         underapprox = bigAnd $ zipWith (\ x y -> dioAtom (Dtwo x y) --> dioAtom (D x y)) toD toD
-        undercompat = bigAnd $ zipWith4 (\ x y z u -> (dioAtom (Dtwo x y) && dioAtom (Ggeq z x) && dioAtom (Ggeq u y)) --> dioAtom (Dtwo z u)) toD toD toD toD
+        undercompat = bigAnd $ zipWith4 (\ x y z u -> (dioAtom (Dtwo x y) && dioAtom (Gtwo z u x y)) --> dioAtom (Dtwo z u)) toD toD toD toD
         exactness   = bigAnd $ zipWith (\ x y -> (dioAtom (Done x y) && dioAtom (Dtwo x y)) --> dioAtom (D x y)) toD toD
 
 -- Instance declarations

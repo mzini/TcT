@@ -42,7 +42,7 @@ import qualified Qlogic.NatSat as N
 import qualified Qlogic.SatSolver as SatSolver
 import qualified Qlogic.Semiring as SR
 
-import Termlib.Problem (Relation (..))
+import qualified Termlib.Problem as Prob
 import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -182,31 +182,31 @@ instance S.Processor NaturalMI where
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
 
-    solve inst problem = case Prob.relation problem of
-                           Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
-                           Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
-                           DP sr wr       -> orientDp strat st sr wr sig' (S.processorArgs inst)
-        where sig   = Prob.signature problem
-              sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
-              st    = Prob.startTerms problem
-              strat = Prob.strategy problem
+    solve inst problem = undefined -- case Prob.relation problem of
+    --                        Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
+    --                        Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
+    --                        DP sr wr       -> orientDp strat st sr wr sig' (S.processorArgs inst)
+    --     where sig   = Prob.signature problem
+    --           sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+    --           st    = Prob.startTerms problem
+    --           strat = Prob.strategy problem
 
-    solvePartial inst problem = case Prob.relation problem of
-                                   Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' (S.processorArgs inst)
-                                   Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
-                                   DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
-                                                                             , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
-                                                                             , P.ppRemovable    = [] }
-      where sig   = Prob.signature problem
-            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
-            st    = Prob.startTerms problem
-            strat = Prob.strategy problem
-            mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
-                                                                         , P.ppResult       = res 
-                                                                         , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
-            mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
-                                                                         , P.ppResult       = res
-                                                                         , P.ppRemovable    = [] }
+    -- solvePartial inst problem = case Prob.relation problem of
+    --                                Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' (S.processorArgs inst)
+    --                                Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+    --                                DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
+    --                                                                          , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
+    --                                                                          , P.ppRemovable    = [] }
+    --   where sig   = Prob.signature problem
+    --         sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+    --         st    = Prob.startTerms problem
+    --         strat = Prob.strategy problem
+    --         mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
+    --                                                                      , P.ppResult       = res 
+    --                                                                      , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
+    --         mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
+    --                                                                      , P.ppResult       = res
+    --                                                                      , P.ppRemovable    = [] }
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI

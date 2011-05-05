@@ -58,7 +58,7 @@ import Tct.Certificate
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
-import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..), PolyCheck(..))
+import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..))
 import Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
@@ -140,14 +140,14 @@ data Wdg = Wdg
 wdgProcessor :: T.TransformationProcessor Wdg P.AnyProcessor
 wdgProcessor = T.transformationProcessor Wdg
 
-wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> PolyCheck -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
-wdg approx weightgap wgkind wgpcheck wgdim wgsize wgcbits ua tuples = T.transformationProcessor Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgpcheck :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
+wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
+wdg approx weightgap wgkind wgdeg wgdim wgsize wgcbits ua tuples = T.transformationProcessor Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 
 instance T.Transformer Wdg where
     name Wdg = "wdg"
     description Wdg = ["This processor implements path analysis based on (weak) dependency graphs."]
 
-    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (EnumOf PolyCheck)) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool)
+    type T.ArgumentsOf Wdg = (Arg (EnumOf Approximation)) :+: (Arg Bool) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool)
     type T.ProofOf Wdg = WdgProof 
     instanceName _ = "Dependency Graph Analysis"
     arguments _ = opt { A.name = "approximation"
@@ -158,26 +158,29 @@ instance T.Transformer Wdg where
                       , A.defaultValue = True
                       , A.description = "specifies whether the weightgap principle is used per path"}
                   :+:
-                  opt { A.name        = "kind"
-                      , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation for the weight gap condition."
-                                                , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
-                                                , "diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
-                                                , "If 'constructor' is given as argument, then defined symbols are interpreted using unrestricted"
-                                                , "matrix-interpretations, whereas constructors are interpreted by interpretations of triangular shape."
-                                                , "Such matrix-interpretations induce polynomial upper-bounds on the runtime-complexity."
-                                                , "If 'unrestricted' is given, then matrix-interpretations of all function symbols are unrestricted."
-                                                , "Those induce exponentially bounded derivational-complexity."
-                                                , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
+                  opt { A.name        = "cert"
+                      , A.description = unlines [ "This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of"
+                                                , "the interpretation of the considered starting terms relative to their size for the weight gap condition."
+                                                , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
+                                                , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
+                                                , "half below the diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity."
+                                                , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
+                                                , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
+                                                , "the flag 'degree' is set, are used)."
+                                                , "If 'nothing' is given, then matrix-interpretations of all function symbols are unrestricted."
+                                                , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
+                                                , "The default value is 'automaton'."
                                                 ]
-                      , A.defaultValue = Default}
+                      , A.defaultValue = Automaton}
                   :+:
-                  opt { A.name = "polyby"
-                      , A.description = unlines [ "This argument specifies how the polynomial growth of the matrix interpretation for the weight gap condition is ensured."
-                                                , "Here 'ones' refers to triangular matrix shape, while 'eda' and 'ida' refer to the criteria"
-                                                , "EDA and IDA for the weighted automaton based on the matrix interpretation."
-                                                , "The default value is 'ones'."
+                  opt { A.name = "degree"
+                      , A.description = unlines [ "This argument ensures that the complexity induced by the matrix interpretation for the weight gap condition is bounded by a"
+                                                , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
+                                                , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
+                                                , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
+                                                , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
                                                 ]
-                      , A.defaultValue = Ones}
+                      , A.defaultValue = Nothing}
                   :+:
                   opt { A.name = "dim"
                       , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
@@ -261,7 +264,7 @@ instance T.Transformer Wdg where
                                                                                               , signature  = sig' }
                               mk _                  _     _    _ = error "kabooom"
 
-                    approx :+: _ :+: wgMatrixShape :+: wgPCheck :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa :+: useTuples = T.transformationArgs inst
+                    approx :+: _ :+: wgMatrixShape :+: wgDeg :+: wgMatrixDim :+: Nat wgMatrixBound :+: wgMatrixBits :+: wgMatrixCBits :+: wgUa :+: useTuples = T.transformationArgs inst
                     wgMatrixSize              = case wgMatrixBits of
                                                   Nothing -> N.Bound wgMatrixBound
                                                   Just (Nat b) -> N.Bits b
@@ -274,7 +277,7 @@ instance T.Transformer Wdg where
 
                     ewdgSCC                   = toSccGraph wdps trs ewdg
 
-                    weightGap ds dss urs      = applyWeightGap ds usablePoss urs startTerms' sig' wgMatrixShape wgPCheck wgMatrixDim wgMatrixSize wgMatrixCBits wgUa
+                    weightGap ds dss urs      = applyWeightGap ds usablePoss urs startTerms' sig' wgMatrixShape wgDeg wgMatrixDim wgMatrixSize wgMatrixCBits wgUa
                         where usablePoss      = usableArgs (strategy prob) dss urs
 
                     simple = null (Graph.edges ewdg) && Trs.isEmpty allUsableRules

@@ -67,32 +67,19 @@ import qualified Tct.Processor as P
 import Tct.Processor (Answerable(..), Verifiable (..), Answer(..), ComplexityProof)
 import qualified Tct.Processor.Standard as S
 
-data NaturalMIKind = Triangular
-                   | Constructor
+data NaturalMIKind = Algebraic
+                   | Automaton
                    | Unrestricted
-                   | Default
                      deriving (Typeable, Bounded, Enum)
 
-data PolyCheck = Ones
-               | EDA
-               | IDA
-                 deriving (Eq, Typeable, Bounded, Enum)
-
 instance Show NaturalMIKind where 
-    show Unrestricted = "unrestricted"
-    show Triangular   = "triangular"
-    show Constructor  = "constructor"
-    show Default      = "default"
-
-instance Show PolyCheck where
-    show Ones = "ones"
-    show EDA  = "eda"
-    show IDA  = "ida"
+    show Algebraic    = "algebraic"
+    show Automaton    = "automaton"
+    show Unrestricted = "nothing"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
-                               , uargs    :: UsablePositions
-                               , polycert :: PolyCheck } deriving Show
+                               , uargs    :: UsablePositions } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
@@ -101,9 +88,13 @@ instance PrettyPrintable MatrixOrder where
                    $+$ indent (pprint (uargs order, signature $ ordInter order))
                    $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
                    $+$ pprint (ordInter order)
-        where ppknd UnrestrictedMatrix   = text "unrestricted"
-              ppknd TriangularMatrix     = text "triangular"
-              ppknd (ConstructorBased _) = text "constructor-restricted"
+        where ppknd UnrestrictedMatrix            = text "unrestricted"
+              ppknd (TriangularMatrix Nothing)    = text "triangular"
+              ppknd (TriangularMatrix (Just n))   = text "triangular" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
+              ppknd (ConstructorBased _ Nothing)  = text "constructor-restricted"
+              ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
+              ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
+              ppknd (EdaMatrix (Just n))          = text "EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
 
 instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
     pprint (order, trs, var) = pprint order $+$ pptrs
@@ -113,15 +104,13 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
-    answer (MatrixOrder _ UnrestrictedMatrix _ _)       = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m TriangularMatrix _ Ones)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs) _ Ones) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
+    answer (MatrixOrder _ UnrestrictedMatrix _)      = CertAnswer $ certified (unknown, expo (Just 1))
+    answer (MatrixOrder m (TriangularMatrix _) _)    = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs _) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-    answer (MatrixOrder m TriangularMatrix _ EDA)       = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder m (ConstructorBased _) _ EDA)   = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder m TriangularMatrix _ IDA)       = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder m (ConstructorBased _) _ IDA)   = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder m (EdaMatrix Nothing) _)     = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder _ (EdaMatrix (Just n)) _)    = CertAnswer $ certified (unknown, poly (Just n))
 
 instance Verifiable MatrixOrder
 instance ComplexityProof MatrixOrder
@@ -131,27 +120,30 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (EnumOf PolyCheck)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
-    arguments NaturalMI = opt { A.name        = "kind"
-                              , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation employed for complexity-analysis."
-                                                        , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
-                                                        , "diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
-                                                        , "If 'constructor' is given as argument, then defined symbols are interpreted using unrestricted"
-                                                        , "matrix-interpretations, whereas constructors are interpreted by interpretations of triangular shape."
-                                                        , "Such matrix-interpretations induce polynomial upper-bounds on the runtime-complexity."
-                                                        , "If 'unrestricted' is given, then matrix-interpretations of all function symbols are unrestricted."
-                                                        , "Those induce exponentially bounded derivational-complexity."
-                                                        , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
+    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    arguments NaturalMI = opt { A.name        = "cert"
+                              , A.description = unlines [ "This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of"
+                                                        , "the interpretation of the considered starting terms relative to their size."
+                                                        , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
+                                                        , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
+                                                        , "half below the diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
+                                                        , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
+                                                        , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
+                                                        , "the flag 'degree' is set, are used)."
+                                                        , "If 'nothing' is given, then matrix-interpretations of all function symbols are unrestricted."
+                                                        , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
+                                                        , "The default value is 'automaton'."
                                                         ]
-                              , A.defaultValue = Default}
+                              , A.defaultValue = Automaton}
                           :+:
-                          opt { A.name        = "polyby"
-                              , A.description = unlines [ "This argument specifies how the polynomial growth of the matrix interpretation is ensured."
-                                                        , "Here 'ones' refers to triangular matrix shape, while 'eda' and 'ida' refer to the criteria"
-                                                        , "EDA and IDA for the weighted automaton based on the matrix interpretation."
-                                                        , "The default value is 'ones'."
+                          opt { A.name        = "degree"
+                              , A.description = unlines [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
+                                                        , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
+                                                        , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
+                                                        , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
+                                                        , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
                                                         ]
-                              , A.defaultValue = Ones}
+                              , A.defaultValue = Nothing}
                           :+:
                           opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
@@ -210,32 +202,28 @@ instance S.Processor NaturalMI where
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
-            mkProof sr res@(Order (MatrixOrder mi _ _ _)) = P.PartialProof { P.ppInputProblem = problem
-                                                                           , P.ppResult       = res 
-                                                                           , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
-            mkProof _  res                                = P.PartialProof { P.ppInputProblem = problem
-                                                                           , P.ppResult       = res
-                                                                           , P.ppRemovable    = [] }
+            mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                         , P.ppResult       = res 
+                                                                         , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
+            mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
+                                                                         , P.ppResult       = res
+                                                                         , P.ppRemovable    = [] }
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> PolyCheck -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind pcheck matrixdimension coefficientsize constraintbits ua =
-    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: pcheck :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
+matrix :: NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
+matrix matrixkind deg matrixdimension coefficientsize constraintbits ua =
+    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: deg :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
 kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
-
-polyby :: Domains (S.ArgumentsOf NaturalMI) -> PolyCheck
-polyby (_ :+: c :+: _ :+: _ :+: _ :+: _ :+: _) = c
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ _)  = EdaMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = EdaMatrix (fmap (\ (Nat n) -> n) d)
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
 bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
@@ -286,16 +274,15 @@ orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs ->
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                          return $ case theMI of
-                                                   Nothing -> Incompatible -- usefule for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
-                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua pcheck
+                                                   Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
+                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
                                       where addAct :: MiniSat ()
                                             addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
-                                            mi      = abstractInterpretation (if pcheck == Ones then mk else UnrestrictedMatrix) d sig :: MatrixInter (N.Size -> Int)
+                                            mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
                                             n       = bound mp
                                             cb      = cbits mp
                                             d       = dim mp
                                             mk      = kind mp st
-                                            pcheck  = polyby mp
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative deriving Show
@@ -315,17 +302,20 @@ dpConstraints = matrixConstraints MDirect MWithDP
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
-  where absmi      = abstractInterpretation (if pcheck == Ones then mk else UnrestrictedMatrix) d sig :: MatrixInter (DioPoly DioVar Int)
+matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && dpChoice mdp st uaOn absmi && otherConstraints mk absmi
+  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         uaOn       = isUargsOn mp
-        pcheck     = polyby mp
-        otherConstraints UnrestrictedMatrix mi    = dpChoice mdp st uaOn mi
-        otherConstraints TriangularMatrix mi      = dpChoice mdp st uaOn mi && pCheckChoice pcheck mi
-        otherConstraints (ConstructorBased cs) mi = dpChoice mdp st uaOn mi && pCheckChoice pcheck (if pcheck == Ones then mi' else mi)
-                                                    where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                          filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints UnrestrictedMatrix mi             = top
+        otherConstraints (TriangularMatrix Nothing) mi     = triConstraints mi
+        otherConstraints (TriangularMatrix (Just _)) _     = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        otherConstraints (ConstructorBased cs Nothing) mi  = triConstraints mi'
+                                                             where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                   filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints (ConstructorBased _ (Just _)) _   = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        otherConstraints (EdaMatrix Nothing) mi            = edaConstraints mi
+        otherConstraints (EdaMatrix (Just deg)) mi         = edaConstraints mi && idaConstraints deg mi
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
@@ -333,9 +323,6 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
-        pCheckChoice Ones = triConstraints
-        pCheckChoice EDA  = edaConstraints
-        pCheckChoice IDA  = idaConstraints
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
@@ -403,7 +390,7 @@ dioAtom = A . PAtom . toDioVar
 edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 edaConstraints = goneConstraints && gtwoConstraints && rConstraints && dConstraints
 
-idaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+idaConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 idaConstraints = error "IDA constraints not yet implemented."
 
 goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int

@@ -67,8 +67,9 @@ data MIVar = MIVar { restrict :: Bool
 type MatrixCreate a = F.Symbol -> Int -> Int -> Matrix a
 
 data MatrixKind = UnrestrictedMatrix
-                | ConstructorBased (Set.Set F.Symbol)
-                | TriangularMatrix
+                | ConstructorBased (Set.Set F.Symbol) (Maybe Int)
+                | TriangularMatrix (Maybe Int)
+                | EdaMatrix (Maybe Int)
                   deriving Show
 
 instance PropAtom MIVar
@@ -156,11 +157,12 @@ abstractInterpretation mk d sig = (MI d sig . Map.fromList . map (\f -> (f, inte
                                         fcoeffs f    = Map.fromList (map (\x -> (V.Canon x, (op f) f d x)) [1..F.arity sig f])
                                         fconst f     = Vector $ map (ringvar . (\x -> MIVar False f 0 x 0)) [1..d]
                                         op f         = case mk of
-                                                         UnrestrictedMatrix  -> stdMatrix
-                                                         TriangularMatrix    -> triMatrix
-                                                         ConstructorBased cs -> if f `Set.member` cs
-                                                                                then triMatrix
-                                                                                else stdMatrix
+                                                         UnrestrictedMatrix    -> stdMatrix
+                                                         TriangularMatrix _    -> triMatrix
+                                                         ConstructorBased cs _ -> if f `Set.member` cs
+                                                                                  then triMatrix
+                                                                                  else stdMatrix
+                                                         EdaMatrix _           -> stdMatrix
 
 liProd :: Semiring a => Matrix a -> LInter a -> LInter a
 liProd m li = LI (Map.map (mprod m) (coefficients li)) (mvprod m (constant li))

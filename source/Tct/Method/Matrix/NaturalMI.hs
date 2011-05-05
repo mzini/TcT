@@ -33,7 +33,9 @@ import qualified Data.Set as Set
 
 import Qlogic.Boolean
 import Qlogic.Diophantine
+import Qlogic.Formula (Formula(..))
 import Qlogic.MiniSat
+import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 import qualified Qlogic.Assign as A
 import qualified Qlogic.NatSat as N
@@ -64,17 +66,15 @@ import qualified Tct.Processor as P
 import Tct.Processor (Answerable(..), Verifiable (..), Answer(..), ComplexityProof)
 import qualified Tct.Processor.Standard as S
 
-data NaturalMIKind = Triangular
-                   | Constructor
+data NaturalMIKind = Algebraic
+                   | Automaton
                    | Unrestricted
-                   | Default
                      deriving (Typeable, Bounded, Enum)
 
 instance Show NaturalMIKind where 
-    show Unrestricted = "unrestricted"
-    show Triangular   = "triangular"
-    show Constructor  = "constructor"
-    show Default      = "default"
+    show Algebraic    = "algebraic"
+    show Automaton    = "automaton"
+    show Unrestricted = "nothing"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
@@ -87,9 +87,13 @@ instance PrettyPrintable MatrixOrder where
                    $+$ indent (pprint (uargs order, signature $ ordInter order))
                    $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
                    $+$ pprint (ordInter order)
-        where ppknd UnrestrictedMatrix   = text "unrestricted"
-              ppknd TriangularMatrix     = text "triangular"
-              ppknd (ConstructorBased _) = text "constructor-restricted"
+        where ppknd UnrestrictedMatrix            = text "unrestricted"
+              ppknd (TriangularMatrix Nothing)    = text "triangular"
+              ppknd (TriangularMatrix (Just n))   = text "triangular" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
+              ppknd (ConstructorBased _ Nothing)  = text "constructor-restricted"
+              ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
+              ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
+              ppknd (EdaMatrix (Just n))          = text "EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
 
 instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
     pprint (order, trs, var) = pprint order $+$ pptrs
@@ -99,11 +103,13 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
-    answer (MatrixOrder _ UnrestrictedMatrix _)    = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m TriangularMatrix _)      = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
+    answer (MatrixOrder _ UnrestrictedMatrix _)      = CertAnswer $ certified (unknown, expo (Just 1))
+    answer (MatrixOrder m (TriangularMatrix _) _)    = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs _) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+    answer (MatrixOrder m (EdaMatrix Nothing) _)     = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder _ (EdaMatrix (Just n)) _)    = CertAnswer $ certified (unknown, poly (Just n))
 
 instance Verifiable MatrixOrder
 instance ComplexityProof MatrixOrder
@@ -113,19 +119,30 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
-    arguments NaturalMI = opt { A.name        = "kind"
-                              , A.description = unlines [ "This argument specifies the particular shape of the matrix-interpretation employed for complexity-analysis."
-                                                        , "Here 'triangular' refers to matrices of triangular shape, i.e. matrices where coefficients in the lower-left half below the"
-                                                        , "diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
-                                                        , "If 'constructor' is given as argument, then defined symbols are interpreted using unrestricted"
-                                                        , "matrix-interpretations, whereas constructors are interpreted by interpretations of triangular shape."
-                                                        , "Such matrix-interpretations induce polynomial upper-bounds on the runtime-complexity."
-                                                        , "If 'unrestricted' is given, then matrix-interpretations of all function symbols are unrestricted."
-                                                        , "Those induce exponentially bounded derivational-complexity."
-                                                        , "Finally 'default' is 'constructor' for runtime-, and 'triangular' for derivational-complexity analysis."
+    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    arguments NaturalMI = opt { A.name        = "cert"
+                              , A.description = unlines [ "This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of"
+                                                        , "the interpretation of the considered starting terms relative to their size."
+                                                        , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
+                                                        , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
+                                                        , "half below the diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
+                                                        , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
+                                                        , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
+                                                        , "the flag 'degree' is set, are used)."
+                                                        , "If 'nothing' is given, then matrix-interpretations of all function symbols are unrestricted."
+                                                        , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
+                                                        , "The default value is 'automaton'."
                                                         ]
-                              , A.defaultValue = Default}
+                              , A.defaultValue = Automaton}
+                          :+:
+                          opt { A.name        = "degree"
+                              , A.description = unlines [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
+                                                        , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
+                                                        , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
+                                                        , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
+                                                        , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
+                                                        ]
+                              , A.defaultValue = Nothing}
                           :+:
                           opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
@@ -194,34 +211,33 @@ instance S.Processor NaturalMI where
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind matrixdimension coefficientsize constraintbits ua =
-    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
+matrix :: NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
+matrix matrixkind deg matrixdimension coefficientsize constraintbits ua =
+    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: deg :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
-kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Constructor  :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = error "Constructor based matrix interpretations inapplicable for derivational complexity"
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs
-kind (Default      :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix
-kind (Triangular   :+: _ :+: _ :+: _ :+: _ :+: _) _                      = TriangularMatrix
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ _)  = EdaMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = EdaMatrix (fmap (\ (Nat n) -> n) d)
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
-bound (_ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
-                                                      Just (Nat b) -> N.Bits b
-                                                      Nothing      -> N.Bound bnd
+bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
+                                                            Just (Nat b) -> N.Bits b
+                                                            Nothing      -> N.Bound bnd
 
 cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
-cbits (_ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
-                                             return $ N.Bits n
+cbits (_ :+: _ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
+                                                   return $ N.Bits n
 
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
-dim (_ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
+dim (_ :+: _ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
 
 isUargsOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
-isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
+isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
 
 usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
 usableArgsWhereApplicable MWithDP sig _                     ua strat r s = (if ua then restrictToSignature compSig (usableArgs strat r s) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
@@ -257,7 +273,7 @@ orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs ->
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                          return $ case theMI of
-                                                   Nothing -> Incompatible -- usefule for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
+                                                   Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
                                                    Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
                                       where addAct :: MiniSat ()
                                             addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
@@ -285,16 +301,20 @@ dpConstraints = matrixConstraints MDirect MWithDP
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && otherConstraints mk absmi
+matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && dpChoice mdp st uaOn absmi && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
         uaOn       = isUargsOn mp
-        otherConstraints UnrestrictedMatrix mi = dpChoice mdp st uaOn mi
-        otherConstraints TriangularMatrix mi = dpChoice mdp st uaOn mi && triConstraints mi
-        otherConstraints (ConstructorBased cs) mi = dpChoice mdp st uaOn mi && triConstraints mi'
-                                                    where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                          filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints UnrestrictedMatrix _              = top
+        otherConstraints (TriangularMatrix Nothing) mi     = triConstraints mi
+        otherConstraints (TriangularMatrix (Just _)) _     = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        otherConstraints (ConstructorBased cs Nothing) mi  = triConstraints mi'
+                                                             where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                   filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints (ConstructorBased _ (Just _)) _   = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        otherConstraints (EdaMatrix Nothing) mi            = edaConstraints mi
+        otherConstraints (EdaMatrix (Just deg)) mi         = idaConstraints deg mi
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
@@ -349,6 +369,104 @@ strictRules mi = Trs.filterRules $ strictRuleConstraints mi
 
 applyAss :: (Ord l, Eq l) => MatrixInter (N.NatFormula l) -> A.Assign l -> MatrixInter Int
 applyAss mi ass = fmap (flip N.eval ass) mi
+
+-- Automaton Stuff
+-- Notation follows the 5-author CAI paper
+
+data XdaVar = Ggeq Int Int
+            | Ggrt Int Int
+            | Gtwo Int Int Int Int
+            | R Int Int
+            | D Int Int
+            | Done Int Int
+            | Dtwo Int Int
+            | Gthree Int Int Int Int Int Int
+            | T Int Int Int
+            | I Int Int
+            | J Int Int
+            | H Int Int -- first Argument: actual argument of h in the paper; second argument: height
+            deriving (Eq, Ord, Show, Typeable)
+
+instance PropAtom XdaVar
+
+dioAtom :: (PropAtom a, Eq l) => a -> DioFormula l DioVar Int
+dioAtom = A . PAtom . toDioVar
+
+edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+edaConstraints mi = goneConstraints mi && gtwoConstraints mi && rConstraints mi && dConstraints mi
+
+idaConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+idaConstraints deg mi = edaConstraints mi && gThreeConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi
+
+goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
+  where d     = dimension mi
+        toD   = [1..d]
+        f i j = g i j && h i j
+        g i j = (dioAtom $ Ggeq i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+        h i j = (dioAtom $ Ggrt i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+
+gtwoConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+gtwoConstraints mi  = bigAnd [ f i j k l | i <- toD, j <- toD, k <- toD, l <- toD ]
+  where d           = dimension mi
+        toD         = [1..d]
+        f i j k l   = (dioAtom $ Gtwo i j k l) <-> bigOr (map (bigOr . map (g i j k l) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+        g i j k l m = (entry i k m .>=. SR.one) && (entry j l m .>=. SR.one)
+
+rConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+rConstraints mi = reflexivity && transitivity && compatibility && nocycle
+  where d   = dimension mi
+        toD = [1..d]
+        reflexivity   = bigAnd $ map (\ x -> dioAtom (R x x)) toD
+        transitivity  = bigAnd [ (dioAtom (R x y) && dioAtom (R y z)) --> dioAtom (R x z) | x <- toD, y <- toD, z <- toD ]
+        compatibility = bigAnd [ dioAtom (Ggeq x y) --> dioAtom (R x y) | x <- toD, y <- toD ]
+        nocycle       = bigAnd [ dioAtom (Ggrt x y) --> not (dioAtom (R y x)) | x <- toD, y <- toD ]
+
+dConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+dConstraints mi = diagonal && foreapprox && forecompat && backapprox && backcompat && exactness
+  where d           = dimension mi
+        toD         = [1..d]
+        diagonal    = bigAnd [ if x == y then dioAtom (D x y) else not (dioAtom $ D x y) | x <- toD, y <- toD ]
+        foreapprox  = bigAnd [ dioAtom (D x y) --> dioAtom (Done x y) | x <- toD, y <- toD ]
+        forecompat  = bigAnd [ (dioAtom (Done x y) && dioAtom (Gtwo x y z u)) --> dioAtom (Done z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
+        backapprox = bigAnd [ dioAtom (D x y) --> dioAtom (Dtwo x y) | x <- toD, y <- toD ]
+        backcompat = bigAnd [ (dioAtom (Dtwo x y) && dioAtom (Gtwo z u x y)) --> dioAtom (Dtwo z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
+        exactness   = bigAnd [ (dioAtom (Done x y) && dioAtom (Dtwo x y)) --> dioAtom (D x y) | x <- toD, y <- toD ]
+
+gThreeConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+gThreeConstraints mi = bigAnd [ f i j k x y z | i <- toD, j <- toD, k <- toD, x <- toD, y <- toD, z <- toD ]
+  where d         = dimension mi
+        toD       = [1..d]
+        f i j k x y z = (dioAtom $ Gthree i j k x y z) <-> bigOr (map (bigOr . map (g i j k x y z) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+        g i j k x y z m = (entry i x m .>=. SR.one) && (entry j y m .>=. SR.one) && (entry k z m .>=. SR.one)
+
+tConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+tConstraints mi = initial && gThreeStep
+  where d = dimension mi
+        toD = [1..d]
+        initial = bigAnd [ if x == y then top else dioAtom (T x x y) | x <- toD, y <- toD ]
+        gThreeStep = bigAnd [ (dioAtom (T x y z) && dioAtom (Gthree x y z u v w)) --> dioAtom (T u v w) | x <- toD, y <- toD, z <- toD, u <- toD, v <- toD, w <- toD ]
+
+iConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+iConstraints mi = bigAnd [ if x == y then Top else dioAtom (T x y y) --> dioAtom (I x y) | x <- toD, y <- toD ]
+  where d = dimension mi
+        toD = [1..d]
+
+jConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+jConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
+  where d = dimension mi
+        toD = [1..d]
+        f i j = dioAtom (J i j) <-> bigOr (map (\ k -> dioAtom (I i k) && dioAtom (R k j)) toD)
+
+hConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+hConstraints deg mi = unaryNotation && jDecrease
+  where d = dimension mi
+        toD = [1..d]
+        unaryNotation = bigAnd [ dioAtom (H x h) --> dioAtom (H x (h - 1)) | x <- toD, h <- [2..deg] ]
+        jDecrease = bigAnd [ f i j | i <- toD, j <- toD ]
+        f i j = dioAtom (J i j) --> bigOr (map (\ h -> dioAtom (H i h) && not (dioAtom $ H j h)) [1..deg])
+
+-- Instance declarations
 
 class MIEntry a
 

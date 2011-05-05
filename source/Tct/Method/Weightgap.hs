@@ -42,9 +42,9 @@ import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
-applyWeightGap :: P.SolverM m => Trs.Trs -> UsablePositions -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Nat -> N.Size -> Maybe Nat -> Bool
+applyWeightGap :: P.SolverM m => Trs.Trs -> UsablePositions -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool
                -> m (OrientationProof MatrixOrder)
-applyWeightGap nondup uarg trs st sig mk d b cb ua = orientMatrix (weightGapConstraints nondup) uarg' st trs Trs.empty sig (mk :+: d :+: (Nat $ N.bound b) :+: Nothing :+: cb :+: ua)
+applyWeightGap nondup uarg trs st sig mk deg d b cb ua = orientMatrix (weightGapConstraints nondup) uarg' st trs Trs.empty sig (mk :+: deg :+: d :+: (Nat $ N.bound b) :+: Nothing :+: cb :+: ua)
   where uarg' = if ua then uarg else fullWithSignature sig
 
 weightGapConstraints :: Eq l => Trs.Trs -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
@@ -54,10 +54,14 @@ weightGapConstraints nondup uarg st strict weak sig mp = strictTrsConstraints ab
         mk         = kind mp st
         otherConstraints = slmiSafeRedpairConstraints sig uarg absmi && uargMonotoneConstraints uarg absmi && nondupConstraints nondup absmi && mkConstraints mk absmi
         mkConstraints UnrestrictedMatrix _ = top
-        mkConstraints TriangularMatrix mi = triConstraints mi
-        mkConstraints (ConstructorBased cs) mi = triConstraints mi'
-                                                 where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                       filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        mkConstraints (TriangularMatrix Nothing) mi = triConstraints mi
+        mkConstraints (TriangularMatrix (Just _)) _ = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        mkConstraints (ConstructorBased cs Nothing) mi = triConstraints mi'
+                                                         where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        mkConstraints (ConstructorBased _ (Just _)) _ = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        mkConstraints (EdaMatrix Nothing) mi = edaConstraints mi
+        mkConstraints (EdaMatrix (Just deg)) mi = idaConstraints deg mi
 
 nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs.Trs -> MatrixInter a -> b
 nondupConstraints trs mi = bigAnd $ Trs.liftTrs (map rConstraint) trs

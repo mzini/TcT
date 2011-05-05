@@ -72,7 +72,7 @@ instance PrettyPrintable LoggingMsg where
 
               body = text "#+BEGIN_EXAMPLE"
                      $+$ (case sig of 
-                            SolveStart -> prettyPrintRelation prob
+                            SolveStart -> pprint prob
                             SolveFinish p -> pprint p)
                      $+$ text "#+END_EXAMPLE"
 

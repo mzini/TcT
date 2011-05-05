@@ -23,7 +23,7 @@ module Tct.Processor.PPrint where
 
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
-import Termlib.Problem (prettyPrintRelation)
+import Termlib.Problem ()
 import Tct.Processor as P
 import Data.Typeable 
 
@@ -103,7 +103,7 @@ detailsSuccess ps = block "Details"
 overview :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
     where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
-                         $+$ indent (prettyPrintRelation (P.inputProblem p))
+                         $+$ indent (pprint (P.inputProblem p))
                            where status | succeeded p = text "reports bound" <+> pprint (answer p)
                                         | otherwise   = text "FAILED"
 

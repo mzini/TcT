@@ -42,28 +42,31 @@ import Tct.Certificate
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
-import Termlib.Rule (Rule)
-import Termlib.Problem (strictTrs, weakTrs, relation, Relation(..), Problem, startTerms, StartTerms (..))
-
+import Termlib.Problem (Problem (..), StartTerms (..))
+import qualified Termlib.Problem as Prob
+import Data.Tuple (swap)
 -- static partitioning
 
-data PartitionFn = Random deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
+data PartitionFn = Random | SeparateDp deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
 
 staticAssign :: PartitionFn -> Problem -> (p1, p2) -> (Problem, Problem)
-staticAssign Random problem _ = (mkProb r_1 r_2, mkProb r_2 r_1)
-    where r = strictTrs problem
-          s = weakTrs problem
-          (r_1, r_2) = halve r
-          mkProb strict weak = problem {relation = mkRel (Trs strict) (Trs weak `union` s) }
-          mkRel = case relation problem of DP _ _ -> DP; _ -> Relative
-          halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule | (b,rule) <- zip (intersperse True (repeat False)) rs]
+staticAssign Random problem _ = ( mkProb dpssplit        trssplit 
+                                , mkProb (swap dpssplit) (swap trssplit))
+    where trssplit = halve $ Prob.strictTrs problem
+          dpssplit = halve $ Prob.strictDPs problem
+          mkProb (sdps,wdps) (strs,wtrs) = problem { strictDPs = Trs sdps
+                                                   , weakDPs   = Trs wdps `Trs.union` Prob.weakDPs problem
+                                                   , strictTrs = Trs strs
+                                                   , weakTrs   = Trs wtrs `Trs.union` Prob.weakTrs problem }
+          halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule 
+                                                  | (b,rule) <- zip (intersperse True (repeat False)) rs]
 
 -- Waldmann/Hofbauer Conditions
 
 -- MA:TODO: think about applicable predicate
 wcAppliesTo :: Problem -> (Bool, String)
 wcAppliesTo prob = (not isRcProblem && not isDpProblem && weakNoneSizeIncreasing, reason)
-  where isDpProblem            = case relation prob of {DP{} -> True; _ -> False}
+  where isDpProblem            = Prob.isDPProblem prob
         isRcProblem            = case startTerms prob of {TermAlgebra{} -> False; _ -> True}
         weakNoneSizeIncreasing = Trs.isEmpty weak || Trs.isNonSizeIncreasing weak
           where weak = weakTrs prob
@@ -80,10 +83,6 @@ data ComposeProof p1 p2 = StaticPartitioned PartitionFn (P.Proof p1) (P.Proof p2
                         | NoRuleRemoved (P.PartialProof (P.ProofOf p1))
                         | RelativeEmpty 
 
-removedRules :: ComposeProof p1 p2 -> [Rule]
-removedRules (DynamicPartitioned _ rp _) = P.ppRemovable rp
-removedRules _= []
-             
 instance (P.Processor p1, ComplexityProof (P.ProofOf p1) 
          , P.Processor p2, ComplexityProof (P.ProofOf p2))
     => PrettyPrintable (ComposeProof p1 p2) where
@@ -118,7 +117,7 @@ instance (Answerable (P.ProofOf p1), Answerable (P.ProofOf p2)) => Answerable (C
                                                       | otherwise = MaybeAnswer
         where res | not relApplied = ub prel `add` ub psub
                   | otherwise    = combine (upperBound $ P.certificate prel) (upperBound $ P.certificate psub)
-              r       = Trs.fromRules $ P.ppRemovable prel
+              r       = Trs.fromRules $ P.ppRemovableTrs prel -- MA:This case only applies with DPs are empty
               s       = strictTrs $ P.inputProblem psub
               sizeIncreasingR = Trs.isSizeIncreasing r
               sizeIncreasingS = Trs.isSizeIncreasing s
@@ -175,7 +174,7 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Compose p1 p2) where
                           :+: arg { A.name = "Subprocessor 2"
                                   , A.description = unlines ["The Processor to estimate the complexity of R_2 modulo R_1, or respectively R_2."] }
 
-    solve inst prob | Trs.isEmpty (strictTrs prob) = return RelativeEmpty 
+    solve inst prob | Trs.isEmpty (Prob.strictComponents prob) = return RelativeEmpty 
                     | static    = solveStatic
                     | otherwise = solveDynamic
         where split :+: static :+: relative :+: inst1 :+: inst2 = S.processorArgs inst
@@ -183,22 +182,19 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Compose p1 p2) where
               solveStatic = let (p1,p2) = staticAssign split prob (inst1, inst2)
                             in liftM2 (StaticPartitioned split) (P.apply inst1 p1) (P.apply inst2 p2)
               solveDynamic = do res <- P.solvePartial inst1 prob
-                                let removed = Trs.fromRules (P.ppRemovable res)
+                                let removedTrs = Trs.fromRules (P.ppRemovableTrs res)
+                                    removedDPs = Trs.fromRules (P.ppRemovableDPs res)
                                     relApplied = relative && relativeApplicable
                                     subprob = case relApplied of 
                                                 True  -> prob { startTerms = TermAlgebra
-                                                             , relation = case relation prob of 
-                                                                            Standard strict      -> Standard $ strict \\ removed
-                                                                            Relative strict weak -> Relative (strict \\ removed) weak
-                                                                            DP       _      _    -> error "Relative Rule Removal inapplicable for DP problems" }
-                                                          
-                                                False -> prob { relation = case relation prob of 
-                                                                            Standard strict      -> Relative (strict \\ removed) removed
-                                                                            Relative strict weak -> Relative (strict \\ removed) (weak `union` removed)
-                                                                            DP       strict weak -> DP (strict \\ removed) (weak `union` removed) }
-                                case null $ Trs.rules removed of 
-                                  True  -> return $ NoRuleRemoved res
-                                  False -> DynamicPartitioned relApplied res `liftM` P.apply inst2 subprob
+                                                             , strictTrs  = strictTrs prob \\ removedTrs }
+                                                False -> prob { strictTrs = strictTrs prob \\ removedTrs 
+                                                             , strictDPs = strictDPs prob \\ removedDPs
+                                                             , weakTrs   = weakTrs prob `union` removedTrs
+                                                             , weakDPs   = weakDPs prob `union` removedDPs }
+                                case P.progressed res of 
+                                  False -> return $ NoRuleRemoved res
+                                  True  -> DynamicPartitioned relApplied res `liftM` P.apply inst2 subprob
 
 
 

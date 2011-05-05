@@ -61,7 +61,7 @@ weightGapConstraints nondup uarg st strict weak sig mp = strictTrsConstraints ab
                                                                filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         mkConstraints (ConstructorBased _ (Just _)) _ = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
         mkConstraints (EdaMatrix Nothing) mi = edaConstraints mi
-        mkConstraints (EdaMatrix (Just deg)) mi = edaConstraints mi && idaConstraints deg mi
+        mkConstraints (EdaMatrix (Just deg)) mi = idaConstraints deg mi
 
 nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs.Trs -> MatrixInter a -> b
 nondupConstraints trs mi = bigAnd $ Trs.liftTrs (map rConstraint) trs

@@ -55,11 +55,13 @@ weightGapConstraints nondup uarg st strict weak sig mp = strictTrsConstraints ab
         otherConstraints = slmiSafeRedpairConstraints sig uarg absmi && uargMonotoneConstraints uarg absmi && nondupConstraints nondup absmi && mkConstraints mk absmi
         mkConstraints UnrestrictedMatrix _ = top
         mkConstraints (TriangularMatrix Nothing) mi = triConstraints mi
-        mkConstraints (TriangularMatrix (Just _)) _ = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        mkConstraints (TriangularMatrix (Just deg)) mi = triConstraints mi && diagOnesConstraints deg mi
         mkConstraints (ConstructorBased cs Nothing) mi = triConstraints mi'
                                                          where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                                filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        mkConstraints (ConstructorBased _ (Just _)) _ = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
+        mkConstraints (ConstructorBased cs (Just deg)) mi = triConstraints mi' && diagOnesConstraints deg mi'
+                                                            where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                  filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         mkConstraints (EdaMatrix Nothing) mi = edaConstraints mi
         mkConstraints (EdaMatrix (Just deg)) mi = idaConstraints deg mi
 

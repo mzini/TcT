@@ -42,7 +42,6 @@ import qualified Qlogic.NatSat as N
 import qualified Qlogic.SatSolver as SatSolver
 import qualified Qlogic.Semiring as SR
 
-import qualified Termlib.Problem as Prob
 import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -89,7 +88,7 @@ instance PrettyPrintable MatrixOrder where
                    $+$ pprint (ordInter order)
         where ppknd UnrestrictedMatrix            = text "unrestricted"
               ppknd (TriangularMatrix Nothing)    = text "triangular"
-              ppknd (TriangularMatrix (Just n))   = text "triangular" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
+              ppknd (TriangularMatrix (Just n))   = text "triangular" <+> parens (text "at most" <+> int n <+> text (if n == 1 then "one" else "ones") <+> text "in the main diagonals")
               ppknd (ConstructorBased _ Nothing)  = text "constructor-restricted"
               ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
               ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
@@ -182,7 +181,15 @@ instance S.Processor NaturalMI where
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
 
-    solve inst problem = undefined -- case Prob.relation problem of
+    solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientRelative strat st sr wr sig' (S.processorArgs inst)
+                       | otherwise                            = orientDp strat st sr wr sig' (S.processorArgs inst)
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
+            sr    = Prob.strictComponents problem
+            wr    = Prob.weakComponents problem
+    -- case Prob.relation problem of
     --                        Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
     --                        Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
     --                        DP sr wr       -> orientDp strat st sr wr sig' (S.processorArgs inst)

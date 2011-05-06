@@ -181,8 +181,8 @@ instance S.Processor NaturalMI where
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
 
-    solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientRelative strat st sr wr sig' (S.processorArgs inst)
-                       | otherwise                            = orientDp strat st sr wr sig' (S.processorArgs inst)
+    solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
+                       | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem

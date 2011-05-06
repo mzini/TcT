@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -14,6 +15,9 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
+
+{-# LANGUAGE TypeFamilies #-}
+
 module Tct.Method.DP.UsableRules where
 
 import qualified Control.Monad.State.Lazy as State
@@ -30,16 +34,15 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
-import Termlib.Problem
+import qualified Termlib.Problem as Prob
 import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
-import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
 import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
 import Termlib.Trs.PrettyPrint (pprintTrs)
-import Termlib.Trs (Trs(..), definedSymbols)
+import Termlib.Trs (Trs(..))
 import Termlib.Variable(Variables)
 import Termlib.Utils
 
@@ -55,10 +58,9 @@ import Tct.Encoding.UsablePositions
 import Tct.Processor.Orderings
 import Tct.Method.Weightgap (applyWeightGap)
 
-mkUsableRules :: Trs -> Trs -> Trs
-mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
-  where ds = definedSymbols trs 
-        usableSymsTerm  t  = Set.filter (\ f -> f `Set.member` ds) $ Term.functionSymbols t
+mkUsableRules :: Trs -> Set.Set F.Symbol -> Trs -> Trs
+mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
+  where usableSymsTerm  t  = Set.filter (\ f -> f `Set.member` ds) $ Term.functionSymbols t
         usableSymsRules rs = Set.unions $ [usableSymsTerm (R.rhs r) | r <- rs]
         usable syms rs = case partition (\ r -> R.lhs r `rootFrom` syms) rs of 
                            ([],_)       -> []
@@ -66,3 +68,54 @@ mkUsableRules wdps trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
         t `rootFrom` syms = case Term.root t of 
                               Right f -> f `Set.member` syms
                               Left _  ->  True
+
+
+data UR = UR
+
+data DPProof p = NonDPProblem 
+               | DPProof p
+
+data URProof = URProof
+
+instance PrettyPrintable (DPProof URProof) where 
+    pprint NonDPProblem = text "The input problem is not a DP-problem, we do not compute usable rules."
+    pprint (DPProof _)  = text "We replace strict/weak-rules by the corresponding usable rules."
+
+instance P.Processor sub => P.Answerable (T.TProof UR sub) where
+    answer = T.answerTProof answer'
+        where answer' _ [(_,p)] = P.answer p
+              answer' _ _       = error "Usable rules received wrong number of subproofs"
+
+instance P.Processor sub => PrettyPrintable (T.TProof UR sub) where
+    pprint = T.prettyPrintTProof
+
+instance T.Verifiable (DPProof URProof)
+
+instance T.Transformer UR where 
+    name UR = "Usable Rules"
+    description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"
+                     , "respect to the dependency pairs."]
+    type T.ArgumentsOf UR = Unit
+    type T.ProofOf UR = DPProof URProof 
+    arguments UR = Unit
+    transform inst prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
+                        | otherwise                 = return $ res
+        where res | progressed = T.Success (DPProof URProof) (enumeration' [prob'])
+                  | otherwise  = T.Failure (DPProof URProof)
+              strs = Prob.strictTrs prob
+              wtrs = Prob.weakTrs prob
+              surs = mkUsableRules wdps ds strs
+              wurs = mkUsableRules wdps ds wtrs
+              progressed = size wurs < size wtrs || size surs < size strs
+                  where size = length . Trs.rules
+              ds   = Trs.definedSymbols (Prob.trsComponents prob)
+              wdps = Prob.dpComponents prob
+              prob' = prob { Prob.strictTrs = surs
+                           , Prob.weakTrs   = wurs }
+
+
+usableRulesProcessor :: T.TransformationProcessor UR P.AnyProcessor
+usableRulesProcessor = T.transformationProcessor UR
+
+usableRules :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor UR sub)
+usableRules = T.transformationProcessor UR `T.calledWith` ()

@@ -14,6 +14,9 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
+
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Tct.Method.DP.DependencyGraph where
 
 
@@ -35,7 +38,8 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
-import Termlib.Problem
+import qualified Termlib.Problem as Prob
+import Termlib.Problem (Problem)
 import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
@@ -63,59 +67,32 @@ import Tct.Method.DP.DependencyPairs
 import Tct.Method.Weightgap (applyWeightGap)
 
 
-type Graph = GraphT.Gr Rule ()
-
-data SCCNode = SCCNode { theSCC :: [Graph.Node]
-                       , sccDPs :: Trs
-                       , sccURs :: Trs
-                       }
-
-type SCCGraph = GraphT.Gr SCCNode ()
-
-nodeDPs :: SCCGraph -> Graph.Node -> Trs
-nodeDPs gr n = sccDPs $ fromJust $ Graph.lab gr n
-
-nodeURs :: SCCGraph -> Graph.Node -> Trs
-nodeURs gr n = sccURs $ fromJust $ Graph.lab gr n
-
-nodeSCC :: SCCGraph -> Graph.Node -> [Graph.Node]
-nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (Graph.lab gr n)
-
-roots :: (Graph.Graph gr) => gr a b -> [Graph.Node]
-roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
-
-
-toSccGraph :: Trs -> Trs -> Graph -> SCCGraph
-toSccGraph _ trs gr = Graph.mkGraph nodes edges
-    where nodes    = zip [1..] [sccNode scc | scc <- sccs]
-          edges    = [ (n1, n2, ()) | (n1, SCCNode scc1 _ _) <- nodes
-                                    , (n2, SCCNode scc2 _ _) <- nodes
-                                    , n1 /= n2
-                                    , isEdge scc1 scc2 ]
-          isEdge scc1 scc2 = any id [ n2 `elem` Graph.suc gr n1 | n1 <- scc1, n2 <- scc2]
-          sccs             = GraphDFS.scc gr
-          sccNode scc = SCCNode scc dps urs
-              where dps = Trs [fromJust $ Graph.lab gr n | n <- scc]
-                    urs = mkUsableRules dps trs
-
-
--- approximations
+--------------------------------------------------------------------------------
+-- Dependency Graph
+--------------------------------------------------------------------------------
 
 data Approximation = Edg | Trivial deriving (Bounded, Ord, Eq, Typeable, Enum) 
 instance Show Approximation where 
     show Edg     = "edg"
     show Trivial = "trivial"
 
-estimatedDependencyGraph :: Approximation -> Signature -> Trs -> Trs -> Graph
-estimatedDependencyGraph Edg sig (Trs dps) trs = Graph.mkGraph nodes edges
-    where nodes = zip [1..] dps
-          edges = [ (n1, n2, ()) | (n1,l1) <- nodes
-                                 , (n2,l2) <- nodes
+data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
+type Node = (Strictness, R.Rule)
+
+type DG = GraphT.Gr Node ()
+
+estimatedDependencyGraph :: Approximation -> Problem -> DG
+estimatedDependencyGraph approx prob = Graph.mkGraph nodes edges
+    where nodes = zip [1..] ([(StrictDP, r) | r <- Trs.rules $ Prob.strictDPs prob] 
+                             ++ [(WeakDP, r) | r <- Trs.rules $ Prob.weakDPs prob])
+          edges = [ (n1, n2, ()) | (n1,(_,l1)) <- nodes
+                                 , (n2,(_,l2)) <- nodes
                                  , R.rhs l1 `edgeTo` R.lhs l2] 
-          s `edgeTo` t = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
+          s `edgeTo` t | approx == Trivial = True 
+                       | approx == Edg     = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
               where invMatch = if any Term.isVariable rhss then True else any (match $ etcap rhss t) ss
-                    lhss = Trs.lhss trs
-                    rhss = Trs.rhss trs
+                    lhss = Trs.lhss rs
+                    rhss = Trs.rhss rs
                     ss = filter ((== funroot t) . funroot) (sharpedSs s)
                     funroot x = case Term.root x of
                                   Left _  -> error "Variable root in funroot in Wdg.checkEdge"
@@ -123,10 +100,49 @@ estimatedDependencyGraph Edg sig (Trs dps) trs = Graph.mkGraph nodes edges
                     sharpedSs (Term.Var _)                        = []
                     sharpedSs (Term.Fun f ss') | F.isMarked sig f = [Term.Fun f ss']
                                                | otherwise        = concatMap sharpedSs ss'
-estimatedDependencyGraph Trivial _ (Trs dps) _ = Graph.mkGraph nodes edges
-    where nodes = zip [1..] dps
-          edges = [ (n1, n2, ()) | (n1,_) <- nodes
-                                 , (n2,_) <- nodes ]
+          sig = Prob.signature prob
+          rs = Prob.trsComponents prob
+
+
+
+--------------------------------------------------------------------------------
+-- Dependency Graph modulo SCC
+--------------------------------------------------------------------------------
+
+data CongrNode = CongrNode { theSCC :: [Graph.Node]
+                           , weak :: Trs
+                           , strict :: Trs }
+
+type CongrDG = GraphT.Gr CongrNode ()
+
+-- nodeDPs :: SCCGraph -> Graph.Node -> Trs
+-- nodeDPs gr n = sccDPs $ fromJust $ Graph.lab gr n
+
+-- -- nodeURs :: SCCGraph -> Graph.Node -> Trs
+-- -- nodeURs gr n = sccURs $ fromJust $ Graph.lab gr n
+
+nodeSCC :: CongrDG -> Graph.Node -> [Graph.Node]
+nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (Graph.lab gr n)
+
+roots :: (Graph.Graph gr) => gr a b -> [Graph.Node]
+roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
+
+
+toSccGraph :: DG -> CongrDG
+toSccGraph gr = Graph.mkGraph nodes edges
+    where nodes    = zip [1..] [sccNode scc | scc <- sccs]
+          edges    = [ (n1, n2, ()) | (n1, CongrNode scc1 _ _) <- nodes
+                                    , (n2, CongrNode scc2 _ _) <- nodes
+                                    , n1 /= n2
+                                    , isEdge scc1 scc2 ]
+          isEdge scc1 scc2 = any id [ n2 `elem` Graph.suc gr n1 | n1 <- scc1, n2 <- scc2]
+          sccs             = GraphDFS.scc gr
+          sccNode scc = CongrNode { theSCC    = scc
+                                  , weak   = Trs [ r | (StrictDP, r) <- dps]
+                                  , strict = Trs [ r | (WeakDP, r) <- dps] }
+              where dps = [fromJust $ Graph.lab gr n | n <- scc]
+
+
 -- utilities
 
 data GroundContext = Hole | Fun F.Symbol [GroundContext]

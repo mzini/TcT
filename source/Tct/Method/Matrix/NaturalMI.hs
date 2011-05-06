@@ -184,36 +184,29 @@ instance S.Processor NaturalMI where
     solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientRelative strat st sr wr sig' (S.processorArgs inst)
                        | otherwise                            = orientDp strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
-            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
-    -- case Prob.relation problem of
-    --                        Standard sr    -> orientDirect strat st sr sig' (S.processorArgs inst)
-    --                        Relative sr wr -> orientRelative strat st sr wr sig' (S.processorArgs inst)
-    --                        DP sr wr       -> orientDp strat st sr wr sig' (S.processorArgs inst)
-    --     where sig   = Prob.signature problem
-    --           sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
-    --           st    = Prob.startTerms problem
-    --           strat = Prob.strategy problem
 
-    -- solvePartial inst problem = case Prob.relation problem of
-    --                                Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' (S.processorArgs inst)
-    --                                Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
-    --                                DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
-    --                                                                          , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
-    --                                                                          , P.ppRemovable    = [] }
-    --   where sig   = Prob.signature problem
-    --         sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
-    --         st    = Prob.startTerms problem
-    --         strat = Prob.strategy problem
-    --         mkProof sr res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
-    --                                                                      , P.ppResult       = res 
-    --                                                                      , P.ppRemovable    = Trs.toRules $ strictRules mi sr}
-    --         mkProof _  res                              = P.PartialProof { P.ppInputProblem = problem
-    --                                                                      , P.ppResult       = res
-    --                                                                      , P.ppRemovable    = [] }
+    solvePartial inst problem = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
+            mkProof dps trs res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                              , P.ppResult       = res 
+                                                                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
+                                                                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
+            mkProof _   _   res                              = P.PartialProof { P.ppInputProblem = problem
+                                                                              , P.ppResult       = res
+                                                                              , P.ppRemovableDPs = []
+                                                                              , P.ppRemovableTrs = [] }
+            sr    = Prob.strictComponents problem
+            wr    = Prob.weakComponents problem
+            sdps  = Prob.strictDPs problem
+            strs  = Prob.strictTrs problem
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI

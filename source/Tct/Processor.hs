@@ -326,13 +326,13 @@ instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
              $+$ text "Details:"
              $+$ nest 2 (pprint (ppResult p))
       where ip = ppInputProblem p
-            ppRemoveds | progressed p = text "No rule was removed:"
-                       | otherwise    = text "The following DPs were strictly oriented by the relative processor:"
-                                        $+$ text ""
-                                        $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableDPs p, signature $ ip, variables $ ip))
-                                        $+$ text "The following rules were strictly oriented by the relative processor:"
-                                        $+$ text ""
-                                        $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableTrs p, signature $ ip, variables $ ip))
+            ppRemoveds | not (progressed p) = text "No rule was removed:"
+                       | otherwise          = text "The following DPs were strictly oriented by the relative processor:"
+                                              $+$ text ""
+                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableDPs p, signature $ ip, variables $ ip))
+                                              $+$ text "The following rules were strictly oriented by the relative processor:"
+                                              $+$ text ""
+                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableTrs p, signature $ ip, variables $ ip))
 
 
 instance (Answerable proof) => Answerable (PartialProof proof) where

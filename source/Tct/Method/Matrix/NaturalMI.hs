@@ -306,15 +306,17 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         d          = dim mp
         mk         = kind mp st
         uaOn       = isUargsOn mp
-        otherConstraints UnrestrictedMatrix _              = top
-        otherConstraints (TriangularMatrix Nothing) mi     = triConstraints mi
-        otherConstraints (TriangularMatrix (Just _)) _     = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
-        otherConstraints (ConstructorBased cs Nothing) mi  = triConstraints mi'
-                                                             where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                                   filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        otherConstraints (ConstructorBased _ (Just _)) _   = error "Triangular matrices with restricted number of ones in the main diagonal not yet implemented"
-        otherConstraints (EdaMatrix Nothing) mi            = edaConstraints mi
-        otherConstraints (EdaMatrix (Just deg)) mi         = idaConstraints deg mi
+        otherConstraints UnrestrictedMatrix _                = top
+        otherConstraints (TriangularMatrix Nothing) mi       = triConstraints mi
+        otherConstraints (TriangularMatrix (Just deg)) mi    = triConstraints mi && diagOnesConstraints deg mi
+        otherConstraints (ConstructorBased cs Nothing) mi    = triConstraints mi'
+                                                               where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                     filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints (ConstructorBased cs (Just deg)) mi = triConstraints mi' && diagOnesConstraints deg mi'
+                                                               where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                     filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints (EdaMatrix Nothing) mi              = edaConstraints mi
+        otherConstraints (EdaMatrix (Just deg)) mi           = idaConstraints deg mi
         strictChoice MDirect    = strictTrsConstraints
         strictChoice MRelative  = relativeStricterTrsConstraints
 --         strictChoice MWeightGap = strictOneConstraints
@@ -369,6 +371,22 @@ strictRules mi = Trs.filterRules $ strictRuleConstraints mi
 
 applyAss :: (Ord l, Eq l) => MatrixInter (N.NatFormula l) -> A.Assign l -> MatrixInter Int
 applyAss mi ass = fmap (flip N.eval ass) mi
+
+-- Fixing the number of ones in diagonals
+
+data DiagOnesVar = DiagOnesVar Int
+                 deriving (Eq, Ord, Show, Typeable)
+
+instance PropAtom DiagOnesVar
+
+diagOnesConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+-- diagOnesConstraints :: (RingConst a, AbstrOrdSemiring a b) => Int -> MatrixInter a -> b
+diagOnesConstraints deg mi = diagOnesVars && maxDegree
+  where d = dimension mi
+        toD = [1..d]
+        diagOnesVars = bigAnd [ ((restrictvar $ DiagOnesVar x) .==. (SR.one :: DioPoly DioVar Int)) <-> f x  | x <- toD ]
+        f x = bigOr $ map (bigOr . map (\ m -> entry x x m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi
+        maxDegree = (constToPoly deg :: DioPoly DioVar Int) .>=. SR.bigPlus [ restrictvar $ DiagOnesVar x | x <- toD ]
 
 -- Automaton Stuff
 -- Notation follows the 5-author CAI paper
@@ -429,8 +447,8 @@ dConstraints mi = diagonal && foreapprox && forecompat && backapprox && backcomp
         diagonal    = bigAnd [ if x == y then dioAtom (D x y) else not (dioAtom $ D x y) | x <- toD, y <- toD ]
         foreapprox  = bigAnd [ dioAtom (D x y) --> dioAtom (Done x y) | x <- toD, y <- toD ]
         forecompat  = bigAnd [ (dioAtom (Done x y) && dioAtom (Gtwo x y z u)) --> dioAtom (Done z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
-        backapprox = bigAnd [ dioAtom (D x y) --> dioAtom (Dtwo x y) | x <- toD, y <- toD ]
-        backcompat = bigAnd [ (dioAtom (Dtwo x y) && dioAtom (Gtwo z u x y)) --> dioAtom (Dtwo z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
+        backapprox  = bigAnd [ dioAtom (D x y) --> dioAtom (Dtwo x y) | x <- toD, y <- toD ]
+        backcompat  = bigAnd [ (dioAtom (Dtwo x y) && dioAtom (Gtwo z u x y)) --> dioAtom (Dtwo z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
         exactness   = bigAnd [ (dioAtom (Done x y) && dioAtom (Dtwo x y)) --> dioAtom (D x y) | x <- toD, y <- toD ]
 
 gThreeConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int

@@ -60,7 +60,7 @@ staticAssign Random problem _ = ( mkProb dpssplit trssplit , mkProb (swap dpsspl
           halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule 
                                                   | (b,rule) <- zip (intersperse True (repeat False)) rs]
 staticAssign SeparateDp problem _ = (problem { strictDPs = Trs.empty
-                                             , weakDPs   = Prob.weakDPs problem `Trs.union` Prob.strictTrs problem}
+                                             , weakDPs   = Prob.weakDPs problem `Trs.union` Prob.strictDPs problem}
                                     , problem { strictTrs = Trs.empty
                                               , weakTrs   = Prob.weakTrs problem `Trs.union` Prob.strictTrs problem})
 

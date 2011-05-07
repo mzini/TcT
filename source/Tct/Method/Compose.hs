@@ -50,8 +50,7 @@ import Data.Tuple (swap)
 data PartitionFn = Random | SeparateDp deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
 
 staticAssign :: PartitionFn -> Problem -> (p1, p2) -> (Problem, Problem)
-staticAssign Random problem _ = ( mkProb dpssplit        trssplit 
-                                , mkProb (swap dpssplit) (swap trssplit))
+staticAssign Random problem _ = ( mkProb dpssplit trssplit , mkProb (swap dpssplit) (swap trssplit))
     where trssplit = halve $ Prob.strictTrs problem
           dpssplit = halve $ Prob.strictDPs problem
           mkProb (sdps,wdps) (strs,wtrs) = problem { strictDPs = Trs sdps
@@ -60,6 +59,10 @@ staticAssign Random problem _ = ( mkProb dpssplit        trssplit
                                                    , weakTrs   = Trs wtrs `Trs.union` Prob.weakTrs problem }
           halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule 
                                                   | (b,rule) <- zip (intersperse True (repeat False)) rs]
+staticAssign SeparateDp problem _ = (problem { strictDPs = Trs.empty
+                                             , weakDPs   = Prob.weakDPs problem `Trs.union` Prob.strictTrs problem}
+                                    , problem { strictTrs = Trs.empty
+                                              , weakTrs   = Prob.weakTrs problem `Trs.union` Prob.strictTrs problem})
 
 -- Waldmann/Hofbauer Conditions
 

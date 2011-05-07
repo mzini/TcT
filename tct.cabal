@@ -72,6 +72,7 @@ Library
                     Tct.Method.DP.UsableRules
                     Tct.Method.DP.DependencyPairs
                     Tct.Method.DP.PathAnalysis
+                    Tct.Method.DP.Utils
                     Tct.Method.Custom
                     Tct.Method.Predicates
                     Tct.Methods

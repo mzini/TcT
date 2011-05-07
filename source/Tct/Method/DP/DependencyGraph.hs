@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -31,7 +34,7 @@ import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Data.Typeable 
-import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe)
+import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe, catMaybes)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -68,18 +71,58 @@ import Tct.Method.Weightgap (applyWeightGap)
 
 
 --------------------------------------------------------------------------------
--- Dependency Graph
+-- Dependency Graph Type
+--------------------------------------------------------------------------------
+
+
+type DependencyGraph n = GraphT.Gr n ()
+
+type NodeId = Graph.Node
+
+data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
+type Node = (Strictness, R.Rule)
+type DG = DependencyGraph Node
+
+data CongrNode = CongrNode { theSCC :: [NodeId]
+                           , weak :: Trs
+                           , strict :: Trs }
+type CongrDG = DependencyGraph CongrNode
+
+--------------------------------------------------------------------------------
+-- Graph Inspection
+--------------------------------------------------------------------------------
+
+
+lookupNode :: DependencyGraph n -> NodeId -> Maybe n
+lookupNode = Graph.lab
+
+roots :: DependencyGraph n -> [NodeId]
+roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
+
+successors :: DependencyGraph n -> NodeId -> [NodeId]
+successors = Graph.suc
+
+rulesFromNodes :: CongrDG -> Strictness -> [NodeId] -> Trs
+rulesFromNodes gr str ns = Trs.unions [ rulesFromNode n | n <- ns]
+    where rulesFromNode n = case lookupNode gr n of 
+                              Nothing -> Trs []
+                              Just p | str == StrictDP -> strict p
+                                     | otherwise      -> weak p
+
+          -- nodeSCC :: CongrDG -> NodeId -> [NodeId]
+          -- nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (lookupNode gr n)
+
+congruence :: CongrDG -> NodeId -> [NodeId]
+congruence gr n = fromMaybe [] (theSCC `liftM` Graph.lab gr n)
+
+--------------------------------------------------------------------------------
+-- Estimated Dependency Graph
 --------------------------------------------------------------------------------
 
 data Approximation = Edg | Trivial deriving (Bounded, Ord, Eq, Typeable, Enum) 
 instance Show Approximation where 
     show Edg     = "edg"
     show Trivial = "trivial"
-
-data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
-type Node = (Strictness, R.Rule)
-
-type DG = GraphT.Gr Node ()
 
 estimatedDependencyGraph :: Approximation -> Problem -> DG
 estimatedDependencyGraph approx prob = Graph.mkGraph nodes edges
@@ -106,30 +149,12 @@ estimatedDependencyGraph approx prob = Graph.mkGraph nodes edges
 
 
 --------------------------------------------------------------------------------
--- Dependency Graph modulo SCC
+-- Congruence Dependency Graph
 --------------------------------------------------------------------------------
 
-data CongrNode = CongrNode { theSCC :: [Graph.Node]
-                           , weak :: Trs
-                           , strict :: Trs }
 
-type CongrDG = GraphT.Gr CongrNode ()
-
--- nodeDPs :: SCCGraph -> Graph.Node -> Trs
--- nodeDPs gr n = sccDPs $ fromJust $ Graph.lab gr n
-
--- -- nodeURs :: SCCGraph -> Graph.Node -> Trs
--- -- nodeURs gr n = sccURs $ fromJust $ Graph.lab gr n
-
-nodeSCC :: CongrDG -> Graph.Node -> [Graph.Node]
-nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (Graph.lab gr n)
-
-roots :: (Graph.Graph gr) => gr a b -> [Graph.Node]
-roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
-
-
-toSccGraph :: DG -> CongrDG
-toSccGraph gr = Graph.mkGraph nodes edges
+toCongruenceGraph :: DG -> CongrDG
+toCongruenceGraph gr = Graph.mkGraph nodes edges
     where nodes    = zip [1..] [sccNode scc | scc <- sccs]
           edges    = [ (n1, n2, ()) | (n1, CongrNode scc1 _ _) <- nodes
                                     , (n2, CongrNode scc2 _ _) <- nodes
@@ -141,7 +166,6 @@ toSccGraph gr = Graph.mkGraph nodes edges
                                   , weak   = Trs [ r | (StrictDP, r) <- dps]
                                   , strict = Trs [ r | (WeakDP, r) <- dps] }
               where dps = [fromJust $ Graph.lab gr n | n <- scc]
-
 
 -- utilities
 

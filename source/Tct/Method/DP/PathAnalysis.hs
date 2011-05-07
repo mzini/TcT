@@ -13,17 +13,19 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List (partition, intersperse, delete, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
+import Control.Applicative ((<|>))
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Data.Typeable 
 import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe)
+import Data.Either (partitionEithers)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
-import Termlib.Problem
+import qualified Termlib.Problem as Prob
 import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
@@ -38,8 +40,6 @@ import Termlib.Utils
 
 import Tct.Certificate
 import Tct.Method.DP.DependencyGraph
-import Tct.Method.DP.UsableRules
-import Tct.Method.DP.DependencyPairs
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
@@ -49,39 +49,141 @@ import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
 import Tct.Encoding.UsablePositions
 import Tct.Processor.Orderings
+import Tct.Method.DP.Utils
 
 ----------------------------------------------------------------------
 -- Proof objects
 
--- data Path = Path { thePath     :: Graph.Path
---                  , pathTrss    :: ([Trs],Trs)
---                  , pathUsables :: Trs } deriving Show
+data Path = Path { thePath :: [NodeId] } deriving (Eq, Show)
 
--- data PathProof = PPSubsumedBy Path
---                | PPWeightGap (OrientationProof MatrixOrder) deriving Show
+data PathProof = PathProof { computedPaths   :: [Path]
+                           , computedCongrDG :: CongrDG
+                           , subsumedBy      :: [(Path,[Path])]}
 
--- data WdgProof = WdgProof { computedPaths     :: [(Path, PathProof)]
---                          , computedGraph     :: Graph
---                          , computedGraphSCC  :: SCCGraph
---                          , dependencyPairs   :: Trs
---                          , usableRules       :: Trs
---                          , newSignature      :: Signature
---                          , newVariables      :: Variables
---                          , containsNoEdgesEmptyUrs :: Bool
---                          , tuplesUsed        :: Bool}
---               | NA { reason :: String }
+data PathAnalysis = PathAnalysis
+
+instance T.Transformer PathAnalysis where
+    name PathAnalysis        = "pathanalysis"
+    description PathAnalysis = ["Pathanalysis"]
+    type T.ArgumentsOf PathAnalysis = Unit
+    type T.ProofOf PathAnalysis = DPProof PathProof
+    arguments PathAnalysis = Unit
+    transform _ prob | not $ Prob.isDPProblem prob = return $ T.Failure NonDPProblem
+                     | otherwise                 = return $ res
+        where res | progressed = T.Success p (enumeration [(thePath pth, prob') | (pth,prob') <- pathsToProbs ])
+                  | otherwise  = T.Failure p
+              edg  = estimatedDependencyGraph Edg prob
+              cedg = toCongruenceGraph edg
+              p = DPProof PathProof { computedPaths   = paths
+                                    , computedCongrDG = cedg
+                                    , subsumedBy      = subsume }
+              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom [] Trs.empty) (roots cedg)
+              paths = fst $ unzip $ pathsToProbs
+
+              walkFrom path weaks n = new ++ concatMap (walkFrom path' (strict_n `Trs.union` weaks')) (successors cedg n)
+                  where path' = path ++ [n]
+                        sucs = successors cedg n
+                        strict_n = rulesFromNodes cedg StrictDP [n]
+                        weak_n = rulesFromNodes cedg WeakDP [n]
+                        weaks' = weak_n `Trs.union` weaks
+                        new | subsumed  = [Left (Path path', [Path $ path' ++ [n'] | n' <- sucs ])]
+                            | otherwise = [Right ( Path path'
+                                                 , prob { Prob.strictDPs = strict_n, Prob.weakDPs = weaks'} )]
+                            where subsumed = not (null sucs) && Trs.isEmpty strict_n
+
+              progressed = case paths of 
+                             [pth] -> length spath > length sprob
+                                 where Trs spath = rulesFromNodes cedg StrictDP (thePath pth)
+                                       Trs sprob = Prob.strictDPs prob
+                             _     -> True
 
 
+instance (P.Processor sub) => Answerable (T.TProof PathAnalysis sub) where
+    answer = T.answerTProof ans
+        where ans NonDPProblem _ = MaybeAnswer
+              ans (DPProof p) sps = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
+                  where mkUb (_,subproof) = assertLinear $ ub subproof
+                        ub = upperBound . certificate
+                        assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
+                        assertLinear (Poly Nothing)  = Poly Nothing
+                        assertLinear e               = e
 
--- ----------------------------------------------------------------------
--- -- Processor
+
+instance (T.Verifiable (DPProof PathProof))
+
+instance (P.Processor sub) => PrettyPrintable (T.TProof PathAnalysis sub) where
+    pprint (T.UTProof NonDPProblem p) = 
+        paragraph (unlines [ "This processor is only applicable to runtime-complexity analysis."
+                           , " We continue without dependency graph transformation." ])
+        $+$ pprint p
+
+    pprint proof@(T.TProof (DPProof paproof) _) = block' "Transformation Details" [ppTrans]
+                                                    $+$ text ""
+                                                    $+$ block' "Sub-problems" [ppDetails]
+        where printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- congruence cwdg n ]
+              ppPathName (Path ns) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
+              cwdg = computedCongrDG paproof
+              findSubProof pth = T.findProof (thePath pth) proof
+
+              ppMaybeAnswerOf pth = fromMaybe (text "?") (pprint `liftM` P.answer `liftM` findSubProof pth)
+
+              ppTrans = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
+                        $+$ text ""
+                        $+$ (indent $ printTree 60 ppNode ppLabel pTree)
+                        $+$ text ""
+                  where ppNode _ n    = printNodeId n
+                        ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth) 
+                            where centering n d =  text $ take pre ss ++ s ++ take post ss
+                                      where s = show d
+                                            l = length s
+                                            ss = repeat ' '
+                                            pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
+                                            post = n - l - pre
+                        pTree = PPTree { pptRoots = roots cwdg
+                                       , pptSuc = sortBy compareLabel . successors cwdg}
+                        compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2
+
+              ppDetails = vcat $ intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
+                                                                        $+$ text ""
+                                                                        $+$ ppDetail path))
+                                                         | path <- sortBy comparePath $ computedPaths paproof]
+                  where comparePath p1 p2 = mkpath p1 `compare` mkpath p2
+                            where mkpath p = [congruence cwdg n | n <- thePath p]
+                        ppDetail path = fromMaybe errMsg (ppsubsumed <|> ppsubproof)
+                            where errMsg = text "CANNOT find proof of path" <+> ppPathName path
+                                  ppsubsumed = do paths <- List.lookup path (subsumedBy paproof)
+                                                  return $ (text "This path is subsumed by the proof of paths" 
+                                                            <+> vcat (intersperse (text ",") [ppPathName pth | pth <- paths])
+                                                            <> text ".")
+                                  ppsubproof = do subproof <- findSubProof path
+                                                  return $ pprint subproof
+--                                                           <+>  <> text "."
+                        -- ppDetail path (PPWeightGap p) = (case (pathUsables path) of
+                        --                                    (Trs []) -> text "The usable rules of this path are empty."
+                        --                                    urs      -> text "The usable rules for this path are:"
+                        --                                               $+$ text ""
+                        --                                               $+$ (indent $ pprint (urs, sig, vars)))
+                        --                                 $+$ text ""
+                        --                                 $+$ text (if succeeded p
+                        --                                           then "The weightgap principle applies, using the following adequate RMI:" 
+                        --                                           else "The weight gap principle does not apply:")
+                        --                                 $+$ indent (pprint p)
+                        --                                 $+$ (case (pathUsables path) of
+                        --                                        (Trs []) -> PP.empty
+                        --                                        _        -> text "Complexity induced by the adequate RMI:" <+> pprint (answer p))
+                        --                                 $+$ text ""
+                        --                                 $+$ (case findPathProof (thePath path) of
+                        --                                        Nothing -> text "We have not generated a proof for the resulting sub-problem."
+                        --                                        Just pp -> text "We apply the sub-processor on the resulting sub-problem:"
+                        --                                                  $+$ text ""
+                        --                                                  $+$ pprint pp)
 
 
--- data Wdg = Wdg
+pathAnalysisProcessor :: T.TransformationProcessor PathAnalysis P.AnyProcessor
+pathAnalysisProcessor = T.transformationProcessor PathAnalysis
 
--- wdgProcessor :: T.TransformationProcessor Wdg P.AnyProcessor
--- wdgProcessor = T.transformationProcessor Wdg
-
+pathAnalysis :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor PathAnalysis sub)
+pathAnalysis = T.transformationProcessor PathAnalysis `T.calledWith` ()
 -- wdg :: (P.Processor sub) => Approximation -> Bool -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor Wdg sub)
 -- wdg approx weightgap wgkind wgdeg wgdim wgsize wgcbits ua tuples = T.transformationProcessor Wdg `T.calledWith` (approx :+: weightgap :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: ua :+: tuples)
 

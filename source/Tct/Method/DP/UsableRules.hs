@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -17,6 +16,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Tct.Method.DP.UsableRules where
 
@@ -57,6 +57,7 @@ import Tct.Processor.Args.Instances
 import Tct.Encoding.UsablePositions
 import Tct.Processor.Orderings
 import Tct.Method.Weightgap (applyWeightGap)
+import Tct.Method.DP.Utils
 
 mkUsableRules :: Trs -> Set.Set F.Symbol -> Trs -> Trs
 mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
@@ -72,14 +73,10 @@ mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules t
 
 data UR = UR
 
-data DPProof p = NonDPProblem 
-               | DPProof p
-
 data URProof = URProof
 
-instance PrettyPrintable (DPProof URProof) where 
-    pprint NonDPProblem = text "The input problem is not a DP-problem, we do not compute usable rules."
-    pprint (DPProof _)  = text "We replace strict/weak-rules by the corresponding usable rules."
+instance PrettyPrintable URProof where 
+    pprint URProof  = text "We replace strict/weak-rules by the corresponding usable rules."
 
 instance P.Processor sub => P.Answerable (T.TProof UR sub) where
     answer = T.answerTProof answer'
@@ -98,8 +95,8 @@ instance T.Transformer UR where
     type T.ArgumentsOf UR = Unit
     type T.ProofOf UR = DPProof URProof 
     arguments UR = Unit
-    transform inst prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
-                        | otherwise                 = return $ res
+    transform _ prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
+                     | otherwise                 = return $ res
         where res | progressed = T.Success (DPProof URProof) (enumeration' [prob'])
                   | otherwise  = T.Failure (DPProof URProof)
               strs = Prob.strictTrs prob

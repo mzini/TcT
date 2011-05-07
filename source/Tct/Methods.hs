@@ -52,7 +52,7 @@ module Tct.Methods
     -- ** Transformations
     , irr
     , uncurry
---    , pathAnalysis
+    , pathAnalysis
     , dependencyPairs
     , usableRules
     , parallelSubgoals
@@ -130,6 +130,7 @@ module Tct.Methods
     , irrProcessor    
     , uncurryProcessor
     , dependencyPairsProcessor
+    , pathAnalysisProcessor
     , usableRulesProcessor
     )
 where
@@ -147,6 +148,7 @@ import Tct.Method.Predicates
 import Tct.Method.Uncurry
 import Tct.Method.DP.UsableRules
 import Tct.Method.DP.DependencyPairs
+import Tct.Method.DP.PathAnalysis
 import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
 import Qlogic.NatSat (Size (..))
@@ -176,6 +178,7 @@ builtInProcessors = timeoutProcessor
                    <|> uncurryProcessor
                    <|> usableRulesProcessor
                    <|> dependencyPairsProcessor
+                   <|> pathAnalysisProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
                    <|> composeProcessor

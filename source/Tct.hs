@@ -323,7 +323,9 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                                    proof <- process tproc prob
                                                    putPretty (pprint $ answer proof)
                                                    when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
-                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof then text "Hurray" else text "Arrrr..")
+                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof 
+                                                                                                  then text "Hurray, we answered"  <+> pprint (answer proof)
+                                                                                                  else text "Arrrr..")
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 

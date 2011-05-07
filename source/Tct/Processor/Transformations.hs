@@ -57,7 +57,7 @@ import Tct.Processor.Args.Instances
 import Tct.Processor.Args hiding (name, description, synopsis)
 
 data TProof t sub = TProof (ProofOf t) (Enumeration (Maybe (P.Proof sub)))
-                  | UTProof (ProofOf t) (P.ProofOf sub)
+                  | UTProof (ProofOf t) (P.Proof sub)
 
 data Result t = Failure (ProofOf t) 
               | Success (ProofOf t) (Enumeration Problem)
@@ -91,7 +91,11 @@ prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus 
                             $+$ text ""
                             $+$ block' "Transformation Details" [tp]
                             $+$ text ""
-                            $+$ block' "Application of the Sub-processor" [p]
+                            $+$ block' (show hding) [subproof]
+    where hding = text "Application of processor" 
+                  <+> quotes (text (P.instanceName (P.appliedProcessor p))) 
+                  <+> parens (text "reporting" <+> pprint (P.answer subproof))
+          subproof = P.result p
 
 answerTProof :: (P.Processor sub) => (ProofOf t -> Enumeration (P.Proof sub) -> P.Answer) -> TProof t sub -> P.Answer
 answerTProof _ (UTProof _ sp)  = P.answer sp
@@ -134,7 +138,7 @@ instance ( Transformer t
     solve inst prob = do res <- transform (TheTransformer t args) prob
                          case res of 
                            Failure p | str       -> return $ TProof p (enumeration' [])
-                                     | otherwise -> UTProof p `liftM`  P.solve sub prob 
+                                     | otherwise -> UTProof p `liftM`  P.apply sub prob 
                            Success p ps -> do esubproofs <- P.evalList par (P.succeeded . snd) [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
                                               case esubproofs of 
                                                 Right subproofs   -> return $ TProof p [(e, find e subproofs) | (e,_) <- ps]

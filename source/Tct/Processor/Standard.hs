@@ -22,13 +22,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tct.Processor.Standard 
-    ( TheProcessor (..)
-    , Processor (..)
-    , StdProcessor(..)
-    , theInstance
-    , apply
-    , withArgs
-    , modifyArguments)
+    -- ( TheProcessor (..)
+    -- , Processor (..)
+    -- , StdProcessor(..)
+    -- , theInstance
+    -- , apply
+    -- , withArgs
+    -- , modifyArguments)
 where
 
 import Text.ParserCombinators.Parsec

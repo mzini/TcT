@@ -31,6 +31,7 @@ module Tct.Processor
     , ParsableProcessor (..)
     , Proof (..)
     , PartialProof (..)
+    , progressed
     , SolverM (..)
     , SolverState (..)
     , StdSolverM
@@ -259,9 +260,7 @@ instance Answerable Answer where
     answer = id
 
 answerFromCertificate :: Certificate -> Answer
-answerFromCertificate cert = if cert == uncertified
-                             then MaybeAnswer
-                             else CertAnswer cert
+answerFromCertificate cert = CertAnswer cert
 
 succeeded :: Answerable p => p -> Bool
 succeeded p = case answer p of 
@@ -296,7 +295,7 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
               pphead    = quotes (text (instanceName inst))
               ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
-                          $+$ nest 2 (prettyPrintRelation prob)
+                          $+$ nest 2 (pprint prob)
               ppanswer  = pt "Answer" <+> pprint (answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"
@@ -310,9 +309,14 @@ instance (Verifiable (ProofOf proc)) => Verifiable (Proof proc) where
 
 data PartialProof proof = PartialProof { ppInputProblem     :: Problem
                                        , ppResult           :: proof
-                                       , ppRemovable        :: [Rule]
+                                       , ppRemovableDPs     :: [Rule]
+                                       , ppRemovableTrs     :: [Rule]
                                        }
                         | PartialInapplicable { ppInputProblem :: Problem }
+
+
+progressed :: PartialProof proof -> Bool
+progressed p = not $ null $ ppRemovableTrs p ++ ppRemovableDPs p
 
 instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
   pprint p = ppRemoveds
@@ -320,16 +324,18 @@ instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
              $+$ text "Details:"
              $+$ nest 2 (pprint (ppResult p))
       where ip = ppInputProblem p
-            removeds = ppRemovable p
-            ppRemoveds | null removeds = text "No rule was removed:"
-                       | otherwise     = text "The following rules were strictly oriented by the relative processor:"
-                                         $+$ text ""
-                                         $+$ nest 2 (pprint (Trs.fromRules removeds, signature $ ip, variables $ ip))
+            ppRemoveds | not (progressed p) = text "No rule was removed:"
+                       | otherwise          = text "The following DPs were strictly oriented by the relative processor:"
+                                              $+$ text ""
+                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableDPs p, signature $ ip, variables $ ip))
+                                              $+$ text "The following rules were strictly oriented by the relative processor:"
+                                              $+$ text ""
+                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableTrs p, signature $ ip, variables $ ip))
 
 
 instance (Answerable proof) => Answerable (PartialProof proof) where
-    answer p | length (ppRemovable p) == 0 = CertAnswer $ certified (constant, constant)
-             | otherwise = answer $ ppResult p
+    answer p | progressed p = answer $ ppResult p
+             | otherwise    = CertAnswer $ certified (constant, constant)
 
 
 -- * Someprocessor

@@ -115,3 +115,4 @@ Polynomial interpretation :
     POL(minus(x1, x2)) = x1   
     POL(pred(x1)) = x1   
     POL(s(x1)) = [2] + x1   
+* timeout schickt dediziertes signal

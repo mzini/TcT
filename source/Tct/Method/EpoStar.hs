@@ -201,11 +201,11 @@ instance S.Processor EpoStar where
 
     type S.ProofOf EpoStar = OrientationProof EpoProof
 
-    solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.relation prob) of 
-                        ((BasicTerms ds cs), Innermost, Prob.Standard trs) | Trs.isConstructor trs -> do r <- liftIO $ orientTrs sign ec trs
-                                                                                                         case r of 
-                                                                                                           Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
-                                                                                                           Nothing               -> return Incompatible
+    solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.allComponents prob) of 
+                        ((BasicTerms ds cs), Innermost, trs) | Trs.isConstructor trs -> do r <- liftIO $ orientTrs sign ec trs
+                                                                                           case r of 
+                                                                                            Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
+                                                                                            Nothing               -> return Incompatible
                                                                            where sign = Sig { defSyms = ds
                                                                                             , constrSyms = cs
                                                                                             , sig = Prob.signature prob

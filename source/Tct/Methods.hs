@@ -52,7 +52,9 @@ module Tct.Methods
     -- ** Transformations
     , irr
     , uncurry
-    , wdg
+    , pathAnalysis
+    , dependencyPairs
+    , usableRules
     , parallelSubgoals
     , sequentialSubgoals
     , strict      
@@ -66,6 +68,8 @@ module Tct.Methods
     , isLeftLinear
     , isRightLinear
     , isWellFormed
+    , trsPredicate
+    , problemPredicate
 
     -- * Custom Processors
     , CustomProcessor
@@ -125,7 +129,9 @@ module Tct.Methods
     -- ** Transformations
     , irrProcessor    
     , uncurryProcessor
-    , wdgProcessor
+    , dependencyPairsProcessor
+    , pathAnalysisProcessor
+    , usableRulesProcessor
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -140,7 +146,10 @@ import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
 import Tct.Method.Uncurry
-import Tct.Method.Wdg
+import Tct.Method.DP.UsableRules
+import Tct.Method.DP.DependencyPairs
+import Tct.Method.DP.PathAnalysis
+import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
@@ -167,7 +176,9 @@ builtInProcessors = timeoutProcessor
                    <|> epostarProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
-                   <|> wdgProcessor
+                   <|> usableRulesProcessor
+                   <|> dependencyPairsProcessor
+                   <|> pathAnalysisProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
                    <|> composeProcessor

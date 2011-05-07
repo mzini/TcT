@@ -25,18 +25,20 @@ import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Term as Term
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
-import Termlib.Utils
+import Termlib.Utils hiding (block)
+import Termlib.Utils as Utils
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
 import Tct.Processor.PPrint
-import Tct.Method.DP.Utils
+import Tct.Method.DP.Utils 
 
 mkUsableRules :: Trs -> Set.Set F.Symbol -> Trs -> Trs
 mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
@@ -52,10 +54,16 @@ mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules t
 
 data UR = UR
 
-data URProof = URProof
+data URProof = URProof { usableStrict :: Trs
+                       , usableWeak   :: Trs
+                       , signature    :: F.Signature
+                       , variables    :: V.Variables }
 
 instance PrettyPrintable URProof where 
-    pprint URProof  = text "We replace strict/weak-rules by the corresponding usable rules."
+    pprint p  = text "We replace strict/weak-rules by the corresponding usable rules:"
+                $+$ ppTrs "Strict Usable Rules" (usableStrict p)
+                $+$ ppTrs "Weak Usable Rules" (usableWeak p)
+        where ppTrs n trs = Utils.block n (pprint (trs, signature p, variables p))
 
 instance P.Processor sub => P.Answerable (T.TProof UR sub) where
     answer = T.answerTProof answer'
@@ -76,8 +84,8 @@ instance T.Transformer UR where
     arguments UR = Unit
     transform _ prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
                      | otherwise                 = return $ res
-        where res | progressed = T.Success (DPProof URProof) (enumeration' [prob'])
-                  | otherwise  = T.Failure (DPProof URProof)
+        where res | progressed = T.Success ursproof (enumeration' [prob'])
+                  | otherwise  = T.Failure ursproof
               strs = Prob.strictTrs prob
               wtrs = Prob.weakTrs prob
               surs = mkUsableRules wdps ds strs
@@ -86,6 +94,10 @@ instance T.Transformer UR where
                   where size = length . Trs.rules
               ds   = Trs.definedSymbols (Prob.trsComponents prob)
               wdps = Prob.dpComponents prob
+              ursproof = DPProof URProof { usableStrict = surs
+                                         , usableWeak  = wurs
+                                         , signature   = Prob.signature prob
+                                         , variables   = Prob.variables prob }
               prob' = prob { Prob.strictTrs = surs
                            , Prob.weakTrs   = wurs }
 

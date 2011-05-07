@@ -63,6 +63,7 @@ module Tct.Processor
     , SomeProof (..)
     , SomeInstance (..)
     , someProof
+    , someProofNode
     , someProcessor
     , someInstance
     , solveBy
@@ -296,7 +297,7 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
               pphead    = quotes (text (instanceName inst))
               ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
               ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
-                          $+$ nest 2 (prettyPrintRelation prob)
+                          $+$ nest 2 (pprint prob)
               ppanswer  = pt "Answer" <+> pprint (answer p)
               underline = text (take (length $ show pphead) $ repeat '-')
               pt s = wtext 17 $ s ++  ":"
@@ -385,6 +386,11 @@ instance Show (InstanceOf SomeProcessor) where
 someProof :: (ComplexityProof p) => p -> SomeProof
 someProof = SomeProof
 
+someProofNode :: Processor p => InstanceOf p -> Problem -> ProofOf p -> Proof SomeProcessor
+someProofNode proc prob proof = Proof { appliedProcessor = someInstance proc 
+                                      , inputProblem = prob
+                                      , result = someProof proof}
+
 someProcessor :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 someProcessor = SomeProcessor
 
@@ -392,7 +398,7 @@ someInstance :: forall p. (ComplexityProof (ProofOf p), Processor p) => Instance
 someInstance inst = SPI (SomeInstance inst)
 
 solveBy :: (Processor a, SolverM m) => Problem -> InstanceOf a -> m SomeProof
-prob `solveBy` proc = someProof `liftM` solve proc prob
+prob `solveBy` proc = SomeProof `liftM` solve proc prob
 
 
 -- * Any Processor

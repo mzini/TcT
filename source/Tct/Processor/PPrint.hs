@@ -22,8 +22,9 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Processor.PPrint where
 
 import Text.PrettyPrint.HughesPJ
+import Control.Monad (liftM)
 import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
-import Termlib.Problem (prettyPrintRelation)
+import Termlib.Problem
 import Tct.Processor as P
 import Data.Typeable 
 
@@ -93,6 +94,11 @@ find :: Numbering n => n -> Enumeration a -> Maybe a
 find _ []  = Nothing
 find a  as = findBy ((==) a) as
 
+
+zipSafe :: Enumeration a -> Enumeration b -> Maybe (Enumeration (a,b))
+zipSafe as bs = sequence [ mk a (SN e1) `liftM` find e1 bs | (SN e1,a) <- as ] where
+  mk a e b = (e,(a,b))
+
 findBy :: Numbering n => (n -> Bool) -> Enumeration a -> Maybe a
 findBy _ [] = Nothing
 findBy p ((SN a', e) : es) = 
@@ -119,7 +125,7 @@ detailsSuccess ps = block "Details"
 overview :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
     where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
-                         $+$ indent (prettyPrintRelation (P.inputProblem p))
+                         $+$ indent (pprint (P.inputProblem p))
                            where status | succeeded p = text "reports bound" <+> pprint (answer p)
                                         | otherwise   = text "FAILED"
 

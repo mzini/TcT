@@ -17,45 +17,29 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 module Tct.Method.DP.DependencyPairs where
-import qualified Control.Monad.State.Lazy as State
-import Data.List (partition, intersperse, delete, sortBy)
-import qualified Data.List as List
 import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
-import Data.Typeable 
-import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe)
-import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
-
-import qualified Qlogic.NatSat as N
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
-import Termlib.Problem (Problem, StartTerms (..), Strategy(..))
+import Termlib.Problem (Strategy (..), StartTerms (..))
 import qualified Termlib.Term as Term
-import Termlib.Term (Term)
 import qualified Termlib.Rule as R
 import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
-import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
-import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Trs (Trs(..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
 
-import Tct.Certificate
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
-import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..))
+import Tct.Processor (Answerable(..))
 import Tct.Processor.Args as A
-import Tct.Processor.Args.Instances
+import Tct.Processor.Args.Instances ()
 import Tct.Processor.PPrint (enumeration')
-import Tct.Encoding.UsablePositions
-import Tct.Processor.Orderings
-import Tct.Method.Weightgap (applyWeightGap)
 
 
 markSymbol :: Symbol -> SignatureMonad Symbol

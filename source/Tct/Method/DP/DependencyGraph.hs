@@ -28,17 +28,12 @@ import qualified Data.Graph.Inductive.Tree as GraphT
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 
 import qualified Control.Monad.State.Lazy as State
-import Data.List (partition, intersperse, delete, sortBy)
+import Data.List (delete)
 import qualified Data.List as List
 import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
-import qualified Data.Set as Set
 import Data.Typeable 
-import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe, catMaybes)
-import qualified Text.PrettyPrint.HughesPJ as PP 
-import Text.PrettyPrint.HughesPJ hiding (empty)
-
-import qualified Qlogic.NatSat as N
+import Data.Maybe (fromJust, fromMaybe)
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -46,29 +41,8 @@ import Termlib.Problem (Problem)
 import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
-import Termlib.FunctionSymbol hiding (lookup)
-import qualified Termlib.Signature as Sig
-import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
-import Termlib.Trs.PrettyPrint (pprintTrs)
-import Termlib.Trs (Trs(..), definedSymbols)
-import Termlib.Variable(Variables)
-import Termlib.Utils
-
-import Tct.Certificate
-import qualified Tct.Processor.Transformations as T
-import qualified Tct.Processor as P
-import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
-import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..))
-import Tct.Processor.Args as A
-import Tct.Processor.PPrint
-import Tct.Processor.Args.Instances
-import Tct.Encoding.UsablePositions
-import Tct.Processor.Orderings
-import Tct.Method.DP.UsableRules
-import Tct.Method.DP.DependencyPairs
-import Tct.Method.Weightgap (applyWeightGap)
-
+import Termlib.Trs (Trs(..))
 
 --------------------------------------------------------------------------------
 -- Dependency Graph Type
@@ -102,6 +76,9 @@ roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
 successors :: DependencyGraph n -> NodeId -> [NodeId]
 successors = Graph.suc
 
+nodes :: DependencyGraph n -> [NodeId]
+nodes = Graph.nodes
+
 rulesFromNodes :: CongrDG -> Strictness -> [NodeId] -> Trs
 rulesFromNodes gr str ns = Trs.unions [ rulesFromNode n | n <- ns]
     where rulesFromNode n = case lookupNode gr n of 
@@ -125,12 +102,12 @@ instance Show Approximation where
     show Trivial = "trivial"
 
 estimatedDependencyGraph :: Approximation -> Problem -> DG
-estimatedDependencyGraph approx prob = Graph.mkGraph nodes edges
-    where nodes = zip [1..] ([(StrictDP, r) | r <- Trs.rules $ Prob.strictDPs prob] 
-                             ++ [(WeakDP, r) | r <- Trs.rules $ Prob.weakDPs prob])
-          edges = [ (n1, n2, ()) | (n1,(_,l1)) <- nodes
-                                 , (n2,(_,l2)) <- nodes
-                                 , R.rhs l1 `edgeTo` R.lhs l2] 
+estimatedDependencyGraph approx prob = Graph.mkGraph ns es
+    where ns = zip [1..] ([(StrictDP, r) | r <- Trs.rules $ Prob.strictDPs prob] 
+                          ++ [(WeakDP, r) | r <- Trs.rules $ Prob.weakDPs prob])
+          es = [ (n1, n2, ()) | (n1,(_,l1)) <- ns
+                             , (n2,(_,l2)) <- ns
+                             , R.rhs l1 `edgeTo` R.lhs l2] 
           s `edgeTo` t | approx == Trivial = True 
                        | approx == Edg     = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
               where invMatch = if any Term.isVariable rhss then True else any (match $ etcap rhss t) ss
@@ -154,12 +131,12 @@ estimatedDependencyGraph approx prob = Graph.mkGraph nodes edges
 
 
 toCongruenceGraph :: DG -> CongrDG
-toCongruenceGraph gr = Graph.mkGraph nodes edges
-    where nodes    = zip [1..] [sccNode scc | scc <- sccs]
-          edges    = [ (n1, n2, ()) | (n1, CongrNode scc1 _ _) <- nodes
-                                    , (n2, CongrNode scc2 _ _) <- nodes
-                                    , n1 /= n2
-                                    , isEdge scc1 scc2 ]
+toCongruenceGraph gr = Graph.mkGraph ns es
+    where ns    = zip [1..] [sccNode scc | scc <- sccs]
+          es    = [ (n1, n2, ()) | (n1, CongrNode scc1 _ _) <- ns
+                  , (n2, CongrNode scc2 _ _) <- ns
+                  , n1 /= n2
+                  , isEdge scc1 scc2 ]
           isEdge scc1 scc2 = any id [ n2 `elem` Graph.suc gr n1 | n1 <- scc1, n2 <- scc2]
           sccs             = GraphDFS.scc gr
           sccNode scc = CongrNode { theSCC    = scc

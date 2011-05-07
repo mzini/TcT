@@ -9,46 +9,32 @@
 
 module Tct.Method.DP.PathAnalysis where
 
-import qualified Control.Monad.State.Lazy as State
-import Data.List (partition, intersperse, delete, sortBy)
+import Data.List (intersperse, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
 import Control.Applicative ((<|>))
 -- import Control.Monad.Trans (liftIO)
-import qualified Data.Set as Set
-import Data.Typeable 
-import Data.Maybe (fromJust, isJust, fromMaybe, mapMaybe)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Either (partitionEithers)
 import qualified Text.PrettyPrint.HughesPJ as PP 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import qualified Qlogic.NatSat as N
-
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
-import qualified Termlib.Term as Term
-import Termlib.Term (Term)
-import qualified Termlib.Rule as R
-import Termlib.FunctionSymbol hiding (lookup)
-import qualified Termlib.Signature as Sig
-import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
 import Termlib.Trs.PrettyPrint (pprintTrs)
-import Termlib.Trs (Trs(..), definedSymbols)
-import Termlib.Variable(Variables)
+import Termlib.Trs (Trs(..))
+import qualified Termlib.Variable as V
 import Termlib.Utils
 
 import Tct.Certificate
 import Tct.Method.DP.DependencyGraph
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor (succeeded, answer, certificate, answerFromCertificate, Answer(..), Answerable(..))
-import Tct.Method.Matrix.NaturalMI (MatrixOrder, NaturalMIKind(..))
+import Tct.Processor (Answer(..), Answerable(..))
 import Tct.Processor.Args as A
 import Tct.Processor.PPrint
-import Tct.Processor.Args.Instances
-import Tct.Encoding.UsablePositions
-import Tct.Processor.Orderings
+import Tct.Processor.Args.Instances ()
 import Tct.Method.DP.Utils
 
 ----------------------------------------------------------------------
@@ -58,7 +44,10 @@ data Path = Path { thePath :: [NodeId] } deriving (Eq, Show)
 
 data PathProof = PathProof { computedPaths   :: [Path]
                            , computedCongrDG :: CongrDG
-                           , subsumedBy      :: [(Path,[Path])]}
+                           , computedDG      :: DG
+                           , subsumedBy      :: [(Path,[Path])]
+                           , variables       :: V.Variables
+                           , signature       :: F.Signature}
 
 data PathAnalysis = PathAnalysis
 
@@ -76,7 +65,10 @@ instance T.Transformer PathAnalysis where
               cedg = toCongruenceGraph edg
               p = DPProof PathProof { computedPaths   = paths
                                     , computedCongrDG = cedg
-                                    , subsumedBy      = subsume }
+                                    , computedDG      = edg
+                                    , subsumedBy      = subsume
+                                    , variables       = Prob.variables prob
+                                    , signature       = Prob.signature prob}
               (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom [] Trs.empty) (roots cedg)
               paths = fst $ unzip $ pathsToProbs
 
@@ -101,9 +93,9 @@ instance T.Transformer PathAnalysis where
 instance (P.Processor sub) => Answerable (T.TProof PathAnalysis sub) where
     answer = T.answerTProof ans
         where ans NonDPProblem _ = MaybeAnswer
-              ans (DPProof p) sps = answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
+              ans (DPProof _) sps = P.answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
                   where mkUb (_,subproof) = assertLinear $ ub subproof
-                        ub = upperBound . certificate
+                        ub = upperBound . P.certificate
                         assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
                         assertLinear (Poly Nothing)  = Poly Nothing
                         assertLinear e               = e
@@ -123,15 +115,22 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof PathAnalysis sub) where
         where printNodeId n = braces $ hcat $ intersperse (text ",") [text $ show i | i <- congruence cwdg n ]
               ppPathName (Path ns) = hcat $ intersperse (text "->") [printNodeId n | n <- ns] 
               cwdg = computedCongrDG paproof
+              wdg = computedDG paproof
               findSubProof pth = T.findProof (thePath pth) proof
 
               ppMaybeAnswerOf pth = fromMaybe (text "?") (pprint `liftM` P.answer `liftM` findSubProof pth)
 
-              ppTrans = paragraph "Following Dependency Graph (modulo SCCs) was computed. (Answers to subproofs are indicated to the right.)"
+              ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
                         $+$ (indent $ printTree 60 ppNode ppLabel pTree)
                         $+$ text ""
-                  where ppNode _ n    = printNodeId n
+                        $+$ text "Here rules are as follows:"
+                        $+$ text ""
+                        $+$ (indent $ pprintTrs pprule [ (n, fromJust (lookupNode wdg n)) | n <- nodes wdg])
+                            
+
+                  where pprule (i,(_,r)) = text (show i) <> text ":" <+> pprint (r,signature paproof, variables paproof)
+                        ppNode _ n    = printNodeId n
                         ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth) 
                             where centering n d =  text $ take pre ss ++ s ++ take post ss
                                       where s = show d

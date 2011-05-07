@@ -260,9 +260,7 @@ instance Answerable Answer where
     answer = id
 
 answerFromCertificate :: Certificate -> Answer
-answerFromCertificate cert = if cert == uncertified
-                             then MaybeAnswer
-                             else CertAnswer cert
+answerFromCertificate cert = CertAnswer cert
 
 succeeded :: Answerable p => p -> Bool
 succeeded p = case answer p of 

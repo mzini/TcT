@@ -87,7 +87,7 @@ prettyPrintTProof p@(TProof tp _) = block' "Transformation Details" [tp]
                                     $+$ (case subProofs p of
                                            Just ps' -> overview ps' $+$ text "" $+$ details ps'
                                            Nothing  -> text "Processing of at least one sub-problem did not finish. We abort. ")
-prettyPrintTProof (UTProof tp p) = text "Transforming the input failed. We thus apply the subprocessor directly."
+prettyPrintTProof (UTProof tp p) = text "Transforming the input did not make progress. We thus apply the subprocessor directly."
                             $+$ text ""
                             $+$ block' "Transformation Details" [tp]
                             $+$ text ""

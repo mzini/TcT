@@ -57,12 +57,14 @@ data UR = UR
 data URProof = URProof { usableStrict :: Trs
                        , usableWeak   :: Trs
                        , signature    :: F.Signature
-                       , variables    :: V.Variables }
+                       , variables    :: V.Variables
+                       , progressed   :: Bool}
 
 instance PrettyPrintable URProof where 
-    pprint p  = text "We replace strict/weak-rules by the corresponding usable rules:"
-                $+$ ppTrs "Strict Usable Rules" (usableStrict p)
-                $+$ ppTrs "Weak Usable Rules" (usableWeak p)
+    pprint p | progressed p  = text "We replace strict/weak-rules by the corresponding usable rules:"
+                               $+$ ppTrs "Strict Usable Rules" (usableStrict p)
+                               $+$ ppTrs "Weak Usable Rules" (usableWeak p)
+             | otherwise     = text "All rules are usable."
         where ppTrs n trs = Utils.block n (pprint (trs, signature p, variables p))
 
 instance P.Processor sub => P.Answerable (T.TProof UR sub) where
@@ -84,20 +86,21 @@ instance T.Transformer UR where
     arguments UR = Unit
     transform _ prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
                      | otherwise                 = return $ res
-        where res | progressed = T.Success ursproof (enumeration' [prob'])
-                  | otherwise  = T.Failure ursproof
+        where res | progr     = T.Success ursproof (enumeration' [prob'])
+                  | otherwise = T.Failure ursproof
               strs = Prob.strictTrs prob
               wtrs = Prob.weakTrs prob
               surs = mkUsableRules wdps ds strs
               wurs = mkUsableRules wdps ds wtrs
-              progressed = size wurs < size wtrs || size surs < size strs
+              progr = size wurs < size wtrs || size surs < size strs
                   where size = length . Trs.rules
               ds   = Trs.definedSymbols (Prob.trsComponents prob)
               wdps = Prob.dpComponents prob
               ursproof = DPProof URProof { usableStrict = surs
                                          , usableWeak  = wurs
                                          , signature   = Prob.signature prob
-                                         , variables   = Prob.variables prob }
+                                         , variables   = Prob.variables prob
+                                         , progressed  = progr }
               prob' = prob { Prob.strictTrs = surs
                            , Prob.weakTrs   = wurs }
 

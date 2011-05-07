@@ -70,17 +70,17 @@ instance T.Transformer PathAnalysis where
                                     , variables       = Prob.variables prob
                                     , signature       = Prob.signature prob}
               (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom [] Trs.empty) (roots cedg)
-              paths = fst $ unzip $ pathsToProbs
+              paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
-              walkFrom path weaks n = new ++ concatMap (walkFrom path' (strict_n `Trs.union` weaks')) (successors cedg n)
-                  where path' = path ++ [n]
+              walkFrom prefix weaks n = new ++ concatMap (walkFrom path weaks') (successors cedg n)
+                  where path = prefix ++ [n]
                         sucs = successors cedg n
                         strict_n = rulesFromNodes cedg StrictDP [n]
                         weak_n = rulesFromNodes cedg WeakDP [n]
-                        weaks' = weak_n `Trs.union` weaks
-                        new | subsumed  = [Left (Path path', [Path $ path' ++ [n'] | n' <- sucs ])]
-                            | otherwise = [Right ( Path path'
-                                                 , prob { Prob.strictDPs = strict_n, Prob.weakDPs = weaks'} )]
+                        weaks' = strict_n `Trs.union` weak_n `Trs.union` weaks
+                        new | subsumed  = [Left  ( Path path, [Path $ path ++ [n'] | n' <- sucs ] )]
+                            | otherwise = [Right ( Path path
+                                                 , prob { Prob.strictDPs = strict_n, Prob.weakDPs = weaks} )]
                             where subsumed = not (null sucs) && Trs.isEmpty strict_n
 
               progressed = case paths of 
@@ -93,13 +93,10 @@ instance T.Transformer PathAnalysis where
 instance (P.Processor sub) => Answerable (T.TProof PathAnalysis sub) where
     answer = T.answerTProof ans
         where ans NonDPProblem _ = MaybeAnswer
-              ans (DPProof _) sps = P.answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 0) : [ mkUb sp | sp <- sps])
-                  where mkUb (_,subproof) = assertLinear $ ub subproof
-                        ub = upperBound . P.certificate
-                        assertLinear (Poly (Just n)) = Poly $ Just $ max 1 n
-                        assertLinear (Poly Nothing)  = Poly Nothing
-                        assertLinear e               = e
-
+              ans (DPProof _) sps | all P.succeeded subproofs = P.answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 1) : upperbounds)
+                                  | otherwise                 = P.MaybeAnswer
+                  where subproofs = toList sps
+                        upperbounds = [ upperBound $ P.certificate sp | sp <- subproofs]
 
 instance (T.Verifiable (DPProof PathProof))
 
@@ -118,7 +115,9 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof PathAnalysis sub) where
               wdg = computedDG paproof
               findSubProof pth = T.findProof (thePath pth) proof
 
-              ppMaybeAnswerOf pth = fromMaybe (text "?") (pprint `liftM` P.answer `liftM` findSubProof pth)
+              ppMaybeAnswerOf pth = fromMaybe (text "?") (ppSpAns <|> ppSubsumed)
+                  where ppSpAns    = pprint `liftM` P.answer `liftM` findSubProof pth
+                        ppSubsumed = const (text "subsumed") `liftM` List.lookup pth (subsumedBy paproof)
 
               ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
@@ -138,7 +137,7 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof PathAnalysis sub) where
                                             ss = repeat ' '
                                             pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
                                             post = n - l - pre
-                        pTree = PPTree { pptRoots = roots cwdg
+                        pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
                                        , pptSuc = sortBy compareLabel . successors cwdg}
                         compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2
 
@@ -149,10 +148,11 @@ instance (P.Processor sub) => PrettyPrintable (T.TProof PathAnalysis sub) where
                   where comparePath p1 p2 = mkpath p1 `compare` mkpath p2
                             where mkpath p = [congruence cwdg n | n <- thePath p]
                         ppDetail path = fromMaybe errMsg (ppsubsumed <|> ppsubproof)
-                            where errMsg = text "CANNOT find proof of path" <+> ppPathName path
+                            where errMsg = text "CANNOT find proof of path" <+> ppPathName path <> text "." 
+                                           <+> text "Propably computation has been aborted since some other path cannot be solved."
                                   ppsubsumed = do paths <- List.lookup path (subsumedBy paproof)
                                                   return $ (text "This path is subsumed by the proof of paths" 
-                                                            <+> vcat (intersperse (text ",") [ppPathName pth | pth <- paths])
+                                                            <+> sep (intersperse (text ",") [ppPathName pth | pth <- paths])
                                                             <> text ".")
                                   ppsubproof = do subproof <- findSubProof path
                                                   return $ pprint subproof

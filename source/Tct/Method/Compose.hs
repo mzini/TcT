@@ -47,7 +47,12 @@ import qualified Termlib.Problem as Prob
 import Data.Tuple (swap)
 -- static partitioning
 
-data PartitionFn = Random | SeparateDp deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
+data PartitionFn = Random | SeparateDP deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
+
+
+instance PrettyPrintable PartitionFn where
+    pprint Random = text "random"
+    pprint SeparateDP = text "separateDP"
 
 staticAssign :: PartitionFn -> Problem -> (p1, p2) -> (Problem, Problem)
 staticAssign Random problem _ = ( mkProb dpssplit trssplit , mkProb (swap dpssplit) (swap trssplit))
@@ -59,7 +64,7 @@ staticAssign Random problem _ = ( mkProb dpssplit trssplit , mkProb (swap dpsspl
                                                    , weakTrs   = Trs wtrs `Trs.union` Prob.weakTrs problem }
           halve (Trs rs) = partitionEithers [ if b then Left rule else Right rule 
                                                   | (b,rule) <- zip (intersperse True (repeat False)) rs]
-staticAssign SeparateDp problem _ = (problem { strictDPs = Trs.empty
+staticAssign SeparateDP problem _ = (problem { strictDPs = Trs.empty
                                              , weakDPs   = Prob.weakDPs problem `Trs.union` Prob.strictDPs problem}
                                     , problem { strictTrs = Trs.empty
                                               , weakTrs   = Prob.weakTrs problem `Trs.union` Prob.strictTrs problem})
@@ -92,12 +97,11 @@ instance (P.Processor p1, ComplexityProof (P.ProofOf p1)
     pprint RelativeEmpty = paragraph "The strict component is empty."
     pprint (NoRuleRemoved p) = pprint p
     pprint (StaticPartitioned split proof1 proof2) = 
-        paragraph (unlines [ "We have partition the strict rules into the pair (R_1,R_2) using the function "
-                       , "'" ++ show split ++ "'." ])
-                      $+$ text ""
-                      $+$ pprint proof1
-                      $+$ text ""
-                      $+$ pprint proof2
+        text "We decompose the input using the function" <+> quotes (pprint split)
+        $+$ text ""
+        $+$ pprint proof1
+        $+$ text ""
+        $+$ pprint proof2
     pprint (DynamicPartitioned relApplied prel subproof) = 
         pprint prel
         $+$ text ""

@@ -48,7 +48,7 @@ import qualified Qlogic.SatSolver as S
 import Termlib.FunctionSymbol (Symbol, Signature)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
-import Termlib.Signature (runSignature, getSignature)
+import Termlib.Signature (runSignature)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
 import Termlib.Utils (PrettyPrintable(..), ($++$), block)
@@ -100,28 +100,25 @@ instance PrettyPrintable PopStarOrder where
             pparam = nest 1 . pprint
             ordname | popMultRecAllowed order = "LMPO"
                     | otherwise               = "POP*"
-            ppProblem = ppTrs "Strict DPs" (strictDPs probFiltered)
-                        $+$ ppTrs "Strict Trs" (strictTrs probFiltered)
-                        $+$ ppTrs "Weak DPs"   (weakDPs probFiltered)
-                        $+$ ppTrs "Weak Trs"   (weakTrs probFiltered)
+            ppProblem = ppTrs "Strict DPs"     strictDPs probFiltered
+                        $+$ ppTrs "Weak DPs"   weakDPs probFiltered
+                        $+$ ppTrs "Strict Trs" strictTrs probFiltered
+                        $+$ ppTrs "Weak Trs"   weakTrs probFiltered
 
-            ppTrs n rs = block n $ pprint (rs, sig, vars, sm)
+            ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p, sm)
             probFiltered = case popArgumentFiltering order of 
                                  Nothing -> prob
-                                 Just af -> fst $ runSignature mkProb (Prob.signature prob) 
-                                      where mkProb = do [sdp, s, wdp, w] <- sequence [ AF.apply trs af 
-                                                                                          | trs <- [ Prob.strictDPs prob 
-                                                                                                  , Prob.strictTrs prob
-                                                                                                  , Prob.weakDPs prob
-                                                                                                  , Prob.weakTrs prob]]
-                                                        sig' <- getSignature
+                                 Just af ->  prob' { signature = sig' }
+                                      where (prob',sig') = runSignature mkProb (Prob.signature prob) 
+                                            filtered trs = AF.apply trs af 
+                                            mkProb = do sdp <- filtered $ Prob.strictDPs prob 
+                                                        wdp <- filtered $ Prob.weakDPs prob
+                                                        s <- filtered $ Prob.strictTrs prob
+                                                        w <- filtered $ Prob.weakTrs prob
                                                         return prob { strictDPs = sdp
                                                                     , strictTrs = s
                                                                     , weakDPs   = wdp
-                                                                    , weakTrs   = w 
-                                                                    , signature = sig'}
-            vars           = Prob.variables prob
-            sig            = Prob.signature prob
+                                                                    , weakTrs   = w }
             prob           = popInputProblem order
             sm             = popSafeMapping order
 
@@ -237,8 +234,8 @@ orientProblem :: P.SolverM m => Bool -> Bool -> Bool -> Set Symbol -> Problem ->
 orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv 
                                     
     where slv | Prob.isDPProblem prob 
-                && Trs.isEmpty (Prob.strictTrs prob) = solveDirect
-              | otherwise = solveDP
+                && Trs.isEmpty (Prob.strictTrs prob) = solveDP
+              | otherwise = solveDirect
 
           solveDP = solveConstraint form initial mkOrd
               where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob False ps

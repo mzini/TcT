@@ -77,6 +77,8 @@ enumeration l = [(SN a, e) | (a,e) <- l]
 enumeration' :: [e] -> Enumeration e
 enumeration' es = enumeration [(i,e) | (i,e) <- zip [1 :: Int ..] es]
 
+toList :: Enumeration e -> [e]
+toList es = map snd es
 
 find :: SomeNumbering -> [(SomeNumbering, a)] -> Maybe a
 find (SN _) [] = Nothing

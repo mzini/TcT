@@ -140,8 +140,8 @@ toCongruenceGraph gr = Graph.mkGraph ns es
           isEdge scc1 scc2 = any id [ n2 `elem` Graph.suc gr n1 | n1 <- scc1, n2 <- scc2]
           sccs             = GraphDFS.scc gr
           sccNode scc = CongrNode { theSCC    = scc
-                                  , weak   = Trs [ r | (StrictDP, r) <- dps]
-                                  , strict = Trs [ r | (WeakDP, r) <- dps] }
+                                  , strict = Trs [ r | (StrictDP, r) <- dps]
+                                  , weak   = Trs [ r | (WeakDP, r) <- dps] }
               where dps = [fromJust $ Graph.lab gr n | n <- scc]
 
 -- utilities

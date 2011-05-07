@@ -89,7 +89,7 @@ instance P.Processor sub => PrettyPrintable (T.TProof UR sub) where
 instance T.Verifiable (DPProof URProof)
 
 instance T.Transformer UR where 
-    name UR = "Usable Rules"
+    name UR = "usablerules"
     description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"
                      , "respect to the dependency pairs."]
     type T.ArgumentsOf UR = Unit

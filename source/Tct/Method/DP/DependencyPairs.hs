@@ -109,7 +109,7 @@ instance P.Processor sub => PrettyPrintable (T.TProof DPs sub) where
 instance T.Verifiable DPProof
 
 instance T.Transformer DPs where
-    name DPs = "Dependency Pair Transformation"
+    name DPs = "dp"
     description DPs = ["Applies the Depencency Pair Transformation"]
 
     type T.ArgumentsOf DPs = Arg Bool
@@ -139,7 +139,8 @@ instance T.Transformer DPs where
                                         , newVariables = Prob.variables prob }
                     prob'     = prob { Prob.startTerms = BasicTerms ds' cs
                                      , Prob.strictDPs  = sDps
-                                     , Prob.weakDPs    = wDps }
+                                     , Prob.weakDPs    = wDps
+                                     , Prob.signature  = sig' }
 
 
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor

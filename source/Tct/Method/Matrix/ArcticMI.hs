@@ -43,7 +43,6 @@ import qualified Qlogic.Semiring as SR
 import qualified Qlogic.SatSolver as SatSolver
 
 import Termlib.Utils
-import Termlib.Problem (Problem)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
@@ -117,23 +116,41 @@ instance S.Processor ArcticMI where
     instanceName inst = "arctic-interpretation of dimension " ++ show (dim inst)
 
     type S.ProofOf ArcticMI = OrientationProof ArcticOrder
-    solve inst problem  = undefined -- | isMonadic problem sig = case Prob.relation problem of
-    --                                                Standard sr    -> orientDirect strat st sr sig inst
-    --                                                Relative sr wr -> orientRelative strat st sr wr sig inst
-    --                                                DP sr wr       -> orientDp strat st sr wr sig inst
-    --                    | otherwise             = return $ Inapplicable "Arctic Interpretations only applicable for monadic problems"
-    --     where sig   = Prob.signature problem
-    --           st    = Prob.startTerms problem
-    --           strat = Prob.strategy problem
-    -- solvePartial inst problem | isMonadic problem sig = case Prob.relation problem of
-    --                                                       Standard sr    -> mkProof sr `liftM` orientPartial strat st sr sig' inst
-    --                                                       Relative sr wr -> mkProof sr `liftM` orientPartialRelative strat st sr wr sig' inst
-    --                                                       DP       _  _  -> return $ P.PartialProof { P.ppInputProblem = problem
-    --                                                                                                 , P.ppResult       = Inapplicable "Relative Rule Removal inapplicable for DP problems"
-    --                                                                                                 , P.ppRemovable    = [] }
-    --                           | otherwise             = return $ P.PartialProof { P.ppInputProblem = problem
-    --                                                                             , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
-    --                                                                             , P.ppRemovable    = [] }
+    solve inst problem  | not isMonadic                        = return $ Inapplicable "Arctic Interpretations only applicable for monadic problems"
+                        | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig inst
+                        | otherwise                            = orientRelative strat st sr wr sig inst
+        where sig   = Prob.signature problem
+              st    = Prob.startTerms problem
+              strat = Prob.strategy problem
+              sr    = Prob.strictComponents problem
+              wr    = Prob.weakComponents problem
+              isMonadic | Trs.isEmpty (Prob.strictTrs problem) = allMonadic $ Set.filter (F.isCompound sig) $ Trs.functionSymbols wr
+                        | otherwise                            = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
+              allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
+
+    solvePartial inst problem | isMonadic = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' inst
+                              | otherwise = return $ P.PartialProof { P.ppInputProblem = problem
+                                                                    , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
+                                                                    , P.ppRemovableDPs = []
+                                                                    , P.ppRemovableTrs = [] }
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
+            sr    = Prob.strictComponents problem
+            wr    = Prob.weakComponents problem
+            sdps  = Prob.strictDPs problem
+            strs  = Prob.strictTrs problem
+            mkProof dps trs res@(Order (ArcticOrder mi _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                            , P.ppResult       = res 
+                                                                            , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
+                                                                            , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
+            mkProof _   _   res                            = P.PartialProof { P.ppInputProblem = problem
+                                                                            , P.ppResult       = res
+                                                                            , P.ppRemovableDPs = []
+                                                                            , P.ppRemovableTrs = [] }
+            isMonadic = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
+            allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
     --   where sig   = Prob.signature problem
     --         sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.strictTrs problem `Trs.union` Prob.weakTrs problem)
     --         st    = Prob.startTerms problem
@@ -185,14 +202,6 @@ instance PrettyPrintable ArcInt where
 data MatrixDP = MWithDP | MNoDP deriving Show
 
 data MatrixRelativity = MDirect | MRelative deriving Show
-
-isMonadic :: Problem -> F.Signature -> Bool
-isMonadic prob sig = undefined
-    -- case relation prob of
-    --   Standard sr    -> allMonadic $ Trs.functionSymbols sr
-    --   DP _ wr        -> allMonadic $ Set.filter (F.isCompound sig) $ Trs.functionSymbols wr
-    --   Relative sr wr -> allMonadic $ Trs.functionSymbols sr `Set.union` Trs.functionSymbols wr
-    -- where allMonadic = all (\ f ->  F.arity sig f Prelude.<= 1) . Set.toList
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
 orientDirect strat st trs sig mp = orientMatrix relativeConstraints ua st trs Trs.empty sig mp

@@ -42,6 +42,10 @@ import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
+data WeightGap = WeightGap
+
+data WeightGapProof = WeightGapProof
+
 applyWeightGap :: P.SolverM m => Trs.Trs -> UsablePositions -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool
                -> m (OrientationProof MatrixOrder)
 applyWeightGap nondup uarg trs st sig mk deg d b cb ua = orientMatrix (weightGapConstraints nondup) uarg' st trs Trs.empty sig (mk :+: deg :+: d :+: (Nat $ N.bound b) :+: Nothing :+: cb :+: ua)

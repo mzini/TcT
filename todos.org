@@ -1,4 +1,3 @@
-* Relative Rule Removal for DP-Problems!			     :MATRIX:
 * Remove Trailing Dingsbums					   :WDG:PROC:
 ** veraendert auch rhss von anderen paaren, zb. nuetzlich in AG01/3.2
 * Rewrite RHSs							       :PROC:
@@ -9,7 +8,6 @@
         f(x, y, s(z)) -> s(f(0, 1, z))
 
 * WeightGap prozessor implementieren?				       :PROC:
-* fixe interpretation fuer compound symbole?			     :MATRIX:
 * AG01/3.17 : remove unreachable rules fuer runtime, aehnlich irr :PROC:NARROW:
 ** braucht man hier narrowing?				       
 * AG01/#3.42.xml						:PROC:NARROW:

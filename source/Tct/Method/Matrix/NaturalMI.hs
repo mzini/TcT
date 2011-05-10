@@ -190,7 +190,8 @@ instance S.Processor NaturalMI where
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
 
-    solvePartial inst problem = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+    solvePartial inst problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' (S.processorArgs inst)
+                              | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
@@ -221,6 +222,7 @@ kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
 kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+-- AS: TODO: constructor based EDA
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ _)  = EdaMatrix (fmap (\ (Nat n) -> n) d)
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = EdaMatrix (fmap (\ (Nat n) -> n) d)
 
@@ -268,6 +270,10 @@ orientPartial strat st trs sig mp = orientMatrix partialConstraints ua st trs Tr
 orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientPartialRelative strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientPartialDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartialDp strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)

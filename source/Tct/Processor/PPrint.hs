@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -24,7 +25,6 @@ module Tct.Processor.PPrint where
 import Text.PrettyPrint.HughesPJ
 import Control.Monad (liftM)
 import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
-import Termlib.Problem
 import Tct.Processor as P
 import Data.Typeable 
 
@@ -61,20 +61,17 @@ instance Numbering Char where
 instance Numbering a => Numbering [a] where
     ppNumbering as = hcat $ punctuate (text ".") [ppNumbering a | a <- as]
 
-instance (Numbering a) => Numbering (Maybe a) where
-    ppNumbering Nothing = text ""
-    ppNumbering (Just a) = ppNumbering a
+instance (Numbering a, Numbering b) => Numbering (a,b) where
+    ppNumbering (a,b)  = ppNumbering a <> text "." <> ppNumbering b
 
-instance (Numbering a,Numbering b) => Numbering (a,b) where
-    ppNumbering (a,b) = ppNumbering a <> (text ".") <> ppNumbering b
-
-
-instance (Numbering a,Numbering b) => Numbering (Either a b) where
-    ppNumbering (Left a) = ppNumbering a
+instance (Numbering a, Numbering b) => Numbering (Either a b) where
+    ppNumbering (Left a)  = ppNumbering a
     ppNumbering (Right b) = ppNumbering b
 
-data SomeNumbering = forall a. Numbering a => SN a
 
+
+data SomeNumbering = forall a. Numbering a => SN a
+--instance Numbering SomeNumbering where ppNumbering (SN e) = ppNumbering e
 instance PrettyPrintable SomeNumbering where pprint (SN e) = ppNumbering e
 
 type Enumeration e = [(SomeNumbering, e)]
@@ -89,6 +86,8 @@ enumeration l = [(SN a, e) | (a,e) <- l]
 enumeration' :: [e] -> Enumeration e
 enumeration' es = enumeration [(i,e) | (i,e) <- zip [1 :: Int ..] es]
 
+toList :: Enumeration e -> [e]
+toList es = map snd es
 
 find :: Numbering n => n -> Enumeration a -> Maybe a
 find _ []  = Nothing
@@ -101,11 +100,10 @@ zipSafe as bs = sequence [ mk a (SN e1) `liftM` find e1 bs | (SN e1,a) <- as ] w
 
 findBy :: Numbering n => (n -> Bool) -> Enumeration a -> Maybe a
 findBy _ [] = Nothing
-findBy p ((SN a', e) : es) = 
-    case cast a' of 
-      Just a'' -> if p a'' then Just e else findBy p es
-      Nothing  -> findBy p es
-
+findBy p ((SN a, e) : es) = 
+    case cast a of 
+      Just a' | p a'      -> Just e
+              | otherwise -> findBy p es
 
 details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 details ps | any (failed . snd) ps = detailsFailed ps 

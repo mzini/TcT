@@ -36,42 +36,46 @@ import qualified Termlib.Rule as R
 import Termlib.Variable (canonical)
 import Termlib.FunctionSymbol (Signature, Symbol, SignatureMonad, Attributes(..))
 import qualified Termlib.FunctionSymbol as F
-import Termlib.Signature (runSignature )
+import Termlib.Signature (runSignature, getSignature)
 import Termlib.Term (Term(..))
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 
 import Tct.Processor.Transformations as T
-import Tct.Processor.PPrint (enumeration')
 import qualified Tct.Processor as P
-import Tct.Processor (Answer (..))
+import Tct.Processor (Answerable (..), Answer (..))
 import Tct.Processor.Args as A
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import Tct.Certificate (constant, certified)
 
 data Uncurry = Uncurry deriving (Show,Typeable)
 
-data UncurryProof = UncurryProof { inputProblem :: Problem
-                                 , newSignature :: Signature
-                                 , uncurryTrs   :: Trs 
-                                 , uncurriedTrs :: Trs}
+data UncurryProof = UncurryProof { inputProblem    :: Problem
+                                 , newSignature    :: Signature
+                                 , uncurryTrs      :: Trs 
+                                 , uncurriedStrict :: Trs
+                                 , uncurriedWeak   :: Trs }
                   | NotUncurryable { reason :: String }
+                  | EmptyStrictRules
 
 
 instance PrettyPrintable UncurryProof where 
     pprint (NotUncurryable r) = text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
-    pprint proof | Trs.isEmpty $ uncurriedTrs proof = text "The given TRS is empty, hence nothing to do." 
-                 | otherwise = text "We uncurry the input using the following uncurry rules."
-                   $+$ (nest 2 $ pptrs $ uncurryTrs proof)
+    pprint EmptyStrictRules   = text "The strict rules are empty."
+    pprint proof              = text "We uncurry the input using the following uncurry rules."
+                                $+$ (nest 2 $ pptrs $ uncurryTrs proof)
              where pptrs trs = pprint (trs,sig,vars)
                    sig = newSignature proof
                    vars = Prob.variables $ inputProblem proof
 
 
-instance T.Answerable UncurryProof where
-    answer (NotUncurryable _) _        = MaybeAnswer
-    answer _                  [(_,ps)] = P.answer ps
-    answer _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
+instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
+    answer = T.answerTProof answer' 
+        where answer' (NotUncurryable _) _        = MaybeAnswer
+              answer' EmptyStrictRules   _        = P.answerFromCertificate $ certified (constant, constant)
+              answer' _                  [(_,ps)] = answer ps
+              answer' _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
 
 instance T.Verifiable UncurryProof
 
@@ -84,32 +88,41 @@ instance T.Transformer Uncurry where
     name Uncurry = "uncurry"
     description Uncurry = [ "This processor implements 'Uncurrying' for left-head-variable-free ATRSs"]
     arguments Uncurry = A.Unit
-    transform _ prob =
-        return $ case (relation prob) of
-                   (Standard (Trs []))  -> T.Success p (enumeration' [prob])
-                       where p = UncurryProof { inputProblem = prob
-                                              , uncurryTrs   = Trs.empty
-                                              , uncurriedTrs = Trs.empty 
-                                              , newSignature = F.emptySignature}
-
-                   (Standard trs) -> case applicativeSignature (Prob.signature prob) trs of 
-                                       Nothing   -> T.Failure $ NotUncurryable {reason = "non applicative"}
-                                       Just asig -> if not $ isLeftHeadVariableFree trs 
+    transform _ prob | isDPProblem prob = return $ T.Failure $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
+                     | Trs.isEmpty (strictTrs prob) = return $ T.Failure $ EmptyStrictRules
+                     | otherwise = return $ case applicativeSignature (Prob.signature prob) (trsComponents prob) of 
+                                     Nothing   -> T.Failure $ NotUncurryable {reason = "non applicative"}  
+                                     Just asig -> if not $ isLeftHeadVariableFree (trsComponents prob)
                                                     then T.Failure $ NotUncurryable {reason = "not left head variable free"}
                                                     else T.Success p (enumeration' [prob']) 
-                                           where p = UncurryProof { inputProblem = prob
-                                                                  , uncurryTrs   = ucTrs
-                                                                  , uncurriedTrs = uncurried 
-                                                                  , newSignature = sig}
-                                                 ((ucTrs,uncurried), sig) = runSignature (mkUncurry asig (etaSaturate asig trs)) $ F.emptySignature
-                                                 prob' = prob{relation=Standard (uncurried `Trs.union` ucTrs), signature=sig}
-                   _               ->  T.Failure $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
+                                           where m = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
+                                                        let asig' = case asig of AppSignature (_,attribs) cs -> AppSignature (appsym,attribs) cs
+                                                        us <- mkUncurrySystem asig'
+                                                        ustrct <- mkUncurryTrs asig' (saturated strct)
+                                                        uweak <- mkUncurryTrs asig' (saturated weak)
+                                                        sig <- getSignature
+                                                        return UncurryProof { inputProblem = prob
+                                                                            , uncurryTrs   = us
+                                                                            , uncurriedStrict = ustrct
+                                                                            , uncurriedWeak   = uweak
+                                                                            , newSignature = sig }
+
+                                                 appName = case asig of AppSignature (_,attribs) _ -> F.symIdent attribs
+                                                 saturated = etaSaturate asig
+
+                                                 strct  = strictTrs prob
+                                                 weak   = weakTrs prob
+                                                 (p, _) = runSignature m F.emptySignature
+                                                 prob'  = prob { strictTrs = uncurriedStrict p
+                                                               , weakTrs   = uncurriedWeak p `Trs.union` uncurryTrs p
+                                                               , signature = newSignature p }
+
 
 uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
 uncurryProcessor = transformationProcessor Uncurry
 
-uncurry :: T.TheTransformer Uncurry
-uncurry = Uncurry `T.withArgs` ()
+uncurry :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
+uncurry = transformationProcessor Uncurry `T.calledWith` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show
@@ -227,11 +240,4 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
               where fresh' g' = Fun g' `liftM` mapM fresh ts
 
 
-mkUncurry :: AppSignature -> Trs -> SignatureMonad (Trs,Trs)
-mkUncurry asig trs = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
-                        let asig' = case asig of AppSignature (_,attribs) cs -> AppSignature (appsym,attribs) cs
-                        us <- mkUncurrySystem asig'
-                        uc <- mkUncurryTrs asig' trs
-                        return $ (us,uc)
-    where appName = case asig of AppSignature (_,attribs) _ -> F.symIdent attribs
 

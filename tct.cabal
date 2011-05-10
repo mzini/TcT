@@ -68,7 +68,11 @@ Library
                     Tct.Method.Bounds.Violations.Find
                     Tct.Method.Bounds.Violations.Fix
                     Tct.Method.Weightgap
-                    Tct.Method.Wdg
+                    Tct.Method.DP.DependencyGraph
+                    Tct.Method.DP.UsableRules
+                    Tct.Method.DP.DependencyPairs
+                    Tct.Method.DP.PathAnalysis
+                    Tct.Method.DP.Utils
                     Tct.Method.Custom
                     Tct.Method.Predicates
                     Tct.Methods

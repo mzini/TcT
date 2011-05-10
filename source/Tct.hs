@@ -48,7 +48,7 @@ import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
 import qualified Config.Dyre as Dyre
 import qualified Control.Exception as C
 
-import Termlib.Problem (Problem, onProblem, standardProblem, dpProblem, relativeProblem, wellFormed)
+import Termlib.Problem (Problem, wellFormed)
 import qualified Termlib.Problem as Prob
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import qualified Termlib.Problem.ParseErrors as ProblemPEs
@@ -165,10 +165,10 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , performChecks   = False}
 
   where defaultProcessor prob _ = return $ case Prob.startTerms prob of 
-          Prob.TermAlgebra -> someInstance $ matrices Methods.Triangular
-          _                -> someInstance $ wdg (matrices Methods.Constructor)
-        matrices kind = Methods.fastest [ Methods.matrix kind (Nat dim) (Bits 3) (Just $ Nat 4) True | dim <- [1, 2, 3] ]
-        wdg           = Methods.wdg Methods.Edg True Methods.Default (Nat 2) (Bits 3) (Just $ Nat 4) True False
+          Prob.TermAlgebra -> someInstance $ matrices Methods.Algebraic
+          _                -> someInstance $ matrices Methods.Algebraic
+        matrices kind = Methods.fastest [ Methods.matrix kind Nothing (Nat dim) (Bits 3) (Just $ Nat 4) True | dim <- [1, 2, 3] ]
+--        wdg           = Methods.wdg Methods.Edg True Methods.Algebraic Nothing (Nat 2) (Bits 3) (Just $ Nat 4) True False
         getDefaultSolver = findSatSolver MiniSat "minisat" `catchError` (const $ findSatSolver MiniSat "minisat2")
 
 
@@ -323,7 +323,9 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                                    proof <- process tproc prob
                                                    putPretty (pprint $ answer proof)
                                                    when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
-                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof then text "Hurray" else text "Arrrr..")
+                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof 
+                                                                                                  then text "Hurray, we answered"  <+> pprint (answer proof)
+                                                                                                  else text "Arrrr..")
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 
@@ -350,23 +352,10 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
         overwriteAnswerType Nothing   prob                         = return $ prob 
         overwriteAnswerType (Just at) prob | consistent prob' prob = return prob'
                                            | otherwise             = throwError AnswerTypeMisMatch
-            where  prob' = onProblem 
-                           (\ _ _ trs         -> standardProblem
-                                                 (terms (atype at) (Trs.definedSymbols trs) (Trs.constructors trs))
-                                                 (strat (atype at))
-                                                 trs)
-                           (\ _ _ dp trs      -> dpProblem
-                                                 (terms (atype at) (Trs.definedSymbols dp) (Trs.constructors trs))
-                                                 (strat (atype at))
-                                                 dp
-                                                 trs)
-                           (\ _ _ strict weak -> let both = strict `Trs.union` weak
-                                                 in relativeProblem
-                                                    (terms (atype at) (Trs.definedSymbols both) (Trs.constructors both))
-                                                    (strat (atype at))
-                                                    strict
-                                                    weak)
-                         prob
+            where  prob' = prob { Prob.startTerms = terms (atype at) defineds constructors
+                                , Prob.strategy   = strat (atype at)}
+                   defineds = Trs.definedSymbols $ Prob.allComponents prob
+                   constructors = Trs.constructors $ Prob.allComponents prob
                    terms DC  _ _   = Prob.TermAlgebra
                    terms IDC _ _   = Prob.TermAlgebra
                    terms RC ds cs  = Prob.BasicTerms ds cs

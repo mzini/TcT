@@ -42,6 +42,7 @@ module Tct.Processor.Args.Instances
        where
 
 import Data.Typeable
+import Data.Char (toLower)
 import Control.Monad (liftM)
 import Text.Parsec.Combinator (choice)
 import Text.Parsec.Char (string)
@@ -129,7 +130,9 @@ instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
     showArg _ a = show a
 
 instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
-    parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
+    parseArg Phantom = parseArgAssoc [(lwer $ show e, e) | e <- [(minBound :: a) .. maxBound]]
+        where lwer ""     = ""
+              lwer (c:cs) = toLower c : cs
 
 
 

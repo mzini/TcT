@@ -31,6 +31,7 @@ import qualified Data.Set as Set
 import Qlogic.Boolean
 import Qlogic.Diophantine hiding (add)
 import Qlogic.Semiring
+import qualified Qlogic.NatSat as N
 
 import Termlib.Problem (Problem(..))
 import Termlib.Rule (Rule(..))
@@ -175,7 +176,7 @@ instance T.Transformer WeightGap where
   transform inst prob = do let wgon :+: wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs = T.transformationArgs inst
                            let (sr, wr) = (Prob.strictComponents prob, Prob.weakComponents prob)
                            let uarg' = if wgUargs then usableArgs (strategy prob) sr wr else fullWithSignature (signature prob)
-                           p <- orientMatrix (weightGapConstraints wgon $ strictDPs prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
+                           p <- orientMatrix (weightGapConstraints wgon $ strictTrs prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                            return $ case p of
                              (Order (MatrixOrder mi _ _)) -> T.Success wgpr (enumeration' [prob'])
                                where wgpr   = WeightGapProof { wgInputProblem = prob
@@ -221,9 +222,15 @@ weightGapConstraints wgon nondup uarg st strict weak sig mp = strictWGConstraint
 
 strictWGConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs -> MatrixInter a -> b
 strictWGConstraints trs mi = trsConstraints f mi trs
-  where f li ri = (li .>. ri) || bigAnd (zipWith coeffConstraint (Map.elems $ coefficients li) (Map.elems $ coefficients ri))
+  where f li ri = bigAnd (zipWith coeffConstraint (Map.elems $ coefficients li) (Map.elems $ coefficients ri))
         coeffConstraint lm rm = row 1 lm .>=. row 1 rm
 
 nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Rule -> MatrixInter a -> b
 nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficients $ interpretTerm mi $ R.lhs r) (Map.elems $ coefficients $ interpretTerm mi $ R.rhs r)
   where coeffConstraint lm rm = row 1 lm .>=. row 1 rm
+
+weightgapProcessor :: T.TransformationProcessor WeightGap P.AnyProcessor
+weightgapProcessor = T.transformationProcessor WeightGap
+
+weightgap :: (P.Processor sub) => WgOn -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor WeightGap sub)
+weightgap wgon wgkind wgdeg wgdim wgsize wgcbits wgua = T.transformationProcessor WeightGap `T.calledWith` (wgon :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: wgua)

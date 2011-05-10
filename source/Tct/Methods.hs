@@ -59,6 +59,7 @@ module Tct.Methods
     , sequentialSubgoals
     , strict      
     , nonstrict
+    , weightgap
     , (>>>)
 
     -- ** Predicates
@@ -84,6 +85,7 @@ module Tct.Methods
     , EnumOf
     , Processor
     , NaturalMIKind (..)
+    , WgOn (..)
     , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)
@@ -132,6 +134,7 @@ module Tct.Methods
     , dependencyPairsProcessor
     , pathAnalysisProcessor
     , usableRulesProcessor
+    , weightgapProcessor
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -151,6 +154,7 @@ import Tct.Method.DP.DependencyPairs
 import Tct.Method.DP.PathAnalysis
 import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
+import Tct.Method.Weightgap
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import Tct.Processor (solveBy)
@@ -181,6 +185,7 @@ builtInProcessors = timeoutProcessor
                    <|> pathAnalysisProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
+                   <|> weightgapProcessor
                    <|> composeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors

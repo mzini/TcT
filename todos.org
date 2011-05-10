@@ -1,7 +1,6 @@
-* Relative Rule Removal for DP-Problems!			     :MATRIX:
 * Remove Trailing Dingsbums					   :WDG:PROC:
 ** veraendert auch rhss von anderen paaren, zb. nuetzlich in AG01/3.2
-* Rewrite RHSs							       :PROC:
+* Rewrite RHSs 							       :PROC:
 * Knowledge-Propagation						       :PROC:
 ** DG in RC problem speichern & Prozessor implementieren?
 ** Beispiel:

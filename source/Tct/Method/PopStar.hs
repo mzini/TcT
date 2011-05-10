@@ -30,7 +30,7 @@ module Tct.Method.PopStar
     , PopStar)
 where
 
-import Control.Monad (liftM2, liftM)
+import Control.Monad (liftM)
 import Data.Set (Set, (\\))
 import qualified Data.Set as Set
 import Data.Typeable
@@ -46,13 +46,12 @@ import Qlogic.SatSolver ((:&:) (..), addFormula)
 import qualified Qlogic.SatSolver as S
 
 import Termlib.FunctionSymbol (Symbol, Signature)
-import Termlib.Problem (Problem)
-import Termlib.Problem (StartTerms(..), Strategy(..), Relation(..))
+import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
 import Termlib.Signature (runSignature)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
-import Termlib.Utils (PrettyPrintable(..), ($++$))
+import Termlib.Utils (PrettyPrintable(..), ($++$), block)
 import qualified Termlib.ArgumentFiltering as AF
 import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
@@ -96,25 +95,33 @@ instance PrettyPrintable PopStarOrder where
                                           $+$ text "Further, following argument filtering is employed:"
                                           $++$ pparam af)
                  $++$ text "For your convenience, here is the input in predicative notation:"
-                 $++$ nest 1 (ppstrict $+$ ppweak)
+                 $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam = nest 1 . pprint
             ordname | popMultRecAllowed order = "LMPO"
                     | otherwise               = "POP*"
-            ppstrict       = text "Rules:" $$ pparam (strict, sig, vars, sm)
-            ppweak | length (Trs.rules weak) == 0 = PP.empty 
-                   | otherwise                    = text "Weak Rules:" $$ pparam (weak, sig, vars, sm)
+            ppProblem = ppTrs "Strict DPs"     strictDPs probFiltered
+                        $+$ ppTrs "Weak DPs"   weakDPs probFiltered
+                        $+$ ppTrs "Strict Trs" strictTrs probFiltered
+                        $+$ ppTrs "Weak Trs"   weakTrs probFiltered
 
-            (strict, weak, sig) = case (Prob.relation $ prob, popArgumentFiltering order) of 
-                                    (Standard trs, _) -> (trs, Trs.empty, Prob.signature prob)
-                                    (Relative s w, _) -> (s, w, Prob.signature prob)
-                                    (DP s w, Just af) -> (strict', weak', sig')
-                                            where ((strict',weak'),sig') = runSignature (liftM2 (,) (AF.apply s af) (AF.apply w af)) (Prob.signature prob)
-                                    (DP s w      , _) -> (s, w, Prob.signature prob)
-
-            vars           = Prob.variables prob
+            ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p, sm)
+            probFiltered = case popArgumentFiltering order of 
+                                 Nothing -> prob
+                                 Just af ->  prob' { signature = sig' }
+                                      where (prob',sig') = runSignature mkProb (Prob.signature prob) 
+                                            filtered trs = AF.apply trs af 
+                                            mkProb = do sdp <- filtered $ Prob.strictDPs prob 
+                                                        wdp <- filtered $ Prob.weakDPs prob
+                                                        s <- filtered $ Prob.strictTrs prob
+                                                        w <- filtered $ Prob.weakTrs prob
+                                                        return prob { strictDPs = sdp
+                                                                    , strictTrs = s
+                                                                    , weakDPs   = wdp
+                                                                    , weakTrs   = w }
             prob           = popInputProblem order
             sm             = popSafeMapping order
+
 
 instance Answerable PopStarOrder where
     answer order | popMultRecAllowed order && popPsAllowed order = CertAnswer $ uncertified
@@ -224,31 +231,32 @@ data PopArg = Gt Term Term
 
 
 orientProblem :: P.SolverM m => Bool -> Bool -> Bool -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv (Prob.relation prob)
+orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv 
                                     
-    where slv (Standard trs) = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
-                    form                = directConstraint lmpop ps wsc quasiConstrs trs Trs.empty sig 
-                                          && bigAnd [atom $ strictlyOriented r | r <- rules trs]
-                    initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
-                    quasiConstrs        = quasiConstructorsFor cs trs Trs.empty
-          slv (DP strict weak) = solveConstraint form initial mkOrd
+    where slv | Prob.isDPProblem prob 
+                && Trs.isEmpty (Prob.strictTrs prob) = solveDP
+              | otherwise = solveDirect
+
+          solveDP = solveConstraint form initial mkOrd
               where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob False ps
                     form                = dpConstraint ps wsc quasiConstrs strict weak sig 
-                                          && bigAnd [atom $ strictlyOriented r | r <- rules strict]
-                                          && bigAnd [atom $ weaklyOriented r | r <- rules weak]
+                                          && orientationConstraints
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig :&: AFEnc.initial sig
                     quasiConstrs        = quasiConstructorsFor cs strict weak
 
-          slv (Relative strict weak) = solveConstraint form initial mkOrd
+          solveDirect = solveConstraint form initial mkOrd                                          
               where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
                     form                = directConstraint lmpop ps wsc quasiConstrs strict weak sig 
-                                          && bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
-                                          && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
+                                          && orientationConstraints
                     initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
-                    quasiConstrs        = quasiConstructorsFor cs strict weak 
+                    quasiConstrs        = quasiConstructorsFor cs strict weak
 
-          sig  = Prob.signature prob
+          orientationConstraints = bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
+                                   && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
+
+          strict = Prob.strictComponents prob
+          weak   = Prob.weakComponents prob
+          sig    = Prob.signature prob
  
 solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
 solveConstraint constraint initial makeResult = 

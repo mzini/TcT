@@ -53,7 +53,7 @@ import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix hiding (maxMatrix)
 import Tct.Encoding.Natring ()
-import Tct.Encoding.UsablePositions
+import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Matrix.MatrixInterpretation
 import Tct.Processor.Args hiding (unit)
 import qualified Tct.Processor.Args as A
@@ -82,8 +82,10 @@ data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
 instance PrettyPrintable MatrixOrder where
-    pprint order = (text "The following argument positions are usable:")
-                   $+$ indent (pprint (uargs order, signature $ ordInter order))
+    pprint order = (if uargs order == fullWithSignature (signature $ ordInter order)
+                    then empty
+                    else (text "The following argument positions are usable:")
+                    $+$ indent (pprint (uargs order, signature $ ordInter order)))
                    $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
                    $+$ pprint (ordInter order)
         where ppknd UnrestrictedMatrix            = text "unrestricted"

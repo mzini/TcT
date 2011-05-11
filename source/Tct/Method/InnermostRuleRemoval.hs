@@ -69,11 +69,19 @@ instance PrettyPrintable IRRProof where
                    vars    = Prob.variables $ inputProblem proof
 
 
-instance T.TransformationProof IRRProof where 
-    answer _ (NotApplicable _)   _         = P.MaybeAnswer
-    answer _ (IRRProof _ _)      [(_,p)]   = P.answer p
-    answer _ (IRRProof _ _)      ps        = error $ show msg 
-      where msg = text ("Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ps))
+instance T.TransformationProof InnermostRuleRemoval where 
+    answer proof = case (T.transformationProof proof, T.subProofs proof) of 
+                     (NotApplicable _, _             ) -> P.MaybeAnswer
+                     (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
+                     (IRRProof _ _   , ps            ) -> error $ msg
+                         where msg = "Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ps)
+    answer proof = case (T.transformationProof proof, T.subProofs proof) of 
+                     (NotApplicable _, _             ) -> P.MaybeAnswer
+                     (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
+                     (IRRProof _ _   , ps            ) -> error $ msg
+                         where msg = "Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ps)
+    pprintProof _ _  = pprint
+
               
 instance T.Transformer InnermostRuleRemoval where
     type T.ArgumentsOf InnermostRuleRemoval = A.Unit

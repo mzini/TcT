@@ -36,7 +36,6 @@ import Termlib.Utils
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable(..))
 import Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.PPrint (enumeration')
@@ -82,15 +81,12 @@ instance PrettyPrintable DPProof where
         where sig = newSignature p
               vars = newVariables p
 
-instance P.Processor sub => P.Answerable (T.TProof DPs sub) where
-    answer = T.answerTProof answer'
-        where answer' _ [(_,p)] = P.answer p
-              answer' _ _       = error "dependency pairs processor received wrong number of subproofs"
-
-instance P.Processor sub => PrettyPrintable (T.TProof DPs sub) where
-    pprint = T.prettyPrintTProof
-
-instance T.Verifiable DPProof
+instance T.TransformationProof DPs where
+    answer proof = case T.subProofs proof of 
+                     [(_, subproof)] -> P.answer subproof
+                     ps               -> error $ msg ps
+        where msg ps = "Tct.Method.DP.DependencyPairs: Expecting 1 subproof but received " ++ show (length ps)
+    pprintProof _ _ = pprint
 
 instance T.Transformer DPs where
     name DPs = "dp"
@@ -104,9 +100,9 @@ instance T.Transformer DPs where
 
     transform inst prob = return $  
         case (Prob.startTerms prob, Trs.isEmpty $ Prob.dpComponents prob) of 
-          (TermAlgebra     , _    ) -> T.Failure NotRCProblem
-          (_               , False) -> T.Failure ContainsDPs
-          (BasicTerms ds cs, _    ) -> T.Success proof  (enumeration' [prob'])
+          (TermAlgebra     , _    ) -> T.NoProgress NotRCProblem
+          (_               , False) -> T.NoProgress ContainsDPs
+          (BasicTerms ds cs, _    ) -> T.Progress proof  (enumeration' [prob'])
               where useTuples = T.transformationArgs inst
                     strat     = Prob.strategy prob
                     sig       = Prob.signature prob
@@ -130,8 +126,8 @@ instance T.Transformer DPs where
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs
 
-dependencyPairs :: (P.Processor sub) => Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor DPs sub)
-dependencyPairs useTuples = T.transformationProcessor DPs `T.calledWith` useTuples
+dependencyPairs :: Bool -> T.TheTransformer DPs
+dependencyPairs useTuples = DPs `T.calledWith` useTuples
 
 
                                           -- 

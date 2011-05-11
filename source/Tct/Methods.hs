@@ -55,11 +55,8 @@ module Tct.Methods
     , pathAnalysis
     , dependencyPairs
     , usableRules
-    , parallelSubgoals
-    , sequentialSubgoals
-    , strict      
-    , nonstrict
     , (>>>)
+    , try
 
     -- ** Predicates
     , isCollapsing
@@ -210,13 +207,3 @@ before :: (P.Processor a, P.Processor b) =>
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 
--- transformation Combinators
-
-(>>>) :: (Transformer t1, Transformer t2, P.Processor sub) => -- (Transformer t1, P.Processor sub, P.ComplexityProof (P.ProofOf (TransformationProcessor t1 sub)), Arguments (ArgumentsOf t1)
-        (P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t1 sub))
-        -> (P.InstanceOf (TransformationProcessor t1 sub) -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub)))
-        -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub))
-tfn1 >>> tfn2 = \ sub -> (tfn2 (tfn1 sub))
-
-
--- can be used as follows :: foo = (strict . uncurry) >>> (nonstrict . irr)

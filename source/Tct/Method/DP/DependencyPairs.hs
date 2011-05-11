@@ -55,10 +55,19 @@ dependencyPairsOf useTuples strat trs = Trs `liftM` (mapM mk $ zip (rules trs) (
               where fromSubterms ts = do c <- fresh (defaultAttribs ("c_" ++ show i) (length ts)) {symIsCompound = True}
                                          ts' <- mapM mrk ts
                                          return $ Term.Fun c ts'
-                    gatherSubterms v@(Term.Var _) | strat == Innermost = []
-                                                  | otherwise         = [v]
-                    gatherSubterms s@(Term.Fun f ss) | f `Set.member` definedsFromTrs = [s]
-                                                     | otherwise                      = concatMap gatherSubterms ss
+                    gatherSubterms | useTuples = gatherSubtermsWDT
+                                   | otherwise = gatherSubtermsWDP
+                    gatherSubtermsWDP v@(Term.Var _) | strat == Innermost = []
+                                                     | otherwise         = [v]
+                    gatherSubtermsWDP s@(Term.Fun f ss) | f `Set.member` definedsFromTrs = [s]
+                                                        | otherwise                      = concatMap gatherSubterms ss
+                    gatherSubtermsWDT s@(Term.Fun f ss) | f `Set.member` definedsFromTrs = s : subs
+                                                        | otherwise                      = subs
+                        where subs = concatMap gatherSubterms ss                                                                                           
+                    gatherSubtermsWDT _                                                  = []                                                                                           
+
+                    
+                                                                                           
           mrk v@(Term.Var _) = return $ v
           mrk (Term.Fun f ts) = do f' <- markSymbol f
                                    return $ Term.Fun f' ts
@@ -67,14 +76,17 @@ data DPs = DPs
 
 data DPProof = DPProof { strictDPs    :: Trs
                        , weakDPs      :: Trs
+                       , tuplesUsed   :: Bool
                        , newSignature :: Signature
                        , newVariables :: Variables }
              | NotRCProblem
              | ContainsDPs
+             | TuplesNonInnermost
 
 instance PrettyPrintable DPProof where 
     pprint NotRCProblem = text "The input problem is not a RC-problem. We cannot compute dependency pairs."
     pprint ContainsDPs  = text "The input problem contains already dependency pairs. We abort."
+    pprint TuplesNonInnermost  = text "Dependency tuples only applicable to innermost problems."
     pprint p            = text "We have computed the following dependency pairs"
                           $+$ block "Strict Dependency Pairs" (pprint (strictDPs p, sig, vars))
                           $+$ block "Weak Dependency Pairs" (pprint (weakDPs p, sig, vars))
@@ -84,8 +96,7 @@ instance PrettyPrintable DPProof where
 instance T.TransformationProof DPs where
     answer proof = case T.subProofs proof of 
                      [(_, subproof)] -> P.answer subproof
-                     ps               -> error $ msg ps
-        where msg ps = "Tct.Method.DP.DependencyPairs: Expecting 1 subproof but received " ++ show (length ps)
+                     _               -> P.MaybeAnswer
     pprintProof _ _ = pprint
 
 instance T.Transformer DPs where
@@ -99,29 +110,34 @@ instance T.Transformer DPs where
                         , A.defaultValue = False }
 
     transform inst prob = return $  
-        case (Prob.startTerms prob, Trs.isEmpty $ Prob.dpComponents prob) of 
-          (TermAlgebra     , _    ) -> T.NoProgress NotRCProblem
-          (_               , False) -> T.NoProgress ContainsDPs
-          (BasicTerms ds cs, _    ) -> T.Progress proof  (enumeration' [prob'])
-              where useTuples = T.transformationArgs inst
-                    strat     = Prob.strategy prob
-                    sig       = Prob.signature prob
-                    strict    = Prob.strictTrs prob
-                    weak      = Prob.weakTrs prob
-                    ((sDps, wDps, ds'), sig') = flip Sig.runSignature sig $ 
-                                                do s <- dependencyPairsOf useTuples strat strict
-                                                   w <- dependencyPairsOf useTuples strat weak
-                                                   d <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
-                                                   return (s, w, d)
-                    proof     = DPProof { strictDPs = sDps
-                                        , weakDPs   = wDps
-                                        , newSignature = sig'
-                                        , newVariables = Prob.variables prob }
-                    prob'     = prob { Prob.startTerms = BasicTerms ds' cs
-                                     , Prob.strictDPs  = sDps
-                                     , Prob.weakDPs    = wDps
-                                     , Prob.signature  = sig' }
-
+        case (Prob.startTerms prob, Trs.isEmpty $ Prob.dpComponents prob, useTuples && (Prob.strategy prob /= Innermost)) of 
+          (TermAlgebra     , _    ,    _) -> T.NoProgress NotRCProblem
+          (_               , False,    _) -> T.NoProgress ContainsDPs
+          (_               , _    , True) -> T.NoProgress TuplesNonInnermost
+          (BasicTerms ds cs, _    , _   ) -> T.Progress proof  (enumeration' [prob'])
+            where strat     = Prob.strategy prob
+                  sig       = Prob.signature prob
+                  strict    = Prob.strictTrs prob
+                  weak      = Prob.weakTrs prob
+                  ((sDps, wDps, ds'), sig') = flip Sig.runSignature sig $ 
+                                              do s <- dependencyPairsOf useTuples strat strict
+                                                 w <- dependencyPairsOf useTuples strat weak
+                                                 d <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
+                                                 return (s, w, d)
+                  proof     = DPProof { strictDPs = sDps
+                                      , weakDPs   = wDps
+                                      , newSignature = sig'
+                                      , newVariables = Prob.variables prob 
+                                      , tuplesUsed   = useTuples}
+                  prob'     = prob { Prob.startTerms = BasicTerms ds' cs
+                                   , Prob.strictDPs  = sDps
+                                   , Prob.weakDPs    = wDps
+                                   , Prob.strictTrs = if useTuples then Trs.empty else Prob.strictTrs prob
+                                   , Prob.weakTrs   = if useTuples 
+                                                       then Prob.trsComponents prob
+                                                       else Prob.weakTrs prob
+                                   , Prob.signature  = sig' }
+        where useTuples = T.transformationArgs inst
 
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs

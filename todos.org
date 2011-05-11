@@ -1,6 +1,6 @@
 * Remove Trailing Dingsbums					   :WDG:PROC:
 ** veraendert auch rhss von anderen paaren, zb. nuetzlich in AG01/3.2
-* Rewrite RHSs							       :PROC:
+* Rewrite RHSs 							       :PROC:
 * Knowledge-Propagation						       :PROC:
 ** DG in RC problem speichern & Prozessor implementieren?
 ** Beispiel:
@@ -114,3 +114,4 @@ Polynomial interpretation :
     POL(pred(x1)) = x1   
     POL(s(x1)) = [2] + x1   
 * timeout schickt dediziertes signal
+* synopsis statt parsec parse warning, bitte

@@ -73,13 +73,7 @@ instance T.TransformationProof InnermostRuleRemoval where
     answer proof = case (T.transformationProof proof, T.subProofs proof) of 
                      (NotApplicable _, _             ) -> P.MaybeAnswer
                      (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
-                     (IRRProof _ _   , ps            ) -> error $ msg
-                         where msg = "Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ps)
-    answer proof = case (T.transformationProof proof, T.subProofs proof) of 
-                     (NotApplicable _, _             ) -> P.MaybeAnswer
-                     (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
-                     (IRRProof _ _   , ps            ) -> error $ msg
-                         where msg = "Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ps)
+                     (IRRProof _ _   , _             ) -> P.MaybeAnswer
     pprintProof _ _  = pprint
 
               

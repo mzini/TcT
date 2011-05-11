@@ -44,7 +44,6 @@ import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
-import Data.Tuple (swap)
 -- static partitioning
 
 data PartitionFn = Random | SeparateDP deriving (Show, Typeable, Ord, Enum, Eq, Bounded)
@@ -58,6 +57,7 @@ staticAssign :: PartitionFn -> Problem -> (p1, p2) -> (Problem, Problem)
 staticAssign Random problem _ = ( mkProb dpssplit trssplit , mkProb (swap dpssplit) (swap trssplit))
     where trssplit = halve $ Prob.strictTrs problem
           dpssplit = halve $ Prob.strictDPs problem
+          swap (a,b) = (b,a)
           mkProb (sdps,wdps) (strs,wtrs) = problem { strictDPs = Trs sdps
                                                    , weakDPs   = Trs wdps `Trs.union` Prob.weakDPs problem
                                                    , strictTrs = Trs strs

@@ -92,6 +92,7 @@ instance T.TransformationProof PathAnalysis where
                      T.NoProgress _        -> P.MaybeAnswer
                      T.Progress _ subprobs -> case mubs of 
                                              Just ubs -> P.answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 1) : ubs)
+                                             Nothing  -> P.MaybeAnswer
                          where mubs = sequence [ (upperBound . P.certificate) `liftM` T.findProof e proof | (SN e,_) <- subprobs]
 
     pprint proof = case T.transformationProof proof of 

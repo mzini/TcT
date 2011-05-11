@@ -97,6 +97,10 @@ proofFromResult :: Result t -> (ProofOf t)
 proofFromResult (NoProgress t) = t
 proofFromResult (Progress t _) = t
 
+mapResult :: (ProofOf t1 -> ProofOf t2) -> Result t1 -> Result t2
+mapResult f (NoProgress p)  = NoProgress (f p)
+mapResult f (Progress p ps) = Progress (f p) ps
+
 transformationProof :: Proof t sub -> ProofOf t
 transformationProof tproof = case transformationResult tproof of 
                                NoProgress p -> p
@@ -193,6 +197,7 @@ data ComposeProof t1 t2 = ComposeProof { firstproof :: Result t1
                                        , sndproof   :: Maybe (Enumeration (Result t2)) }
 
 
+infixr 6 >>>
 (>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
 t1 >>> t2 = someTransformation inst 
     where inst = TheTransformer (t1 :>>>: t2) ()
@@ -241,15 +246,20 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
 
     pprintProof (t1 :>>>: _ ) prob (ComposeProof r1 Nothing) = pprintProof (transformation t1)  prob (proofFromResult r1)
     pprintProof (t1 :>>>: t2) prob (ComposeProof r1 (Just r2s)) = block' "Details first transformation" [pprintProof (transformation t1) prob (proofFromResult r1)]
-                                                                  $+$ ppsubs
-        where ppsubs = case r1 of 
-                       NoProgress {} -> text ""
-                       Progress _ p2s -> block "Details second transformation" [ (e1,pp e1 prob_i) | (e1,prob_i) <- p2s]
-                           where pp (SN e1) prob_i = text "transformation of the following problem"
-                                                     $+$ Util.pprint prob_i 
-                                                     $+$ block' "Details" [fromMaybe (text "TRANSFORMATIONPROOF is missing") ppr2i]
-                                     where ppr2i = do r2i <- find e1 r2s
-                                                      return $ pprintProof (transformation t2) prob_i (proofFromResult r2i)
+                                                                                   $+$ ppsubs
+        where ppsubs | contd     = block "Details second transformation" (ppsub `map` r2s)
+                     | otherwise = text ""
+                where contd = continue (transformation t1) (proofFromResult r1)
+                      subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
+                      ppsub (SN i, r2_i) = ( SN i
+                                           , case find i subprobs of 
+                                               Just prob_i -> pprintProof (transformation t2) prob_i (proofFromResult r2_i)
+                                               Nothing     -> error $ "Transformation.pprintProof (t1 :>>>: t2): subproblem " ++ show (Util.pprint (SN i)) ++ " missing" )
+                           -- where pp (SN e1) prob_i = text "transformation of the following problem"
+                           --                           $+$ Util.pprint prob_i 
+                           --                           $+$ block' "Details" [fromMaybe (text "TRANSFORMATIONPROOF is missing") ppr2i]
+                           --           where ppr2i = do r2i <- find e1 r2s
+                           --                            return $ pprintProof (transformation t2) prob_i (proofFromResult r2i)
 
 mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (TransProc (Try t2) sub))
 mkComposeProof sub t1 t2 input r1 r2s subproofs =
@@ -328,13 +338,16 @@ data TryProof t = TryProof Bool (ProofOf t)
 
 instance TransformationProof t => TransformationProof (Try t) where
     continue _ _ = True
-    pprint proof = case transformationProof proof of 
-                      TryProof False p -> text "Transformation failed:"
-                                          $+$ nest 1 (pprintProof t input p) 
-                                          $+$ block "We continue with the subprocessor" (P.result `mapEnum` subproofs)
-      where TheTransformer (Try t) _ = appliedTransformer proof
+    pprint proof = case result of 
+                      NoProgress (TryProof _ p) -> text "Transformation did not progress, reason:"
+                                                  $+$ nest 1 (pprintProof t input p) 
+                                                  $+$ block "We continue with the subprocessor" (P.result `mapEnum` subproofs)
+                      Progress (TryProof _ p) _ -> pprint proof { appliedTransformer = TheTransformer t as
+                                                                , transformationResult = const p `mapResult` result }
+      where TheTransformer (Try t) as = appliedTransformer proof
             input = inputProblem proof
             subproofs = subProofs proof
+            result    = transformationResult proof
     answer proof = answer $ proof { appliedTransformer   = TheTransformer t as 
                                   , transformationResult = result'}
       where TheTransformer (Try t) as = appliedTransformer proof
@@ -345,7 +358,7 @@ instance TransformationProof t => TransformationProof (Try t) where
     pprintProof (Try t) prob (TryProof _ p) = pprintProof t prob p
 
 instance (Transformer t) => Transformer (Try t) where
-    name (Try t) = "trying " ++ name t
+    name (Try t) = name t
     description (Try t) = description t
     type ArgumentsOf  (Try t) = ArgumentsOf t
     type ProofOf (Try t) = TryProof t
@@ -409,6 +422,8 @@ someTransformation inst = inst { transformation     = SomeTrans (transformation 
 calledWith :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransformer t
 t `calledWith` as = TheTransformer t as 
 
+
+infixr 2 `thenApply`
 
 thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
 thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (Nothing :+: Nothing :+: args :+: sub)

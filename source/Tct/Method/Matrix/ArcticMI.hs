@@ -128,11 +128,12 @@ instance S.Processor ArcticMI where
                         | otherwise                            = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
               allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
 
-    solvePartial inst problem | isMonadic = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' inst
-                              | otherwise = return $ P.PartialProof { P.ppInputProblem = problem
+    solvePartial inst problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
                                                                     , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
                                                                     , P.ppRemovableDPs = []
                                                                     , P.ppRemovableTrs = [] }
+                              | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' inst
+                              | otherwise = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' inst
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
@@ -222,6 +223,10 @@ orientPartial strat st trs sig mp = orientMatrix partialConstraints ua st trs Tr
 orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
 orientPartialRelative strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientPartialDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartialDp strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)

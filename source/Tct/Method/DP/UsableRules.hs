@@ -70,8 +70,7 @@ instance PrettyPrintable URProof where
 instance T.TransformationProof UR where
     answer proof = case T.subProofs proof of 
                      [(_, subproof)] -> P.answer subproof
-                     ps               -> error $ msg ps
-        where msg ps = "Tct.Method.DP.UsableRules: Expecting 1 subproof but received " ++ show (length ps)
+                     _               -> P.MaybeAnswer
     pprintProof _ _ = pprint
 
 

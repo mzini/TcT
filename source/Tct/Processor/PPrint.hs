@@ -104,6 +104,7 @@ findBy p ((SN a, e) : es) =
     case cast a of 
       Just a' | p a'      -> Just e
               | otherwise -> findBy p es
+      Nothing             -> Nothing
 
 details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 details ps | any (failed . snd) ps = detailsFailed ps 

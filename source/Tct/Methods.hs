@@ -56,6 +56,7 @@ module Tct.Methods
     , pathAnalysis
     , dependencyPairs
     , usableRules
+    , weightgap
     , (>>>)
     , exhaustively
     , try
@@ -76,6 +77,7 @@ module Tct.Methods
     , Description(..)
     , customProcessor
     , localProcessor 
+    , processor
 
     -- ** Arguments
     , Nat (..)
@@ -84,6 +86,7 @@ module Tct.Methods
     , EnumOf
     , Processor
     , NaturalMIKind (..)
+    , WgOn (..)
     , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)
@@ -132,6 +135,7 @@ module Tct.Methods
     , dependencyPairsProcessor
     , pathAnalysisProcessor
     , usableRulesProcessor
+    , weightgapProcessor
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -149,6 +153,7 @@ import Tct.Method.Uncurry
 import Tct.Method.DP.UsableRules
 import Tct.Method.DP.DependencyPairs
 import Tct.Method.DP.PathAnalysis
+import Tct.Method.Weightgap
 import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
 import Qlogic.NatSat (Size (..))
@@ -181,6 +186,7 @@ builtInProcessors = timeoutProcessor
                    <|> pathAnalysisProcessor
                    <|> matrixProcessor
                    <|> arcticProcessor
+                   <|> weightgapProcessor
                    <|> composeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors

@@ -50,13 +50,16 @@ module Tct.Methods
     , withArgs
 
     -- ** Transformations
+    , thenApply
     , irr
     , uncurry
     , pathAnalysis
     , dependencyPairs
     , usableRules
     , (>>>)
+    , exhaustively
     , try
+    , tryFailed
 
     -- ** Predicates
     , isCollapsing

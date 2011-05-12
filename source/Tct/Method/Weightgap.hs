@@ -178,7 +178,9 @@ instance T.Transformer WeightGap where
                            let uarg' = if wgUargs then usableArgs (strategy prob) sr wr else fullWithSignature (signature prob)
                            p <- orientMatrix (weightGapConstraints wgon $ strictTrs prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                            return $ case p of
-                             (Order (MatrixOrder mi _ _)) -> T.Success wgpr (enumeration' [prob'])
+                             (Order (MatrixOrder mi _ _)) -> case Trs.isEmpty remdps && Trs.isEmpty remtrs of
+                                                               True  -> T.Failure wgpr
+                                                               False -> T.Success wgpr (enumeration' [prob'])
                                where wgpr   = WeightGapProof { wgInputProblem = prob
                                                              , wgProof        = p
                                                              , wgRemovableDps = Trs.toRules remdps

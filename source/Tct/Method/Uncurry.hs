@@ -75,8 +75,7 @@ instance T.TransformationProof Uncurry where
                      (NotUncurryable _, _             ) -> P.MaybeAnswer
                      (EmptyStrictRules, _             ) -> P.answerFromCertificate $ certified (constant, constant)
                      (_               , [(_,subproof)]) -> P.answer subproof
-                     (_               , ps            ) -> error $ msg
-                         where msg = "Tct.Method.Uncurry: Expecting 1 subproof but received " ++ show (length ps)
+                     (_               , _            )  -> P.MaybeAnswer
     pprintProof _ _ = pprint
 
 instance T.Transformer Uncurry where

@@ -38,7 +38,7 @@ import Termlib.FunctionSymbol (Signature, Symbol, SignatureMonad, Attributes(..)
 import qualified Termlib.FunctionSymbol as F
 import Termlib.Signature (runSignature, getSignature)
 import Termlib.Term (Term(..))
-import Termlib.Utils (PrettyPrintable(..))
+import Termlib.Utils (PrettyPrintable(..),Enumerateable(..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 
@@ -75,8 +75,7 @@ instance T.TransformationProof Uncurry where
                      (NotUncurryable _, _             ) -> P.MaybeAnswer
                      (EmptyStrictRules, _             ) -> P.answerFromCertificate $ certified (constant, constant)
                      (_               , [(_,subproof)]) -> P.answer subproof
-                     (_               , ps            ) -> error $ msg
-                         where msg = "Tct.Method.Uncurry: Expecting 1 subproof but received " ++ show (length ps)
+                     (_               , _             ) -> P.MaybeAnswer
     pprintProof _ _ = pprint
 
 instance T.Transformer Uncurry where
@@ -94,9 +93,9 @@ instance T.Transformer Uncurry where
                                                     else T.Progress p (enumeration' [prob']) 
                                            where m = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
                                                         let asig' = case asig of AppSignature (_,attribs) cs -> AppSignature (appsym,attribs) cs
-                                                        us <- mkUncurrySystem asig'
                                                         ustrct <- mkUncurryTrs asig' (saturated strct)
                                                         uweak <- mkUncurryTrs asig' (saturated weak)
+                                                        us <- mkUncurrySystem asig'
                                                         sig <- getSignature
                                                         return UncurryProof { inputProblem = prob
                                                                             , uncurryTrs   = us
@@ -214,27 +213,25 @@ mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
                                        return $ R.Rule lhs' rhs'
           mk = fresh . uc
           appsym      = appSymbol asig
-          s `apply` t = Fun appsym [s,t] 
-          symOf g ar = do attribs <- F.getAttributes g 
-                          case M.lookup g $ consts asig of 
-                                 Just (gattribs,_) -> F.maybeFresh (alterAttributes ar gattribs) 
-                                 Nothing           -> error $ show $ F.symIdent attribs
-          -- symOf g ar = F.maybeFresh (alterAttributes ar gattribs) 
-          --     where gattribs = case M.lookup g $ consts asig of 
-          --                        Just (attribs,_) -> attribs
-          --                        Nothing          -> error $ show g
+          fakeApp     = invEnum (-1 :: Int)
+          s `apply` t = Fun fakeApp [s,t] 
+          symOf g ar = case M.lookup g $ consts asig of 
+                         Just (gattribs,_) -> F.maybeFresh (alterAttributes ar gattribs) 
+                         Nothing           -> error "Uncurry: symbol not found"
 
           uc (Fun _ [t1,t2]) = case u1 of 
                                  Var{}     -> u1 `apply` u2
-                                 Fun g u1s | appArity asig g > length u1s  -> Fun g (u1s ++ [u2])
+                                 Fun g u1s | g == fakeApp                  -> u1 `apply` u2
+                                           | appArity asig g > length u1s  -> Fun g (u1s ++ [u2])
                                            | otherwise                     -> u1 `apply` u2
               where u1 = uc t1
                     u2 = uc t2
           uc t               =  t
-          fresh v@(Var _)               = return v
-          fresh (Fun g ts) | g == appsym = fresh' g
-                           | otherwise  = symOf g (length ts) >>= fresh'
+          fresh v@(Var _)                = return v
+          fresh (Fun g ts) | g == fakeApp = fresh' appsym
+                           | otherwise   = symOf g (length ts) >>= fresh'
               where fresh' g' = Fun g' `liftM` mapM fresh ts
+
 
 
 

@@ -31,7 +31,8 @@ nb :: String -> Doc
 nb msg = text "  NB:" <+> text msg
 
 pprint :: U.PrettyPrintable a => a -> IO ()
-pprint a = do print $ indent $ U.pprint a
+pprint a = do putStrLn "" 
+              print $ indent $ U.pprint a
               putStrLn ""
 
 bordered :: Doc -> Doc

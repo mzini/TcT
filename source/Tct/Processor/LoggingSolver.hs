@@ -155,9 +155,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                          put $ lv + 1
                          sendMsg uid lv SolveStart
                          r <- solve_ proc prob 
-                         sendMsg uid lv $ SolveFinish $ Proof { appliedProcessor = someInstance proc 
-                                                              , inputProblem = prob
-                                                              , result = someProof r}
+                         sendMsg uid lv $ SolveFinish $ someProofNode proc prob r 
                          return r
         where sendMsg uid lv sig = do (chan, UTCTime day time) <- ask
                                       liftIO $ do pid <- myThreadId

@@ -28,7 +28,7 @@ import qualified Data.Graph.Inductive.Tree as GraphT
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 
 import qualified Control.Monad.State.Lazy as State
-import Data.List (delete)
+import Data.List (delete, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
@@ -36,6 +36,7 @@ import Data.Typeable
 import Data.Maybe (fromJust, fromMaybe)
 
 import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import Termlib.Problem (Problem)
 import qualified Termlib.Term as Term
@@ -43,7 +44,10 @@ import Termlib.Term (Term)
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
-
+import Termlib.Trs.PrettyPrint (pprintTrs)
+import Text.PrettyPrint.HughesPJ hiding (empty)
+import Termlib.Utils
+import Tct.Processor.PPrint
 --------------------------------------------------------------------------------
 -- Dependency Graph Type
 --------------------------------------------------------------------------------
@@ -184,3 +188,19 @@ etcap :: [Term] -> Term -> GroundContext
 etcap _ (Term.Var _)       = Hole
 etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
     where c = Fun f $ map (etcap lhss) ts
+
+pprintCWDGNode :: CongrDG -> F.Signature -> V.Variables -> NodeId -> Doc
+pprintCWDGNode cwdg _ _ n = braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ]
+
+pprintCWDG :: DG -> CongrDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
+pprintCWDG wdg cwdg sig vars ppLabel = (indent $ printTree 60 ppNode ppLabel pTree)
+                                       $+$ text ""
+                                       $+$ text "Here rules are as follows:"
+                                       $+$ text ""
+                                       $+$ (indent $ pprintTrs pprule [ (n, fromJust (lookupNode wdg n)) | n <- nodes wdg])
+    where pprule (i,(_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
+          ppNode _ n    = printNodeId n
+          pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
+                         , pptSuc = sortBy compareLabel . successors cwdg}
+          compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2
+          printNodeId = pprintCWDGNode cwdg sig vars 

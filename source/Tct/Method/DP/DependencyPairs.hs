@@ -36,7 +36,6 @@ import Termlib.Utils
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable(..))
 import Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
 import Tct.Processor.PPrint (enumeration')
@@ -94,15 +93,11 @@ instance PrettyPrintable DPProof where
         where sig = newSignature p
               vars = newVariables p
 
-instance P.Processor sub => P.Answerable (T.TProof DPs sub) where
-    answer = T.answerTProof answer'
-        where answer' _ [(_,p)] = P.answer p
-              answer' _ _       = error "dependency pairs processor received wrong number of subproofs"
-
-instance P.Processor sub => PrettyPrintable (T.TProof DPs sub) where
-    pprint = T.prettyPrintTProof
-
-instance T.Verifiable DPProof
+instance T.TransformationProof DPs where
+    answer proof = case T.subProofs proof of 
+                     [(_, subproof)] -> P.answer subproof
+                     _               -> P.MaybeAnswer
+    pprintProof _ _ = pprint
 
 instance T.Transformer DPs where
     name DPs = "dp"
@@ -116,10 +111,10 @@ instance T.Transformer DPs where
 
     transform inst prob = return $  
         case (Prob.startTerms prob, Trs.isEmpty $ Prob.dpComponents prob, useTuples && (Prob.strategy prob /= Innermost)) of 
-          (TermAlgebra     , _    ,    _) -> T.Failure NotRCProblem
-          (_               , False,    _) -> T.Failure ContainsDPs
-          (_               , _    , True) -> T.Failure TuplesNonInnermost
-          (BasicTerms ds cs, _    , _   ) -> T.Success proof  (enumeration' [prob'])
+          (TermAlgebra     , _    ,    _) -> T.NoProgress NotRCProblem
+          (_               , False,    _) -> T.NoProgress ContainsDPs
+          (_               , _    , True) -> T.NoProgress TuplesNonInnermost
+          (BasicTerms ds cs, _    , _   ) -> T.Progress proof  (enumeration' [prob'])
             where strat     = Prob.strategy prob
                   sig       = Prob.signature prob
                   strict    = Prob.strictTrs prob
@@ -143,11 +138,12 @@ instance T.Transformer DPs where
                                                        else Prob.weakTrs prob
                                    , Prob.signature  = sig' }
         where useTuples = T.transformationArgs inst
+
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs
 
-dependencyPairs :: (P.Processor sub) => Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor DPs sub)
-dependencyPairs useTuples = T.transformationProcessor DPs `T.calledWith` useTuples
+dependencyPairs :: Bool -> T.TheTransformer DPs
+dependencyPairs useTuples = DPs `T.calledWith` useTuples
 
 
                                           -- 

@@ -64,6 +64,8 @@ module Tct.Processor
     , SomeProof (..)
     , SomeInstance (..)
     , someProof
+    , someProcessorProof
+    , someProofNode
     , someProcessor
     , someInstance
     , solveBy
@@ -391,6 +393,14 @@ instance Show (InstanceOf SomeProcessor) where
 someProof :: (ComplexityProof p) => p -> SomeProof
 someProof = SomeProof
 
+someProofNode :: Processor p => InstanceOf p -> Problem -> ProofOf p -> Proof SomeProcessor
+someProofNode proc prob proof = Proof { appliedProcessor = someInstance proc 
+                                      , inputProblem = prob
+                                      , result = someProof proof}
+
+someProcessorProof :: Processor p => Proof p -> Proof SomeProcessor
+someProcessorProof (Proof inst prob proof) = Proof (someInstance inst) prob (someProof proof)
+
 someProcessor :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> SomeProcessor
 someProcessor = SomeProcessor
 
@@ -398,7 +408,7 @@ someInstance :: forall p. (ComplexityProof (ProofOf p), Processor p) => Instance
 someInstance inst = SPI (SomeInstance inst)
 
 solveBy :: (Processor a, SolverM m) => Problem -> InstanceOf a -> m SomeProof
-prob `solveBy` proc = someProof `liftM` solve proc prob
+prob `solveBy` proc = SomeProof `liftM` solve proc prob
 
 
 -- * Any Processor

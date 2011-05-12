@@ -88,18 +88,17 @@ instance PrettyPrintable WeightGapProof where
     where ip = wgInputProblem wgp
           p  = wgProof wgp
 
-instance P.Processor sub => P.Answerable (T.TProof WeightGap sub) where
-  answer = T.answerTProof answer'
-    where answer' tp [(_,p)] = case (P.answer (wgProof tp), P.answer p) of
-                                 (P.CertAnswer tc, P.CertAnswer c) -> P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
-                                 (P.CertAnswer _ , a)              -> a
-                                 _                                 -> error "Tct.Method.Weightgap.answer: unexpected pattern amtching case"
-          answer' _  _       = error "weight gap processor received wrong number of subproofs" 
+instance T.TransformationProof WeightGap where 
+  answer proof = case T.subProofs proof of 
+                     [(_,subproof)] -> mkAnswer (P.answer wgproof) (P.answer subproof)
+                     _              -> P.MaybeAnswer
+    where wgproof = wgProof $ T.transformationProof proof
+          mkAnswer (P.CertAnswer tc) (P.CertAnswer c) = P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
+          mkAnswer (P.CertAnswer _ ) a                = a
+          mkAnswer _                 _                = error "Tct.Method.Weightgap.answer: unexpected pattern amtching case"
+                       
+  pprintProof _ _  = pprint 
 
-instance P.Processor sub => PrettyPrintable (T.TProof WeightGap sub) where
-  pprint = T.prettyPrintTProof
-
-instance T.Verifiable WeightGapProof
 
 instance T.Transformer WeightGap where
   name WeightGap = "weightgap"
@@ -179,8 +178,8 @@ instance T.Transformer WeightGap where
                            p <- orientMatrix (weightGapConstraints wgon $ strictTrs prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                            return $ case p of
                              (Order (MatrixOrder mi _ _)) -> case Trs.isEmpty remdps && Trs.isEmpty remtrs of
-                                                               True  -> T.Failure wgpr
-                                                               False -> T.Success wgpr (enumeration' [prob'])
+                                                               True  -> T.NoProgress wgpr
+                                                               False -> T.Progress wgpr (enumeration' [prob'])
                                where wgpr   = WeightGapProof { wgInputProblem = prob
                                                              , wgProof        = p
                                                              , wgRemovableDps = Trs.toRules remdps
@@ -191,7 +190,7 @@ instance T.Transformer WeightGap where
                                                    , strictTrs = strictTrs prob Trs.\\ remtrs
                                                    , weakDPs   = weakDPs prob `Trs.union` remdps
                                                    , weakTrs   = weakTrs prob `Trs.union` remtrs }
-                             _                            -> T.Failure wgpr
+                             _                            -> T.NoProgress wgpr
                                where wgpr = WeightGapProof { wgInputProblem = prob
                                                            , wgProof        = p
                                                            , wgRemovableDps = []
@@ -234,5 +233,5 @@ nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficie
 weightgapProcessor :: T.TransformationProcessor WeightGap P.AnyProcessor
 weightgapProcessor = T.transformationProcessor WeightGap
 
-weightgap :: (P.Processor sub) => WgOn -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor WeightGap sub)
-weightgap wgon wgkind wgdeg wgdim wgsize wgcbits wgua = T.transformationProcessor WeightGap `T.calledWith` (wgon :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: wgua)
+weightgap :: WgOn -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> T.TheTransformer WeightGap
+weightgap wgon wgkind wgdeg wgdim wgsize wgcbits wgua = WeightGap `T.calledWith` (wgon :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: wgua)

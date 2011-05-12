@@ -26,6 +26,7 @@ module Tct.Method.Custom
     , CustomProcessor
     , customProcessor
     , localProcessor
+    , processor
     , proc
     , pure)
 where
@@ -70,9 +71,8 @@ localProcessor :: P.ComplexityProof res => String -> (forall m. P.SolverM m => P
 localProcessor name f = S.StdProcessor (CP  d (\ () -> f)) `S.withArgs` ()
   where d = Description { as = name, descr = [], args = A.unit }
                                
-            
-
-
+processor :: P.Processor proc => (A.Domains arg -> P.InstanceOf proc) -> (Description arg) -> (CustomProcessor arg (P.ProofOf proc))
+processor mkInst = customProcessor (P.solve . mkInst) 
 --------------------------------------------------------------------------------
 -- convenience
 

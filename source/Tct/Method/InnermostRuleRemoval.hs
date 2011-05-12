@@ -32,7 +32,7 @@ import Data.Maybe (isJust, catMaybes)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Tct.Processor.PPrint (enumeration', details)
+import Tct.Processor.PPrint (enumeration')
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
@@ -69,20 +69,14 @@ instance PrettyPrintable IRRProof where
                    vars    = Prob.variables $ inputProblem proof
 
 
-instance P.Processor sub => P.Answerable (T.TProof InnermostRuleRemoval sub) where 
-    answer = T.answerTProof answer'
-        where answer' NotApplicable{} _ = P.MaybeAnswer
-              answer' _ [(_,ps)]        = P.answer ps
-              answer' _ ls              = error $ show msg 
-                where msg = text ("Tct.Method.InnermostRuleRemoval: Expecting 1 subproof but received " ++ show (length ls))
-                            $$ details ls
+instance T.TransformationProof InnermostRuleRemoval where 
+    answer proof = case (T.transformationProof proof, T.subProofs proof) of 
+                     (NotApplicable _, _             ) -> P.MaybeAnswer
+                     (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
+                     (IRRProof _ _   , _             ) -> P.MaybeAnswer
+    pprintProof _ _  = pprint
+
               
-instance T.Verifiable (IRRProof)
-
-
-instance P.Processor sub => PrettyPrintable (T.TProof InnermostRuleRemoval sub) where
-    pprint = T.prettyPrintTProof
-
 instance T.Transformer InnermostRuleRemoval where
     type T.ArgumentsOf InnermostRuleRemoval = A.Unit
     type T.ProofOf     InnermostRuleRemoval = IRRProof
@@ -92,10 +86,10 @@ instance T.Transformer InnermostRuleRemoval where
                                        , "The processor applies only to innermost problems." ]
     transform _ prob = 
         return $ case (Prob.strategy prob, null allRemovals) of 
-                   (Innermost, True ) -> T.Failure proof
-                   (Innermost, False) -> T.Success proof (enumeration' [(\ trs -> trs \\ rs) `mapRules` prob]) 
+                   (Innermost, True ) -> T.NoProgress proof
+                   (Innermost, False) -> T.Progress proof (enumeration' [(\ trs -> trs \\ rs) `mapRules` prob]) 
                                             where rs = Trs $ concatMap removed allRemovals
-                   _                  -> T.Failure $ NotApplicable "Input problem is not restricted to innermost rewriting"
+                   _                  -> T.NoProgress $ NotApplicable "Input problem is not restricted to innermost rewriting"
         where Trs innerRules  = Prob.trsComponents prob
               Trs allRules    = Prob.allComponents prob
               allRemovals = catMaybes $ mkRemoval `map` innerRules
@@ -111,5 +105,6 @@ irrProcessor :: T.TransformationProcessor InnermostRuleRemoval P.AnyProcessor
 irrProcessor = T.transformationProcessor InnermostRuleRemoval
 
 
-irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
-irr = T.transformationProcessor InnermostRuleRemoval `T.calledWith` ()
+-- irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
+irr :: T.TheTransformer InnermostRuleRemoval
+irr = InnermostRuleRemoval `T.calledWith` ()

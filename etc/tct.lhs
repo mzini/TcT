@@ -3,6 +3,7 @@
 %format p_1
 %format p_2
 %format <|> = "\mathrel{\langle\mid\rangle}"
+%format >>> = "\ggg"
 %format :+: = "\mathrel{{:}{+}{:}}"
 \usepackage[utf8x]{inputenc}
 \usepackage{xcolor}
@@ -94,6 +95,7 @@ import Tct (tct, defaultConfig, Config (..))
 \end{code}
 \ignore{
 \begin{code}
+import Prelude hiding (fail)
 import qualified Tct.Processor as P
 \end{code}
 }
@@ -105,6 +107,7 @@ processors defined in Section~\ref{s:procs}.
 main :: IO ()
 main = tct defaultConfig { processors = withMeasure 
                                        <|> greedyCompose
+                                       <|> rcProcessor                                       
                                        <|> processors defaultConfig } 
 \end{code}
 
@@ -150,7 +153,7 @@ withMeasureSolve (alt :+: sub) prob = prob' `solveBy` sub where
              Full          ->  prob { strategy    =  Prob.Full }
              Runtime       ->  prob { startTerms  = BasicTerms  {  defineds =  ds
                                                                 ,  constrs =  cs}}
-  rs     = Prob.strictWeakTrs prob
+  rs     = Prob.allComponents prob
   ds     = Trs.definedSymbols rs
   cs     = Trs.constructors rs
 \end{code}
@@ -201,5 +204,30 @@ greedyCompose = customProcessor greedyComposeSolve
                                {description = "The processor used to remove rules."}
                    subproc  =  processorArg 
                                {description = "The final processor."}
+\end{code}
+ 
+\section{Transformations}
+  
+\subsection{Simple Accessors}
+\begin{code}
+wg1     =  weightgap WgOnTrs Algebraic Nothing (nat 1) (Bits 3) (Just (Nat 4)) True
+wg3     =  weightgap WgOnTrs Algebraic (Just $ nat 1) (nat 3) (Bits 3) (Just (Nat 4)) True
+algebraic_matrix dim = matrix Algebraic Nothing (Nat dim) (Bits 3) (Just (Nat 4)) True
+\end{code}
+ 
+\subsection{Some Transformations} 
+\begin{code} 
+linears =  try wg3
+wdg tuples = dependencyPairs tuples >>> try usableRules >>> try pathAnalysis
+\end{code}
+
+\subsection{The Processor @rc@} 
+\begin{code}
+rc tuples   = wdg tuples >>> try linears `thenApply` fastest  [  algebraic_matrix dim 
+                                                              |  dim <- [1..3] ]
+rcProcessor = processor rc
+              Description  { as    =  "rc"
+                           , args  =  optional boolArg "tuples" False 
+                           , descr =  ["The default RC strategy."]}
 \end{code}
 \end{document}

@@ -42,10 +42,10 @@ import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 
-import Tct.Processor.Transformations as T
+import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable (..), Answer (..))
 import Tct.Processor.Args as A
+import Tct.Processor.PPrint
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import Tct.Certificate (constant, certified)
 
@@ -70,17 +70,13 @@ instance PrettyPrintable UncurryProof where
                    vars = Prob.variables $ inputProblem proof
 
 
-instance P.Processor sub => Answerable (T.TProof Uncurry sub) where
-    answer = T.answerTProof answer' 
-        where answer' (NotUncurryable _) _        = MaybeAnswer
-              answer' EmptyStrictRules   _        = P.answerFromCertificate $ certified (constant, constant)
-              answer' _                  [(_,ps)] = answer ps
-              answer' _                  _        = error "Tct.Method.Uncurry: Uncurry proof with wrong number of subproblems received"
-
-instance T.Verifiable UncurryProof
-
-instance P.Processor sub => PrettyPrintable (T.TProof Uncurry sub) where
-    pprint = prettyPrintTProof
+instance T.TransformationProof Uncurry where
+    answer proof = case (T.transformationProof proof, T.subProofs proof) of 
+                     (NotUncurryable _, _             ) -> P.MaybeAnswer
+                     (EmptyStrictRules, _             ) -> P.answerFromCertificate $ certified (constant, constant)
+                     (_               , [(_,subproof)]) -> P.answer subproof
+                     (_               , _            )  -> P.MaybeAnswer
+    pprintProof _ _ = pprint
 
 instance T.Transformer Uncurry where
     type T.ArgumentsOf Uncurry = A.Unit
@@ -88,13 +84,13 @@ instance T.Transformer Uncurry where
     name Uncurry = "uncurry"
     description Uncurry = [ "This processor implements 'Uncurrying' for left-head-variable-free ATRSs"]
     arguments Uncurry = A.Unit
-    transform _ prob | isDPProblem prob = return $ T.Failure $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
-                     | Trs.isEmpty (strictTrs prob) = return $ T.Failure $ EmptyStrictRules
+    transform _ prob | isDPProblem prob = return $ T.NoProgress $ NotUncurryable { reason = "Uncurry for DP problems not implemented" }
+                     | Trs.isEmpty (strictTrs prob) = return $ T.NoProgress $ EmptyStrictRules
                      | otherwise = return $ case applicativeSignature (Prob.signature prob) (trsComponents prob) of 
-                                     Nothing   -> T.Failure $ NotUncurryable {reason = "non applicative"}  
+                                     Nothing   -> T.NoProgress $ NotUncurryable {reason = "non applicative"}  
                                      Just asig -> if not $ isLeftHeadVariableFree (trsComponents prob)
-                                                    then T.Failure $ NotUncurryable {reason = "not left head variable free"}
-                                                    else T.Success p (enumeration' [prob']) 
+                                                    then T.NoProgress $ NotUncurryable {reason = "not left head variable free"}
+                                                    else T.Progress p (enumeration' [prob']) 
                                            where m = do appsym <- F.maybeFresh $ F.defaultAttribs appName 2
                                                         let asig' = case asig of AppSignature (_,attribs) cs -> AppSignature (appsym,attribs) cs
                                                         us <- mkUncurrySystem asig'
@@ -118,11 +114,11 @@ instance T.Transformer Uncurry where
                                                                , signature = newSignature p }
 
 
-uncurryProcessor :: TransformationProcessor Uncurry P.AnyProcessor
-uncurryProcessor = transformationProcessor Uncurry
+uncurryProcessor :: T.TransformationProcessor Uncurry P.AnyProcessor
+uncurryProcessor = T.transformationProcessor Uncurry
 
-uncurry :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (TransformationProcessor Uncurry sub)
-uncurry = transformationProcessor Uncurry `T.calledWith` ()
+uncurry :: T.TheTransformer Uncurry
+uncurry = Uncurry `T.calledWith` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show

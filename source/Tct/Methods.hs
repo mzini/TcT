@@ -50,17 +50,17 @@ module Tct.Methods
     , withArgs
 
     -- ** Transformations
+    , thenApply
     , irr
     , uncurry
     , pathAnalysis
     , dependencyPairs
     , usableRules
-    , parallelSubgoals
-    , sequentialSubgoals
-    , strict      
-    , nonstrict
     , weightgap
     , (>>>)
+    , exhaustively
+    , try
+    , tryFailed
 
     -- ** Predicates
     , isCollapsing
@@ -77,6 +77,7 @@ module Tct.Methods
     , Description(..)
     , customProcessor
     , localProcessor 
+    , processor
 
     -- ** Arguments
     , Nat (..)
@@ -152,9 +153,9 @@ import Tct.Method.Uncurry
 import Tct.Method.DP.UsableRules
 import Tct.Method.DP.DependencyPairs
 import Tct.Method.DP.PathAnalysis
+import Tct.Method.Weightgap
 import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
-import Tct.Method.Weightgap
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import Tct.Processor (solveBy)
@@ -215,13 +216,3 @@ before :: (P.Processor a, P.Processor b) =>
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 
--- transformation Combinators
-
-(>>>) :: (Transformer t1, Transformer t2, P.Processor sub) => -- (Transformer t1, P.Processor sub, P.ComplexityProof (P.ProofOf (TransformationProcessor t1 sub)), Arguments (ArgumentsOf t1)
-        (P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t1 sub))
-        -> (P.InstanceOf (TransformationProcessor t1 sub) -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub)))
-        -> P.InstanceOf sub -> P.InstanceOf (TransformationProcessor t2 (TransformationProcessor t1 sub))
-tfn1 >>> tfn2 = \ sub -> (tfn2 (tfn1 sub))
-
-
--- can be used as follows :: foo = (strict . uncurry) >>> (nonstrict . irr)

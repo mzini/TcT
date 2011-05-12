@@ -67,15 +67,12 @@ instance PrettyPrintable URProof where
              | otherwise     = text "All rules are usable."
         where ppTrs n trs = Utils.block n (pprint (trs, signature p, variables p))
 
-instance P.Processor sub => P.Answerable (T.TProof UR sub) where
-    answer = T.answerTProof answer'
-        where answer' _ [(_,p)] = P.answer p
-              answer' _ _       = error "Usable rules received wrong number of subproofs"
+instance T.TransformationProof UR where
+    answer proof = case T.subProofs proof of 
+                     [(_, subproof)] -> P.answer subproof
+                     _               -> P.MaybeAnswer
+    pprintProof _ _ = pprint
 
-instance P.Processor sub => PrettyPrintable (T.TProof UR sub) where
-    pprint = T.prettyPrintTProof
-
-instance T.Verifiable (DPProof URProof)
 
 instance T.Transformer UR where 
     name UR = "usablerules"
@@ -84,10 +81,10 @@ instance T.Transformer UR where
     type T.ArgumentsOf UR = Unit
     type T.ProofOf UR = DPProof URProof 
     arguments UR = Unit
-    transform _ prob | not (Prob.isDPProblem prob) = return $ T.Failure NonDPProblem
+    transform _ prob | not (Prob.isDPProblem prob) = return $ T.NoProgress NonDPProblem
                      | otherwise                 = return $ res
-        where res | progr     = T.Success ursproof (enumeration' [prob'])
-                  | otherwise = T.Failure ursproof
+        where res | progr     = T.Progress ursproof (enumeration' [prob'])
+                  | otherwise = T.NoProgress ursproof
               strs = Prob.strictTrs prob
               wtrs = Prob.weakTrs prob
               surs = mkUsableRules wdps ds strs
@@ -108,5 +105,5 @@ instance T.Transformer UR where
 usableRulesProcessor :: T.TransformationProcessor UR P.AnyProcessor
 usableRulesProcessor = T.transformationProcessor UR
 
-usableRules :: (P.Processor sub) => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor UR sub)
-usableRules = T.transformationProcessor UR `T.calledWith` ()
+usableRules :: T.TheTransformer UR
+usableRules = UR `T.calledWith` ()

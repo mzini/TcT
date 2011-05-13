@@ -142,8 +142,11 @@ instance T.Transformer DPs where
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs
 
-dependencyPairs :: Bool -> T.TheTransformer DPs
-dependencyPairs useTuples = DPs `T.calledWith` useTuples
+dependencyPairs :: T.TheTransformer DPs
+dependencyPairs = DPs `T.calledWith` False
+
+dependencyTuples :: T.TheTransformer DPs
+dependencyTuples = DPs `T.calledWith` True
 
 
                                           -- 

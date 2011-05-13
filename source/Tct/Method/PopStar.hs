@@ -26,6 +26,8 @@ module Tct.Method.PopStar
     , lmpoProcessor
     , popstar
     , lmpo
+    , popstarPS
+    , lmpoPS
     , PopStarOrder (..)
     , PopStar)
 where
@@ -191,11 +193,17 @@ popstarProcessor = S.StdProcessor (PopStar False)
 lmpoProcessor :: S.StdProcessor PopStar
 lmpoProcessor = S.StdProcessor (PopStar True)
 
-popstar :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
-popstar ps = S.StdProcessor (PopStar False) `S.withArgs` (ps :+: False)
+popstar :: P.InstanceOf (S.StdProcessor PopStar)
+popstar = S.StdProcessor (PopStar False) `S.withArgs` (False :+: False)
 
-lmpo :: Bool -> P.InstanceOf (S.StdProcessor PopStar)
-lmpo ps = S.StdProcessor (PopStar True) `S.withArgs` (ps :+: False)
+lmpo :: P.InstanceOf (S.StdProcessor PopStar)
+lmpo = S.StdProcessor (PopStar True) `S.withArgs` (False :+: False)
+
+popstarPS :: P.InstanceOf (S.StdProcessor PopStar)
+popstarPS = S.StdProcessor (PopStar False) `S.withArgs` (True :+: False)
+
+lmpoPS :: P.InstanceOf (S.StdProcessor PopStar)
+lmpoPS = S.StdProcessor (PopStar True) `S.withArgs` (True :+: False)
 
 
 --------------------------------------------------------------------------------

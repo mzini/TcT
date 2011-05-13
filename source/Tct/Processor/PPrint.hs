@@ -129,3 +129,10 @@ overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
                                         | otherwise   = text "FAILED"
 
 
+evalEnum :: (SolverM m) => Bool -> (Enumeration (m a)) -> m (Maybe (Enumeration a))
+evalEnum b ms = do rs <- evalList' b [ (,) e `liftM` m  | (e,m) <- ms ]
+                   return $ sequence [ mk e (find e rs)  | (SN e,_) <- ms]
+  where mk _ Nothing  = Nothing
+        mk e (Just x) = Just (SN e,x)
+
+

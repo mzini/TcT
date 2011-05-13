@@ -30,7 +30,10 @@ module Tct.Methods
     , epostar
     , fail
     , matrix
+    , popstarPS
+    , lmpoPS
     , popstar
+    , lmpo     
     , success
 
 
@@ -55,6 +58,7 @@ module Tct.Methods
     , uncurry
     , pathAnalysis
     , dependencyPairs
+    , dependencyTuples
     , usableRules
     , weightgap
     , (>>>)

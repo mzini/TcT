@@ -86,6 +86,10 @@ instance T.Transformer PathAnalysis where
                                        Trs sprob = Prob.strictDPs prob
                              _     -> True
 
+printPathName :: CongrDG -> F.Signature -> V.Variables -> Path -> Doc
+printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeId n | n <- ns] 
+  where printNodeId = pprintCWDGNode cwdg sig vars 
+
 
 instance T.TransformationProof PathAnalysis where
     answer proof = case T.transformationResult proof of 
@@ -122,9 +126,7 @@ instance T.TransformationProof PathAnalysis where
 
                                findSubProof pth = T.findProof (thePath pth) proof
 
-                               ppPathName (Path ns) = hcat $ punctuate (text "->") [printNodeId n | n <- ns] 
-
-                               printNodeId = pprintCWDGNode cwdg sig vars 
+                               ppPathName path = printPathName cwdg sig vars path
 
                                ppDetails = vcat $ punctuate (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
                                                                                        $+$ text ""

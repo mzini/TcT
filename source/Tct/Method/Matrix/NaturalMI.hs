@@ -95,6 +95,8 @@ instance PrettyPrintable MatrixOrder where
               ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted" <+> parens (text "at most" <+> int n <+> text "in the main diagonals")
               ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
               ppknd (EdaMatrix (Just n))          = text "EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
+              ppknd (ConstructorEda _ Nothing)    = text "constructor-based EDA-non-satsifying"
+              ppknd (ConstructorEda _ (Just n))   = text "constructor-based EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
 
 instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
     pprint (order, trs, var) = pprint order $+$ pptrs
@@ -104,13 +106,15 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance Answerable MatrixOrder where
-    answer (MatrixOrder _ UnrestrictedMatrix _)      = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m (TriangularMatrix _) _)    = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs _) _) = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
+    answer (MatrixOrder _ UnrestrictedMatrix _)          = CertAnswer $ certified (unknown, expo (Just 1))
+    answer (MatrixOrder m (TriangularMatrix _) _)        = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
+    answer (MatrixOrder m (ConstructorBased cs _) _)     = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
         where m'       = m{interpretations = filterCs $ interpretations m}
               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-    answer (MatrixOrder m (EdaMatrix Nothing) _)     = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder _ (EdaMatrix (Just n)) _)    = CertAnswer $ certified (unknown, poly (Just n))
+    answer (MatrixOrder m (EdaMatrix Nothing) _)         = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder _ (EdaMatrix (Just n)) _)        = CertAnswer $ certified (unknown, poly (Just n))
+    answer (MatrixOrder m (ConstructorEda _ Nothing) _)  = CertAnswer $ certified (unknown, poly (Just $ dimension m))
+    answer (MatrixOrder _ (ConstructorEda _ (Just n)) _) = CertAnswer $ certified (unknown, poly (Just n))
 
 instance Verifiable MatrixOrder
 instance ComplexityProof MatrixOrder
@@ -224,8 +228,7 @@ kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
 kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix (fmap (\ (Nat n) -> n) d)
--- AS: TODO: constructor based EDA
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ _)  = EdaMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> n) d)
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = EdaMatrix (fmap (\ (Nat n) -> n) d)
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
@@ -325,6 +328,14 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
                                                                      filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         otherConstraints (EdaMatrix Nothing) mi              = edaConstraints mi
         otherConstraints (EdaMatrix (Just deg)) mi           = idaConstraints deg mi
+        otherConstraints (ConstructorEda cs Nothing) mi      = rcConstraints (mi' ds) && edaConstraints (mi' cs)
+                                                               where ds = F.symbols sig Set.\\ cs
+                                                                     mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
+                                                                     filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
+        otherConstraints (ConstructorEda cs (Just deg)) mi   = rcConstraints (mi' ds) && idaConstraints deg (mi' cs)
+                                                               where ds = F.symbols sig Set.\\ cs
+                                                                     mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
+                                                                     filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
         strictChoice MDirect              = strictTrsConstraints
         strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
 --         strictChoice MWeightGap = strictOneConstraints
@@ -420,6 +431,11 @@ edaConstraints mi = rConstraints mi && dConstraints mi -- && goneConstraints mi 
 idaConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 idaConstraints deg mi = rConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi -- && edaConstraints mi && gThreeConstraints mi
 
+rcConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+rcConstraints mi = bigAnd [ ggeq mi 1 x --> dioAtom (R 1 x) | x <- toD ]
+  where d = dimension mi
+        toD = [1..d]
+
 -- goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 -- goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
 --   where d     = dimension mi
@@ -452,7 +468,7 @@ rConstraints mi = reflexivity && transitivity && compatibility && nocycle
         reflexivity   = bigAnd $ map (\ x -> dioAtom (R x x)) toD
         transitivity  = bigAnd [ (dioAtom (R x y) && dioAtom (R y z)) --> dioAtom (R x z) | x <- toD, y <- toD, z <- toD ]
         compatibility = bigAnd [ ggeq mi x y --> dioAtom (R x y) | x <- toD, y <- toD ]
-        nocycle       = bigAnd [ ggrt mi x y --> not (dioAtom (R y x)) | x <- toD, y <- toD ]
+        nocycle       = bigAnd [ (dioAtom (R 1 y) && ggrt mi x y) --> not (dioAtom (R y x)) | x <- toD, y <- toD ]
 
 dConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 dConstraints mi = foreapprox && forecompat && backapprox && backcompat && exactness

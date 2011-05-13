@@ -69,6 +69,7 @@ type MatrixCreate a = F.Symbol -> Int -> Int -> Matrix a
 data MatrixKind = UnrestrictedMatrix
                 | ConstructorBased (Set.Set F.Symbol) (Maybe Int)
                 | TriangularMatrix (Maybe Int)
+                | ConstructorEda (Set.Set F.Symbol) (Maybe Int)
                 | EdaMatrix (Maybe Int)
                   deriving Show
 
@@ -163,6 +164,7 @@ abstractInterpretation mk d sig = (MI d sig . Map.fromList . map (\f -> (f, inte
                                                                                   then triMatrix
                                                                                   else stdMatrix
                                                          EdaMatrix _           -> stdMatrix
+                                                         ConstructorEda _ _    -> stdMatrix
 
 liProd :: Semiring a => Matrix a -> LInter a -> LInter a
 liProd m li = LI (Map.map (mprod m) (coefficients li)) (mvprod m (constant li))

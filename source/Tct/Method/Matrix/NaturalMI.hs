@@ -418,7 +418,7 @@ edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVa
 edaConstraints mi = rConstraints mi && dConstraints mi -- && goneConstraints mi && gtwoConstraints mi
 
 idaConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-idaConstraints deg mi = edaConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi -- && gThreeConstraints mi
+idaConstraints deg mi = rConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi -- && edaConstraints mi && gThreeConstraints mi
 
 -- goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 -- goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]

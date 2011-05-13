@@ -62,12 +62,11 @@ weakTrsConstraints = trsConstraints (.>=.)
 relativeStrictTrsConstraints :: (Algebra a c, AbstrOrd c b) => a -> Trs.Trs -> b
 relativeStrictTrsConstraints = orientOneConstraints (.>.) && trsConstraints (.>=.)
 
-relativeStricterTrsConstraints :: (Algebra a c, AbstrOrd c b) => a -> Trs.Trs -> b
-relativeStricterTrsConstraints a trs = if Trs.isEmpty incRules
-                                        then relativeStrictTrsConstraints a trs
-                                        else weakTrsConstraints a nonIncRules && strictTrsConstraints a incRules
-  where incRules = trs Trs.\\ nonIncRules
-        nonIncRules = Trs.filterRules R.isNonSizeIncreasing trs
+relativeStricterTrsConstraints :: (Algebra a c, AbstrOrd c b) => [R.Rule] -> a -> Trs.Trs -> b
+relativeStricterTrsConstraints []       a trs = relativeStrictTrsConstraints a trs
+relativeStricterTrsConstraints oblrules a trs = weakTrsConstraints a nonobltrs && strictTrsConstraints a obltrs
+  where obltrs    = Trs.fromRules oblrules
+        nonobltrs = trs Trs.\\ obltrs
 
 strictOneConstraints :: (Algebra a c, AbstrOrd c b) => a -> Trs.Trs -> b
 strictOneConstraints = orientOneConstraints (.>.)

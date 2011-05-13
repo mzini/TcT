@@ -45,6 +45,7 @@ import qualified Qlogic.SatSolver as SatSolver
 import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
+import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Variable as V
 
@@ -128,12 +129,12 @@ instance S.Processor ArcticMI where
                         | otherwise                            = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
               allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
 
-    solvePartial inst _ problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
+    solvePartial inst oblrules problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
                                                                         , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
                                                                         , P.ppRemovableDPs = []
                                                                         , P.ppRemovableTrs = [] }
-                              | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' inst
-                              | otherwise = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' inst
+                                       | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' inst
+                                       | otherwise = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' inst
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
@@ -202,7 +203,7 @@ instance PrettyPrintable ArcInt where
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 
-data MatrixRelativity = MDirect | MRelative deriving Show
+data MatrixRelativity = MDirect | MRelative [R.Rule] deriving Show
 
 orientDirect :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
 orientDirect strat st trs sig mp = orientMatrix relativeConstraints ua st trs Trs.empty sig mp
@@ -216,16 +217,16 @@ orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Tr
 orientDp strat st strict weak sig mp = orientMatrix dpConstraints ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
-orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartial strat st trs sig mp = orientMatrix partialConstraints ua st trs Trs.empty sig mp
+orientPartial :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartial oblrules strat st trs sig mp = orientMatrix (partialConstraints oblrules) ua st trs Trs.empty sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty trs
 
-orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartialRelative strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartialRelative oblrules strat st strict weak sig mp = orientMatrix (partialConstraints oblrules) ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
-orientPartialDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
-orientPartialDp strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> m (S.ProofOf ArcticMI)
+orientPartialDp oblrules strat st strict weak sig mp = orientMatrix (partialConstraints oblrules) ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula MiniSatLiteral DioVar ArcInt)
@@ -241,8 +242,8 @@ orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                             cb     = cbits mp
                                             d      = dim mp
 
-partialConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
-partialConstraints = matrixConstraints MRelative MNoDP
+partialConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
+partialConstraints oblrules = matrixConstraints (MRelative oblrules) MNoDP
 
 relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor ArcticMI -> DioFormula l DioVar ArcInt
 relativeConstraints = matrixConstraints MDirect MNoDP
@@ -256,8 +257,8 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         d          = dim mp
         uaOn       = isUargsOn mp
         otherConstraints mi = dpChoice mdp st uaOn mi
-        strictChoice MDirect   = strictTrsConstraints
-        strictChoice MRelative = relativeStricterTrsConstraints
+        strictChoice MDirect              = strictTrsConstraints
+        strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
         dpChoice MWithDP _                     _     = safeRedpairConstraints sig
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints sig
         dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints sig ua

@@ -192,8 +192,8 @@ instance S.Processor NaturalMI where
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
 
-    solvePartial inst _ problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' (S.processorArgs inst)
-                                | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+    solvePartial inst oblrules problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
+                                       | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
@@ -265,16 +265,16 @@ orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Tr
 orientDp strat st strict weak sig mp = orientMatrix dpConstraints ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
-orientPartial :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartial strat st trs sig mp = orientMatrix partialConstraints ua st trs Trs.empty sig mp
+orientPartial :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartial oblrules strat st trs sig mp = orientMatrix (partialConstraints oblrules) ua st trs Trs.empty sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty trs
 
-orientPartialRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartialRelative strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartialRelative oblrules strat st strict weak sig mp = orientMatrix (partialConstraints oblrules) ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
-orientPartialDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartialDp strat st strict weak sig mp = orientMatrix partialConstraints ua st strict weak sig mp
+orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orientPartialDp oblrules strat st strict weak sig mp = orientMatrix (partialConstraints oblrules) ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
@@ -292,10 +292,10 @@ orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
                                             mk      = kind mp st
 
 data MatrixDP = MWithDP | MNoDP deriving Show
-data MatrixRelativity = MDirect | MRelative deriving Show
+data MatrixRelativity = MDirect | MRelative [R.Rule] deriving Show
 
-partialConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-partialConstraints = matrixConstraints MRelative MNoDP
+partialConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
+partialConstraints oblrules = matrixConstraints (MRelative oblrules) MNoDP
 
 relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 relativeConstraints = matrixConstraints MDirect MNoDP
@@ -325,8 +325,8 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
                                                                      filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         otherConstraints (EdaMatrix Nothing) mi              = edaConstraints mi
         otherConstraints (EdaMatrix (Just deg)) mi           = idaConstraints deg mi
-        strictChoice MDirect    = strictTrsConstraints
-        strictChoice MRelative  = relativeStricterTrsConstraints
+        strictChoice MDirect              = strictTrsConstraints
+        strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
 --         strictChoice MWeightGap = strictOneConstraints
         dpChoice MWithDP _                     u     = safeRedpairConstraints sig ua u
         dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints

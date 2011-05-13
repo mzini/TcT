@@ -37,6 +37,7 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
 import Termlib.Problem (Problem)
+import Termlib.Rule (Rule)
 
 import Tct.Processor.Parse
 
@@ -53,20 +54,20 @@ class P.ComplexityProof (ProofOf proc) => Processor proc where
     description  = const []
     arguments    :: proc -> (ArgumentsOf proc)
     solve        :: P.SolverM m => TheProcessor proc -> Problem -> m (ProofOf proc)
-    solvePartial :: P.SolverM m => TheProcessor proc -> Problem -> m (P.PartialProof (ProofOf proc))
-    solvePartial _ prob = return $ P.PartialInapplicable prob
+    solvePartial :: P.SolverM m => TheProcessor proc -> [Rule] -> Problem -> m (P.PartialProof (ProofOf proc))
+    solvePartial _ _ prob = return $ P.PartialInapplicable prob
 
 
 data StdProcessor a = StdProcessor a deriving Show
 
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
-    type P.ProofOf (StdProcessor proc)    = ProofOf proc
-    data P.InstanceOf (StdProcessor proc) = TP (TheProcessor proc)
-    name (StdProcessor proc)              = name proc
-    instanceName (TP theproc)             = instanceName theproc
-    solve_ (TP theproc) prob              = solve theproc prob
-    solvePartial_ (TP theproc) prob       = solvePartial theproc prob
+    type P.ProofOf (StdProcessor proc)      = ProofOf proc
+    data P.InstanceOf (StdProcessor proc)   = TP (TheProcessor proc)
+    name (StdProcessor proc)                = name proc
+    instanceName (TP theproc)               = instanceName theproc
+    solve_ (TP theproc) prob                = solve theproc prob
+    solvePartial_ (TP theproc) stricts prob = solvePartial theproc stricts prob
 
 theInstance :: P.InstanceOf (StdProcessor a) -> TheProcessor a
 theInstance (TP a) = a

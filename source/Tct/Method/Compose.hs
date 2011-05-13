@@ -42,6 +42,7 @@ import Tct.Certificate
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
+import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
 -- static partitioning
@@ -189,9 +190,10 @@ instance (P.Processor p1, P.Processor p2) => S.Processor (Compose p1 p2) where
                                     Nothing    -> solveDynamic
         where msplit :+: relative :+: inst1 :+: inst2 = S.processorArgs inst
               (relativeApplicable, _) =  wcAppliesTo prob
+              sizeincrules = filter Rule.isSizeIncreasing (Trs.rules $ Prob.strictComponents prob)
               solveStatic split = let (p1,p2) = staticAssign split prob (inst1, inst2)
                                   in  liftM2 (StaticPartitioned split) (P.apply inst1 p1) (P.apply inst2 p2)
-              solveDynamic = do res <- P.solvePartial inst1 prob
+              solveDynamic = do res <- P.solvePartial inst1 sizeincrules prob
                                 let removedTrs = Trs.fromRules (P.ppRemovableTrs res)
                                     removedDPs = Trs.fromRules (P.ppRemovableDPs res)
                                     relApplied = relative && relativeApplicable

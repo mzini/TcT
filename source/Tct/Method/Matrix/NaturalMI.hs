@@ -192,8 +192,8 @@ instance S.Processor NaturalMI where
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
 
-    solvePartial inst problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' (S.processorArgs inst)
-                              | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
+    solvePartial inst _ problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' (S.processorArgs inst)
+                                | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem

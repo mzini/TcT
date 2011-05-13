@@ -128,10 +128,10 @@ instance S.Processor ArcticMI where
                         | otherwise                            = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
               allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
 
-    solvePartial inst problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
-                                                                    , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
-                                                                    , P.ppRemovableDPs = []
-                                                                    , P.ppRemovableTrs = [] }
+    solvePartial inst _ problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
+                                                                        , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
+                                                                        , P.ppRemovableDPs = []
+                                                                        , P.ppRemovableTrs = [] }
                               | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp strat st sr wr sig' inst
                               | otherwise = mkProof sdps strs `liftM` orientPartialRelative strat st sr wr sig' inst
       where sig   = Prob.signature problem

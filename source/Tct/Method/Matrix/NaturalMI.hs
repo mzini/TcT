@@ -399,14 +399,10 @@ diagOnesConstraints deg mi = diagOnesVars && maxDegree
 -- Automaton Stuff
 -- Notation follows the 5-author CAI paper
 
-data XdaVar = Ggeq Int Int
-            | Ggrt Int Int
-            | Gtwo Int Int Int Int
+data XdaVar = Gtwo Int Int Int Int
             | R Int Int
-            | D Int Int
-            | Done Int Int
-            | Dtwo Int Int
-            | Gthree Int Int Int Int Int Int
+            | Done Int Int Int
+            | Dtwo Int Int Int
             | T Int Int Int
             | I Int Int
             | J Int Int
@@ -419,25 +415,35 @@ dioAtom :: (PropAtom a, Eq l) => a -> DioFormula l DioVar Int
 dioAtom = A . PAtom . toDioVar
 
 edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-edaConstraints mi = goneConstraints mi && gtwoConstraints mi && rConstraints mi && dConstraints mi
+edaConstraints mi = rConstraints mi && dConstraints mi -- && goneConstraints mi && gtwoConstraints mi
 
 idaConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-idaConstraints deg mi = edaConstraints mi && gThreeConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi
+idaConstraints deg mi = edaConstraints mi && tConstraints mi && iConstraints mi && jConstraints mi && hConstraints deg mi -- && gThreeConstraints mi
 
-goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
-  where d     = dimension mi
-        toD   = [1..d]
-        f i j = g i j && h i j
-        g i j = (dioAtom $ Ggeq i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
-        h i j = (dioAtom $ Ggrt i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+-- goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+-- goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
+--   where d     = dimension mi
+--         toD   = [1..d]
+--         f i j = g i j && h i j
+--         g i j = (dioAtom $ Ggeq i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+--         h i j = (dioAtom $ Ggrt i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
 
-gtwoConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-gtwoConstraints mi  = bigAnd [ f i j k l | i <- toD, j <- toD, k <- toD, l <- toD ]
-  where d           = dimension mi
-        toD         = [1..d]
-        f i j k l   = (dioAtom $ Gtwo i j k l) <-> bigOr (map (bigOr . map (g i j k l) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
-        g i j k l m = (entry i k m .>=. SR.one) && (entry j l m .>=. SR.one)
+-- gtwoConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+-- gtwoConstraints mi  = bigAnd [ f i j k l | i <- toD, j <- toD, k <- toD, l <- toD ]
+--   where d           = dimension mi
+--         toD         = [1..d]
+--         f i j k l   = (dioAtom $ Gtwo i j k l) <-> bigOr (map (bigOr . map (g i j k l) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+--         g i j k l m = (entry i k m .>=. SR.one) && (entry j l m .>=. SR.one)
+
+ggeq :: Eq l => MatrixInter (DioPoly DioVar Int) -> Int -> Int -> DioFormula l DioVar Int
+ggeq mi i j = bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+
+ggrt :: Eq l => MatrixInter (DioPoly DioVar Int) -> Int -> Int -> DioFormula l DioVar Int
+ggrt mi i j = bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+
+gtwo :: Eq l => MatrixInter (DioPoly DioVar Int) -> Int -> Int -> Int -> Int -> DioFormula l DioVar Int
+gtwo mi i j k l = bigOr (map (bigOr . map g . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+  where g m = (entry i k m .>=. SR.one) && (entry j l m .>=. SR.one)
 
 rConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 rConstraints mi = reflexivity && transitivity && compatibility && nocycle
@@ -445,33 +451,37 @@ rConstraints mi = reflexivity && transitivity && compatibility && nocycle
         toD = [1..d]
         reflexivity   = bigAnd $ map (\ x -> dioAtom (R x x)) toD
         transitivity  = bigAnd [ (dioAtom (R x y) && dioAtom (R y z)) --> dioAtom (R x z) | x <- toD, y <- toD, z <- toD ]
-        compatibility = bigAnd [ dioAtom (Ggeq x y) --> dioAtom (R x y) | x <- toD, y <- toD ]
-        nocycle       = bigAnd [ dioAtom (Ggrt x y) --> not (dioAtom (R y x)) | x <- toD, y <- toD ]
+        compatibility = bigAnd [ ggeq mi x y --> dioAtom (R x y) | x <- toD, y <- toD ]
+        nocycle       = bigAnd [ ggrt mi x y --> not (dioAtom (R y x)) | x <- toD, y <- toD ]
 
 dConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-dConstraints mi = diagonal && foreapprox && forecompat && backapprox && backcompat && exactness
+dConstraints mi = foreapprox && forecompat && backapprox && backcompat && exactness
   where d           = dimension mi
         toD         = [1..d]
-        diagonal    = bigAnd [ if x == y then dioAtom (D x y) else not (dioAtom $ D x y) | x <- toD, y <- toD ]
-        foreapprox  = bigAnd [ dioAtom (D x y) --> dioAtom (Done x y) | x <- toD, y <- toD ]
-        forecompat  = bigAnd [ (dioAtom (Done x y) && dioAtom (Gtwo x y z u)) --> dioAtom (Done z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
-        backapprox  = bigAnd [ dioAtom (D x y) --> dioAtom (Dtwo x y) | x <- toD, y <- toD ]
-        backcompat  = bigAnd [ (dioAtom (Dtwo x y) && dioAtom (Gtwo z u x y)) --> dioAtom (Dtwo z u) | x <- toD, y <- toD, z <- toD, u <- toD ]
-        exactness   = bigAnd [ (dioAtom (Done x y) && dioAtom (Dtwo x y)) --> dioAtom (D x y) | x <- toD, y <- toD ]
+--        diagonal    = bigAnd [ if x == y then dioAtom (D x y) else not (dioAtom $ D x y) | x <- toD, y <- toD ]
+        foreapprox  = bigAnd [ dioAtom (R 1 x) --> dioAtom (Done x x x) | x <- toD ]
+        forecompat  = bigAnd [ (dioAtom (Done i x y) && gtwo mi x y z u) --> dioAtom (Done i z u) | i <- toD, x <- toD, y <- toD, z <- toD, u <- toD ]
+        backapprox  = bigAnd [ dioAtom (R 1 x) --> dioAtom (Dtwo x x x) | x <- toD ]
+        backcompat  = bigAnd [ (dioAtom (Dtwo i x y) && gtwo mi z u x y) --> dioAtom (Dtwo i z u) | i <- toD, x <- toD, y <- toD, z <- toD, u <- toD ]
+        exactness   = bigAnd [ if x == y then top else not (dioAtom (Done i x y) && dioAtom (Dtwo i x y)) | i <- toD, x <- toD, y <- toD ]
 
-gThreeConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-gThreeConstraints mi = bigAnd [ f i j k x y z | i <- toD, j <- toD, k <- toD, x <- toD, y <- toD, z <- toD ]
-  where d         = dimension mi
-        toD       = [1..d]
-        f i j k x y z = (dioAtom $ Gthree i j k x y z) <-> bigOr (map (bigOr . map (g i j k x y z) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
-        g i j k x y z m = (entry i x m .>=. SR.one) && (entry j y m .>=. SR.one) && (entry k z m .>=. SR.one)
+-- gThreeConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
+-- gThreeConstraints mi = bigAnd [ f i j k x y z | i <- toD, j <- toD, k <- toD, x <- toD, y <- toD, z <- toD ]
+--   where d         = dimension mi
+--         toD       = [1..d]
+--         f i j k x y z = (dioAtom $ Gthree i j k x y z) <-> bigOr (map (bigOr . map (g i j k x y z) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+--         g i j k x y z m = (entry i x m .>=. SR.one) && (entry j y m .>=. SR.one) && (entry k z m .>=. SR.one)
+
+gthree :: Eq l => MatrixInter (DioPoly DioVar Int) -> Int -> Int -> Int -> Int -> Int -> Int -> DioFormula l DioVar Int
+gthree mi i j k x y z = bigOr (map (bigOr . map g . Map.elems . coefficients) $ Map.elems $ interpretations mi)
+  where g m = (entry i x m .>=. SR.one) && (entry j y m .>=. SR.one) && (entry k z m .>=. SR.one)
 
 tConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 tConstraints mi = initial && gThreeStep
   where d = dimension mi
         toD = [1..d]
-        initial = bigAnd [ if x == y then top else dioAtom (T x x y) | x <- toD, y <- toD ]
-        gThreeStep = bigAnd [ (dioAtom (T x y z) && dioAtom (Gthree x y z u v w)) --> dioAtom (T u v w) | x <- toD, y <- toD, z <- toD, u <- toD, v <- toD, w <- toD ]
+        initial = bigAnd [ if x == y then top else (dioAtom (R 1 x) && dioAtom (R 1 y)) --> dioAtom (T x x y) | x <- toD, y <- toD ]
+        gThreeStep = bigAnd [ (dioAtom (T x y z) && gthree mi x y z u v w) --> dioAtom (T u v w) | x <- toD, y <- toD, z <- toD, u <- toD, v <- toD, w <- toD ]
 
 iConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 iConstraints mi = bigAnd [ if x == y then Top else dioAtom (T x y y) --> dioAtom (I x y) | x <- toD, y <- toD ]

@@ -112,7 +112,7 @@ class MonadIO m => SolverM m where
     mkIO         :: m a -> m (IO a)
     minisatValue :: (Decoder e a) => MiniSat () -> e -> m (Maybe e)
     solve        :: (Processor proc) => InstanceOf proc -> Problem -> m (ProofOf proc)
-    solvePartial :: (Processor proc) => InstanceOf proc -> Problem -> m (PartialProof (ProofOf proc))
+    solvePartial :: (Processor proc) => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
 -- TODO needs to be redone after qlogic-update, allow generic solvers
 
 -- ** Basic Solver Monad Implementation
@@ -146,8 +146,8 @@ class ComplexityProof (ProofOf proc) => Processor proc where
     type ProofOf proc                  
     data InstanceOf proc
     solve_          :: SolverM m => InstanceOf proc -> Problem -> m (ProofOf proc)
-    solvePartial_   :: SolverM m => InstanceOf proc -> Problem -> m (PartialProof (ProofOf proc))
-    solvePartial_   _ prob = return $ PartialInapplicable prob
+    solvePartial_   :: SolverM m => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
+    solvePartial_   _ _ prob = return $ PartialInapplicable prob
 
 type ProcessorParser a = CharParser AnyProcessor a 
 
@@ -359,8 +359,8 @@ instance Processor SomeProcessor where
     name (SomeProcessor proc)                    = name proc
     instanceName (SPI (SomeInstance inst))       = instanceName inst
     solve_ (SPI (SomeInstance inst)) prob        = SomeProof `liftM` solve_ inst prob
-    solvePartial_ (SPI (SomeInstance inst)) prob = do pp <- solvePartial_ inst prob
-                                                      return $ modify pp
+    solvePartial_ (SPI (SomeInstance inst)) stricts prob = do pp <- solvePartial_ inst stricts prob
+                                                              return $ modify pp
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance ParsableProcessor SomeProcessor where
@@ -422,8 +422,8 @@ instance Processor a => Processor (AnyOf a) where
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
-    solvePartial_ (OOI inst) prob  = do pp <- solvePartial_ inst prob
-                                        return $ modify pp
+    solvePartial_ (OOI inst) stricts prob  = do pp <- solvePartial_ inst stricts prob
+                                                return $ modify pp
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance Typeable (InstanceOf (AnyOf a)) where 

@@ -157,7 +157,7 @@ selectAll :: IO ()
 selectAll = applySelect False All
 
 unselectAll :: IO ()
-unselectAll = applySelect False All
+unselectAll = applySelect True All
 
 selectInverse :: IO ()
 selectInverse = applySelect False Inv

@@ -24,6 +24,7 @@ module Tct.Method.Weightgap where
 
 import Prelude hiding ((&&), (||))
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Text.PrettyPrint.HughesPJ as PP
 import Data.Typeable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -31,16 +32,16 @@ import qualified Data.Set as Set
 import Qlogic.Boolean
 import Qlogic.Diophantine hiding (add)
 import Qlogic.Semiring
-import qualified Qlogic.NatSat as N
 
 import Termlib.Problem (Problem(..))
 import Termlib.Rule (Rule(..))
 import Termlib.Trs (Trs(..))
-import Termlib.Utils
+import Termlib.Utils hiding (enum)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 
 import Tct.Certificate (add, certified, unknown, upperBound)
 import Tct.Encoding.AbstractInterpretation
@@ -49,7 +50,7 @@ import Tct.Encoding.UsablePositions
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
-import Tct.Processor.PPrint (enumeration', indent)
+import Tct.Processor.PPrint
 import Tct.Method.Matrix.MatrixInterpretation hiding (signature)
 import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor.Args as A
@@ -74,34 +75,45 @@ data WeightGapProof = WeightGapProof { wgInputProblem :: Problem
                                      }
 
 instance PrettyPrintable WeightGapProof where
-  pprint wgp = text (if P.succeeded p
-                     then "The weightgap principle applies, using the following adequate RMI:"
-                     else "The weight gap principle does not apply:")
-               $+$ indent (pprint p)
-               $+$ text "The following dependency pairs were strictly oriented:"
-               $+$ text ""
-               $+$ nest 2 (pprint (Trs.fromRules $ wgRemovableDps wgp, signature ip, variables ip))
-               $+$ text "The following rules were strictly oriented:"
-               $+$ text ""
-               $+$ nest 2 (pprint (Trs.fromRules $ wgRemovableTrs wgp, signature ip, variables ip))
-               $+$ text "Above strict rules are moved into the weak component."
+  pprint wgp | P.succeeded p = text "The weightgap principle applies, where following rules are oriented strictly:"
+                               $+$ text ""
+                               $+$ pptrs "Dependency Pairs" sDPs
+                               $+$ pptrs "TRS Component" sTrs
+                               $+$ text ""
+                               $+$ block' "Interpretation" [pprint p]
+                               $+$ text ""
+                               $+$ text "The strictly oriented rules are moved into the weak component."
+             | otherwise     = text "The weightgap principle does not apply"
     where ip = wgInputProblem wgp
           p  = wgProof wgp
-
+          sDPs = Trs.fromRules $ wgRemovableDps wgp
+          sTrs = Trs.fromRules $ wgRemovableTrs wgp
+          pptrs = pprintNamedTrs sig vars
+          sig  = signature ip
+          vars = variables ip
 instance T.TransformationProof WeightGap where 
   answer proof = case T.subProofs proof of 
                      [(_,subproof)] -> mkAnswer (P.answer wgproof) (P.answer subproof)
                      _              -> P.MaybeAnswer
     where wgproof = wgProof $ T.transformationProof proof
           mkAnswer (P.CertAnswer tc) (P.CertAnswer c) = P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
-          mkAnswer (P.CertAnswer _ ) a                = a
-          mkAnswer _                 _                = error "Tct.Method.Weightgap.answer: unexpected pattern amtching case"
+          mkAnswer _                 a                = a
                        
   pprintProof _ _  = pprint 
 
 
 instance T.Transformer WeightGap where
   name WeightGap = "weightgap"
+  instanceName (T.TheTransformer _ as) = show $ text "weightgap" 
+                                                <+> case wgon of { WgOnTrs -> text "on strict TRS" ; _ -> PP.empty}
+                                                <+> text "of dimension" <+> text (show wgDim)
+                                                <> maybet wgDeg (\ deg -> text ", maximal degree" <+> pprint deg)
+                                                <> maybet wgBits (\ bnd -> text ", bits" <+> pprint bnd)
+                                                <> maybet wgCbits (\ cbs -> text ", cbits" <+> pprint cbs)
+                                                <> (if ua then PP.empty else text ", without usable arguments")
+      where  wgon :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = as
+             maybet Nothing  _ = PP.empty
+             maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]
 
   type T.ArgumentsOf WeightGap = (Arg (EnumOf WgOn)) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)

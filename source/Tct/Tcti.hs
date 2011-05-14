@@ -263,10 +263,10 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                                                         $+$ text ""
                                                         $+$ ppres
                                       where ppres = case res_i of 
-                                              T.Progress p_i subprobs_i -> block' "Transformation Output (progress)" [T.pprintProof (T.transformation t) prob_i p_i]
+                                              T.Progress p_i subprobs_i -> block' "Transformation Output (progress)" [T.pprintProof t prob_i p_i]
                                                                            $+$ text ""
                                                                            $+$ block "Computed new problem(s):" [ (SN (i,j), prob_ij) | (SN j, prob_ij) <- subprobs_i ]
-                                              T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintProof (T.transformation t) prob_i p_i]                                              
+                                              T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintProof t prob_i p_i]                                              
                             printOverview = pprint $ block "Transformation Overview" l
                                 where l | null progressedResults = enumeration' [text "No Progress :("]
                                         | otherwise              = [ (SN i, pp i res_i) | (SN i, (_, res_i )) <- probResEnum ]

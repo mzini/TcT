@@ -199,7 +199,7 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                   vars = Prob.variables prob
                   subproof = either P.result P.ppResult esp1
                   qtext = quotes . text
-                  tName = qtext $ T.name t
+                  tName = qtext $ T.instanceName t
                   ppsplit = text $ case split of 
                                      Random     -> "These rules were chosen randomly"
                                      SeparateDP -> "These rules exclude all dependency pairs"

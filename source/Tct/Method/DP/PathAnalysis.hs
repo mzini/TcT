@@ -144,8 +144,8 @@ instance T.TransformationProof PathAnalysis where
                                                    ppsubproof = do subproof <- findSubProof path
                                                                    return $ pprint subproof
 
-    pprintProof PathAnalysis _ NonDPProblem     = text "Path Analysis only applicable to DP-problems"
-    pprintProof PathAnalysis _ (DPProof tproof) = block' "Transformation Details" [ppTrans]
+    pprintProof _ _ NonDPProblem     = text "Path Analysis only applicable to DP-problems"
+    pprintProof _ _ (DPProof tproof) = block' "Transformation Details" [ppTrans]
         where ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
                         $+$ pprintCWDG wdg cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")

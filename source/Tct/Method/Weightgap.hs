@@ -187,7 +187,7 @@ instance T.Transformer WeightGap where
   transform inst prob = do let wgon :+: wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs = T.transformationArgs inst
                            let (sr, wr) = (Prob.strictComponents prob, Prob.weakComponents prob)
                            let uarg' = if wgUargs then usableArgs (strategy prob) sr wr else fullWithSignature (signature prob)
-                           p <- orientMatrix (weightGapConstraints wgon $ strictTrs prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
+                           p <- orientMatrix (weightGapConstraints wgon $ Prob.strictComponents prob) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                            return $ case p of
                              (Order (MatrixOrder mi _ _)) -> case Trs.isEmpty remdps && Trs.isEmpty remtrs of
                                                                True  -> T.NoProgress wgpr

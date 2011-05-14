@@ -41,7 +41,8 @@ module Tct.Methods
     , before
     , best
     , composeDynamic
-    , composeStatic
+    , composeDP
+    , composeRandom
     , fastest
     , ite
     , orBetter

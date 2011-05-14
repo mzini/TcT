@@ -157,6 +157,7 @@ apply :: (SolverM m, Processor proc) => (InstanceOf proc) -> Problem -> m (Proof
 apply proc prob = solve proc prob >>= mkProof
     where mkProof = return . Proof proc prob
 
+
 evalList :: (SolverM m) => Bool -> (a -> Bool) -> [m a] -> m (Either (a,[a]) [a])
 evalList True success ms  = do actions <- sequence [ mkIO $ m | m <- ms]
                                liftIO $ pfoldA comb (Right []) actions

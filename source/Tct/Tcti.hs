@@ -1,6 +1,23 @@
-#!/usr/local/bin/ghci
 {-# LANGUAGE FlexibleInstances #-}
-module Tcti where
+module Tct.Tcti 
+    (
+     load
+    , apply 
+    , state
+    , reset
+    , undo
+    , select
+    , unselect
+    , selectAll
+    , unselectAll
+    , selectInverse
+    , filterSelect
+    , setRC
+    , setDC
+    , setStrategy
+    , help
+    )
+where
 
 import Prelude hiding (fail, uncurry)
 import Termlib.Problem as Prob
@@ -94,9 +111,9 @@ load file = do r <- ProbParse.problemFromFile file
                                           return ()
   where ppwarns [] = return ()
         ppwarns ws = do putStrLn "Warnings:"
-                        pprint `mapM` ws
+                        pprint `mapM_` ws
                         return ()
-        pprob prob = hang (text "Following problem loaded:") 2 (U.pprint prob) 
+--        pprob prob = hang (text "Following problem loaded:") 2 (U.pprint prob) 
 
 
 instance U.PrettyPrintable ST where
@@ -126,7 +143,7 @@ instance Selector Int where
                             | otherwise                   = st
      where i' = i - length sel
            drp _ []     = []
-           drp 1 (x:xs) = xs
+           drp 1 (_:xs) = xs
            drp n (x:xs) = x : drp (n - 1) xs
 
 instance Selector CSelector where 
@@ -177,14 +194,14 @@ setStrategy :: Strategy -> IO ()
 setStrategy strat = modify (\ prob -> prob { strategy = strat})
 
 setRC :: IO ()
-setRC = modify f 
+setRC = modify f >> printState
   where f prob = prob { startTerms = BasicTerms ds cs}
           where rs = allComponents prob
                 ds = definedSymbols rs
                 cs = constructors rs
 
 setDC :: IO ()
-setDC = modify f 
+setDC = modify f  >> printState
   where f prob = prob { startTerms = TermAlgebra}
 
 state :: IO ()

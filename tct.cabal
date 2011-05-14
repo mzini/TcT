@@ -32,6 +32,7 @@ Library
  exposed-modules:   Tct
                     Tct.Certificate
                     Tct.Main.Flags
+                    Tct.Tcti
                     Tct.Main.Debug
                     Tct.Main.Version
                     Tct.Processor

@@ -232,6 +232,3 @@ nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficie
 
 weightgapProcessor :: T.TransformationProcessor WeightGap P.AnyProcessor
 weightgapProcessor = T.transformationProcessor WeightGap
-
-weightgap :: WgOn -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> T.TheTransformer WeightGap
-weightgap wgon wgkind wgdeg wgdim wgsize wgcbits wgua = WeightGap `T.calledWith` (wgon :+: wgkind :+: wgdeg :+: wgdim :+: Nat (N.bound wgsize) :+: Nothing :+: wgcbits :+: wgua)

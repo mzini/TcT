@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
@@ -23,8 +24,12 @@ module Tct.Methods
     (  
 
     -- * Processors
+    -- ** Default Option
+    P.defaultOptions 
+    , DefaultMatrix (..)
+
     -- ** Direct Processors
-      arctic
+    , arctic
     , bounds
     , empty
     , epostar
@@ -40,9 +45,9 @@ module Tct.Methods
     -- ** Processor Combinators
     , before
     , best
-    , composeDynamic
-    , composeDP
-    , composeRandom
+    , Compose.composeDynamic
+    , Compose.composeDP
+    , Compose.composeRandom
     , fastest
     , ite
     , orBetter
@@ -90,8 +95,10 @@ module Tct.Methods
     , Size (..)
     , EnumOf
     , Processor
-    , NaturalMIKind (..)
-    , WgOn (..)
+    , NaturalMI.NaturalMIKind (..)
+    , Weightgap.WgOn (..)
+    , Compose.ComposeBound (..)
+    , Compose.Partitioning (..)
     , Approximation(..)
     , Enrichment (..)
     , InitialAutomaton (..)
@@ -115,16 +122,16 @@ module Tct.Methods
     -- *  Parsable Processors
     , (<|>)
     , AnyProcessor
-    , arcticProcessor
+    , ArcticMI.arcticProcessor
     , bestProcessor
     , boundsProcessor
-    , composeProcessor
+    , Compose.composeProcessor
     , epostarProcessor
     , failProcessor
     , fastestProcessor
     , iteProcessor
     , lmpoProcessor
-    , matrixProcessor
+    , NaturalMI.matrixProcessor
     , popstarProcessor
     , sequentiallyProcessor
     , successProcessor
@@ -140,7 +147,7 @@ module Tct.Methods
     , dependencyPairsProcessor
     , pathAnalysisProcessor
     , usableRulesProcessor
-    , weightgapProcessor
+    , Weightgap.weightgapProcessor
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -148,23 +155,25 @@ import Prelude hiding (fail, uncurry)
 import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
-import Tct.Method.Compose
+import qualified Tct.Method.Compose as Compose
 import Tct.Method.Bounds
-import Tct.Method.Matrix.ArcticMI
-import Tct.Method.Matrix.NaturalMI
+import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
+import qualified Qlogic.ArcSat as ArcSat
+
+import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
 import Tct.Method.Uncurry
 import Tct.Method.DP.UsableRules
 import Tct.Method.DP.DependencyPairs
 import Tct.Method.DP.PathAnalysis
-import Tct.Method.Weightgap
+import qualified Tct.Method.Weightgap as Weightgap
 import Tct.Method.DP.DependencyGraph hiding (strict, weak)
 import Tct.Method.InnermostRuleRemoval
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
-import Tct.Processor (solveBy)
 import qualified Tct.Processor.Standard as S
+import Tct.Processor (solveBy)
 import Tct.Processor.Standard (withArgs)
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
@@ -189,10 +198,10 @@ builtInProcessors = timeoutProcessor
                    <|> usableRulesProcessor
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
-                   <|> matrixProcessor
-                   <|> arcticProcessor
-                   <|> weightgapProcessor
-                   <|> composeProcessor
+                   <|> NaturalMI.matrixProcessor
+                   <|> ArcticMI.arcticProcessor
+                   <|> Weightgap.weightgapProcessor
+                   <|> Compose.composeProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 
@@ -221,3 +230,32 @@ before :: (P.Processor a, P.Processor b) =>
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 
+-- * defaultMatrix
+
+data DefaultMatrix = DefaultMatrix { kind :: NaturalMI.NaturalMIKind
+                                   , dim  :: Int
+                                   , degree :: Int
+                                   , bits :: Int
+                                   , cbits :: Int
+                                   , on :: Weightgap.WgOn
+                                   , useUsableArgs :: Bool }
+
+instance P.IsDefaultOption DefaultMatrix where 
+    defaultOptions = DefaultMatrix { kind = NaturalMI.Automaton
+                                   , dim    = error "dimension must be specified"
+                                   , degree = error "degree must be specified"
+                                   , bits   = 2
+                                   , cbits  = 3
+                                   , useUsableArgs = True
+                                   , on            = Weightgap.WgOnAny }
+
+matrix :: DefaultMatrix -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((kind m) :+: (Just $ nat $ degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))
+
+
+arctic :: DefaultMatrix -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
+arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))
+
+
+weightgap :: DefaultMatrix -> TheTransformer Weightgap.WeightGap
+weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (kind m) :+: (Just $ nat $ degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))

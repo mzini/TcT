@@ -214,10 +214,6 @@ instance S.Processor NaturalMI where
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
-matrix :: NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor NaturalMI)
-matrix matrixkind deg matrixdimension coefficientsize constraintbits ua =
-    S.StdProcessor NaturalMI `S.withArgs` (matrixkind :+: deg :+: matrixdimension :+: Nat (N.bound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
-
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind

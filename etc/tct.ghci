@@ -1,0 +1,9 @@
+:set -package tct
+:module +Tct.Methods
+:module +Tct.Tcti
+:def l (\ query -> return $ ":! ~/.cabal/bin/tct -l " ++ query)
+:set prompt "tcti> "
+putStrLn ""
+putStrLn "Welcome to TcT:"
+help
+

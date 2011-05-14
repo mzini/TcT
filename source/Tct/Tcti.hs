@@ -74,9 +74,16 @@ stateRef = unsafePerformIO $ newIORef (STATE (ST [] []) [] Nothing)
 getState :: IO ST
 getState = curState `liftM` readIORef stateRef
 
+get :: Int -> IO Problem
+get i = do ST sel unsel <- getState
+           let l = sel ++ unsel
+           if 1 <= i && i < length l 
+            then return $ l!!(i - 1)
+            else error "Index out of bound"
+
 putState :: ST -> IO ()
-putState st = do STATE cur hist mprob <- readIORef stateRef 
-                 writeIORef stateRef $ (STATE st (cur : hist) mprob)
+putState st = do STATE cur hst mprob <- readIORef stateRef 
+                 writeIORef stateRef $ (STATE st (cur : hst) mprob)
 
 printState :: IO ()
 printState = do STATE st _ _ <- readIORef stateRef
@@ -164,6 +171,7 @@ applySelect :: Selector i => Bool -> i -> IO ()
 applySelect unsel i = modifyState (flp . selct i . flp) >> printState
   where flp | unsel = flipSelected
             | otherwise = id
+
 select :: Int -> IO ()
 select = applySelect False
 
@@ -232,6 +240,11 @@ help = pprint $ block' "Commands" [U.columns 2 (transpose rows)]
                       ]
         mk (a,c) = [indent $ text a, U.paragraph c]
         epty = ("","")
+
+
+--------------------------------------------------------------------------------
+--- Actions 
+
 class Apply a where
   apply :: a -> IO ()
   
@@ -242,8 +255,9 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                  mrs <- runTctSolver $ evalEnum True [ (i, T.transform t prob) | (i, prob) <- probs ]
                  case mrs of 
                    Nothing -> error "error when transforming some problem"
-                   Just rs -> do {printResults; setResults; putStrLn ""; printState }
+                   Just rs -> do {printResults; printOverview; setResults; putStrLn "";  }
                       where Just probResEnum = zipSafe probs rs
+                            progressedResults = [(i, res) | (i, (_,res)) <- probResEnum, isProgress res ]
                             printResults = pprint $ block "Transformation Results" [ (SN i, pp i prob_i res_i) | (SN i, (prob_i, res_i)) <- probResEnum ]
                               where pp i prob_i res_i = block' "Considered Problem" [prob_i]
                                                         $+$ text ""
@@ -253,6 +267,13 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                                                                            $+$ text ""
                                                                            $+$ block "Computed new problem(s):" [ (SN (i,j), prob_ij) | (SN j, prob_ij) <- subprobs_i ]
                                               T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintProof (T.transformation t) prob_i p_i]                                              
+                            printOverview = pprint $ block "Transformation Overview" l
+                                where l | null progressedResults = enumeration' [text "No Progress :("]
+                                        | otherwise              = [ (SN i, pp i res_i) | (SN i, (_, res_i )) <- probResEnum ]
+                                      pp _ (T.Progress _ ps) = text "Problem split into" <+> text (show $ length ps)  <+> text "new problem(s)."
+                                      pp _ (T.NoProgress _) = text "Problem unchanged."
+                            isProgress (T.Progress _ _) = True
+                            isProgress (T.NoProgress _) = False
                             setResults = putState (ST newsel unsel)
                             newsel = concatMap f (toList probResEnum)
                                 where f (prob_i, T.Progress _ ps) = toList ps
@@ -264,12 +285,18 @@ instance P.Processor p => Apply (P.InstanceOf p) where
                mrs <- runTctSolver $ evalEnum False [ (i, P.solve p prob) | (i, prob) <- probs ]
                case mrs of 
                  Nothing -> error "error when solving some problem"
-                 Just rs -> do {printPrfs; setResults; putStrLn ""; printState }
+                 Just rs -> do {printPrfs; printOverview; setResults; }
                         where Just pps = zipSafe probs rs
                               printPrfs = pprint $ block "Proofs" [ (SN i, pp prob_i proof_i) | (SN i, (prob_i, proof_i)) <- pps ]
                                 where pp prob_i proof_i = block' "Considered Problem" [prob_i]
                                                           $+$ text ""
                                                           $+$ block' "Processor Output" [U.pprint proof_i]
+
+                              printOverview = pprint $ block "Processor Overview" l
+                                  where l | all (P.failed . snd . snd) pps = enumeration' [text "No Progress :("]
+                                          | otherwise                      = [ (SN i, pp i p_i) | (SN i, (_, p_i )) <- pps ]
+                                        pp _ p | P.succeeded p = text "Problem removed." <+> parens (U.pprint $ P.answer p)
+                                               | otherwise     = text "Problem unchanged."
 
                               setResults = putState (ST newsel unsel)
                               newsel = concatMap f (toList pps)

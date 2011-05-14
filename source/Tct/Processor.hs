@@ -79,6 +79,8 @@ module Tct.Processor
     -- * Machine Readable Description of Processors
     , SynElt (..)
     , mrSynopsis
+    -- * Default Options
+    , IsDefaultOption (..)
     ) 
 where
 
@@ -497,3 +499,9 @@ allVerify = foldr andVerify VerificationOK
 isFail :: VerificationStatus -> Bool
 isFail (VerificationFail _ _) = True
 isFail _                      = False
+
+
+-- * Construct instances from defaultValues
+
+class IsDefaultOption a where
+    defaultOptions :: a

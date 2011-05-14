@@ -48,7 +48,7 @@ import Control.Monad.Trans (liftIO)
 
 import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
-import Termlib.Problem (strictTrs) 
+import Termlib.Problem (strictComponents) 
 import qualified Tct.Processor as P
 import Tct.Processor.PPrint
 import Tct.Certificate (certified, constant)
@@ -107,8 +107,8 @@ instance S.Processor EmptyRules where
     type S.ArgumentsOf EmptyRules = Unit
     type S.ProofOf EmptyRules     = TrivialProof
     name EmptyRules               = "empty"
-    solve _ prob | Trs.isEmpty $ strictTrs prob = return $ Empty True
-                 | otherwise                    = return $ Empty False
+    solve _ prob | Trs.isEmpty $ strictComponents prob = return $ Empty True
+                 | otherwise                           = return $ Empty False
     description EmptyRules       = ["Processor 'empty' returns 'Yes(O(1),O(1))' if the strict component of the problem is empty."]
     arguments   EmptyRules       = Unit
 

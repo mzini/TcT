@@ -232,6 +232,14 @@ weightGapConstraints wgon nondup uarg st strict weak sig mp = strictWGConstraint
                                                                   filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         mkConstraints (EdaMatrix Nothing) mi = edaConstraints mi
         mkConstraints (EdaMatrix (Just deg)) mi = idaConstraints deg mi
+        mkConstraints (ConstructorEda cs Nothing) mi = rcConstraints (mi' ds) && edaConstraints (mi' cs)
+                                                       where ds = F.symbols sig Set.\\ cs
+                                                             mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
+                                                             filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
+        mkConstraints (ConstructorEda cs (Just deg)) mi = rcConstraints (mi' ds) && idaConstraints deg (mi' cs)
+                                                          where ds = F.symbols sig Set.\\ cs
+                                                                mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
+                                                                filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
 
 strictWGConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs -> MatrixInter a -> b
 strictWGConstraints trs mi = trsConstraints f mi trs

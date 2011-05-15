@@ -70,7 +70,6 @@ module Tct.Methods
     , (>>>)
     , exhaustively
     , try
-    , tryFailed
 
     -- ** Predicates
     , isCollapsing

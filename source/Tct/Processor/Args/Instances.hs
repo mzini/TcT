@@ -51,6 +51,8 @@ import Text.Parsec.Prim (many, try, (<|>))
 import Tct.Processor.Parse hiding (natural, bool)
 import qualified Tct.Processor.Parse as Parse
 import Tct.Processor.Args
+import Termlib.Utils (PrettyPrintable (..))
+import Text.PrettyPrint.HughesPJ
 import qualified Tct.Processor as P
 
 import qualified Data.List as L
@@ -58,6 +60,7 @@ import qualified Data.List as L
 
 -- * Primitives
 newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Show, Num, Enum)
+
 nat :: Int -> Nat
 nat i | i < 0 = error "nat received negative integer"
       | otherwise = Nat i
@@ -67,6 +70,9 @@ instance Argument Nat where
 
     domainName Phantom = "<nat>"
     showArg _ (Nat i) = show i 
+
+instance PrettyPrintable Nat where
+    pprint (Nat i) = text (show i)
 
 instance ParsableArgument Nat where
     parseArg Phantom = Nat `liftM` Parse.natural

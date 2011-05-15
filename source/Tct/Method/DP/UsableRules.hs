@@ -31,6 +31,7 @@ import qualified Termlib.Term as Term
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils hiding (block)
 import Termlib.Utils as Utils
 
@@ -65,7 +66,7 @@ instance PrettyPrintable URProof where
                                $+$ ppTrs "Strict Usable Rules" (usableStrict p)
                                $+$ ppTrs "Weak Usable Rules" (usableWeak p)
              | otherwise     = text "All rules are usable."
-        where ppTrs n trs = Utils.block n (pprint (trs, signature p, variables p))
+        where ppTrs = pprintNamedTrs (signature p) (variables p)
 
 instance T.TransformationProof UR where
     answer proof = case T.subProofs proof of 

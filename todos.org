@@ -115,3 +115,45 @@ Polynomial interpretation :
     POL(s(x1)) = [2] + x1   
 * timeout schickt dediziertes signal
 * synopsis statt parsec parse warning, bitte
+* bug? 
+  We consider the following Problem:
+                             
+                               Strict DPs: {add^#(s(x), y) -> c_0(add^#(x, y))}
+                               Weak DPs: {mult^#(s(x), y) -> c_0(add^#(y, mult(x, y)))}
+                               Weak Trs:
+                                 {  mult(s(x), y) -> add(y, mult(x, y))
+                                  , mult(0(), x) -> 0()
+                                  , add(0(), x) -> x}
+                               StartTerms: basic terms
+                               Strategy: none
+                             
+                             Certificate: YES(?,O(n^1))
+                             
+                             Application of 'Sequentially':
+                             ------------------------------
+                               'Fastest' succeeded:
+                               
+                               'matrix-interpretation of dimension 2' proved the goal fastest:
+                               
+                               The following argument positions are usable:
+                                 Uargs(mult) = {}, Uargs(s) = {}, Uargs(add) = {},
+                                 Uargs(add^#) = {}, Uargs(c_0) = {1}, Uargs(mult^#) = {},
+                                 Uargs(c_0) = {1}
+                               We have the following EDA-non-satisfying and IDA(1)-non-satisfying matrix interpretation:
+                               Interpretation Functions:
+                                0() = [0]
+                                      [0]
+                                mult(x1, x2) = [0 0] x1 + [0 0] x2 + [0]
+                                               [0 0]      [0 0]      [0]
+                                s(x1) = [1 0] x1 + [0]
+                                        [0 1]      [2]
+                                add(x1, x2) = [0 0] x1 + [1 0] x2 + [0]
+                                              [0 0]      [0 1]      [0]
+                                add^#(x1, x2) = [0 1] x1 + [0 0] x2 + [1]
+                                                [0 0]      [0 0]      [0]
+                                c_0(x1) = [1 1] x1 + [0]
+                                          [0 0]      [0]
+                                mult^#(x1, x2) = [1 0] x1 + [0 2] x2 + [1]
+                                                 [0 0]      [0 0]      [1]
+                                c_0(x1) = [1 0] x1 + [0]
+                                          [0 0]      [0]

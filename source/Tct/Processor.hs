@@ -96,7 +96,7 @@ import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Termlib.Problem
-import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$))
+import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext, underlineWith)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
@@ -295,16 +295,15 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
 
 
 instance (Processor proc) => PrettyPrintable (Proof proc) where
-    pprint p@(Proof inst prob res) = ppheading $++$ ppres
-        where ppheading = (pphead $+$ underline) $+$ ppanswer $+$ ppinput
-              pphead    = quotes (text (instanceName inst))
-              ppres     = pt "Proof Output" $+$ nest 2 (pprint res)
-              ppinput   = pt "Input Problem" <+> measureName prob <+> text "with respect to"
-                          $+$ nest 2 (pprint prob)
-              ppanswer  = pt "Answer" <+> pprint (answer p)
-              underline = text (take (length $ show pphead) $ repeat '-')
-              pt s = wtext 17 $ s ++  ":"
-              wtext i s = text $ take n $ s ++ repeat ' ' where n = max i (length s)
+    pprint p@(Proof inst prob res) = 
+        text "We consider the following Problem:"
+        $+$ text ""
+        $+$ nest 2 (pprint prob)
+        $+$ text ""
+        $+$ text "Certificate:" <+> pprint (answer p)
+        $+$ text ""
+        $+$ underlineWith "-" (text "Application of" <+> qtext (instanceName inst) <> text ":")
+        $+$ nest 2 (pprint res)
 
 instance (Answerable (ProofOf proc)) => Answerable (Proof proc) where
     answer p = answer (result p)

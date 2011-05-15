@@ -94,11 +94,15 @@ printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeI
 instance T.TransformationProof PathAnalysis where
     answer proof = case T.transformationResult proof of 
                      T.NoProgress _        -> P.MaybeAnswer
-                     T.Progress _ subprobs -> case mubs of 
-                                             Just ubs -> P.answerFromCertificate $ certified (unknown, maximum $ (Poly $ Just 1) : ubs)
-                                             Nothing  -> P.MaybeAnswer
-                         where mubs = sequence [ (upperBound . P.certificate) `liftM` T.findProof e proof | (SN e,_) <- subprobs]
-
+                     T.Progress _ subprobs -> 
+                         case mproofs of 
+                           Just proofs -> if all P.succeeded proofs
+                                          then P.answerFromCertificate $ certified (unknown, mkUb proofs)
+                                          else P.MaybeAnswer
+                           Nothing  -> P.MaybeAnswer
+                         where mproofs = sequence [ T.findProof e proof | (SN e,_) <- subprobs]
+                               mkUb proofs = maximum $ (Poly $ Just 1) : [upperBound $ P.certificate p | p <- proofs]
+                           
     pprint proof = case T.transformationProof proof of 
                      NonDPProblem   -> text "Path Analysis only applicable to DP-problems"
                      DPProof tproof -> block' "Transformation Details" [ppTrans]
@@ -128,10 +132,10 @@ instance T.TransformationProof PathAnalysis where
 
                                ppPathName path = printPathName cwdg sig vars path
 
-                               ppDetails = vcat $ punctuate (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
-                                                                                       $+$ text ""
-                                                                                       $+$ ppDetail path))
-                                                                        | path <- List.sortBy comparePath $ computedPaths tproof]
+                               ppDetails = vcat $ List.intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
+                                                                                              $+$ text ""
+                                                                                              $+$ ppDetail path))
+                                                                               | path <- List.sortBy comparePath $ computedPaths tproof]
                                    where comparePath p1 p2 = mkpath p1 `compare` mkpath p2
                                              where mkpath p = [congruence cwdg n | n <- thePath p]
                                          ppDetail path = fromMaybe errMsg (ppsubsumed <|> ppsubproof)

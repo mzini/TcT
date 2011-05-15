@@ -27,8 +27,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Compose where
 
 import Data.Typeable (Typeable)
-import Control.Monad (liftM,liftM2)
-import Data.Either (partitionEithers, either)
+import Data.Either (partitionEithers)
 import Data.List (intersperse)
 import Text.PrettyPrint.HughesPJ
 
@@ -38,16 +37,17 @@ import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
-import Tct.Processor (Answerable (..), Answer (..), Verifiable(..), ComplexityProof, succeeded, certificate)
+import Tct.Processor (Answerable (..), ComplexityProof, certificate)
 import qualified Tct.Certificate as Cert
+
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
-import Text.Parsec.Prim (try, (<|>))
-import Text.Parsec.Char (string)
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 -- static partitioning
 
 
@@ -180,7 +180,10 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
     pprintProof t prob (tproof@(ComposeProof compfn mreason _ split esp1)) =
         (text "We use the processor" <+> tName <+> text "to orient following rules strictly."
          <+> parens ppsplit)
-        $+$ enum (enumeration' [block' "Dependency Pairs" [rDPs], block' "Trs Component" [rTrs]])
+        $+$ text ""
+        $+$ pptrs "Dependency Pairs" rDPs
+        $+$ pptrs "TRS Component" rTrs
+        $+$ text ""
         $+$ text "The induced complexity of" <+> tName <+> text "on above rules is" <+> pprint (either P.answer P.answer esp1) <> text "."
         $+$ block' "Subproof" [pprint subproof] 
         $+$ (case mreason of 
@@ -193,13 +196,14 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                           Mult    -> "multiplication"
                           Compose -> "composition") <> text ".")
 
-            where rDPs = (either (Prob.strictDPs . P.inputProblem) (Trs . P.ppRemovableDPs) esp1, sig, vars)
-                  rTrs = (either (Prob.strictTrs . P.inputProblem) (Trs . P.ppRemovableTrs) esp1, sig, vars)
+            where rDPs = either (Prob.strictDPs . P.inputProblem) (Trs . P.ppRemovableDPs) esp1
+                  rTrs = either (Prob.strictTrs . P.inputProblem) (Trs . P.ppRemovableTrs) esp1
                   sig = Prob.signature prob
                   vars = Prob.variables prob
                   subproof = either P.result P.ppResult esp1
                   qtext = quotes . text
                   tName = qtext $ T.instanceName t
+                  pptrs = pprintNamedTrs sig vars
                   ppsplit = text $ case split of 
                                      Random     -> "These rules were chosen randomly"
                                      SeparateDP -> "These rules exclude all dependency pairs"

@@ -30,6 +30,7 @@ import qualified Termlib.Rule as R
 import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
 import qualified Termlib.Trs as Trs
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Trs (Trs(..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
@@ -85,13 +86,15 @@ data DPProof = DPProof { strictDPs    :: Trs
 
 instance PrettyPrintable DPProof where 
     pprint NotRCProblem = text "The input problem is not a RC-problem. We cannot compute dependency pairs."
-    pprint ContainsDPs  = text "The input problem contains already dependency pairs. We abort."
+    pprint ContainsDPs  = text "The input problem contains already dependency pairs. "
     pprint TuplesNonInnermost  = text "Dependency tuples only applicable to innermost problems."
     pprint p            = text "We have computed the following dependency pairs"
-                          $+$ block "Strict Dependency Pairs" (pprint (strictDPs p, sig, vars))
-                          $+$ block "Weak Dependency Pairs" (pprint (weakDPs p, sig, vars))
+                          $+$ text ""
+                          $+$ ppTrs "Strict Dependency Pairs" (strictDPs p)
+                          $+$ ppTrs  "Weak Dependency Pairs" (weakDPs p)
         where sig = newSignature p
               vars = newVariables p
+              ppTrs = pprintNamedTrs sig vars
 
 instance T.TransformationProof DPs where
     answer proof = case T.subProofs proof of 

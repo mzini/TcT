@@ -28,26 +28,8 @@ import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
 import Tct.Processor as P
 import Data.Typeable 
 
-heading :: String -> Doc
-heading n = underline (text $ n ++ ":")
-
-enum :: (PrettyPrintable t) => Enumeration t -> Doc
-enum es =  vcat [pprint a <> text ")" <+> pprint e $+$ text "" | (a,e) <- es]
-
-indent :: Doc -> Doc
-indent = nest 2 
-
-procName :: (P.Processor a) => P.Proof a -> Doc
-procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
-
-block :: (PrettyPrintable t) => String -> Enumeration t -> Doc
-block _ [] = empty
-block h [(_,d)] = heading h $+$ (indent $ pprint d)
-block h ds = heading h $+$ (indent $ enum ds)
-
-block' :: (PrettyPrintable t) => String -> [t] -> Doc
-block' h ds = block h (enumeration' ds)
-
+--------------------------------------------------------------------------------
+--- Numberings
 
 class (Typeable a, Eq a) => Numbering a where
     ppNumbering :: a -> Doc
@@ -68,11 +50,12 @@ instance (Numbering a, Numbering b) => Numbering (Either a b) where
     ppNumbering (Left a)  = ppNumbering a
     ppNumbering (Right b) = ppNumbering b
 
-
-
 data SomeNumbering = forall a. Numbering a => SN a
 --instance Numbering SomeNumbering where ppNumbering (SN e) = ppNumbering e
 instance PrettyPrintable SomeNumbering where pprint (SN e) = ppNumbering e
+
+--------------------------------------------------------------------------------
+--- Enumerations
 
 type Enumeration e = [(SomeNumbering, e)]
 
@@ -106,6 +89,43 @@ findBy p ((SN a, e) : es) =
               | otherwise -> findBy p es
       Nothing             -> Nothing
 
+evalEnum :: (SolverM m) => Bool -> (Enumeration (m a)) -> m (Maybe (Enumeration a))
+evalEnum b ms = do rs <- evalList' b [ (,) e `liftM` m  | (e,m) <- ms ]
+                   return $ sequence [ mk e (find e rs)  | (SN e,_) <- ms]
+  where mk _ Nothing  = Nothing
+        mk e (Just x) = Just (SN e,x)
+
+--------------------------------------------------------------------------------
+--- pprinting concenience
+
+heading :: String -> Doc
+heading n = underline (text $ n ++ ":")
+
+indent :: Doc -> Doc
+indent = nest 2 
+
+enum :: (PrettyPrintable t) => Enumeration t -> Doc
+enum es =  vcat [pprint a <> text ")" <+> pprint e $+$ text "" | (a,e) <- es]
+
+
+block :: (PrettyPrintable t) => String -> Enumeration t -> Doc
+block _ [] = empty
+block h [(_,d)] = heading h $+$ (indent $ pprint d)
+block h ds = heading h $+$ (indent $ enum ds)
+
+block' :: (PrettyPrintable t) => String -> [t] -> Doc
+block' h ds = block h (enumeration' ds)
+
+
+--------------------------------------------------------------------------------
+--- pprinting proofs
+
+
+procName :: (P.Processor a) => P.Proof a -> Doc
+procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+
+
+
 details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
 details ps | any (failed . snd) ps = detailsFailed ps 
            | otherwise             = detailsSuccess ps
@@ -129,10 +149,5 @@ overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
                                         | otherwise   = text "FAILED"
 
 
-evalEnum :: (SolverM m) => Bool -> (Enumeration (m a)) -> m (Maybe (Enumeration a))
-evalEnum b ms = do rs <- evalList' b [ (,) e `liftM` m  | (e,m) <- ms ]
-                   return $ sequence [ mk e (find e rs)  | (SN e,_) <- ms]
-  where mk _ Nothing  = Nothing
-        mk e (Just x) = Just (SN e,x)
 
 

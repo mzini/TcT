@@ -20,7 +20,6 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.DP.UsableRules where
 
-import Data.List (partition)
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
@@ -29,6 +28,7 @@ import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Term as Term
 import qualified Termlib.Rule as R
+import Termlib.Rule (Rule (..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
@@ -41,16 +41,23 @@ import Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Method.DP.Utils 
 
-mkUsableRules :: Trs -> Set.Set F.Symbol -> Trs -> Trs
-mkUsableRules wdps ds trs = Trs $ usable (usableSymsRules $ rules wdps) (rules trs)
-  where usableSymsTerm  t  = Set.filter (\ f -> f `Set.member` ds) $ Term.functionSymbols t
-        usableSymsRules rs = Set.unions $ [usableSymsTerm (R.rhs r) | r <- rs]
-        usable syms rs = case partition (\ r -> R.lhs r `rootFrom` syms) rs of 
-                           ([],_)       -> []
-                           (ur,remains) -> ur ++ usable (usableSymsRules ur `Set.union` syms) remains
-        t `rootFrom` syms = case Term.root t of 
-                              Right f -> f `Set.member` syms
-                              Left _  ->  True
+mkUsableRules :: Prob.Problem -> Trs -> Trs
+mkUsableRules prob trs = trs `restrictTo` Set.unions [decendants f | f <- ds
+                                                                   , Rule _ r <- Trs.rules $ Prob.dpComponents prob
+                                                                   , f `Set.member` Term.functionSymbols r ]
+  where Trs rs `restrictTo` roots = Trs $ [ rule | rule <- rs, let Right f = Term.root (R.lhs rule) in f `Set.member` roots ]
+        decendants f = reachable step [f] Set.empty
+          where step f' = Set.fromList [ g | g <- ds
+                                           , Rule l r <- Trs.rules trss
+                                           , Term.root l == Right f'
+                                           , g `Set.member` Term.functionSymbols r ]
+        reachable _     []     visited                          = visited
+        reachable nexts (f:fs) visited | f `Set.member` visited = reachable nexts fs visited
+                                       | otherwise              = reachable nexts (fs' ++ fs) (Set.insert f visited)
+                                            where fs' = Set.toList $ nexts f
+                                                  
+        ds = Set.toList $ Trs.definedSymbols trss
+        trss = Prob.trsComponents prob
 
 
 data UR = UR
@@ -63,8 +70,9 @@ data URProof = URProof { usableStrict :: Trs
 
 instance PrettyPrintable URProof where 
     pprint p | progressed p  = text "We replace strict/weak-rules by the corresponding usable rules:"
-                               $+$ ppTrs "Strict Usable Rules" (usableStrict p)
-                               $+$ ppTrs "Weak Usable Rules" (usableWeak p)
+                               $+$ text ""
+                               $+$ indent (ppTrs "Strict Usable Rules" (usableStrict p)
+                                           $+$ ppTrs "Weak Usable Rules" (usableWeak p))
              | otherwise     = text "All rules are usable."
         where ppTrs = pprintNamedTrs (signature p) (variables p)
 
@@ -88,12 +96,10 @@ instance T.Transformer UR where
                   | otherwise = T.NoProgress ursproof
               strs = Prob.strictTrs prob
               wtrs = Prob.weakTrs prob
-              surs = mkUsableRules wdps ds strs
-              wurs = mkUsableRules wdps ds wtrs
+              surs = mkUsableRules prob strs
+              wurs = mkUsableRules prob wtrs
               progr = size wurs < size wtrs || size surs < size strs
                   where size = length . Trs.rules
-              ds   = Trs.definedSymbols (Prob.trsComponents prob)
-              wdps = Prob.dpComponents prob
               ursproof = DPProof URProof { usableStrict = surs
                                          , usableWeak  = wurs
                                          , signature   = Prob.signature prob

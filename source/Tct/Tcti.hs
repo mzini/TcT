@@ -5,7 +5,8 @@ module Tct.Tcti
     , apply 
     , state
     , reset
-    , undo
+    , undo -- ^ undo last step
+    , get
     , select
     , unselect
     , selectAll
@@ -16,6 +17,7 @@ module Tct.Tcti
     , setDC
     , setStrategy
     , help
+    , pprint
     )
 where
 
@@ -77,7 +79,7 @@ getState = curState `liftM` readIORef stateRef
 get :: Int -> IO Problem
 get i = do ST sel unsel <- getState
            let l = sel ++ unsel
-           if 1 <= i && i < length l 
+           if 1 <= i && i <= length l 
             then return $ l!!(i - 1)
             else error "Index out of bound"
 
@@ -220,6 +222,7 @@ help :: IO ()
 help = pprint $ block' "Commands" [U.columns 2 (transpose rows)]
   where rows = map mk [ ("load :: FilePath -> IO ()", "Loads a problem from given file") 
                       , ("apply :: Applies a => a -> IO ()", "applies 'a' to the selected problems. Currently transformations, processors and functions 'f :: Problem -> Problem' can be applied to the proof state.")
+                      , ("get :: Int -> IO ()", "get the i-th problem from the state")                         
                       , epty                        
                       , ("state :: IO ()", "displays the current state")                                                 
                       , ("reset :: IO ()", "reset the proof state and history") 
@@ -265,7 +268,7 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                                       where ppres = case res_i of 
                                               T.Progress p_i subprobs_i -> block' "Transformation Output (progress)" [T.pprintProof t prob_i p_i]
                                                                            $+$ text ""
-                                                                           $+$ block "Computed new problem(s):" [ (SN (i,j), prob_ij) | (SN j, prob_ij) <- subprobs_i ]
+                                                                           $+$ block "Computed new problem(s)" [ (SN (i,j), prob_ij) | (SN j, prob_ij) <- subprobs_i ]
                                               T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintProof t prob_i p_i]                                              
                             printOverview = pprint $ block "Transformation Overview" l
                                 where l | null progressedResults = enumeration' [text "No Progress :("]

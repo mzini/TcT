@@ -100,6 +100,7 @@ import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext, underlineWi
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 import qualified Termlib.Trs as Trs
+import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Tct.Certificate
 import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse
@@ -329,12 +330,13 @@ instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
              $+$ nest 2 (pprint (ppResult p))
       where ip = ppInputProblem p
             ppRemoveds | not (progressed p) = text "No rule was removed:"
-                       | otherwise          = text "The following DPs were strictly oriented by the relative processor:"
+                       | otherwise          = text "We orient the following rules strictly:"
                                               $+$ text ""
-                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableDPs p, signature $ ip, variables $ ip))
-                                              $+$ text "The following rules were strictly oriented by the relative processor:"
+                                              $+$ ppTrs "Dependency Pairs" (Trs.fromRules $ ppRemovableDPs p)
+                                              $+$ ppTrs "TRS Component"    (Trs.fromRules $ ppRemovableTrs p)
                                               $+$ text ""
-                                              $+$ nest 2 (pprint (Trs.fromRules $ ppRemovableTrs p, signature $ ip, variables $ ip))
+                                              $+$ pprint (ppResult p)
+            ppTrs = pprintNamedTrs (signature ip) (variables ip)
 
 
 instance (Answerable proof) => Answerable (PartialProof proof) where

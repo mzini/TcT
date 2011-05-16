@@ -112,8 +112,8 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
           es = [ (n1, n2, ()) | (n1,(_,l1)) <- ns
                              , (n2,(_,l2)) <- ns
                              , R.rhs l1 `edgeTo` R.lhs l2] 
-          s `edgeTo` t | approx == Trivial = True 
-                       | approx == Edg     = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
+          s `edgeTo` t | approx == Edg     = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
+                       | otherwise        = True
               where invMatch = if any Term.isVariable rhss then True else any (match $ etcap rhss t) ss
                     lhss = Trs.lhss rs
                     rhss = Trs.rhss rs

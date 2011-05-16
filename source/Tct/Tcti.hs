@@ -4,6 +4,7 @@ module Tct.Tcti
      load
     , apply 
     , state
+    , initialProblem
     , reset
     , undo -- ^ undo last step
     , get
@@ -31,17 +32,13 @@ import qualified Termlib.Utils as U
 import Tct.Processor.PPrint
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
-import qualified Text.PrettyPrint.HughesPJ as PP
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
+import Data.Maybe (fromMaybe)
 import Data.List
-import Data.Maybe
-import System.IO
 import System.IO.Unsafe
 import Data.IORef
 import Control.Monad
-
-import Tct.Methods
 
 --------------------------------------------------------------------------------
 --- Utils
@@ -77,11 +74,14 @@ getState :: IO ST
 getState = curState `liftM` readIORef stateRef
 
 get :: Int -> IO Problem
-get i = do ST sel unsel <- getState
-           let l = sel ++ unsel
+get i = do st <- getState
+           let l = selected st ++ unselected st
            if 1 <= i && i <= length l 
             then return $ l!!(i - 1)
             else error "Index out of bound"
+
+initialProblem :: IO Problem
+initialProblem = fromMaybe (error "No problem loaded") `liftM` loaded `liftM` readIORef stateRef
 
 putState :: ST -> IO ()
 putState st = do STATE cur hst mprob <- readIORef stateRef 
@@ -102,8 +102,8 @@ reset = do STATE _ _ mprob <- readIORef stateRef
              Nothing   -> writeIORef stateRef (STATE (ST [] []) [] Nothing) >> printState
            
 undo :: IO ()
-undo = do STATE cur hist mprob <- readIORef stateRef 
-          case hist of 
+undo = do STATE _ hst mprob <- readIORef stateRef 
+          case hst of 
             [] -> error "Nothing to undo"
             (h:hs) -> writeIORef stateRef (STATE h hs mprob) >> printState
                       
@@ -279,7 +279,7 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                             isProgress (T.NoProgress _) = False
                             setResults = putState (ST newsel unsel)
                             newsel = concatMap f (toList probResEnum)
-                                where f (prob_i, T.Progress _ ps) = toList ps
+                                where f (_     , T.Progress _ ps) = toList ps
                                       f (prob_i, T.NoProgress _)  = [prob_i]
                                       
 instance P.Processor p => Apply (P.InstanceOf p) where
@@ -298,8 +298,8 @@ instance P.Processor p => Apply (P.InstanceOf p) where
                               printOverview = pprint $ block "Processor Overview" l
                                   where l | all (P.failed . snd . snd) pps = enumeration' [text "No Progress :("]
                                           | otherwise                      = [ (SN i, pp i p_i) | (SN i, (_, p_i )) <- pps ]
-                                        pp _ p | P.succeeded p = text "Problem removed." <+> parens (U.pprint $ P.answer p)
-                                               | otherwise     = text "Problem unchanged."
+                                        pp _ prf | P.succeeded prf = text "Problem removed." <+> parens (U.pprint $ P.answer prf)
+                                                 | otherwise     = text "Problem unchanged."
 
                               setResults = putState (ST newsel unsel)
                               newsel = concatMap f (toList pps)

@@ -67,14 +67,16 @@ data URProof = URProof { usableStrict :: Trs
                        , signature    :: F.Signature
                        , variables    :: V.Variables
                        , progressed   :: Bool}
+               | Error DPError
 
 instance PrettyPrintable URProof where 
-    pprint p | progressed p  = text "We replace strict/weak-rules by the corresponding usable rules:"
-                               $+$ text ""
-                               $+$ indent (ppTrs "Strict Usable Rules" (usableStrict p)
-                                           $+$ ppTrs "Weak Usable Rules" (usableWeak p))
-             | otherwise     = text "All rules are usable."
+    pprint p@URProof {} | progressed p  = text "We replace strict/weak-rules by the corresponding usable rules:"
+                                          $+$ text ""
+                                          $+$ indent (ppTrs "Strict Usable Rules" (usableStrict p)
+                                                     $+$ ppTrs "Weak Usable Rules" (usableWeak p))
+                      | otherwise       = text "All rules are usable."
         where ppTrs = pprintNamedTrs (signature p) (variables p)
+    pprint (Error e)                    = pprint e
 
 instance T.TransformationProof UR where
     answer proof = case T.subProofs proof of 
@@ -88,9 +90,9 @@ instance T.Transformer UR where
     description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"
                      , "respect to the dependency pairs."]
     type T.ArgumentsOf UR = Unit
-    type T.ProofOf UR = DPProof URProof 
+    type T.ProofOf UR = URProof 
     arguments UR = Unit
-    transform _ prob | not (Prob.isDPProblem prob) = return $ T.NoProgress NonDPProblem
+    transform _ prob | not (Prob.isDPProblem prob) = return $ T.NoProgress $ Error NonDPProblemGiven
                      | otherwise                 = return $ res
         where res | progr     = T.Progress ursproof (enumeration' [prob'])
                   | otherwise = T.NoProgress ursproof
@@ -100,11 +102,11 @@ instance T.Transformer UR where
               wurs = mkUsableRules prob wtrs
               progr = size wurs < size wtrs || size surs < size strs
                   where size = length . Trs.rules
-              ursproof = DPProof URProof { usableStrict = surs
-                                         , usableWeak  = wurs
-                                         , signature   = Prob.signature prob
-                                         , variables   = Prob.variables prob
-                                         , progressed  = progr }
+              ursproof = URProof { usableStrict = surs
+                                 , usableWeak  = wurs
+                                 , signature   = Prob.signature prob
+                                 , variables   = Prob.variables prob
+                                 , progressed  = progr }
               prob' = prob { Prob.strictTrs = surs
                            , Prob.weakTrs   = wurs }
 

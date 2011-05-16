@@ -45,6 +45,7 @@ data PathProof = PathProof { computedPaths   :: [Path]
                            , subsumedBy      :: [(Path,[Path])]
                            , variables       :: V.Variables
                            , signature       :: F.Signature}
+                 | Error DPError
 
 data PathAnalysis = PathAnalysis
 
@@ -52,20 +53,20 @@ instance T.Transformer PathAnalysis where
     name PathAnalysis        = "pathanalysis"
     description PathAnalysis = ["Pathanalysis"]
     type T.ArgumentsOf PathAnalysis = Unit
-    type T.ProofOf PathAnalysis = DPProof PathProof
+    type T.ProofOf PathAnalysis = PathProof
     arguments PathAnalysis = Unit
-    transform _ prob | not $ Prob.isDPProblem prob = return $ T.NoProgress NonDPProblem
+    transform _ prob | not $ Prob.isDPProblem prob = return $ T.NoProgress $ Error NonDPProblemGiven
                      | otherwise                 = return $ res
         where res | progressed = T.Progress p (enumeration [(thePath pth, prob') | (pth,prob') <- pathsToProbs ])
                   | otherwise  = T.NoProgress p
               edg  = estimatedDependencyGraph Edg prob
               cedg = toCongruenceGraph edg
-              p = DPProof PathProof { computedPaths   = paths
-                                    , computedCongrDG = cedg
-                                    , computedDG      = edg
-                                    , subsumedBy      = subsume
-                                    , variables       = Prob.variables prob
-                                    , signature       = Prob.signature prob}
+              p = PathProof { computedPaths   = paths
+                            , computedCongrDG = cedg
+                            , computedDG      = edg
+                            , subsumedBy      = subsume
+                            , variables       = Prob.variables prob
+                            , signature       = Prob.signature prob}
               (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom [] Trs.empty) (roots cedg)
               paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
@@ -104,10 +105,10 @@ instance T.TransformationProof PathAnalysis where
                                mkUb proofs = maximum $ (Poly $ Just 1) : [upperBound $ P.certificate p | p <- proofs]
                            
     pprint proof = case T.transformationProof proof of 
-                     NonDPProblem   -> text "Path Analysis only applicable to DP-problems"
-                     DPProof tproof -> block' "Transformation Details" [ppTrans]
-                                      $+$ text ""
-                                      $+$ block' "Sub-problems" [ppDetails]
+                     Error   e   -> pprint e
+                     tproof -> block' "Transformation Details" [ppTrans]
+                               $+$ text ""
+                               $+$ block' "Sub-problems" [ppDetails]
                          where cwdg = computedCongrDG tproof
                                wdg = computedDG tproof
                                sig = signature tproof
@@ -148,8 +149,8 @@ instance T.TransformationProof PathAnalysis where
                                                    ppsubproof = do subproof <- findSubProof path
                                                                    return $ pprint subproof
 
-    pprintProof _ _ NonDPProblem     = text "Path Analysis only applicable to DP-problems"
-    pprintProof _ _ (DPProof tproof) = block' "Transformation Details" [ppTrans]
+    pprintProof _ _ (Error e) = pprint e
+    pprintProof _ _ tproof    = block' "Transformation Details" [ppTrans]
         where ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
                         $+$ pprintCWDG wdg cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")

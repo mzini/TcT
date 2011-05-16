@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,20 +15,19 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-
 module Tct.Method.DP.Utils where
 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import Termlib.Utils
 
-data DPProof p = NonDPProblem 
-               | DPProof p
+data DPError = NonDPProblemGiven 
+             | NonRCProblemGiven
+             | NotApplicable Doc
 
-
-instance PrettyPrintable p => PrettyPrintable (DPProof p) where 
-    pprint NonDPProblem = text "The input problem is not a DP-problem, we do not compute usable rules."
-    pprint (DPProof p)  = pprint p
-
+instance PrettyPrintable DPError where 
+    pprint NonDPProblemGiven = text "The input problem is not a DP-problem."
+    pprint NonRCProblemGiven = text "The input problem is not an RC-problem."
+    pprint (NotApplicable r) = hang (text "The processor is not applicable. Reason:") 3 r
+    
+    

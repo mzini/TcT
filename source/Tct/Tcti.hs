@@ -6,7 +6,7 @@ module Tct.Tcti
     , state
     , initialProblem
     , reset
-    , undo -- ^ undo last step
+    , undo 
     , get
     , select
     , unselect

@@ -1,2 +1,4 @@
 dist
 cabal-log
+.dist-scion
+notify.rb

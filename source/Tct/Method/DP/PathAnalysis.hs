@@ -40,7 +40,7 @@ import Tct.Method.DP.Utils
 data Path = Path { thePath :: [NodeId] } deriving (Eq, Show)
 
 data PathProof = PathProof { computedPaths   :: [Path]
-                           , computedCongrDG :: CongrDG
+                           , computedCongrDG :: CDG
                            , computedDG      :: DG
                            , subsumedBy      :: [(Path,[Path])]
                            , variables       :: V.Variables
@@ -87,7 +87,7 @@ instance T.Transformer PathAnalysis where
                                        Trs sprob = Prob.strictDPs prob
                              _     -> True
 
-printPathName :: CongrDG -> F.Signature -> V.Variables -> Path -> Doc
+printPathName :: CDG -> F.Signature -> V.Variables -> Path -> Doc
 printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeId n | n <- ns] 
   where printNodeId = pprintCWDGNode cwdg sig vars 
 

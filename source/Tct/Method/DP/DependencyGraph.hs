@@ -58,11 +58,12 @@ type DependencyGraph n = GraphT.Gr n ()
 type NodeId = Graph.Node
 
 data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
-type Node = (Strictness, R.Rule)
-type DG = DependencyGraph Node
 
-data CongrNode = CongrNode { theSCC :: [(NodeId, Node)] }
-type CongrDG = DependencyGraph CongrNode
+type DGNode = (Strictness, R.Rule)
+type DG = DependencyGraph DGNode
+
+data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)] }
+type CDG = DependencyGraph CDGNode
 
 --------------------------------------------------------------------------------
 -- Graph Inspection
@@ -85,16 +86,16 @@ lsuccessors gr n = [ (m, fromJust $ lookupNode gr n) | m <- successors gr n]
 nodes :: DependencyGraph n -> [NodeId]
 nodes = Graph.nodes
 
-rulesFromNode :: CongrDG -> Strictness -> NodeId -> [R.Rule]
+rulesFromNode :: CDG -> Strictness -> NodeId -> [R.Rule]
 rulesFromNode gr str n = case lookupNode gr n of 
                             Nothing -> []
                             Just cn -> [ r | (_, (str', r)) <- theSCC cn, str == str']
 
 
-rulesFromNodes :: CongrDG -> Strictness -> [NodeId] -> Trs
+rulesFromNodes :: CDG -> Strictness -> [NodeId] -> Trs
 rulesFromNodes gr str ns = Trs $ concatMap (rulesFromNode gr str) ns
 
-congruence :: CongrDG -> NodeId -> [NodeId]
+congruence :: CDG -> NodeId -> [NodeId]
 congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
 
 
@@ -139,7 +140,7 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
 --------------------------------------------------------------------------------
 
 
-toCongruenceGraph :: DG -> CongrDG
+toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es
     where ns    = zip [1..] [sccNode scc | scc <- GraphDFS.scc gr]
           es    = [ (n1, n2, ()) | (n1, cn1) <- ns
@@ -151,18 +152,13 @@ toCongruenceGraph gr = Graph.mkGraph ns es
 
 
 instance PrettyPrintable (DG, F.Signature, V.Variables) where 
-  pprint (wdg, sig, vars) = ppwdg
-                            $+$ text ""
-                            $+$ text "Here rules are as follows:"
-                            $+$ text ""
-                            $+$ (indent $ pprintLabeledRules sig vars rs )
+  pprint (wdg, sig, vars) = hcat [ ppnode n rule | (n, rule) <- rs]
     where rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
-          ppwdg = hcat [ ppnode n rule | (n, rule) <- rs]
-            where ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $
-                                   vcat [ text "-->" <+> pprule rule_m  <> text ":" <+> text (show m) 
-                                        | (m, (_,rule_m)) <- lsuccessors wdg n ]
-                  pprule r = pprint (r, sig, vars)
+          ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $
+                            vcat [ text "-->" <+> pprule rule_m  <> text ":" <+> text (show m) 
+                                 | (m, (_,rule_m)) <- lsuccessors wdg n ]
+          pprule r = pprint (r, sig, vars)
 
 -- utilities
 
@@ -205,10 +201,10 @@ etcap _ (Term.Var _)       = Hole
 etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
     where c = Fun f $ map (etcap lhss) ts
 
-pprintCWDGNode :: CongrDG -> F.Signature -> V.Variables -> NodeId -> Doc
+pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
 pprintCWDGNode cwdg _ _ n = braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ]
 
-pprintCWDG :: CongrDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
+pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
 pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
                                    $+$ text ""
                                    $+$ text "Here rules are as follows:"

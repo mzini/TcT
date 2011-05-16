@@ -66,6 +66,7 @@ module Tct.Methods
     , dependencyPairs
     , dependencyTuples
     , usableRules
+    , DPSimp.removeLeafs
     , weightgap
     , (>>>)
     , exhaustively
@@ -158,7 +159,7 @@ import qualified Tct.Method.Compose as Compose
 import Tct.Method.Bounds
 import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
 import qualified Qlogic.ArcSat as ArcSat
-
+import qualified Tct.Method.DP.Simplification as DPSimp
 import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
 import Tct.Method.Custom
 import Tct.Method.Predicates
@@ -195,6 +196,7 @@ builtInProcessors = timeoutProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
                    <|> usableRulesProcessor
+                   <|> DPSimp.removeLeafProcessor
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
                    <|> NaturalMI.matrixProcessor

@@ -24,10 +24,11 @@ import Termlib.Utils
 data DPError = NonDPProblemGiven 
              | NonRCProblemGiven
              | NotApplicable Doc
+             | ContainsStrictRule
 
 instance PrettyPrintable DPError where 
     pprint NonDPProblemGiven = text "The input problem is not a DP-problem."
     pprint NonRCProblemGiven = text "The input problem is not an RC-problem."
     pprint (NotApplicable r) = hang (text "The processor is not applicable. Reason:") 3 r
-    
+    pprint ContainsStrictRule = paragraph "The processor is inapplicable since the strict component of the input problem is not empty"
     

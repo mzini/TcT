@@ -106,7 +106,6 @@ processors defined in Section~\ref{s:procs}.
 \begin{code}
 main :: IO ()
 main = tct defaultConfig { processors = withMeasure 
-                                       <|> greedyCompose
                                        <|> rcProcessor                                       
                                        <|> processors defaultConfig } 
 \end{code}
@@ -175,56 +174,27 @@ withMeasure = customProcessor withMeasureSolve
                                        , "UNSOUND depending on usage!"]}
 \end{code} 
 
-\subsection{Processor @Greedy Compose@}
-\begin{code}
-
-greedyComposeSolve :: (P.SolverM m, P.Processor p_1, P.Processor p_2) => 
-  (Maybe Nat :+: Bool :+: P.InstanceOf p_1 :+: P.InstanceOf p_2) 
-  -> Problem -> m P.SomeProof
-
-greedyComposeSolve  (Just (Nat 0)  :+:  _            :+:  _        :+:  subproc)  prob  = 
-   prob `solveBy` subproc 
-greedyComposeSolve  (mn            :+:  useRelative  :+:  relproc  :+:  subproc)  prob  = 
-   prob `solveBy` proc where 
-        proc   =  composeDynamic useRelative relproc (gc `before` subproc)
-        args'  =  mn' :+: useRelative :+: relproc :+: subproc 
-           where mn' = (\ n -> n - 1) `fmap` mn
-        gc     =  localProcessor "greedycombine (recursive)" (greedyComposeSolve args')
-
-
-greedyCompose = customProcessor greedyComposeSolve
-                Description { as = "greedycompose" 
-                            , args = ubound :+: useRel :+: relproc :+: subproc
-              , descr = ["This processor applies combine iteratively."]}
-            where  ubound   =  (optional (maybeArg naturalArg) "iterations" Nothing) 
-                               {description = "Upper bounds on iterations."}
-                   useRel   =  (optional boolArg "relative" False)                   
-                               {description = "The flag is given to combine" }
-                   relproc  =  processorArg 
-                               {description = "The processor used to remove rules."}
-                   subproc  =  processorArg 
-                               {description = "The final processor."}
-\end{code}
- 
 \section{Transformations}
   
 \subsection{Simple Accessors}
+
 \begin{code}
-wg1     =  weightgap WgOnTrs Algebraic Nothing (nat 1) (Bits 3) (Just (Nat 4)) True
-wg3     =  weightgap WgOnTrs Algebraic (Just $ nat 1) (nat 3) (Bits 3) (Just (Nat 4)) True
-algebraic_matrix dim = matrix Algebraic Nothing (Nat dim) (Bits 3) (Just (Nat 4)) True
+
+wg1     =  weightgap defaultOptions { dim = 1, degree = 1 }
+wg3     =  weightgap defaultOptions { dim = 3, degree = 1 }
 \end{code}
  
 \subsection{Some Transformations} 
 \begin{code} 
-linears =  try wg3
-wdg tuples = dependencyPairs tuples >>> try usableRules >>> try pathAnalysis
+linears     =  try wg1 >>> wg3
+wdg tuples  =  (if tuples then dependencyTuples else dependencyPairs) >>> try usableRules >>> try pathAnalysis
 \end{code}
 
 \subsection{The Processor @rc@} 
+
 \begin{code}
-rc tuples   = wdg tuples >>> try linears `thenApply` fastest  [  algebraic_matrix dim 
-                                                              |  dim <- [1..3] ]
+rc tuples   = wdg tuples >>> try linears `thenApply` fastest  [  matrix defaultOptions { dim = d, degree = d}
+                                                              |  d <- [1..3] ]
 rcProcessor = processor rc
               Description  { as    =  "rc"
                            , args  =  optional boolArg "tuples" False 

@@ -167,7 +167,7 @@ import Tct.Method.DP.UsableRules
 import Tct.Method.DP.DependencyPairs
 import Tct.Method.DP.PathAnalysis
 import qualified Tct.Method.Weightgap as Weightgap
-import Tct.Method.DP.DependencyGraph hiding (strict, weak)
+import Tct.Method.DP.DependencyGraph
 import Tct.Method.InnermostRuleRemoval
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P

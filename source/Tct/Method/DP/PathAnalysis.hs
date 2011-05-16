@@ -110,12 +110,11 @@ instance T.TransformationProof PathAnalysis where
                                $+$ text ""
                                $+$ block' "Sub-problems" [ppDetails]
                          where cwdg = computedCongrDG tproof
-                               wdg = computedDG tproof
                                sig = signature tproof
                                vars = variables tproof
                                ppTrans = paragraph "Following congruence DG was used:"
                                          $+$ text ""
-                                         $+$ pprintCWDG wdg cwdg sig vars ppLabel
+                                         $+$ pprintCWDG cwdg sig vars ppLabel
 
                                ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth)
                                    where centering n d =  text $ take pre ss ++ s ++ take post ss
@@ -153,9 +152,8 @@ instance T.TransformationProof PathAnalysis where
     pprintProof _ _ tproof    = block' "Transformation Details" [ppTrans]
         where ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
-                        $+$ pprintCWDG wdg cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")
+                        $+$ pprintCWDG cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")
               cwdg = computedCongrDG tproof
-              wdg = computedDG tproof
 
 
 

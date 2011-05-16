@@ -1,6 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -19,6 +16,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Method.DP.DependencyGraph where
 
@@ -90,11 +89,12 @@ rulesFromNodes gr str ns = Trs.unions [ rulesFromNode n | n <- ns]
                               Just p | str == StrictDP -> strict p
                                      | otherwise      -> weak p
 
-          -- nodeSCC :: CongrDG -> NodeId -> [NodeId]
-          -- nodeSCC gr n = theSCC $ fromMaybe (error $ "node" ++ show n) (lookupNode gr n)
-
 congruence :: CongrDG -> NodeId -> [NodeId]
 congruence gr n = fromMaybe [] (theSCC `liftM` Graph.lab gr n)
+
+
+isEdgeTo :: DependencyGraph n -> NodeId -> NodeId -> Bool
+isEdgeTo g n1 n2 = n2 `elem` successors g n1 
 
 --------------------------------------------------------------------------------
 -- Estimated Dependency Graph

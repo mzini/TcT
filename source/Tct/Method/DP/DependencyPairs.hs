@@ -98,9 +98,7 @@ instance PrettyPrintable DPProof where
               ppTrs = pprintNamedTrs sig vars
 
 instance T.TransformationProof DPs where
-    answer proof = case T.subProofs proof of 
-                     [(_, subproof)] -> P.answer subproof
-                     _               -> P.MaybeAnswer
+    answer = T.answerFromSubProof
     pprintProof _ _ = pprint
 
 instance T.Transformer DPs where
@@ -119,8 +117,7 @@ instance T.Transformer DPs where
           (_               , False,    _) -> T.NoProgress ContainsDPs
           (_               , _    , True) -> T.NoProgress TuplesNonInnermost
           (BasicTerms ds cs, _    , _   ) -> T.Progress proof  (enumeration' [prob'])
-            where strat     = Prob.strategy prob
-                  sig       = Prob.signature prob
+            where sig       = Prob.signature prob
                   strict    = Prob.strictTrs prob
                   weak      = Prob.weakTrs prob
                   ((sDps, wDps, ds'), sig') = flip Sig.runSignature sig $ 

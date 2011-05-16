@@ -79,9 +79,7 @@ instance PrettyPrintable URProof where
     pprint (Error e)                    = pprint e
 
 instance T.TransformationProof UR where
-    answer proof = case T.subProofs proof of 
-                     [(_, subproof)] -> P.answer subproof
-                     _               -> P.MaybeAnswer
+    answer = T.answerFromSubProof
     pprintProof _ _ = pprint
 
 

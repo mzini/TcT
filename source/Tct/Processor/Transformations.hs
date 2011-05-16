@@ -107,12 +107,18 @@ class TransformationProof t where
 data Result t = NoProgress (ProofOf t)
               | Progress (ProofOf t) (Enumeration Problem)
 
-
 data Proof t sub = Proof { transformationResult :: Result t
                          , inputProblem         :: Problem
                          , appliedTransformer   :: TheTransformer t
                          , appliedSubprocessor  :: P.InstanceOf sub
                          , subProofs            :: Enumeration (P.Proof sub) }
+
+
+answerFromSubProof :: (P.Processor sub) => Proof t sub -> P.Answer
+answerFromSubProof proof = case subProofs proof of 
+                              [(_, subproof)] -> P.answer subproof
+                              _               -> P.MaybeAnswer
+
 
 proofFromResult :: Result t -> (ProofOf t)
 proofFromResult (NoProgress t) = t

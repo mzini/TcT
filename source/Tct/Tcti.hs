@@ -4,6 +4,7 @@ module Tct.Tcti
      load
     , apply 
     , state
+    , history
     , initialProblem
     , reset
     , undo 
@@ -79,6 +80,9 @@ get i = do st <- getState
            if 1 <= i && i <= length l 
             then return $ l!!(i - 1)
             else error "Index out of bound"
+
+history :: IO [ST]
+history = hist `liftM` readIORef stateRef
 
 initialProblem :: IO Problem
 initialProblem = fromMaybe (error "No problem loaded") `liftM` loaded `liftM` readIORef stateRef

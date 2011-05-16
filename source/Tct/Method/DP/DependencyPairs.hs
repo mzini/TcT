@@ -46,9 +46,10 @@ markSymbol :: Symbol -> SignatureMonad Symbol
 markSymbol f = do fa <- getAttributes f 
                   maybeFresh fa{symIsMarked = True}
 
-dependencyPairsOf :: Bool -> Strategy -> Trs -> F.SignatureMonad Trs
-dependencyPairsOf useTuples strat trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
-    where definedsFromTrs = definedSymbols trs 
+dependencyPairsOf :: Bool -> Prob.Problem -> Trs -> F.SignatureMonad Trs
+dependencyPairsOf useTuples prob trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
+    where definedsFromTrs = definedSymbols (Prob.trsComponents prob)
+          strat           = Prob.strategy prob
           mk (rule,i) = do lhs' <- mrk $ R.lhs rule
                            rhs' <- mkRhs i $ R.rhs rule
                            return $ R.fromPair (lhs',rhs')
@@ -123,8 +124,8 @@ instance T.Transformer DPs where
                   strict    = Prob.strictTrs prob
                   weak      = Prob.weakTrs prob
                   ((sDps, wDps, ds'), sig') = flip Sig.runSignature sig $ 
-                                              do s <- dependencyPairsOf useTuples strat strict
-                                                 w <- dependencyPairsOf useTuples strat weak
+                                              do s <- dependencyPairsOf useTuples prob strict
+                                                 w <- dependencyPairsOf useTuples prob weak
                                                  d <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
                                                  return (s, w, d)
                   proof     = DPProof { strictDPs = sDps

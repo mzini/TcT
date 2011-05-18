@@ -99,8 +99,6 @@ import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext, underlineWith)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
-import qualified Termlib.Trs as Trs
-import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Tct.Certificate
 import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse

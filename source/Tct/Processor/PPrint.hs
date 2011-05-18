@@ -24,6 +24,7 @@ module Tct.Processor.PPrint where
 
 import Text.PrettyPrint.HughesPJ
 import Control.Monad (liftM)
+import Data.Maybe (catMaybes)
 import Termlib.Utils (PrettyPrintable (..), underline, pprintInt)
 import Tct.Processor as P
 import Data.Typeable 
@@ -76,10 +77,16 @@ find :: Numbering n => n -> Enumeration a -> Maybe a
 find _ []  = Nothing
 find a  as = findBy ((==) a) as
 
-
+zipEnum :: [(SomeNumbering, t)] -> [(SomeNumbering, a1)] -> [Maybe (SomeNumbering, (t, a1))]
+zipEnum as bs = [ mk a (SN e1) `liftM` find e1 bs | (SN e1,a) <- as ]
+  where mk a e b = (e,(a,b))
+        
 zipSafe :: Enumeration a -> Enumeration b -> Maybe (Enumeration (a,b))
-zipSafe as bs = sequence [ mk a (SN e1) `liftM` find e1 bs | (SN e1,a) <- as ] where
-  mk a e b = (e,(a,b))
+zipSafe as bs = sequence $ zipEnum as bs
+
+zipUnsafe :: Enumeration a -> Enumeration b -> Enumeration (a,b)
+zipUnsafe as bs = catMaybes $ zipEnum as bs 
+
 
 findBy :: Numbering n => (n -> Bool) -> Enumeration a -> Maybe a
 findBy _ [] = Nothing

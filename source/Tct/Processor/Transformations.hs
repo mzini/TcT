@@ -53,14 +53,19 @@ where
 import Control.Monad (liftM)
 
 import Data.Maybe (catMaybes)
-import Termlib.Problem
-import qualified Termlib.Utils as Util
 import Text.PrettyPrint.HughesPJ
 import Data.Typeable
+import qualified Data.Set as Set
+import Data.Maybe (fromMaybe)
+import Data.List (partition)
+
+import Termlib.Problem
+import qualified Termlib.Trs as Trs
+import qualified Termlib.Utils as Util
+
+import Tct.Processor.PPrint
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
-import Data.Maybe (fromMaybe)
-import Tct.Processor.PPrint
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args hiding (name, description, synopsis)
@@ -107,11 +112,17 @@ class TransformationProof t where
 data Result t = NoProgress (ProofOf t)
               | Progress (ProofOf t) (Enumeration Problem)
 
+
+
+data MaybeSubsumed proof = MaybeSubsumed (Maybe Problem) proof
+
+  
 data Proof t sub = Proof { transformationResult :: Result t
                          , inputProblem         :: Problem
                          , appliedTransformer   :: TheTransformer t
                          , appliedSubprocessor  :: P.InstanceOf sub
                          , subProofs            :: Enumeration (P.Proof sub) }
+
 
 
 answerFromSubProof :: (P.Processor sub) => Proof t sub -> P.Answer
@@ -168,16 +179,26 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
 --------------------------------------------------------------------------------
 --- Transformation Processor
 
+subsumes :: Problem -> Problem -> Bool
+p1 `subsumes` p2 = check strictTrs 
+                   && check strictDPs 
+                   && check trsComponents
+                   && check dpComponents 
+  where -- checkStr f = toSet (f p2) `Set.isProperSubsetOf` toSet (f p1)
+        check f = toSet (f p2) `Set.isSubsetOf` toSet (f p1)
+        toSet = Set.fromList . Trs.rules
+        
+
 data TransProc t sub = TransProc t
 
 instance ( Transformer t 
          , P.Processor sub) 
          => S.Processor (TransProc t sub) where
-    type S.ProofOf (TransProc t sub) = Proof t sub
-    type S.ArgumentsOf (TransProc t sub) = Arg (Maybe Bool) :+: Arg (Maybe Bool) :+: ArgumentsOf t :+: Arg (Proc sub)
+    type S.ProofOf (TransProc t sub) = Proof t (Subsumed sub)
+    type S.ArgumentsOf (TransProc t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     name (TransProc t)      = name t
     instanceName inst       = instanceName tinst ++ " transformation" 
-        where _ :+: _ :+: as :+: _ = S.processorArgs inst
+        where _ :+: _ :+: _ :+: as :+: _ = S.processorArgs inst
               TransProc t          = S.processor inst
               tinst = TheTransformer t as
 
@@ -185,33 +206,49 @@ instance ( Transformer t
     arguments (TransProc t) = opt { A.name = "strict"
                               , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
                                                         , "Otherwise, it applies the subprocessor on the untransformed input."] 
-                              , A.defaultValue = Nothing }
+                              , A.defaultValue = False }
                           :+: opt { A.name = "parallel"
                                   , A.description = "Decides whether the given subprocessor should be applied in parallel"
-                                  , A.defaultValue = Nothing }
+                                  , A.defaultValue = False }
+                          :+: opt { A.name = "checkSubsumed"
+                                  , A.description = unlines [ "This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one."
+                                                            , "A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'."
+                                                            , "Currently we only take subset-inclusions of the different components into account" ]
+                                                    
+                                  , A.defaultValue = True }
                           :+: arguments t 
                           :+: arg { A.name = "subprocessor"
                                   , A.description = "The processor that is applied on the transformed problem(s)" }
     solve inst prob = do res <- transform tinst prob
                          case res of 
-                           NoProgress p  -> if continue tinst p || not (toBool str)
+                           NoProgress p  -> if continue tinst p || not str
                                              then do sp <- P.apply sub prob
-                                                     return $ mkProof res (enumeration' [sp])
+                                                     return $ mkProof res (enumeration' [liftMS Nothing sp])
                                              else return $ mkProof res []
-                           Progress _ ps -> do esubproofs <- P.evalList (toBool par) (P.succeeded . snd) 
-                                                           [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- ps]
+                           Progress _ ps -> do let (subsumed, unsubsumed) | checkSubsume = splitSubsumed ps
+                                                                          | otherwise    = ([], ps)
+                                               esubproofs <- P.evalList par (P.succeeded . snd) 
+                                                           [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- unsubsumed]
                                                return $ case mkSubproofs esubproofs ps of 
-                                                           Just sps -> mkProof res sps
+                                                           Just sps -> mkProof res $ unsubsumedProofs ++ subsumedProofs
+                                                              where unsubsumedProofs = mapEnum (liftMS Nothing) sps
+                                                                    subsumedProofs = catMaybes [ do proof_j <- find e_j sps
+                                                                                                    return $ (e_i, liftMS (Just p_j) proof_j)
+                                                                                               | (e_i, p_j, SN e_j) <- subsumed ]
+
                                                            Nothing  -> mkProof res []
         where (TransProc t) = S.processor inst
               tinst         = TheTransformer t args
-              str :+: par :+: args :+: sub = S.processorArgs inst
-              toBool = maybe True id 
+              str :+: par :+: checkSubsume :+: args :+: sub = S.processorArgs inst
+              splitSubsumed [] = ([],[])
+              splitSubsumed ((e_i, p_i):ps) = ([ (e_i, p_i, e_j) | (e_j, _) <- subs_i ] ++ subs', unsubs')
+                where (subs_i, unsubs_i) = partition (\ (_, p_j) -> p_i `subsumes` p_j) ps
+                      (subs', unsubs') = splitSubsumed unsubs_i
               mkSubproofs (Right subproofs) ps = sequence [(,) (SN e) `liftM` find e subproofs | (SN e,_) <- ps]
               mkSubproofs (Left  (fld,ss))  _  = Just (fld : ss)
               mkProof res subproofs = Proof { transformationResult = res
                                             , inputProblem         = prob
-                                            , appliedSubprocessor  = sub
+                                            , appliedSubprocessor  = (SSI sub)
                                             , appliedTransformer   = tinst
                                             , subProofs            = subproofs}
 
@@ -325,16 +362,16 @@ mkComposeProof sub t1 t2 input r1 r2s subproofs =
                                   NoProgress p2_i          -> Proof { transformationResult = NoProgress (TryProof p2_i)
                                                                    , inputProblem         = prob_i
                                                                    , appliedTransformer   = t2try
-                                                                   , appliedSubprocessor  = sub
-                                                                   , subProofs            = enumeration' $ catMaybes [find (One i) subproofs] } 
+                                                                   , appliedSubprocessor  = SSI sub
+                                                                   , subProofs            = enumeration' $ catMaybes [liftMS Nothing `liftM` find (One i) subproofs] } 
 
                                   Progress p2_i subprobs_i -> Proof { transformationResult = Progress (TryProof p2_i) subprobs_i
                                                                    , inputProblem         = prob_i
                                                                    , appliedTransformer   = t2try
-                                                                   , appliedSubprocessor  = sub
+                                                                   , appliedSubprocessor  = SSI sub
                                                                    , subProofs            = concatMap mkSubProof2 subprobs_i }
                                       where mkSubProof2 (SN j, _) = case find (Two (i,j)) subproofs of 
-                                                                      Just proof -> [(SN j, proof)]
+                                                                      Just proof -> [(SN j, liftMS Nothing proof)]
                                                                       Nothing    -> []
 
                   
@@ -478,7 +515,7 @@ t `calledWith` as = TheTransformer t as
 infixr 2 `thenApply`
 
 thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (Nothing :+: Nothing :+: args :+: sub)
+thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (True :+: True :+: False :+: args :+: sub)
 
 
 type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
@@ -504,3 +541,35 @@ transformationProcessor t = S.StdProcessor (TransProc t)
 -- parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 -- parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: Just True :+: as :+: sub
 
+-------------------------------------------------------------------------------- 
+--- subsumed processor
+data Subsumed sub = Subsumed sub
+
+liftMS :: Maybe Problem -> P.Proof proc -> P.Proof (Subsumed proc)
+liftMS mprob proof = proof { P.appliedProcessor = SSI (P.appliedProcessor proof)
+                           , P.result           = MaybeSubsumed mprob (P.result proof) }
+
+instance P.Answerable proof => P.Answerable (MaybeSubsumed proof) where 
+  answer (MaybeSubsumed _ proof) = P.answer proof
+
+instance Util.PrettyPrintable proof => Util.PrettyPrintable (MaybeSubsumed proof) where 
+  pprint (MaybeSubsumed Nothing  proof) = Util.pprint proof
+  pprint (MaybeSubsumed (Just p) proof) = do text "The complexity of the input problem is bounded by the complexity of the problem"
+                                             $+$ text ""
+                                             $+$ indent (Util.pprint p)
+                                             $+$ text ""
+                                             $+$ text "on which the subprocessor has allready been applied."
+                                             $+$ text "We reuse following proof:"
+                                             $+$ Util.pprint proof
+
+instance P.Verifiable proof => P.Verifiable (MaybeSubsumed proof) where 
+  verify prob (MaybeSubsumed _ proof) = P.verify prob proof
+  
+instance P.Processor proc => P.Processor (Subsumed proc) where
+   data P.InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
+   type P.ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
+   name (Subsumed proc) = P.name proc
+   instanceName (SSI inst) = P.instanceName inst
+   solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
+   solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob
+        where mk pp = pp { P.ppResult = MaybeSubsumed Nothing $ P.ppResult pp}

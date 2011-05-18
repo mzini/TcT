@@ -46,8 +46,10 @@ module Tct.Methods
     , before
     , best
     , Compose.composeDynamic
-    , Compose.composeDP
-    , Compose.composeRandom
+    , Compose.compose
+    , Compose.splitDP
+    , Compose.splitRandom
+    , Compose.splitSatisfying
     , fastest
     , ite
     , orBetter

@@ -162,7 +162,7 @@ instance PrettyPrintable (DG, F.Signature, V.Variables) where
     where rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
           ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $ 
-                            vcat [ text "-->" <+> pprule rule_m  <> text ":" <+> text (show m) 
+                            vcat [ text "  -->" <+> pprule rule_m  <> text ":" <+> text (show m) 
                                  | (m, (_,rule_m)) <- withNodes wdg $ successors wdg n ]
           pprule r = pprint (r, sig, vars)
 

@@ -27,8 +27,6 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Compose where
 
 import Data.Typeable (Typeable)
-import Data.Either (partitionEithers)
-import Data.List (intersperse)
 import Text.PrettyPrint.HughesPJ
 
 import qualified Tct.Processor as P
@@ -45,13 +43,45 @@ import Termlib.Utils (PrettyPrintable (..))
 import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
+import Termlib.Rule (Rule)
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
+
 -- static partitioning
 
-
-data Partitioning = Random | SeparateDP | Dynamic deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
+
+type SplitFn = (String, ComposeBound -> Problem -> ([Rule], [Rule]))
+-- the function should return the pair (dps,trs)
+-- of rules that have to be strictly oriented by the subprocessor
+
+data Partitioning = Static SplitFn | Dynamic deriving (Typeable)
+
+
+splitDP :: Partitioning
+splitDP = Static ( "separate DPs"
+                 , const $ \ prob -> ([], Trs.rules $ Prob.strictTrs prob))
+
+splitRandom :: Partitioning
+splitRandom = Static ("random selection"
+                     , const $ \ prob -> (halve $ Prob.strictDPs prob, halve $ Prob.strictTrs prob))
+    where halve (Trs rs) = [ rule | (True,rule) <- zip tfs rs ]
+          tfs = [True,False] ++ tfs
+
+splitSatisfying :: String -> (Rule -> Bool) -> Partitioning
+splitSatisfying n p = Static ( n
+                             , const $ \ prob -> ( filter p $ Trs.rules $ Prob.strictDPs prob
+                                                , filter p $ Trs.rules $ Prob.strictTrs prob))
+
+
+instance Show Partitioning where
+    show Dynamic         = "dynamic"
+    show (Static (n, _)) = show $ text "statically using" <+> quotes (text n)
+
+instance AssocArgument Partitioning where 
+    assoc _ = [ ("dynamic",    Dynamic)
+              , ("separateDP", splitDP)
+              , ("random",     splitRandom)]
 
 -- Processor
 
@@ -70,16 +100,13 @@ appliedCompose :: ComposeProof p -> ComposeBound
 appliedCompose (ComposeProof _ _ compfn _ _ _) = compfn
 
 instance (P.Processor p) => T.Transformer (ComposeProc p) where
-    type T.ArgumentsOf (ComposeProc p) = Arg (EnumOf Partitioning) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
+    type T.ArgumentsOf (ComposeProc p) = Arg (Assoc Partitioning) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
     type T.ProofOf (ComposeProc p)     = ComposeProof p
 
     name ComposeProc        = "compose"
     instanceName inst   = show $ text "compose" <+> parens (ppsplit <> text "," <+> ppCompFn)
         where split :+: compFn :+: _ = T.transformationArgs inst
-              ppsplit = case split of 
-                          Dynamic    -> text "dynamic"
-                          SeparateDP -> text "orienting all non-DP rules"
-                          Random     -> text "orienting random rules"
+              ppsplit = text $ show split 
               ppCompFn = case compFn of 
                            Add  -> text "addition"
                            Mult -> text "multiplication"
@@ -119,39 +146,37 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
 
     transform inst prob = 
         case split of 
-          Dynamic -> do sp1 <- P.solvePartial inst1 stricts prob
-                        let rTrs = Trs.fromRules (P.ppRemovableTrs sp1)
-                            sTrs = Prob.strictTrs prob \\ rTrs
-                            rDPs = Trs.fromRules (P.ppRemovableDPs sp1)
-                            sDPs = Prob.strictDPs prob \\ rDPs
-                        return $ mkResult (Right sp1) (rDPs, sDPs) (rTrs, sTrs)
-          SeparateDP -> do sp1 <- P.apply inst1 prob1
-                           return $ mkResult (Left sp1) (Trs.empty, Prob.strictDPs prob) (Prob.strictTrs prob, Trs.empty)
-              where prob1 = prob { strictDPs = Trs.empty
-                                 , weakDPs   = Prob.dpComponents prob}
-          Random -> do sp1 <- P.apply inst1 prob1
-                       return $ mkResult (Left sp1) (rDPs, sDPs) (rTrs, sTrs)
-              where (rDPs, sDPs) = halve $ Prob.strictDPs prob
-                    (rTrs, sTrs) = halve $ Prob.strictTrs prob
-                    prob1 = prob { strictDPs = rDPs
+          Dynamic   -> do sp1 <- P.solvePartial inst1 (forcedDps ++ forcedTrs)  prob
+                          let rTrs = Trs.fromRules (P.ppRemovableTrs sp1)
+                              sTrs = Prob.strictTrs prob \\ rTrs
+                              rDps = Trs.fromRules (P.ppRemovableDPs sp1)
+                              sDps = Prob.strictDPs prob \\ rDps
+                          return $ mkResult (Right sp1) (rDps, sDps) (rTrs, sTrs)                         
+          Static (_,fn) -> do sp1 <- P.apply inst1 prob1
+                              return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
+              where (rdps', rtrs') = fn employedCompfn prob
+                    rDps           = Trs.fromRules $ rdps' ++ forcedDps
+                    rTrs           = Trs.fromRules $ rtrs' ++ forcedTrs
+                    sTrs           = strictTrs prob Trs.\\ rTrs
+                    sDps           = strictDPs prob Trs.\\ rDps
+                    prob1 = prob { strictDPs = rDps
                                  , strictTrs = rTrs
-                                 , weakDPs   = sDPs `Trs.union` weakDPs prob
-                                 , weakTrs   = sTrs `Trs.union` weakTrs prob}
-                    halve (Trs rs) = (Trs rs1,Trs rs2)
-                        where (rs1, rs2) = partitionEithers [ if b || (rule `elem` stricts)
-                                                              then Left rule 
-                                                              else Right rule 
-                                                              | (b,rule) <- zip (intersperse True (repeat False)) rs]
+                                 , weakTrs   = sTrs `Trs.union` weakTrs prob
+                                 , weakDPs   = sDps `Trs.union` weakTrs prob }
 
         where split :+: compfn :+: inst1 = T.transformationArgs inst
-              sizeIncStricts  = filter Rule.isSizeIncreasing (Trs.rules $ Prob.strictComponents prob)
-              stricts = case employedCompfn of {Compose -> sizeIncStricts; _ -> []}
+
               weaks   = Prob.weakComponents prob
+
+              (forcedDps, forcedTrs) = case employedCompfn of 
+                                         Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
+                                             where fsi f = [ rule | rule <- Trs.rules (f prob), Rule.isSizeIncreasing rule]
+                                         _       -> ([],[])
 
               mkResult esp1 (rDPs, sDPs) (rTrs, sTrs)
                   | progress tproof = T.Progress tproof  (enumeration'  [prob2])
                   | otherwise     = T.NoProgress tproof
-                  where tproof = ComposeProof compfn mreason employedCompfn split stricts esp1
+                  where tproof = ComposeProof compfn mreason employedCompfn split (forcedDps ++ forcedTrs) esp1
                         prob2 | employedCompfn == Add = prob { strictTrs  = sTrs
                                                             , strictDPs  = sDPs
                                                             , weakTrs    = rTrs `union` Prob.weakTrs prob
@@ -162,13 +187,12 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
               (mreason, employedCompfn)
                 | Trs.isSizeIncreasing weaks = (Just "some weak rule is size increasing", Add)
                 | otherwise = case compfn of 
-                                 Add                        -> (Nothing, Add)
-                                 Mult | null sizeIncStricts -> (Nothing, Mult)
-                                      | otherwise           -> (Just "some strict rule is size increasing", Add)
-                                 Compose                    -> (Nothing, Compose)
-
-                                  
-
+                                 Add              -> (Nothing, Add)
+                                 Mult | sizeinc   -> (Nothing, Mult) 
+                                      | otherwise -> (Just "some strict rule is size increasing", Add)
+                                 Compose          -> (Nothing, Compose)
+                where sizeinc = not $ Trs.isSizeIncreasing $ Prob.strictComponents prob
+                                 
 
 instance P.Processor p => T.TransformationProof (ComposeProc p) where
     answer proof = case (T.transformationProof proof, T.subProofs proof)  of 
@@ -222,25 +246,13 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                   tName = qtext $ T.instanceName t
                   pptrs = pprintNamedTrs sig vars
                   ppSubproof = either pprint pprint esp1
-                  ppsplit = text $ case split of 
-                                     Random     -> "These rules were chosen randomly"
-                                     SeparateDP -> "These rules exclude all dependency pairs"
-                                     Dynamic    -> "These rules where chosen dynamically"
-
-
+                  ppsplit = text "These rules where chosen" <+> text (show split) <> text "."
 
 composeProcessor :: T.TransformationProcessor (ComposeProc P.AnyProcessor) P.AnyProcessor
 composeProcessor = T.transformationProcessor ComposeProc
 
 compose :: (P.Processor p1) => Partitioning -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
 compose split compfn sub = ComposeProc `T.calledWith` (split :+: compfn :+: sub)
-
-
-composeDP :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
-composeDP = compose SeparateDP
-
-composeRandom :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
-composeRandom = compose Random
 
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
 composeDynamic = compose Dynamic

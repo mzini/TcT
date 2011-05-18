@@ -46,8 +46,10 @@ module Tct.Methods
     , before
     , best
     , Compose.composeDynamic
-    , Compose.composeDP
-    , Compose.composeRandom
+    , Compose.compose
+    , Compose.splitDP
+    , Compose.splitRandom
+    , Compose.splitSatisfying
     , fastest
     , ite
     , orBetter
@@ -66,7 +68,7 @@ module Tct.Methods
     , dependencyPairs
     , dependencyTuples
     , usableRules
-    , DPSimp.removeLeafs
+    , DPSimp.removeTails
     , weightgap
     , (>>>)
     , exhaustively
@@ -196,7 +198,7 @@ builtInProcessors = timeoutProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
                    <|> usableRulesProcessor
-                   <|> DPSimp.removeLeafProcessor
+                   <|> DPSimp.removeTailProcessor
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
                    <|> NaturalMI.matrixProcessor

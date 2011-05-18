@@ -22,18 +22,16 @@ module Tct.Method.DP.Simplification where
 
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Text.PrettyPrint.HughesPJ as PP
+
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
-import qualified Termlib.Term as Term
-import qualified Termlib.Rule as R
-import Termlib.Rule (Rule (..))
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Utils hiding (block)
-import Termlib.Utils as Utils
 import Data.Maybe (fromJust)
 
 import qualified Tct.Processor.Transformations as T
@@ -45,62 +43,89 @@ import Tct.Method.DP.DependencyGraph
 import qualified Data.Graph.Inductive.Graph as Graph
 
 
-data RemoveLeaf = RemoveLeaf
-data RemoveLeafProof = RLProof { leafs :: [(NodeId, Rule)] 
-                               , graph    :: DG
-                               , signature :: F.Signature
-                               , variables :: V.Variables}
+data RemoveTail = RemoveTail
+data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] 
+                               , cgraph     :: CDG
+                               , graph      :: DG
+                               , signature  :: F.Signature
+                               , variables  :: V.Variables}
                      | Error DPError
                        
-instance T.TransformationProof RemoveLeaf where
+instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
   pprintProof _ _ (Error e) = pprint e
-  pprintProof _ _ p         = text "We consider the dependency-graph"
+  pprintProof _ _ p         = text "We consider the the dependency-graph"
                               $+$ text ""
-                              $+$ indent (pprint (graph p, sig, vars))
+                              $+$ indent (pprint (wdg, sig, vars))
                               $+$ text ""
-                              $+$ text "The following rules are leafs in the dependency-graph and can be removed:"
+                              $+$ text "together with the congruence-graph"
                               $+$ text ""
-                              $+$ indent (pprintTrs ppRule (leafs p))
-     where vars = variables p                              
-           sig = signature p
-           ppRule (i, r) = text (show i) <> text ":" <+> pprint (r, sig, vars)
-           
-instance T.Transformer RemoveLeaf where
-  name RemoveLeaf        = "removeleafs"
-  description RemoveLeaf = ["Recursively removes all nodes leafs in the dependency-graph from the given problem"]
+                              $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+                              $+$ text ""
+                              $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+                              $+$ text ""
+                              $+$ indent (pprintTrs ppRule (removables p))
+     where vars          = variables p                              
+           sig           = signature p
+           cwdg          = cgraph p
+           wdg           = graph p
+           ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
+           ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
+                       | nonSelfCyclic wdg scc = text "Noncyclic, trivial, SCC"
+                       | otherwise             = PP.empty
+               where scc = fromJust $ lookupNode cwdg n
+                                          
+
+onlyWeaks :: CDGNode -> Bool
+onlyWeaks = not . any ((==) StrictDP . fst . snd) . theSCC
+
+nonSelfCyclic :: DG -> CDGNode -> Bool
+nonSelfCyclic wdg sn = case theSCC sn of 
+                         [(m,_)] -> not $ m `elem` successors wdg m 
+                         _   -> False
+
+
+instance T.Transformer RemoveTail where
+  name RemoveTail        = "removeleafs"
+  description RemoveTail = ["Recursively removes all nodes that are either leafs in the dependency-graph or from the given problem"]
   
-  type T.ArgumentsOf RemoveLeaf = Unit
-  type T.ProofOf RemoveLeaf = RemoveLeafProof
-  arguments RemoveLeaf = Unit
+  type T.ArgumentsOf RemoveTail = Unit
+  type T.ProofOf RemoveTail = RemoveTailProof
+  arguments RemoveTail = Unit
   transform _ prob | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ Error $ ContainsStrictRule
-                   | null labLeafs  = return $ T.NoProgress proof
+                   | null labTails  = return $ T.NoProgress proof
                    | otherwise      = return $ T.Progress proof (enumeration' [prob'])
-        where labLeafs = map mkPair $ Set.toList $ computeLeafs initials Set.empty
-                  where initials = [ n | n <- Graph.nodes wdg , Graph.outdeg wdg n == 0 ]
-              ls = map snd labLeafs
-              computeLeafs []     lfs = lfs
-              computeLeafs (n:ns) lfs | n `Set.member` lfs = computeLeafs ns lfs
-                                      | otherwise          = computeLeafs (ns++preds) lfs'
-                   where preds = Graph.pre wdg n
-                         sucs  = Graph.suc wdg n
-                         lfs'  = if Set.fromList sucs `Set.isSubsetOf` lfs then Set.insert n lfs else lfs 
+        where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
+                  where initials = [ n | (n,cn) <- withNodes cwdg $ leafs cwdg
+                                       , onlyWeaks cn || nonSelfCyclic wdg cn ]
+              ls = map (snd . snd) labTails
+              computeTails []             lfs = lfs
+              computeTails (n:ns) lfs | n `Set.member` lfs = computeTails ns lfs
+                                      | otherwise          = computeTails (ns++preds) lfs'
+                   where (lpreds, _, cn, lsucs) = Graph.context cwdg n
+                         sucs  = map snd lsucs
+                         preds = map snd lpreds
+                         lfs'  = if Set.fromList sucs `Set.isSubsetOf` lfs && (onlyWeaks cn || nonSelfCyclic wdg cn)
+                                  then Set.insert n lfs 
+                                  else lfs 
                                     
                     
-              mkPair n = (n, snd $ fromJust $ lookupNode wdg n)
+              mkPairs n = theSCC $ lookupNode' cwdg n
               wdg   = estimatedDependencyGraph Edg prob
+              cwdg  = toCongruenceGraph wdg
               sig   = Prob.signature prob
               vars  = Prob.variables prob
-              proof = RLProof { leafs = labLeafs
-                              , graph = wdg
+              proof = RLProof { removables = labTails
+                              , graph      = wdg
+                              , cgraph     = cwdg
                               , signature = sig
                               , variables = vars }
               prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ Trs ls
                            , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ Trs ls }
                 
 
-removeLeafProcessor :: T.TransformationProcessor RemoveLeaf P.AnyProcessor
-removeLeafProcessor = T.transformationProcessor RemoveLeaf
+removeTailProcessor :: T.TransformationProcessor RemoveTail P.AnyProcessor
+removeTailProcessor = T.transformationProcessor RemoveTail
 
-removeLeafs :: T.TheTransformer RemoveLeaf
-removeLeafs = RemoveLeaf `T.calledWith` ()
+removeTails :: T.TheTransformer RemoveTail
+removeTails = RemoveTail `T.calledWith` ()

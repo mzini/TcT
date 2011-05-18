@@ -208,14 +208,14 @@ setStrategy :: Strategy -> IO ()
 setStrategy strat = modify (\ prob -> prob { strategy = strat})
 
 setRC :: IO ()
-setRC = modify f >> printState
+setRC = modify f
   where f prob = prob { startTerms = BasicTerms ds cs}
           where rs = allComponents prob
                 ds = definedSymbols rs
                 cs = constructors rs
 
 setDC :: IO ()
-setDC = modify f  >> printState
+setDC = modify f
   where f prob = prob { startTerms = TermAlgebra}
 
 state :: IO ()

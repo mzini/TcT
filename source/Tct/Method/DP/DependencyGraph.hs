@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -19,6 +18,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Tct.Method.DP.DependencyGraph where
 
@@ -62,7 +62,8 @@ data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
 type DGNode = (Strictness, R.Rule)
 type DG = DependencyGraph DGNode
 
-data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)] }
+data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)] } deriving (Show)
+
 type CDG = DependencyGraph CDGNode
 
 --------------------------------------------------------------------------------
@@ -73,15 +74,20 @@ type CDG = DependencyGraph CDGNode
 lookupNode :: DependencyGraph n -> NodeId -> Maybe n
 lookupNode = Graph.lab
 
+lookupNode' :: DependencyGraph n -> NodeId -> n
+lookupNode' gr n = fromJust $ lookupNode gr n
+
 roots :: DependencyGraph n -> [NodeId]
 roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
+
+leafs :: DependencyGraph n -> [NodeId]
+leafs gr = [n | n <- Graph.nodes gr, Graph.outdeg gr n == 0]
 
 successors :: DependencyGraph n -> NodeId -> [NodeId]
 successors = Graph.suc
 
-lsuccessors :: DependencyGraph n -> NodeId -> [(NodeId, n)]
-lsuccessors gr n = [ (m, fromJust $ lookupNode gr n) | m <- successors gr n]
-
+withNodes :: DependencyGraph n -> [NodeId] -> [(NodeId, n)]
+withNodes gr ns = [(n,fromJust $ lookupNode gr n) | n <- ns]
 
 nodes :: DependencyGraph n -> [NodeId]
 nodes = Graph.nodes
@@ -152,12 +158,12 @@ toCongruenceGraph gr = Graph.mkGraph ns es
 
 
 instance PrettyPrintable (DG, F.Signature, V.Variables) where 
-  pprint (wdg, sig, vars) = hcat [ ppnode n rule | (n, rule) <- rs]
+  pprint (wdg, sig, vars) = vcat [ ppnode n rule $+$ text "" | (n, rule) <- rs]
     where rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
-          ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $
+          ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $ 
                             vcat [ text "-->" <+> pprule rule_m  <> text ":" <+> text (show m) 
-                                 | (m, (_,rule_m)) <- lsuccessors wdg n ]
+                                 | (m, (_,rule_m)) <- withNodes wdg $ successors wdg n ]
           pprule r = pprint (r, sig, vars)
 
 -- utilities

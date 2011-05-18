@@ -66,7 +66,7 @@ module Tct.Methods
     , dependencyPairs
     , dependencyTuples
     , usableRules
-    , DPSimp.removeLeafs
+    , DPSimp.removeTails
     , weightgap
     , (>>>)
     , exhaustively
@@ -196,7 +196,7 @@ builtInProcessors = timeoutProcessor
                    <|> boundsProcessor
                    <|> uncurryProcessor
                    <|> usableRulesProcessor
-                   <|> DPSimp.removeLeafProcessor
+                   <|> DPSimp.removeTailProcessor
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
                    <|> NaturalMI.matrixProcessor

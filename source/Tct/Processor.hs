@@ -324,20 +324,7 @@ progressed :: PartialProof proof -> Bool
 progressed p = not $ null $ ppRemovableTrs p ++ ppRemovableDPs p
 
 instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
-  pprint p = ppRemoveds
-             $+$ text ""
-             $+$ text "Details:"
-             $+$ nest 2 (pprint (ppResult p))
-      where ip = ppInputProblem p
-            ppRemoveds | not (progressed p) = text "No rule was removed:"
-                       | otherwise          = text "We orient the following rules strictly:"
-                                              $+$ text ""
-                                              $+$ ppTrs "Dependency Pairs" (Trs.fromRules $ ppRemovableDPs p)
-                                              $+$ ppTrs "TRS Component"    (Trs.fromRules $ ppRemovableTrs p)
-                                              $+$ text ""
-                                              $+$ pprint (ppResult p)
-            ppTrs = pprintNamedTrs (signature ip) (variables ip)
-
+  pprint p = pprint (ppResult p)
 
 instance (Answerable proof) => Answerable (PartialProof proof) where
     answer p | progressed p = answer $ ppResult p

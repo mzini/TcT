@@ -215,7 +215,7 @@ instance ( Transformer t
                                                             , "A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'."
                                                             , "Currently we only take subset-inclusions of the different components into account" ]
                                                     
-                                  , A.defaultValue = True }
+                                  , A.defaultValue = False }
                           :+: arguments t 
                           :+: arg { A.name = "subprocessor"
                                   , A.description = "The processor that is applied on the transformed problem(s)" }
@@ -515,7 +515,10 @@ t `calledWith` as = TheTransformer t as
 infixr 2 `thenApply`
 
 thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (True :+: True :+: False :+: args :+: sub)
+thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (False :+: False :+: False :+: args :+: sub)
+
+thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
+thenApplyPar (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (False :+: True :+: False :+: args :+: sub)
 
 
 type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
@@ -538,8 +541,13 @@ transformationProcessor t = S.StdProcessor (TransProc t)
 -- sequentialSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 -- sequentialSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: Just False :+: as :+: sub
 
--- parallelSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
--- parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: Just True :+: as :+: sub
+parallelSubgoals :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
+
+
+checkSubsumed :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
+
 
 -------------------------------------------------------------------------------- 
 --- subsumed processor

@@ -62,6 +62,8 @@ module Tct.Methods
 
     -- ** Transformations
     , thenApply
+    , thenApplyPar
+    , parallelSubgoals
     , irr
     , uncurry
     , pathAnalysis

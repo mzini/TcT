@@ -82,7 +82,7 @@ instance T.Transformer PathAnalysis where
                             where subsumed = not (null sucs) && Trs.isEmpty strict_n
 
               progressed = case paths of 
-                             [pth] -> length spath > length sprob
+                             [pth] -> length spath < length sprob
                                  where Trs spath = rulesFromNodes cedg StrictDP (thePath pth)
                                        Trs sprob = Prob.strictDPs prob
                              _     -> True

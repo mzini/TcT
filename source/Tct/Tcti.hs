@@ -20,6 +20,7 @@ module Tct.Tcti
     , setStrategy
     , help
     , pprint
+    , runTct
     )
 where
 
@@ -197,8 +198,8 @@ filterSelect :: (Problem -> Bool) -> IO ()
 filterSelect = applySelect False
 
 
-runTctSolver :: P.StdSolverM a -> IO a
-runTctSolver = P.runSolver (P.SolverState $ P.MiniSat "minisat2")
+runTct :: P.StdSolverM a -> IO a
+runTct = P.runSolver (P.SolverState $ P.MiniSat "minisat2")
 
 
 modify :: (Problem -> Problem) -> IO ()
@@ -259,7 +260,7 @@ class Apply a where
 instance T.Transformer t => Apply (T.TheTransformer t) where
   apply t =   do (ST sel unsel) <- getState
                  let probs = zip (SN `map` [(1::Int)..]) sel
-                 mrs <- runTctSolver $ evalEnum True [ (i, T.transform t prob) | (i, prob) <- probs ]
+                 mrs <- runTct $ evalEnum True [ (i, T.transform t prob) | (i, prob) <- probs ]
                  case mrs of 
                    Nothing -> error "error when transforming some problem"
                    Just rs -> do {printResults; printOverview; setResults; putStrLn "";  }
@@ -289,7 +290,7 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
 instance P.Processor p => Apply (P.InstanceOf p) where
   apply p = do (ST sel unsel) <- getState
                let probs = zip (SN `map` [(1::Int)..]) sel
-               mrs <- runTctSolver $ evalEnum False [ (i, P.solve p prob) | (i, prob) <- probs ]
+               mrs <- runTct $ evalEnum False [ (i, P.solve p prob) | (i, prob) <- probs ]
                case mrs of 
                  Nothing -> error "error when solving some problem"
                  Just rs -> do {printPrfs; printOverview; setResults; }

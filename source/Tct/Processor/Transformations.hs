@@ -232,9 +232,9 @@ instance ( Transformer t
                                                return $ case mkSubproofs esubproofs ps of 
                                                            Just sps -> mkProof res $ unsubsumedProofs ++ subsumedProofs
                                                               where unsubsumedProofs = mapEnum (liftMS Nothing) sps
-                                                                    subsumedProofs = catMaybes [ do proof_j <- find e_j sps
-                                                                                                    return $ (e_i, liftMS (Just p_j) proof_j)
-                                                                                               | (e_i, p_j, SN e_j) <- subsumed ]
+                                                                    subsumedProofs = catMaybes [ do proof_i <- find e_i sps
+                                                                                                    return $ (SN e_j, liftMS (Just p_i) proof_i)
+                                                                                               | (SN e_i, p_i, SN e_j) <- subsumed ]
 
                                                            Nothing  -> mkProof res []
         where (TransProc t) = S.processor inst

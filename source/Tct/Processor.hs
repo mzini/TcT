@@ -423,7 +423,7 @@ instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
     synString _               = []
     optArgs _                 = []
     posArgs _                 = []
-    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
+    parseProcessor_ (OO _ ps) = do inst <- choice [ Parsec.try $ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
 instance Show (AnyOf p) where

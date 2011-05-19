@@ -19,19 +19,23 @@ module Tct.Processor.Orderings where
 
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
+import Tct.Certificate (constant, certified)
 import Tct.Processor (Answerable (..), Answer (..), Verifiable(..), verifyOK)
 
 data OrientationProof o = Order o
                         | Incompatible
+                        | Empty
                         | Inapplicable String deriving Show
 
 instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
+    pprint Empty     = text "All strict components are empty, nothing to further orient"
     pprint (Order o) = pprint o
     pprint Incompatible = text "The input cannot be shown compatible"
     pprint (Inapplicable s) = text s
 
 instance Answerable o => Answerable (OrientationProof o) where
     answer (Order o) = answer o
+    answer Empty     = CertAnswer $ certified (constant, constant)
     answer Incompatible = MaybeAnswer
     answer (Inapplicable _) = MaybeAnswer
 

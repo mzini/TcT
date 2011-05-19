@@ -423,8 +423,9 @@ instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
     synString _               = []
     optArgs _                 = []
     posArgs _                 = []
-    parseProcessor_ (OO _ ps) = do inst <- choice [ parseProcessor p' | p' <- ps]
-                                   return $ OOI inst
+    parseProcessor_ (OO _ []   ) = error "AnyOf.parseProcessor should have at least one processor given"
+    parseProcessor_ (OO _ (p:ps)) = do inst <- choice [ parseProcessor p' | p' <- p:ps]
+                                       return $ OOI inst
 
 instance Show (AnyOf p) where
     show _ = "AnyOf"

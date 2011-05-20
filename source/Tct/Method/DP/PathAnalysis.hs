@@ -94,7 +94,7 @@ printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeI
 
 instance T.TransformationProof PathAnalysis where
     answer proof = case T.transformationResult proof of 
-                     T.NoProgress _        -> P.MaybeAnswer
+                     T.NoProgress _ -> T.answerFromSubProof proof
                      T.Progress _ subprobs -> 
                          case mproofs of 
                            Just proofs -> if all P.succeeded proofs
@@ -106,16 +106,15 @@ instance T.TransformationProof PathAnalysis where
                            
     pprint proof = case T.transformationProof proof of 
                      Error   e   -> pprint e
-                     tproof -> block' "Transformation Details" [ppTrans]
+                     tproof -> text "We use following congruence DG for path analysis"
                                $+$ text ""
-                               $+$ block' "Sub-problems" [ppDetails]
+                               $+$ pprintCWDG cwdg sig vars ppLabel
+                                $+$ text ""
+                               $+$ ppDetails
                          where cwdg = computedCongrDG tproof
                                sig = signature tproof
                                vars = variables tproof
-                               ppTrans = paragraph "Following congruence DG was used:"
-                                         $+$ text ""
-                                         $+$ pprintCWDG cwdg sig vars ppLabel
-
+  
                                ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth)
                                    where centering n d =  text $ take pre ss ++ s ++ take post ss
                                              where s = show d

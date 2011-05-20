@@ -84,7 +84,8 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
 
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
-mkParseProcessor nm args = do _ <- ((try (string (nm ++ " ")) >> whiteSpace) <|> (string nm >> eof))
+mkParseProcessor nm args = do _ <- try (string nm) 
+                              whiteSpace
                               parseArguments nm args
 
 withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)

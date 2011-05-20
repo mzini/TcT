@@ -152,10 +152,6 @@ subProblems tproof = case transformationResult tproof of
 findProof :: (Numbering a) => a -> Proof t sub -> Maybe (P.Proof sub)
 findProof e p = find e (subProofs p)
 
--- someProof :: (Transformer t) => t -> Problem -> Result t -> Enumeration (P.Proof P.SomeProcessor) -> Proof t P.SomeProcessor
--- someProof prob res subproofs = Proof { transformationResult = res
---                                      , inputProblem         = prob
---                                      , subProofs            = subproofs }
 --------------------------------------------------------------------------------
 --- Transformation Class
 
@@ -197,8 +193,8 @@ instance ( Transformer t
     type S.ProofOf (TransProc t sub) = Proof t (Subsumed sub)
     type S.ArgumentsOf (TransProc t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     name (TransProc t)      = name t
-    instanceName inst       = instanceName tinst ++ " transformation" 
-        where _ :+: _ :+: _ :+: as :+: _ = S.processorArgs inst
+    instanceName inst       = instanceName tinst ++ " transformation followed by " ++ P.instanceName sub
+        where _ :+: _ :+: _ :+: as :+: sub = S.processorArgs inst
               TransProc t          = S.processor inst
               tinst = TheTransformer t as
 
@@ -277,22 +273,6 @@ t1 >>> t2 = someTransformation inst
 exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
 exhaustively t = t >>> exhaustively t
 
--- data Custom res = Custom { as :: String 
---                          , code :: forall m. (P.SolverM m) => Problem -> m (res, Maybe [Problem]) }
-
--- instance Transformer (Custom res) where
---     name = as
---     description c = [as c]
-    
---     type ArgumentsOf (Custom res) = Unit
---     type ProofOf (Custom res) = res
---     transform (TheTransformer (Custom _ code) _) prob = do (res, mprobs) <- code prob
---                                                            case mprobs of 
---                                                              Just probs -> Progress res (enumeration' prob)
---                                                              Nothing    -> NoProgress res
-
--- custom :: String -> (forall m. (P.SolverM m) => Problem -> m res) -> TheTransformer (Custom res)
--- custom n m = TheTransformer (Custom n m) ()
 
 
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) where
@@ -325,7 +305,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
              else text ""
                   $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problems:")
                   $+$ vcat [ ppOverview i prob_i | (i, prob_i) <- subprobs]
-                where contd = continue t1 (proofFromResult r1)
+                where contd = continue t1 (proofFromResult r1) || (case r1 of {Progress {} -> True; _ -> False})
                       subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
                       ppOverview (SN i) prob_i = 
                           block' n [ text "We consider the problem"
@@ -342,6 +322,13 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                                                                                  $+$ enum ps
                                           Just r2_i@(NoProgress _) -> pprintProof t2 prob (proofFromResult r2_i) ]
                               where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
+
+someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
+someProof sub t prob res subproofs = Proof { transformationResult = res
+                                           , inputProblem         = prob
+                                           , appliedTransformer   = t
+                                           , appliedSubprocessor  = P.someInstance sub
+                                           , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subproofs }
 
 mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (TransProc (Try t2) sub))
 mkComposeProof sub t1 t2 input r1 r2s subproofs =
@@ -512,6 +499,10 @@ calledWith :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransforme
 t `calledWith` as = TheTransformer t as 
 
 
+-------------------------------------------------------------------------------- 
+--- utility functions for constructing and modifying transformations
+
+
 infixr 2 `thenApply`
 
 thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
@@ -525,21 +516,6 @@ type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
 
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t sub
 transformationProcessor t = S.StdProcessor (TransProc t)
-
--- withArgs :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransformer t
--- t `withArgs` as = TheTransformer { transformation     = t
---                                  , isStrict           = False
---                                  , solveParallel      = False
---                                  , transformationArgs = as}
-
--- strict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
--- strict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> Just True :+: par :+: as :+: sub
-
--- nonstrict :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
--- nonstrict = S.modifyArguments $ \ (_ :+: par :+: as :+: sub) -> Just False :+: par :+: as :+: sub
-
--- sequentialSubgoals :: (Transformer t, S.Processor (Trans t p)) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
--- sequentialSubgoals = S.modifyArguments $ \ (str :+: _ :+: as :+: sub) -> str :+: Just False :+: as :+: sub
 
 parallelSubgoals :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
@@ -581,3 +557,23 @@ instance P.Processor proc => P.Processor (Subsumed proc) where
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob
         where mk pp = pp { P.ppResult = MaybeSubsumed Nothing $ P.ppResult pp}
+
+
+-- data Custom res = Custom { as :: String 
+--                          , code :: forall m. (P.SolverM m) => Problem -> m (res, Maybe [Problem]) }
+
+-- instance Transformer (Custom res) where
+--     name = as
+--     description c = [as c]
+    
+--     type ArgumentsOf (Custom res) = Unit
+--     type ProofOf (Custom res) = res
+--     transform (TheTransformer (Custom _ code) _) prob = do (res, mprobs) <- code prob
+--                                                            case mprobs of 
+--                                                              Just probs -> Progress res (enumeration' prob)
+--                                                              Nothing    -> NoProgress res
+
+-- custom :: String -> (forall m. (P.SolverM m) => Problem -> m res) -> TheTransformer (Custom res)
+-- custom n m = TheTransformer (Custom n m) ()
+
+

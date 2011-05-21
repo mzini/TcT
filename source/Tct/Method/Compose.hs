@@ -176,7 +176,7 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
                     prob1 = prob { strictDPs = rDps
                                  , strictTrs = rTrs
                                  , weakTrs   = sTrs `Trs.union` weakTrs prob
-                                 , weakDPs   = sDps `Trs.union` weakTrs prob }
+                                 , weakDPs   = sDps `Trs.union` weakDPs prob }
 
         where split :+: compfn :+: inst1 = T.transformationArgs inst
 

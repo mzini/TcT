@@ -50,6 +50,7 @@ module Tct.Methods
     , Compose.splitDP
     , Compose.splitRandom
     , Compose.splitSatisfying
+    , Compose.splitFirstCongruence      
     , fastest
     , ite
     , orBetter
@@ -73,6 +74,10 @@ module Tct.Methods
     , DPSimp.removeTails
     , weightgap
     , (>>>)
+    , (<>)      
+    , (>>|)    
+    , (>>||)      
+    , idtrans
     , exhaustively
     , try
 

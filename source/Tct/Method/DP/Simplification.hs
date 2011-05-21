@@ -170,8 +170,8 @@ instance T.Transformer SimpRHS where
           strs  = Prob.strictTrs prob
           progr = any (isJust . snd) elims
           elims = [(rule, elim rule) | rule <- Trs.toRules $ Prob.strictDPs prob]
-            where dsw   = Trs.definedSymbols (Prob.weakDPs prob)
-                  isDefinedWeak (Term.Fun f _) = Set.member f dsw
+            where ds   = Trs.definedSymbols (Prob.dpComponents prob)
+                  isDefinedWeak (Term.Fun f _) = Set.member f ds
                   isDefinedWeak _              = False
                   elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
                                                 | otherwise              = Just $ Rule l (Term.Fun f rs')

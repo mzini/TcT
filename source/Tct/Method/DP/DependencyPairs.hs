@@ -141,6 +141,23 @@ instance T.Transformer DPs where
                                    , Prob.signature  = sig' }
         where useTuples = T.transformationArgs inst
 
+
+withFreshCompounds :: Prob.Problem -> Prob.Problem
+withFreshCompounds prob = fst . flip Sig.runSignature (Prob.signature prob)  $ 
+                          do sdps' <- mapM frsh $ zip sdps (names 1)
+                             wdps' <- mapM frsh $ zip wdps (names $ length sdps + 1)
+                             sig' <- Sig.getSignature
+                             return $ prob { Prob.signature = sig'
+                                           , Prob.strictDPs = Trs.fromRules sdps'
+                                           , Prob.weakDPs = Trs.fromRules wdps'}
+   where names :: Int -> [String]
+         names i = ["c_" ++ show j | j <- [ i..] ]
+         sdps = Trs.rules $ Prob.strictDPs prob
+         wdps = Trs.rules $ Prob.weakDPs prob
+         frsh (R.Rule l (Term.Fun _ rs), n) = do c <- fresh (defaultAttribs n (length rs)) {symIsCompound = True}
+                                                 return $ R.Rule l (Term.Fun c rs)
+         frsh (rule, _)                     = return rule
+
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs
 

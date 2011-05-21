@@ -46,7 +46,8 @@ import qualified Termlib.Rule as Rule
 import Termlib.Rule (Rule)
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
-
+import Tct.Method.DP.DependencyGraph
+-- import Termlib.Term (..)
 -- static partitioning
 
 data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
@@ -67,6 +68,19 @@ splitRandom = Static ("random selection"
                      , const $ \ prob -> (halve $ Prob.strictDPs prob, halve $ Prob.strictTrs prob))
     where halve (Trs rs) = [ rule | (True,rule) <- zip tfs rs ]
           tfs = [True,False] ++ tfs
+
+
+splitFirstCongruence :: Partitioning
+splitFirstCongruence = Static ("split first congruence from CWD"
+                     , sfc)
+    where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
+                     | otherwise = (Trs.rules rts, [])
+            where dg = estimatedDependencyGraph Edg prob
+                  cdg = toCongruenceGraph dg
+                  rts = allRulesFromNodes cdg (roots cdg)
+                  -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
+                  -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
+                  --                             | otherwise             = False
 
 splitSatisfying :: String -> (Rule -> Bool) -> Partitioning
 splitSatisfying n p = Static ( n

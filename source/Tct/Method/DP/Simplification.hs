@@ -30,16 +30,21 @@ import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
+import qualified Termlib.Rule as Rule
+import Termlib.Rule (Rule (..))
+import qualified Termlib.Term as Term
+
 import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Utils hiding (block)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust, fromMaybe)
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args
 import Tct.Processor.PPrint
 import Tct.Method.DP.Utils 
-import Tct.Method.DP.DependencyGraph
+import Tct.Method.DP.DependencyGraph hiding (GroundContext)
+import Tct.Method.DP.DependencyPairs
 import qualified Data.Graph.Inductive.Graph as Graph
 
 
@@ -129,3 +134,52 @@ removeTailProcessor = T.transformationProcessor RemoveTail
 
 removeTails :: T.TheTransformer RemoveTail
 removeTails = RemoveTail `T.calledWith` ()
+
+
+
+--------------------------------------------------------------------------------
+--- Simplify DP-RHSs
+
+data SimpRHS = SimpRHS
+data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] 
+                              , srhsSig           :: F.Signature
+                              , srhsVars          :: V.Variables}                                
+                  | SRHSError DPError
+                       
+instance T.TransformationProof SimpRHS where
+  answer = T.answerFromSubProof
+  pprintProof _ _ (SRHSError e) = pprint e
+  pprintProof _ _ p             = text "The right-hand sides of following rules could be simplified:"
+                                  $+$ text ""
+                                  $+$ indent (pprint (Trs (srhsReplacedRules p), sig, vars))
+     where vars          = srhsVars p                              
+           sig           = srhsSig p
+                                          
+
+instance T.Transformer SimpRHS where 
+  name _ = "simplify DP-RHSs"
+  type T.ArgumentsOf SimpRHS = Unit
+  type T.ProofOf SimpRHS     = SimpRHSProof
+  arguments _ = Unit
+  transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SRHSError ContainsStrictRule
+                   | progr            = return $ T.Progress proof (enumeration' [prob'])
+                   | otherwise        = return $ T.NoProgress proof
+    where proof = SRHSProof { srhsReplacedRules = [rule | (rule, Just _) <- elims]
+                            , srhsSig           = Prob.signature prob
+                            , srhsVars          = Prob.variables prob }
+          strs  = Prob.strictTrs prob
+          progr = any (isJust . snd) elims
+          elims = [(rule, elim rule) | rule <- Trs.toRules $ Prob.strictDPs prob]
+            where dsw   = Trs.definedSymbols (Prob.weakDPs prob)
+                  isDefinedWeak (Term.Fun f _) = Set.member f dsw
+                  isDefinedWeak _              = False
+                  elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
+                                                | otherwise              = Just $ Rule l (Term.Fun f rs')
+                        where rs' = filter isDefinedWeak rs
+          prob' = withFreshCompounds prob { Prob.strictDPs = Trs.fromRules [ fromMaybe (fst p) (snd p) | p <- elims] }
+
+simpDPRHSProcessor :: T.TransformationProcessor SimpRHS P.AnyProcessor
+simpDPRHSProcessor = T.transformationProcessor SimpRHS
+
+simpDPRHS :: T.TheTransformer SimpRHS
+simpDPRHS = SimpRHS `T.calledWith` ()

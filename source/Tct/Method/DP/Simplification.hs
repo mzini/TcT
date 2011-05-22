@@ -91,7 +91,7 @@ nonSelfCyclic wdg sn = case theSCC sn of
 
 
 instance T.Transformer RemoveTail where
-  name RemoveTail        = "removeleafs"
+  name RemoveTail        = "removetails"
   description RemoveTail = ["Recursively removes all nodes that are either leafs in the dependency-graph or from the given problem"]
   
   type T.ArgumentsOf RemoveTail = Unit
@@ -157,7 +157,7 @@ instance T.TransformationProof SimpRHS where
                                           
 
 instance T.Transformer SimpRHS where 
-  name _ = "simplify DP-RHSs"
+  name _ = "simpDPRHS"
   type T.ArgumentsOf SimpRHS = Unit
   type T.ProofOf SimpRHS     = SimpRHSProof
   arguments _ = Unit

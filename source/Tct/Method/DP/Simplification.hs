@@ -59,21 +59,23 @@ data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)]
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
   pprintProof _ _ (Error e) = pprint e
-  pprintProof _ _ p         = text "We consider the the dependency-graph"
-                              $+$ text ""
-                              $+$ indent (pprint (wdg, sig, vars))
-                              $+$ text ""
-                              $+$ text "together with the congruence-graph"
-                              $+$ text ""
-                              $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-                              $+$ text ""
-                              $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
-                              $+$ text ""
-                              $+$ indent (pprintTrs ppRule (removables p))
+  pprintProof _ _ p | null remls = text "No dependency-pair could be removed"
+                    | otherwise  = text "We consider the the dependency-graph"
+                                   $+$ text ""
+                                   $+$ indent (pprint (wdg, sig, vars))
+                                   $+$ text ""
+                                   $+$ text "together with the congruence-graph"
+                                   $+$ text ""
+                                   $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+                                   $+$ text ""
+                                   $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+                                   $+$ text ""
+                                   $+$ indent (pprintTrs ppRule remls)
      where vars          = variables p                              
            sig           = signature p
            cwdg          = cgraph p
            wdg           = graph p
+           remls         = removables p
            ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
            ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
                        | nonSelfCyclic wdg scc = text "Noncyclic, trivial, SCC"
@@ -149,12 +151,13 @@ data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule]
 instance T.TransformationProof SimpRHS where
   answer = T.answerFromSubProof
   pprintProof _ _ (SRHSError e) = pprint e
-  pprintProof _ _ p             = text "The right-hand sides of following rules could be simplified:"
+  pprintProof _ _ p | null repls = text "No rule was simplified"
+                    | otherwise = text "The right-hand sides of following rules could be simplified:"
                                   $+$ text ""
-                                  $+$ indent (pprint (Trs (srhsReplacedRules p), sig, vars))
-     where vars          = srhsVars p                              
-           sig           = srhsSig p
-                                          
+                                  $+$ indent (pprint (Trs repls, sig, vars))
+     where vars  = srhsVars p                              
+           sig   = srhsSig p
+           repls = srhsReplacedRules p
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"

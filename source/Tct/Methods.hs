@@ -60,7 +60,24 @@ module Tct.Methods
     , timeout
     , upto
     , withArgs
-
+    
+    -- ** Predicates
+    , trsPredicate
+    , problemPredicate
+      
+    -- ** Predicates
+    , isCollapsing
+    , isConstructor
+    , isDuplicating
+    , isLeftLinear
+    , isRightLinear
+    , isWellFormed
+    , isFull
+    , isInnermost
+    , isOutermost
+    , isContextSensitive
+            
+      
     -- ** Transformations
     , thenApply
     , thenApplyPar
@@ -81,16 +98,6 @@ module Tct.Methods
     , idtrans
     , exhaustively
     , try
-
-    -- ** Predicates
-    , isCollapsing
-    , isConstructor
-    , isDuplicating
-    , isLeftLinear
-    , isRightLinear
-    , isWellFormed
-    , trsPredicate
-    , problemPredicate
 
     -- * Custom Processors
     , CustomProcessor
@@ -146,7 +153,18 @@ module Tct.Methods
     , sequentiallyProcessor
     , successProcessor
     , timeoutProcessor
-
+    -- ** Predicates
+    , isCollapsingProcessor
+    , isConstructorProcessor
+    , isDuplicatingProcessor
+    , isLeftLinearProcessor
+    , isRightLinearProcessor
+    , isWellFormedProcessor
+    , isFullProcessor
+    , isInnermostProcessor
+    , isOutermostProcessor
+    , isContextSensitiveProcessor
+      
       -- ** The Built-In Processor Used by TCT
     , builtInProcessors
     , predicateProcessors
@@ -207,7 +225,7 @@ builtInProcessors = timeoutProcessor
                    <|> uncurryProcessor
                    <|> usableRulesProcessor
                    <|> DPSimp.removeTailProcessor
-                   <|> DPSimp.simpDPRHS                   
+                   <|> DPSimp.simpDPRHSProcessor                 
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
                    <|> NaturalMI.matrixProcessor

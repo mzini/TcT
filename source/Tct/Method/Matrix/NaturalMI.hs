@@ -314,12 +314,12 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         mk         = kind mp st
         uaOn       = isUargsOn mp
         otherConstraints UnrestrictedMatrix _                = top
-        otherConstraints (TriangularMatrix Nothing) mi       = triConstraints mi
-        otherConstraints (TriangularMatrix (Just deg)) mi    = triConstraints mi && diagOnesConstraints deg mi
-        otherConstraints (ConstructorBased cs Nothing) mi    = triConstraints mi'
-                                                               where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                                     filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        otherConstraints (ConstructorBased cs (Just deg)) mi = triConstraints mi' && diagOnesConstraints deg mi'
+        otherConstraints (TriangularMatrix Nothing) _        = top -- triConstraints mi -- AS: triConstraints already enforced by presence of RestrictVars
+        otherConstraints (TriangularMatrix (Just deg)) mi    = diagOnesConstraints deg mi -- triConstraints mi && -- AS: triConstraints already enforced by presence of RestrictVars
+        otherConstraints (ConstructorBased _  Nothing) _     = top -- triConstraints mi' -- AS: triConstraints already enforced by presence of RestrictVars
+                                                                   -- where mi' = mi{interpretations = filterCs $ interpretations mi}
+                                                                   --       filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+        otherConstraints (ConstructorBased cs (Just deg)) mi = diagOnesConstraints deg mi' -- triConstraints mi' && -- AS: triConstraints already enforced by presence of RestrictVars
                                                                where mi' = mi{interpretations = filterCs $ interpretations mi}
                                                                      filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
         otherConstraints (EdaMatrix Nothing) mi              = edaConstraints mi

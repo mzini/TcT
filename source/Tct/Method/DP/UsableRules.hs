@@ -70,14 +70,14 @@ data URProof = URProof { usableStrict :: Trs
                | Error DPError
 
 instance PrettyPrintable URProof where 
-    pprint p@URProof {} | null all        = text "No rule is usable."
+    pprint p@URProof {} | null allUrs     = text "No rule is usable."
                         | progressed p    = text "We replace strict/weak-rules by the corresponding usable rules:"
                                             $+$ text ""
                                             $+$ indent (ppTrs "Strict Usable Rules" (usableStrict p)
                                                        $+$ ppTrs "Weak Usable Rules" (usableWeak p))
                         | otherwise       = text "All rules are usable."
-        where ppTrs = pprintNamedTrs (signature p) (variables p)
-              all   = Trs.rules (usableStrict p) ++ Trs.rules (usableWeak p)
+        where ppTrs  = pprintNamedTrs (signature p) (variables p)
+              allUrs = Trs.rules (usableStrict p) ++ Trs.rules (usableWeak p)
     pprint (Error e)                    = pprint e
 
 instance T.TransformationProof UR where

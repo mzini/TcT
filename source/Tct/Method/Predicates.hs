@@ -90,50 +90,80 @@ instance S.Processor Predicate where
 
 type PredicateProcessor = S.StdProcessor Predicate
          
-trsPredicate :: String -> (Trs -> Bool) -> PredicateProcessor     
-trsPredicate s p = S.StdProcessor $ TrsPredicate s p
+trsPredicateProcessor :: String -> (Trs -> Bool) -> PredicateProcessor     
+trsPredicateProcessor s p = S.StdProcessor $ TrsPredicate s p
+problemPredicateProcessor :: String -> (Problem -> Bool) -> PredicateProcessor     
+problemPredicateProcessor s p = S.StdProcessor $ ProblemPredicate s p
 
-problemPredicate :: String -> (Problem -> Bool) -> PredicateProcessor     
-problemPredicate s p = S.StdProcessor $ ProblemPredicate s p
 
-
-isDuplicating :: PredicateProcessor
-isDuplicating = trsPredicate "duplicating" Trs.isDuplicating
-isConstructor :: PredicateProcessor
-isConstructor = trsPredicate "constructor" Trs.isConstructor
-isCollapsing :: PredicateProcessor
-isCollapsing = trsPredicate "collapsing" Trs.isCollapsing
-isGround :: PredicateProcessor
-isGround = trsPredicate "ground" Trs.isGround
-isLeftLinear :: PredicateProcessor
-isLeftLinear = trsPredicate "leftlinear" Trs.isLeftLinear
-isRightLinear :: PredicateProcessor
-isRightLinear = trsPredicate "rightlinear" Trs.isLeftLinear
-isWellFormed :: PredicateProcessor
-isWellFormed = trsPredicate "wellformed" Trs.wellFormed
+isDuplicatingProcessor :: PredicateProcessor
+isDuplicatingProcessor = trsPredicateProcessor "duplicating" Trs.isDuplicating
+isConstructorProcessor :: PredicateProcessor
+isConstructorProcessor = trsPredicateProcessor "constructor" Trs.isConstructor
+isCollapsingProcessor :: PredicateProcessor
+isCollapsingProcessor = trsPredicateProcessor "collapsing" Trs.isCollapsing
+isGroundProcessor :: PredicateProcessor
+isGroundProcessor = trsPredicateProcessor "ground" Trs.isGround
+isLeftLinearProcessor :: PredicateProcessor
+isLeftLinearProcessor = trsPredicateProcessor "leftlinear" Trs.isLeftLinear
+isRightLinearProcessor :: PredicateProcessor
+isRightLinearProcessor = trsPredicateProcessor "rightlinear" Trs.isLeftLinear
+isWellFormedProcessor :: PredicateProcessor
+isWellFormedProcessor = trsPredicateProcessor "wellformed" Trs.wellFormed
 
 isStrat :: String -> (Strategy -> Bool) -> PredicateProcessor
-isStrat n check = problemPredicate n (\ prob -> check $ strategy prob)
+isStrat n check = problemPredicateProcessor n (\ prob -> check $ strategy prob)
 
-isOutermost :: PredicateProcessor
-isOutermost = isStrat "outermost" ((==) Outermost)
-isInnermost :: PredicateProcessor
-isInnermost = isStrat "innermost" ((==) Innermost)
-isFull :: PredicateProcessor
-isFull      = isStrat "fullstrategy" ((==) Full)
-isContextSensitive :: PredicateProcessor
-isContextSensitive = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
+isOutermostProcessor :: PredicateProcessor
+isOutermostProcessor = isStrat "outermost" ((==) Outermost)
+isInnermostProcessor :: PredicateProcessor
+isInnermostProcessor = isStrat "innermost" ((==) Innermost)
+isFullProcessor :: PredicateProcessor
+isFullProcessor = isStrat "fullstrategy" ((==) Full)
+isContextSensitiveProcessor :: PredicateProcessor
+isContextSensitiveProcessor = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
 
 predicateProcessors :: [PredicateProcessor]
-predicateProcessors = [isDuplicating
-                      , isConstructor
-                      , isCollapsing
-                      , isGround
-                      , isLeftLinear
-                      , isRightLinear
-                      , isWellFormed
-                      , isOutermost
-                      , isFull
-                      , isInnermost
-                      , isContextSensitive ]
+predicateProcessors = [ isDuplicatingProcessor
+                      , isConstructorProcessor
+                      , isCollapsingProcessor
+                      , isGroundProcessor
+                      , isLeftLinearProcessor
+                      , isRightLinearProcessor
+                      , isWellFormedProcessor
+                      , isOutermostProcessor
+                      , isFullProcessor
+                      , isInnermostProcessor
+                      , isContextSensitiveProcessor ]
+
+
+trsPredicate :: String -> (Trs -> Bool) -> WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+trsPredicate s p a = (S.StdProcessor $ TrsPredicate s p) `S.withArgs` a
+
+problemPredicate :: String -> (Problem -> Bool) -> P.InstanceOf (S.StdProcessor Predicate)
+problemPredicate s p = (S.StdProcessor $ ProblemPredicate s p) `S.withArgs` Union
+
+
+isDuplicating :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isDuplicating a = isDuplicatingProcessor `S.withArgs` a
+isCollapsing :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isCollapsing a = isCollapsingProcessor `S.withArgs` a
+isConstructor :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isConstructor a = isConstructorProcessor `S.withArgs` a
+isGround :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isGround a = isGroundProcessor `S.withArgs` a
+isLeftLinear :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isLeftLinear a = isLeftLinearProcessor `S.withArgs` a
+isRightLinear :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isRightLinear a = isRightLinearProcessor `S.withArgs` a
+isWellFormed :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isWellFormed a = isWellFormedProcessor `S.withArgs` a
+isOutermost :: P.InstanceOf (S.StdProcessor Predicate)
+isOutermost = isOutermostProcessor `S.withArgs` Union
+isInnermost :: P.InstanceOf (S.StdProcessor Predicate)
+isInnermost = isInnermostProcessor `S.withArgs` Union
+isFull :: P.InstanceOf (S.StdProcessor Predicate)
+isFull = isFullProcessor `S.withArgs` Union
+isContextSensitive :: P.InstanceOf (S.StdProcessor Predicate)
+isContextSensitive = isContextSensitiveProcessor `S.withArgs` Union
 

@@ -46,15 +46,16 @@ markSymbol :: Symbol -> SignatureMonad Symbol
 markSymbol f = do fa <- getAttributes f 
                   maybeFresh fa{symIsMarked = True}
 
-dependencyPairsOf :: Bool -> Prob.Problem -> Trs -> F.SignatureMonad Trs
-dependencyPairsOf useTuples prob trs = Trs `liftM` (mapM mk $ zip (rules trs) ([0..] :: [Int]))
+dependencyPairsOf :: Bool -> Prob.Problem -> Trs -> [String] -> F.SignatureMonad (Trs, [String])
+dependencyPairsOf useTuples prob trs names = do rs <- mapM mk $ zip (rules trs) names
+                                                return $ (Trs rs, take (length rs) names)
     where definedsFromTrs = definedSymbols (Prob.trsComponents prob)
           strat           = Prob.strategy prob
           mk (rule,i) = do lhs' <- mrk $ R.lhs rule
                            rhs' <- mkRhs i $ R.rhs rule
                            return $ R.fromPair (lhs',rhs')
           mkRhs i t   = fromSubterms $ gatherSubterms t
-              where fromSubterms ts = do c <- fresh (defaultAttribs ("c_" ++ show i) (length ts)) {symIsCompound = True}
+              where fromSubterms ts = do c <- fresh (defaultAttribs i (length ts)) {symIsCompound = True}
                                          ts' <- mapM mrk ts
                                          return $ Term.Fun c ts'
                     gatherSubterms | useTuples = gatherSubtermsWDT
@@ -121,8 +122,8 @@ instance T.Transformer DPs where
                   strict    = Prob.strictTrs prob
                   weak      = Prob.weakTrs prob
                   ((sDps, wDps, ds'), sig') = flip Sig.runSignature sig $ 
-                                              do s <- dependencyPairsOf useTuples prob strict
-                                                 w <- dependencyPairsOf useTuples prob weak
+                                              do (s,names) <- dependencyPairsOf useTuples prob strict ["c_" ++ show i | i <- [ (1:: Int)..]]
+                                                 (w,_) <- dependencyPairsOf useTuples prob weak names
                                                  d <- Set.fromList `liftM` (mapM markSymbol $ Set.elems ds)
                                                  return (s, w, d)
                   proof     = DPProof { strictDPs = sDps
@@ -139,6 +140,23 @@ instance T.Transformer DPs where
                                                        else Prob.weakTrs prob
                                    , Prob.signature  = sig' }
         where useTuples = T.transformationArgs inst
+
+
+withFreshCompounds :: Prob.Problem -> Prob.Problem
+withFreshCompounds prob = fst . flip Sig.runSignature (Prob.signature prob)  $ 
+                          do sdps' <- mapM frsh $ zip sdps (names 1)
+                             wdps' <- mapM frsh $ zip wdps (names $ length sdps + 1)
+                             sig' <- Sig.getSignature
+                             return $ prob { Prob.signature = sig'
+                                           , Prob.strictDPs = Trs.fromRules sdps'
+                                           , Prob.weakDPs = Trs.fromRules wdps'}
+   where names :: Int -> [String]
+         names i = ["c_" ++ show j | j <- [ i..] ]
+         sdps = Trs.rules $ Prob.strictDPs prob
+         wdps = Trs.rules $ Prob.weakDPs prob
+         frsh (R.Rule l (Term.Fun _ rs), n) = do c <- fresh (defaultAttribs n (length rs)) {symIsCompound = True}
+                                                 return $ R.Rule l (Term.Fun c rs)
+         frsh (rule, _)                     = return rule
 
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs

@@ -53,7 +53,8 @@ where
 import Control.Monad (liftM)
 
 import Data.Maybe (catMaybes)
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJ hiding (empty, (<>))
+import qualified Text.PrettyPrint.HughesPJ as PP
 import Data.Typeable
 import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
@@ -78,15 +79,22 @@ class TransformationProof t where
   pprint :: P.Processor sub => Proof t sub -> Doc
   pprint proof = pprintProof t input tproof
                  $+$ text "" 
-                 $+$ if null subproofs 
-                      then text "No subproblems were generated."
-                      else text "Overall, the transformation results in the following sub-problem(s):"
-                            $+$ text ""
-                            $+$ vcat [ ppOverview i sub | (i, sub) <- subprobs]
-                            $+$ text ""
-                            $+$ if null subproofs
-                                then text "No subproblems were checked."
-                                else cat [ ppDetail i sub | (i, sub) <- subproofs]
+                 $+$ case subprobs of 
+                         []             -> text "No subproblems were generated."
+                         [(SN i, prob_i)] -> case findProof i proof of 
+                                               Just proof_i -> Util.pprint proof_i
+                                               _            -> text "The transformation results in the following problem"
+                                                               $+$ text ""
+                                                               $+$ Util.pprint prob_i                                                               
+                                                               $+$ text ""
+                                                               $+$ text "However, no processor was applied on this problem. We abort!"                                                               
+                         _              -> text "Overall, the transformation results in the following sub-problem(s):"
+                                           $+$ text ""
+                                           $+$ vcat [ ppOverview i sub | (i, sub) <- subprobs]
+                                           $+$ text ""
+                                           $+$ if null subproofs
+                                               then text "No subproblems were checked."
+                                               else cat [ ppDetail i sub | (i, sub) <- subproofs]
       where subproofs = subProofs proof
             subprobs  = subProblems proof
             tproof    = transformationProof proof
@@ -99,15 +107,14 @@ class TransformationProof t where
                                  Just proof_i -> text "This problem" 
                                                 <+> (if P.succeeded proof_i
                                                      then text "was proven" <+> Util.pprint (P.answer proof_i)
-                                                     else text "could not be solved")
-                                                <+> text "using" <+> Util.qtext (P.instanceName (P.appliedProcessor proof_i)) <> text "."
-                                 Nothing -> text "No proof was generated for this problem"]
+                                                     else text "remains open")
+                                                <+> text "."
+--                                                <+> text "using" <+> Util.qtext (P.instanceName (P.appliedProcessor proof_i)) <> text "."
+                                 Nothing -> text "No proof was generated for this problem."]
                 where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
             ppDetail i subproof = block' n [subproof]
                 where n = show $ text "Proof of sub-problem" <+> Util.pprint i
   pprintProof :: TheTransformer t -> Problem -> ProofOf t -> Doc
-  continue :: TheTransformer t -> ProofOf t -> Bool
-  continue _ _ = False
 
 data Result t = NoProgress (ProofOf t)
               | Progress (ProofOf t) (Enumeration Problem)
@@ -134,6 +141,10 @@ answerFromSubProof proof = case subProofs proof of
 proofFromResult :: Result t -> (ProofOf t)
 proofFromResult (NoProgress t) = t
 proofFromResult (Progress t _) = t
+
+isProgressResult :: Result r -> Bool
+isProgressResult (Progress {})   = True
+isProgressResult (NoProgress {}) = False
 
 mapResult :: (ProofOf t1 -> ProofOf t2) -> Result t1 -> Result t2
 mapResult f (NoProgress p)  = NoProgress (f p)
@@ -170,6 +181,8 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
     instanceName :: TheTransformer t -> String
     instanceName = name . transformation
     transform    :: P.SolverM m => TheTransformer t -> Problem -> m (Result t)
+    continue :: TheTransformer t -> Bool
+    continue _ = False
 
 
 --------------------------------------------------------------------------------
@@ -193,8 +206,8 @@ instance ( Transformer t
     type S.ProofOf (TransProc t sub) = Proof t (Subsumed sub)
     type S.ArgumentsOf (TransProc t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     name (TransProc t)      = name t
-    instanceName inst       = instanceName tinst ++ " transformation followed by " ++ P.instanceName sub
-        where _ :+: _ :+: _ :+: as :+: sub = S.processorArgs inst
+    instanceName inst       = instanceName tinst
+        where _ :+: _ :+: _ :+: as :+: _ = S.processorArgs inst
               TransProc t          = S.processor inst
               tinst = TheTransformer t as
 
@@ -217,7 +230,7 @@ instance ( Transformer t
                                   , A.description = "The processor that is applied on the transformed problem(s)" }
     solve inst prob = do res <- transform tinst prob
                          case res of 
-                           NoProgress p  -> if continue tinst p || not str
+                           NoProgress _  -> if continue tinst || not str
                                              then do sp <- P.apply sub prob
                                                      return $ mkProof res (enumeration' [liftMS Nothing sp])
                                              else return $ mkProof res []
@@ -257,22 +270,14 @@ instance ( Transformer t, P.Processor sub ) => Util.PrettyPrintable (Proof t sub
 instance ( Transformer t, P.Processor sub ) => P.Answerable (Proof t sub) where 
   answer proof = answer proof
 
+type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
+
 --------------------------------------------------------------------------------
 --- Transformation Combinators
 
 data t1 :>>>: t2 = TheTransformer t1 :>>>: TheTransformer t2
 data ComposeProof t1 t2 = ComposeProof { firstproof :: Result t1
                                        , sndproof   :: Maybe (Enumeration (Result t2)) }
-
-
-infixr 6 >>>
-(>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
-t1 >>> t2 = someTransformation inst 
-    where inst = TheTransformer (t1 :>>>: t2) ()
-
-exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
-exhaustively t = t >>> exhaustively t
-
 
 
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) where
@@ -301,11 +306,11 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
     pprintProof (TheTransformer (t1 :>>>: t2) _) prob (ComposeProof r1 (Just r2s)) = 
         pprintProof t1 prob (proofFromResult r1)
         $+$ if not contd 
-             then empty 
+             then PP.empty 
              else text ""
                   $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problems:")
                   $+$ vcat [ ppOverview i prob_i | (i, prob_i) <- subprobs]
-                where contd = continue t1 (proofFromResult r1) || (case r1 of {Progress {} -> True; _ -> False})
+                where contd = continue t1 || (case r1 of {Progress {} -> True; _ -> False})
                       subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
                       ppOverview (SN i) prob_i = 
                           block' n [ text "We consider the problem"
@@ -316,7 +321,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                                           Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
                                           Just r2_i@(Progress _ ps) -> pprintProof t2 prob (proofFromResult r2_i)
                                                                       $+$ if null ps 
-                                                                           then empty
+                                                                           then PP.empty
                                                                            else text ""
                                                                                  $+$ text "The consider problem is replaced by"
                                                                                  $+$ enum ps
@@ -379,7 +384,7 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     transform inst prob = do
       r1 <- transform t1 prob
       case r1 of 
-        NoProgress p1  -> if continue t1 p1 
+        NoProgress _   -> if continue t1
                          then transform2 r1 (enumeration' [prob]) -- == [(1,prob)]
                          else return $ NoProgress $ ComposeProof r1 Nothing
         Progress _ ps -> transform2 r1 ps -- [(a,prob1), (b,prob2), (c,prob3)...]
@@ -388,20 +393,87 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
               transform2 r1 ps = do r2s <- mapM trans ps
                                     let tproof = ComposeProof r1 $ Just [(e1,r2_i) | (e1, r2_i,_) <- r2s]
                                         esubprobs = concatMap mkSubProbs r2s
-                                        anyProgress = isProgress r1 || any isProgress [r2_i | (_,r2_i,_) <- r2s]
+                                        anyProgress = isProgressResult r1 || any isProgressResult [r2_i | (_,r2_i,_) <- r2s]
                                         proof | anyProgress = Progress tproof esubprobs
                                               | otherwise   = NoProgress tproof
                                     return $ proof
                   where trans (e1, prob_i) = do {r2_i <- transform t2 prob_i; return (e1, r2_i, prob_i)}
 
-                        isProgress :: Result r -> Bool
-                        isProgress (Progress {})   = True
-                        isProgress (NoProgress {}) = False
-
                         mkSubProbs (SN e1, Progress _ subprobs, _     ) = [(SN (Two (e1,e2)), subprob) | (SN e2, subprob) <- subprobs]
                         mkSubProbs (SN e1, NoProgress _       , prob_i) = [(SN (One e1), prob_i)]
 
               t1 :>>>: t2 = transformation inst
+
+--------------------------------------------------------------------------------
+-- Choice
+              
+data Id = Id
+
+data IdProof = IdProof
+
+instance TransformationProof Id where
+  pprintProof _ _ _ = PP.empty
+  answer = answerFromSubProof
+  
+instance Transformer Id where 
+  name Id = "id"
+  description Id = []
+  type ArgumentsOf Id = Unit
+  type ProofOf Id     = IdProof
+  arguments Id = Unit
+  transform _ _ = return $ NoProgress IdProof
+
+--------------------------------------------------------------------------------
+-- Choice
+              
+data t1 :<>: t2 = TheTransformer t1 :<>: TheTransformer t2
+
+data ChoiceProof t1 t2 = ChoiceOne (Result t1)
+                       | ChoiceTwo (Result t1) (Result t2)
+                       
+instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) where
+  pprintProof (TheTransformer (t1 :<>: _) _) prob (ChoiceOne r1) = 
+    pprintProof t1 prob (proofFromResult r1)
+  pprintProof (TheTransformer (t1 :<>: t2) _) prob (ChoiceTwo r1 r2) = 
+    text "We fail transforming the problem using" <+> quotes (text (instanceName t1))
+    $+$ text ""
+    $+$ indent (pprintProof t1 prob (proofFromResult r1))
+    $+$ text ""
+    $+$ text "We try instead" <+> quotes (text (instanceName t2)) <+> text "on the problem"
+    $+$ text ""    
+    $+$ Util.pprint prob
+    $+$ text ""
+    $+$ indent (pprintProof t2 prob (proofFromResult r2))
+    
+  answer proof = case transformationProof proof of 
+                    ChoiceOne r1 -> answer $ proof { transformationResult = r1 
+                                                   , appliedTransformer   = t1}
+                    ChoiceTwo _ r2 -> answer $ proof { transformationResult = r2, appliedTransformer   = t2}
+                      
+    where (TheTransformer (t1 :<>: t2) _) = appliedTransformer proof
+    
+
+
+instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
+  name (TheTransformer t1 _ :<>: _)           = name t1
+  instanceName (TheTransformer (t1 :<>: _) _) = instanceName t1 ++ " <> ..."
+  
+  type ArgumentsOf (t1 :<>: t2) = Unit
+  type ProofOf (t1 :<>: t2) = ChoiceProof t1 t2
+  arguments _ = Unit
+  
+  transform tinst prob = do r1 <- transform t1 prob
+                            case r1 of 
+                              Progress _ ps -> return $ Progress (ChoiceOne r1) ps
+                              NoProgress _  -> do r2 <- transform t2 prob
+                                                  return $ case r2 of 
+                                                             Progress _ ps -> Progress (ChoiceTwo r1 r2) ps
+                                                             NoProgress _  -> NoProgress (ChoiceTwo r1 r2)
+    where t1 :<>: t2 = transformation tinst
+
+  
+--------------------------------------------------------------------------------
+-- Try Transformation
 
 data Try t = Try t
 data TryProof t = TryProof (ProofOf t)
@@ -409,12 +481,14 @@ data TryProof t = TryProof (ProofOf t)
 fromTry :: TheTransformer (Try t) -> TheTransformer t
 fromTry (TheTransformer (Try t) as) = TheTransformer t as
 
+
 instance TransformationProof t => TransformationProof (Try t) where
-    continue _ _ = True
     pprint proof = case result of 
                       NoProgress (TryProof p) -> pprintProof (fromTry t) input p
                                                 $+$ text ""
-                                                $+$ text "We continue with the subprocessor." 
+                                                $+$ text "We abort the transformation and continue with the subprocessor on the problem" 
+                                                $+$ text ""
+                                                $+$ Util.pprint input
                                                 $+$ text ""
                                                 $+$ enum (P.result `mapEnum` subproofs)
                       Progress (TryProof p) _ -> pprint proof { appliedTransformer = fromTry t
@@ -434,8 +508,11 @@ instance TransformationProof t => TransformationProof (Try t) where
 
     pprintProof t prob (TryProof p) = pprintProof (fromTry t) prob p
 
+
+
 instance (Transformer t) => Transformer (Try t) where
     name (Try t) = name t
+    continue _ = True
     instanceName inst = instanceName $ fromTry inst
     description (Try t) = description t
     type ArgumentsOf  (Try t) = ArgumentsOf t
@@ -447,9 +524,6 @@ instance (Transformer t) => Transformer (Try t) where
               Try t = transformation inst
               tinst = TheTransformer { transformation = t
                                      , transformationArgs = transformationArgs inst }
-
-try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
-try (TheTransformer t args) = TheTransformer (Try t) args
 
 --------------------------------------------------------------------------------
 -- SomeTransformation
@@ -472,12 +546,13 @@ instance TransformationProof SomeTrans where
                             result' = case transformationResult proof of 
                                         NoProgress _  -> NoProgress tproof
                                         Progress _ ps -> Progress tproof ps
-  continue _ (SomeTransProof t p) = continue t p
   pprintProof _ prob (SomeTransProof t p) = pprintProof t prob p
   
 
 instance Transformer SomeTrans where
     name (SomeTrans t _) = name t
+    continue (TheTransformer (SomeTrans t as)  _) = continue (TheTransformer t as)
+    
     instanceName (TheTransformer (SomeTrans t as)  _) = instanceName (TheTransformer t as)
     description (SomeTrans t _) = description t
 
@@ -490,29 +565,40 @@ instance Transformer SomeTrans where
               mk (Progress p ts) = Progress (SomeTransProof tinst p) ts
               tinst = TheTransformer t as
 
-someTransformation :: (Transformer t) => TheTransformer t -> TheTransformer SomeTrans
-someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
-                               , transformationArgs = ()}
 
 
-calledWith :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransformer t
-t `calledWith` as = TheTransformer t as 
 
 
 -------------------------------------------------------------------------------- 
 --- utility functions for constructing and modifying transformations
 
+calledWith :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransformer t
+t `calledWith` as = TheTransformer t as 
+
+someTransformation :: (Transformer t) => TheTransformer t -> TheTransformer SomeTrans
+someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
+                               , transformationArgs = ()}
+
+
 
 infixr 2 `thenApply`
-
 thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApply (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (False :+: False :+: False :+: args :+: sub)
+thenApply ti@(TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (not (continue ti) :+: False :+: False :+: args :+: sub)
 
+infixr 2 >>|
+(>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
+(>>|) = thenApply
+
+
+infixr 2 `thenApplyPar`
 thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApplyPar (TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (False :+: True :+: False :+: args :+: sub)
+thenApplyPar ti@(TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (not (continue ti) :+: True :+: False :+: args :+: sub)
 
 
-type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
+infixr 2 >>||
+(>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
+(>>||) = thenApplyPar
+
 
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t sub
 transformationProcessor t = S.StdProcessor (TransProc t)
@@ -520,10 +606,32 @@ transformationProcessor t = S.StdProcessor (TransProc t)
 parallelSubgoals :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
 
+--- utility functions for constructing and modifying transformations
 
 checkSubsumed :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
 checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
 
+
+try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
+try (TheTransformer t args) = TheTransformer (Try t) args
+
+infixr 6 >>>
+(>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
+t1 >>> t2 = someTransformation inst 
+    where inst = TheTransformer (t1 :>>>: t2) ()
+
+
+infixr 7 <>
+(<>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
+t1 <> t2 = someTransformation inst 
+    where inst = TheTransformer (t1 :<>: t2) ()
+
+exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
+exhaustively t = (t >>> exhaustively t) <> idtrans  -- t >>> exhaustively t
+
+
+idtrans :: TheTransformer Id
+idtrans = Id `calledWith` ()
 
 -------------------------------------------------------------------------------- 
 --- subsumed processor

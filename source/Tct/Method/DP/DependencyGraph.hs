@@ -97,9 +97,16 @@ rulesFromNode gr str n = case lookupNode gr n of
                             Nothing -> []
                             Just cn -> [ r | (_, (str', r)) <- theSCC cn, str == str']
 
-
+allRulesFromNode :: CDG -> NodeId -> [R.Rule]
+allRulesFromNode gr n = case lookupNode gr n of 
+                            Nothing -> []
+                            Just cn -> [ r | (_, (_, r)) <- theSCC cn]
+                            
 rulesFromNodes :: CDG -> Strictness -> [NodeId] -> Trs
 rulesFromNodes gr str ns = Trs $ concatMap (rulesFromNode gr str) ns
+
+allRulesFromNodes :: CDG -> [NodeId] -> Trs
+allRulesFromNodes gr ns = Trs $ concatMap (allRulesFromNode gr) ns
 
 congruence :: CDG -> NodeId -> [NodeId]
 congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)

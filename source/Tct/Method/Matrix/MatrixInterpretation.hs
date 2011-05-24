@@ -152,6 +152,10 @@ triMatrix f d k = Matrix $ map handlerow [1..d]
                   where handlerow i = Vector $ replicate (pred i) czero ++ (midvar i : map (ringvar . MIVar False f k i) [succ i..d])
                         midvar i = restrictvar $ MIVar True f k i i
 
+edaMatrix :: RingConst a => MatrixCreate a
+edaMatrix f d k = Matrix $ map handlerow [1..d]
+                  where handlerow i = Vector $ map (restrictvar . MIVar True f k i) [1..i] ++ map (ringvar . MIVar False f k i) [succ i..d]
+
 abstractInterpretation :: RingConst a => MatrixKind -> Int -> F.Signature -> MatrixInter a
 abstractInterpretation mk d sig = (MI d sig . Map.fromList . map (\f -> (f, interpretf f)) . Set.elems . F.symbols) sig
                                   where interpretf f = LI (fcoeffs f) (fconst f)
@@ -163,8 +167,10 @@ abstractInterpretation mk d sig = (MI d sig . Map.fromList . map (\f -> (f, inte
                                                          ConstructorBased cs _ -> if f `Set.member` cs
                                                                                   then triMatrix
                                                                                   else stdMatrix
-                                                         EdaMatrix _           -> stdMatrix
-                                                         ConstructorEda _ _    -> stdMatrix
+                                                         EdaMatrix _           -> edaMatrix
+                                                         ConstructorEda cs _   -> if f `Set.member` cs
+                                                                                  then edaMatrix
+                                                                                  else stdMatrix
 
 liProd :: Semiring a => Matrix a -> LInter a -> LInter a
 liProd m li = LI (Map.map (mprod m) (coefficients li)) (mvprod m (constant li))

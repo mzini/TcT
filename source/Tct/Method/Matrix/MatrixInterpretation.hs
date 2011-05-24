@@ -117,7 +117,7 @@ pprintLI f (LI ms vec) = foldr handleLine empty [1..d]
           colWidths m            = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
           mLine i m              = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
           mCell (cell, l) doc    = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
-          mVar i v | i == 1      = f v <+> char 'p'
+          mVar i v | i == 1      = f v <+> char '+'
           mVar _ v | otherwise   = text $ replicate (length (show $ f v) + 2) ' '
           vLine i                = brackets $ pprint (vEntry i vec)
           prettyLength           = length . show . pprint

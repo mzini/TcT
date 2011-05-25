@@ -627,7 +627,7 @@ t1 <> t2 = someTransformation inst
     where inst = TheTransformer (t1 :<>: t2) ()
 
 exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
-exhaustively t = (t >>> exhaustively t) <> idtrans  -- t >>> exhaustively t
+exhaustively t = t >>> exhaustively t
 
 
 idtrans :: TheTransformer Id

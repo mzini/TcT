@@ -474,7 +474,7 @@ dConstraints mi = foreapprox && forecompat && backapprox && backcompat && exactn
         forecompat  = bigAnd [ (dioAtom (Done i x y) && gtwo mi x y z u) --> dioAtom (Done i z u) | i <- toD, x <- toD, y <- toD, z <- toD, u <- toD ]
         backapprox  = bigAnd [ dioAtom (R 1 x) --> dioAtom (Dtwo x x x) | x <- toD ]
         backcompat  = bigAnd [ (dioAtom (Dtwo i x y) && gtwo mi z u x y) --> dioAtom (Dtwo i z u) | i <- toD, x <- toD, y <- toD, z <- toD, u <- toD ]
-        exactness   = bigAnd [ if x == y then top else not (dioAtom (Done i x y) && dioAtom (Dtwo i x y)) | i <- toD, x <- toD, y <- toD ]
+        exactness   = bigAnd [ not (dioAtom (Done i x y) && dioAtom (Dtwo i x y)) | i <- toD, x <- toD, y <- toD, x /= y ]
 
 -- gThreeConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 -- gThreeConstraints mi = bigAnd [ f i j k x y z | i <- toD, j <- toD, k <- toD, x <- toD, y <- toD, z <- toD ]
@@ -491,11 +491,11 @@ tConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar 
 tConstraints mi = initial && gThreeStep
   where d = dimension mi
         toD = [1..d]
-        initial = bigAnd [ if x == y then top else (dioAtom (R 1 x) && dioAtom (R 1 y)) --> dioAtom (T x x y) | x <- toD, y <- toD ]
+        initial = bigAnd [ (dioAtom (R 1 x) && dioAtom (R 1 y)) --> dioAtom (T x x y) | x <- toD, y <- toD, x /= y ]
         gThreeStep = bigAnd [ (dioAtom (T x y z) && gthree mi x y z u v w) --> dioAtom (T u v w) | x <- toD, y <- toD, z <- toD, u <- toD, v <- toD, w <- toD ]
 
 iConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
-iConstraints mi = bigAnd [ if x == y then Top else dioAtom (T x y y) --> dioAtom (I x y) | x <- toD, y <- toD ]
+iConstraints mi = bigAnd [ dioAtom (T x y y) --> dioAtom (I x y) | x <- toD, y <- toD, x /= y ]
   where d = dimension mi
         toD = [1..d]
 

@@ -262,7 +262,7 @@ a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 -- * defaultMatrix
 
-data DefaultMatrix = DefaultMatrix { kind :: NaturalMI.NaturalMIKind
+data DefaultMatrix = DefaultMatrix { cert :: NaturalMI.NaturalMIKind
                                    , dim  :: Int
                                    , degree :: Maybe Int
                                    , bits :: Int
@@ -271,16 +271,16 @@ data DefaultMatrix = DefaultMatrix { kind :: NaturalMI.NaturalMIKind
                                    , useUsableArgs :: Bool }
 
 instance P.IsDefaultOption DefaultMatrix where 
-    defaultOptions = DefaultMatrix { kind = NaturalMI.Automaton
+    defaultOptions = DefaultMatrix { cert   = NaturalMI.Algebraic
                                    , dim    = 2
                                    , degree = Nothing
                                    , bits   = 2
-                                   , cbits  = Nothing
+                                   , cbits  = Just $ 3
                                    , useUsableArgs = True
                                    , on            = Weightgap.WgOnAny }
 
 matrix :: DefaultMatrix -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((kind m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 
 arctic :: DefaultMatrix -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
@@ -288,4 +288,4 @@ arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat
 
 
 weightgap :: DefaultMatrix -> TheTransformer Weightgap.WeightGap
-weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (kind m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))

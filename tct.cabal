@@ -20,7 +20,7 @@ Executable tct
  main-is:           Main.hs
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time
  hs-source-dirs:    source
- ghc-options:       -threaded -fno-spec-constr-count -with-rtsopts=-K500M
+ ghc-options:       -threaded -fno-spec-constr-count
 
 -- Executable tct_info
 --  main-is:           StrategyInfo.hs

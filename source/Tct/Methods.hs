@@ -179,7 +179,7 @@ module Tct.Methods
     )
 where
 import Prelude hiding (fail, uncurry)
-
+import Control.Monad (liftM)
 import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
@@ -264,28 +264,28 @@ a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 data DefaultMatrix = DefaultMatrix { kind :: NaturalMI.NaturalMIKind
                                    , dim  :: Int
-                                   , degree :: Int
+                                   , degree :: Maybe Int
                                    , bits :: Int
-                                   , cbits :: Int
+                                   , cbits :: Maybe Int
                                    , on :: Weightgap.WgOn
                                    , useUsableArgs :: Bool }
 
 instance P.IsDefaultOption DefaultMatrix where 
     defaultOptions = DefaultMatrix { kind = NaturalMI.Automaton
-                                   , dim    = error "dimension must be specified"
-                                   , degree = error "degree must be specified"
+                                   , dim    = 2
+                                   , degree = Nothing
                                    , bits   = 2
-                                   , cbits  = 3
+                                   , cbits  = Nothing
                                    , useUsableArgs = True
                                    , on            = Weightgap.WgOnAny }
 
 matrix :: DefaultMatrix -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((kind m) :+: (Just $ nat $ degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((kind m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 
 arctic :: DefaultMatrix -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
-arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))
+arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 
 weightgap :: DefaultMatrix -> TheTransformer Weightgap.WeightGap
-weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (kind m) :+: (Just $ nat $ degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (Just $ Nat $ cbits m) :+: (useUsableArgs m))
+weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (kind m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))

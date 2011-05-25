@@ -406,8 +406,7 @@ diagOnesConstraints deg mi = diagOnesVars && maxDegree
 -- Automaton Stuff
 -- Notation follows the 5-author CAI paper
 
-data XdaVar = Gtwo Int Int Int Int
-            | R Int Int
+data XdaVar = R Int Int
             | Done Int Int Int
             | Dtwo Int Int Int
             | T Int Int Int

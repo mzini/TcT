@@ -174,11 +174,12 @@ instance T.Transformer SimpRHS where
           progr = any (isJust . snd) elims
           elims = [(rule, elim rule) | rule <- Trs.toRules $ Prob.strictDPs prob]
             where ds   = Trs.definedSymbols (Prob.dpComponents prob)
-                  isDefinedWeak (Term.Fun f _) = Set.member f ds
-                  isDefinedWeak _              = False
+                  isDefinedOrVar (Term.Fun f _) = Set.member f ds
+                  isDefinedOrVar (Term.Var _)   = True
+                  isDefinedOrVar _              = False
                   elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
                                                 | otherwise              = Just $ Rule l (Term.Fun f rs')
-                        where rs' = filter isDefinedWeak rs
+                        where rs' = filter isDefinedOrVar rs
           prob' = withFreshCompounds prob { Prob.strictDPs = Trs.fromRules [ fromMaybe (fst p) (snd p) | p <- elims] }
 
 simpDPRHSProcessor :: T.TransformationProcessor SimpRHS P.AnyProcessor

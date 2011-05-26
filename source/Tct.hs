@@ -128,7 +128,7 @@ data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> Erroneous
                      , configDir         :: ErroneousIO FilePath
                      , errorMsg          :: [String]
                      , version           :: String
-
+                     , recompile         :: Bool
                      , timeout           :: Maybe Int
                      , answerType        :: Maybe AnswerType
                      , listStrategies    :: Maybe (Maybe String)
@@ -152,7 +152,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                                               return $ home </> ".tct"
                        , errorMsg        = []
                        , version         = Version.version
-                                           
+                       , recompile       = True
                        , timeout         = Nothing
                        , answerType      = Nothing
                        , listStrategies  = Nothing
@@ -268,6 +268,12 @@ options =
     , help    = [ "Displays the version number."]
     }
   , Option
+    { long    = "norecompile"
+    , short    = "r"
+    , meaning = (\_ f -> f{ recompile = False }) <$> argNone
+    , help    = [ "No recompilation of the binaries."]
+    }
+  , Option
     { long    = "check"
     , short    = "c"
     , meaning = (\_ f -> f{ performChecks = True }) <$> argNone
@@ -379,12 +385,13 @@ tct conf = do ecfg <- runErrorT (configDir conf)
               case ecfg of 
                 Left e -> putErrorMsg e
                 Right dir -> flip Dyre.wrapMain conf Dyre.defaultParams { Dyre.projectName = "tct"
-                                                                        , Dyre.realMain    = realMain
-                                                                        , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
-                                                                        , Dyre.configDir   = Just $ return dir
-                                                                        , Dyre.cacheDir    = Just $ return dir
-                                                                        , Dyre.statusOut   = hPutStrLn stderr
-                                                                        , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
+                                                                       , Dyre.configCheck = recompile conf
+                                                                       , Dyre.realMain    = realMain
+                                                                       , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                                                       , Dyre.configDir   = Just $ return dir
+                                                                       , Dyre.cacheDir    = Just $ return dir
+                                                                       , Dyre.statusOut   = hPutStrLn stderr
+                                                                       , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
         realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg cfg) >> exitWith exitFail

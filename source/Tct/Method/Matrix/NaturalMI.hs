@@ -553,8 +553,8 @@ instance (AbstrOrd a b, MIEntry a) => AbstrOrd (LInter a) b where
                                                  where zipmaps = Map.intersectionWith (.<=.) lcoeffs rcoeffs
 
 instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
-  plus = N.mAdd
-  prod = N.mTimes
+  plus = N.mAddNO
+  prod = N.mTimesNO
   zero = N.natToFormula 0
   one  = N.natToFormula 1
   geq  = N.mGeq
@@ -563,6 +563,8 @@ instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar 
   constToFormula = N.natToFormula
   formAtom = N.natAtomM . N.Bound
   truncFormTo = N.mTruncTo
+  padFormTo n f = N.padBots (max n l - l) f
+    where l = length f
 
 instance SatSolver.Decoder (MatrixInter (N.Size -> Int)) (N.PLVec DioVar) where
   add (N.PLVec (DioVar y) k) mi = case cast y of

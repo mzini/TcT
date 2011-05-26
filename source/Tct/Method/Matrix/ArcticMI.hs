@@ -354,6 +354,8 @@ instance (Ord l, SatSolver.Solver s l) => MSemiring s l (AS.ArcFormula l) DioVar
   constToFormula = AS.arcToFormula
   formAtom = AS.arcAtomM . AS.Bound
   truncFormTo = AS.mTruncTo
+  padFormTo n f = AS.padBots (max n l - l) f
+    where l = length $ snd f
 
 instance SatSolver.Decoder (MatrixInter (AS.Size -> ArcInt)) (AS.ArcBZVec DioVar) where
   add (AS.InfBit (DioVar y)) mi  = case cast y of

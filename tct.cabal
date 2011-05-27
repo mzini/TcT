@@ -50,6 +50,7 @@ Library
                     Tct.Encoding.SafeMapping
                     Tct.Encoding.UsablePositions
                     Tct.Encoding.Matrix
+                    Tct.Encoding.Polynomial
                     Tct.Encoding.Relative
                     Tct.Encoding.Natring
                     Tct.Encoding.AbstractInterpretation
@@ -81,4 +82,4 @@ Library
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic, termlib, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time
  hs-source-dirs:    source
- ghc-options:       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count -with-rtsopts=-K500M -rtsopts
+ ghc-options:       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count

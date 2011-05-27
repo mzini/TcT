@@ -35,7 +35,7 @@ import Data.Typeable
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Termlib.Problem (StartTerms(..), strictTrs, weakTrs)
+import Termlib.Problem (StartTerms(..), strictComponents, weakComponents)
 import qualified Termlib.Problem as Prob
 import Termlib.Utils
 import Termlib.Trs (Trs)
@@ -114,8 +114,8 @@ instance S.Processor Bounds where
     solve inst prob | isApplicable = do a <- compatibleAutomaton strict weak e i
                                         return $ BP e (Just $ BoundsCertificate (maximum $ 0 : [l | (_, l) <- Set.toList $ symbols a]) a sign)
                     | otherwise    = return $ BP e Nothing
-        where strict       = strictTrs prob
-              weak         = weakTrs prob
+        where strict       = strictComponents prob
+              weak         = weakComponents prob
               sign         = Prob.signature prob
               st           = Prob.startTerms prob
               isApplicable = Trs.isRightLinear $ strict `Trs.union` weak

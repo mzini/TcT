@@ -47,6 +47,7 @@ import Termlib.Rule (Rule)
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
 import Tct.Method.DP.DependencyGraph
+import qualified Tct.Method.DP.DependencyGraph as DG
 -- import Termlib.Term (..)
 -- static partitioning
 
@@ -81,6 +82,15 @@ splitFirstCongruence = Static ("split first congruence from CWD"
                   -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
                   -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
                   --                             | otherwise             = False
+
+splitWithoutLeafs :: Partitioning
+splitWithoutLeafs = Static ("split all congruence from CWD except leafs"
+                     , sfc)
+    where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
+                     | otherwise = (Trs.rules $ Prob.strictDPs prob Trs.\\ rts, [])
+            where dg = DG.estimatedDependencyGraph Edg prob
+                  cdg = DG.toCongruenceGraph dg
+                  rts = DG.allRulesFromNodes cdg (DG.leafs cdg)
 
 splitSatisfying :: String -> (Rule -> Bool) -> Partitioning
 splitSatisfying n p = Static ( n

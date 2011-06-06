@@ -30,6 +30,17 @@ data Monomial a b = Mono b [Power a]
 data Power a = Pow a Int
                     deriving (Eq, Ord, Show, Typeable)
 
+getCoeff :: (Eq a, Semiring b) => [Power a] -> Polynomial a b -> b
+getCoeff _ (Poly [])                         = zero
+getCoeff v (Poly (Mono n w:ms)) | powsEq v w = n `plus` getCoeff v (Poly ms)
+                                | otherwise  = getCoeff v $ Poly ms
+
+powsEq :: Eq a => [Power a] -> [Power a] -> Bool
+powsEq []     [] = True
+powsEq []     _  = False
+powsEq (v:vs) ws | v `elem` ws = powsEq vs $ List.delete v ws
+                 | otherwise   = False
+
 pplus :: (Eq a, Eq b, Semiring b) => Polynomial a b -> Polynomial a b -> Polynomial a b
 pplus (Poly xs) (Poly ys) = shallowSimp $ Poly $ xs ++ ys
 

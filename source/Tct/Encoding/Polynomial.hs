@@ -25,6 +25,7 @@ import Data.Typeable
 import Qlogic.Semiring
 
 newtype Polynomial a b = Poly [Monomial a b]
+                         deriving (Eq, Ord, Show, Typeable)
 data Monomial a b = Mono b [Power a]
                     deriving (Eq, Ord, Show, Typeable)
 data Power a = Pow a Int

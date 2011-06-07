@@ -95,7 +95,7 @@ instance PrettyPrintable MatrixOrder where
               ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted" <+> parens (text "at most" <+> int n <+> text (if n == 1 then "one" else "ones") <+> text "in the main diagonals")
               ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
               ppknd (EdaMatrix (Just n))          = text "EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
-              ppknd (ConstructorEda _ Nothing)    = text "constructor-based EDA-non-satsifying"
+              ppknd (ConstructorEda _ Nothing)    = text "constructor-based EDA-non-satisfying"
               ppknd (ConstructorEda _ (Just n))   = text "constructor-based EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
 
 instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where

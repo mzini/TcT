@@ -64,6 +64,7 @@ Library
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI
                     Tct.Method.Matrix.ArcticMI
+                    Tct.Method.Poly.NaturalPI
                     Tct.Method.Poly.PolynomialInterpretation
                     Tct.Method.Bounds
                     Tct.Method.Bounds.Automata

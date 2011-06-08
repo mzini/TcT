@@ -21,19 +21,26 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.Poly.NaturalPI where
 
+import Prelude hiding (not)
+
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ
 
+import Qlogic.Boolean
 import qualified Qlogic.NatSat as N
+import Qlogic.Semiring
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Utils
+import qualified Termlib.Variable as V
 
 import Tct.Certificate (poly, expo, certified, unknown)
+import Tct.Encoding.Polynomial
 import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Poly.PolynomialInterpretation
 import Tct.Processor (Answerable(..), Verifiable(..), Answer(..), ComplexityProof)
@@ -166,3 +173,8 @@ usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r s = if ua
 
 data PolyDP = PWithDP | PNoDP deriving Show
 data PolyRelativity = PDirect | PRelative [R.Rule] deriving Show
+
+monotoneConstraints :: AbstrOrdSemiring a b => PolyInter a -> b
+monotoneConstraints i = bigAnd $ Map.mapWithKey handlefun $ interpretations i
+  where sig = signature i
+        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) [1..F.arity sig f]

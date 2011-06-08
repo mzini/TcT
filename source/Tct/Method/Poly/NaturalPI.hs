@@ -174,7 +174,21 @@ usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r s = if ua
 data PolyDP = PWithDP | PNoDP deriving Show
 data PolyRelativity = PDirect | PRelative [R.Rule] deriving Show
 
+-- handlefun in the next two functions could be replaced by something else,
+-- e.g. a criterion by Friedl
+uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> PolyInter a -> b
+uargMonotoneConstraints uarg i = bigAnd $ Map.mapWithKey handlefun $ interpretations i
+  where handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) $ usablePositions f uarg
+
 monotoneConstraints :: AbstrOrdSemiring a b => PolyInter a -> b
 monotoneConstraints i = bigAnd $ Map.mapWithKey handlefun $ interpretations i
   where sig = signature i
         handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) [1..F.arity sig f]
+
+safeRedpairConstraints :: AbstrOrdSemiring a b => UsablePositions -> Bool -> PolyInter a -> b
+safeRedpairConstraints uarg uaOn i = bigAnd $ Map.mapWithKey handlefun $ compInterpretations i
+  where sig = signature i
+        compInterpretations = Map.filterWithKey isCompound . interpretations
+        isCompound f _ = F.isCompound sig f
+        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) $ fposs f
+        fposs f = if uaOn then usablePositions f uarg else [1..F.arity sig f]

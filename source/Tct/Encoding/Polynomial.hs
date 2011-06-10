@@ -36,6 +36,12 @@ getCoeff _ (Poly [])                         = zero
 getCoeff v (Poly (Mono n w:ms)) | powsEq v w = n `plus` getCoeff v (Poly ms)
                                 | otherwise  = getCoeff v $ Poly ms
 
+deleteCoeff :: Eq a => [Power a] -> Polynomial a b -> Polynomial a b
+deleteCoeff _ (Poly [])                         = Poly []
+deleteCoeff v (Poly (Mono n w:ms)) | powsEq v w = Poly subresult
+                                   | otherwise  = Poly $ Mono n w:subresult
+  where Poly subresult = deleteCoeff v $ Poly ms
+
 powsEq :: Eq a => [Power a] -> [Power a] -> Bool
 powsEq []     [] = True
 powsEq []     _  = False
@@ -68,6 +74,12 @@ pmprod m (Poly ns) = Poly $ map (\n -> mprod m n) ns
 mprod :: (Eq a, Semiring b) => Monomial a b -> Monomial a b -> Monomial a b
 mprod (Mono m xs) (Mono n ys) = simpMono $ Mono (m `prod` n) (xs ++ ys)
 
+cpprod :: Semiring b => b -> Polynomial a b -> Polynomial a b
+cpprod n (Poly xs) = Poly $ map (cmprod n) xs
+
+cmprod :: Semiring b => b -> Monomial a b -> Monomial a b
+cmprod n (Mono m vs) = Mono (n `prod` m) vs
+
 simpMono :: Eq a => Monomial a b -> Monomial a b
 simpMono (Mono n xs) = Mono n $ simpPower xs
 
@@ -78,6 +90,9 @@ simpPower ((Pow v n):xs) | otherwise = (Pow v (foldl addpow n xss):(simpPower ys
                                        where (xss, yss)           = List.partition isRightPow xs
                                              isRightPow (Pow w _) = v == w
                                              addpow x (Pow _ y)   = x `plus` y
+
+varToPoly :: Semiring b => a -> Polynomial a b
+varToPoly v = Poly [Mono one [Pow v 1]]
 
 constToPoly :: b -> Polynomial a b
 constToPoly n = Poly [Mono n []]

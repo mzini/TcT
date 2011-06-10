@@ -17,6 +17,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Method.Poly.PolynomialInterpretation where
 
@@ -25,6 +26,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 
+import qualified Qlogic.NatSat as N
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 
@@ -32,6 +34,7 @@ import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
+import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Polynomial
 
 data PolyInter a = PI { signature :: F.Signature
@@ -59,6 +62,15 @@ data PIKind = UnrestrictedPoly PolyShape
 
 instance PropAtom PIVar
 
+instance Functor PolyInter where
+  fmap f i = PI (signature i) $ Map.map (fmap f) (interpretations i)
+
+instance Functor (Polynomial V.Variable) where
+  fmap f (Poly xs) = Poly $ map (fmap f) xs
+
+instance Functor (Monomial V.Variable) where
+  fmap f (Mono n vs) = Mono (f n) vs
+
 instance PrettyPrintable a => PrettyPrintable (PolyInter a) where
   pprint (PI sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints))
     where printInters = vcat . map (uncurry printInter) . Map.assocs
@@ -76,6 +88,21 @@ instance PrettyPrintable a => PrettyPrintable (Monomial V.Variable a) where
 instance PrettyPrintable (Power V.Variable) where
   pprint (Pow (V.Canon v) e) = char 'x' <> int v <> char '^' <> int e
   pprint (Pow (V.User  v) e) = char 'y' <> int v <> char '^' <> int e
+
+instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variable a) where
+  interpretFun i f tis = bigPplus $ map handleMono fpoly
+    where Poly fpoly = case Map.lookup f $ interpretations i of
+                         Nothing -> error "Tct.Method.Poly.PolynomialInterpretation.interpretFun: function symbol not found in interpretation"
+                         Just p  -> p
+          handleMono (Mono n vs) = bigPplus $ map (cpprod n . handlePow) vs
+          handlePow (Pow (V.Canon v) e) = handlePow' p p (e - (2 ^ (N.natToBits e - 1))) (N.natToBits e - 1)
+            where p = tis !! (v - 1)
+          handlePow (Pow (V.User _) _) = error "Tct.Method.Poly.PolynomialInterpretation.interpretFun: user defined variable in interpretation"
+          handlePow' origp p e j | j > 0     = if e >= 2 ^ (j - 1)
+                                               then handlePow' origp (origp `pprod` (p `pprod` p)) (e - (2 ^ (j - 1))) (j - 1)
+                                               else handlePow' origp (p `pprod` p) e (j - 1)
+                                 | otherwise = p
+  interpretVar _ v     = varToPoly v
 
 stronglyLinearPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
 stronglyLinearPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) [Mono (ringvar $ PIVar True f []) []] [1..a]

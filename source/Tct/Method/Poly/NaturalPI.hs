@@ -15,22 +15,31 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tct.Method.Poly.NaturalPI where
 
-import Prelude hiding (not)
+import Prelude hiding ((&&),not)
 
+import Control.Monad (liftM)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ
 
 import Qlogic.Boolean
+import Qlogic.Diophantine
+import Qlogic.MiniSat
 import qualified Qlogic.NatSat as N
+import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.Semiring
+import qualified Qlogic.Semiring as SR
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -40,6 +49,8 @@ import Termlib.Utils
 import qualified Termlib.Variable as V
 
 import Tct.Certificate (poly, expo, certified, unknown)
+import Tct.Encoding.AbstractInterpretation
+import Tct.Encoding.Natring ()
 import Tct.Encoding.Polynomial
 import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Poly.PolynomialInterpretation
@@ -49,6 +60,7 @@ import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
 import Tct.Processor.PPrint (indent)
+import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
 data PolynomialOrder = PolynomialOrder { ordInter :: PolyInter Int
@@ -171,24 +183,116 @@ usableArgsWhereApplicable PWithDP sig _                     ua strat r s = (if u
 usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra      _  _     _ _ = fullWithSignature sig
 usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r s = if ua then usableArgs strat r s else fullWithSignature sig
 
+orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orientRelative strat st strict weak sig mp = orientPoly relativeConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orientDp strat st strict weak sig mp = orientPoly dpConstraints ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orientPartialRelative oblrules strat st strict weak sig mp = orientPoly (partialConstraints oblrules) ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orientPartialDp oblrules strat st strict weak sig mp = orientPoly (partialDpConstraints oblrules) ua st strict weak sig mp
+  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+
+orientPoly :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula MiniSatLiteral DioVar Int)
+             -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orientPoly f ua st strict weak sig inst = do thePI <- P.minisatValue addAct i
+                                             return $ case thePI of
+                                                        Nothing -> Incompatible
+                                                        Just pv -> Order $ PolynomialOrder (fmap (\x -> x n) pv) pk ua
+  where addAct :: MiniSat ()
+        addAct = toFormula (liftM N.bound cb) (N.bound n) (f ua st strict weak sig inst) >>= SatSolver.addFormula
+        i      = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
+        n      = bound inst
+        cb     = cbits inst
+        pk     = kind inst st
+
 data PolyDP = PWithDP | PNoDP deriving Show
 data PolyRelativity = PDirect | PRelative [R.Rule] deriving Show
+
+partialConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
+partialConstraints oblrules = polyConstraints (PRelative oblrules) PNoDP
+
+relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
+relativeConstraints = polyConstraints PDirect PNoDP
+
+dpConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
+dpConstraints = polyConstraints PDirect PWithDP
+
+partialDpConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
+partialDpConstraints oblrules = polyConstraints (PRelative oblrules) PWithDP
+
+polyConstraints :: Eq l => PolyRelativity -> PolyDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
+polyConstraints prel pdp ua st strict weak sig proc = strictChoice prel absi strict && weakTrsConstraints absi weak && dpChoice pdp st uaOn absi
+  where absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
+        pk   = kind proc st
+        uaOn = isUargsOn proc
+        strictChoice PDirect              = strictTrsConstraints
+        strictChoice (PRelative oblrules) = relativeStricterTrsConstraints oblrules
+        dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
+        dpChoice PNoDP   Prob.TermAlgebra      _     = monotoneConstraints
+        dpChoice PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
+        dpChoice PNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
 
 -- handlefun in the next two functions could be replaced by something else,
 -- e.g. a criterion by Friedl
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> PolyInter a -> b
 uargMonotoneConstraints uarg i = bigAnd $ Map.mapWithKey handlefun $ interpretations i
-  where handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) $ usablePositions f uarg
+  where handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. SR.one) $ usablePositions f uarg
 
 monotoneConstraints :: AbstrOrdSemiring a b => PolyInter a -> b
 monotoneConstraints i = bigAnd $ Map.mapWithKey handlefun $ interpretations i
   where sig = signature i
-        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) [1..F.arity sig f]
+        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. SR.one) [1..F.arity sig f]
 
 safeRedpairConstraints :: AbstrOrdSemiring a b => UsablePositions -> Bool -> PolyInter a -> b
 safeRedpairConstraints uarg uaOn i = bigAnd $ Map.mapWithKey handlefun $ compInterpretations i
   where sig = signature i
         compInterpretations = Map.filterWithKey isCompound . interpretations
         isCompound f _ = F.isCompound sig f
-        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. one) $ fposs f
+        handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. SR.one) $ fposs f
         fposs f = if uaOn then usablePositions f uarg else [1..F.arity sig f]
+
+-- instance declarations
+
+class PIEntry a
+
+instance PIEntry Int
+
+instance PIEntry (DioPoly DioVar Int)
+
+instance PIEntry (DioFormula l DioVar Int)
+
+instance PIEntry a => PIEntry (Polynomial V.Variable a)
+
+instance (AbstrEq a b, Semiring a, PIEntry a) => AbstrEq (Polynomial V.Variable a) b where
+  (Poly []) .==. (Poly []) = top
+  p@(Poly []) .==. q = q .==. p
+  p@(Poly (Mono _ vs:_)) .==. q@(Poly _) = (getCoeff vs p .==. getCoeff vs q) && (deleteCoeff vs p .==. deleteCoeff vs q)
+
+instance (AbstrOrd a b, Semiring a, PIEntry a) => AbstrOrd (Polynomial V.Variable a) b where
+  p .<. q = (getCoeff [] p .<. getCoeff [] q) && (deleteCoeff [] p .<=. deleteCoeff [] q)
+  (Poly []) .<=. (Poly _) = top
+  p@(Poly (Mono _ vs:_)) .<=. q@(Poly _) = (getCoeff vs p .<=. getCoeff vs q) && (deleteCoeff vs p .<=. deleteCoeff vs q)
+
+instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
+  plus = N.mAddNO
+  prod = N.mTimesNO
+  zero = N.natToFormula 0
+  one  = N.natToFormula 1
+  geq  = N.mGeq
+  grt  = N.mGrt
+  equ  = N.mEqu
+  constToFormula = N.natToFormula
+  formAtom = N.natAtomM . N.Bound
+  truncFormTo = N.mTruncTo
+  padFormTo n f = N.padBots (max n l - l) f
+    where l = length f
+
+instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
+  add = undefined

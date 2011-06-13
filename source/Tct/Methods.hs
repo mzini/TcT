@@ -25,47 +25,58 @@ module Tct.Methods
 
     -- * Processors
     -- ** Default Option
-    P.defaultOptions 
-    , DefaultMatrix (..)
 
     -- ** Direct Processors
-    , arctic
-    , bounds
-    , empty
-    , epostar
+    success
+    -- | this processor returns Yes(?,?)
     , fail
+    -- | this processor returns No
+    , empty
+    -- | this processor returns Yes(1,1) if the strict component is empty      
+    , arctic
+    -- | this processor implements arctic interpretations
     , matrix
-    , popstarPS
-    , lmpoPS
+    -- | this processor implements arctic interpretations      
+    , bounds
+    -- | this processor implements the bounds technique      
+    , epostar
+    -- | this processor implements exponential path orders      
     , popstar
+    -- | this processor implements polynomial path orders            
+    , popstarPS
+    -- | this processor implements polynomial path orders with parameter substitution      
     , lmpo     
-    , success
+    -- | this processor implements lightweight multiset path orders 
+    , lmpoPS
+    -- | this processor implements lightweight multiset path orders with parameter substitution            
 
 
     -- ** Processor Combinators
-    , before
-    , best
-    , Compose.composeDynamic
-    , Compose.compose
-    , Compose.splitDP
-    , Compose.splitRandom
-    , Compose.splitSatisfying
-    , Compose.splitFirstCongruence      
-    , fastest
     , ite
-    , orBetter
-    , orFaster
-    , sequentially
-    , solveBy
+      -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied
     , timeout
+      -- > timeout sec t 
+      -- aborts processor @t@ after @sec@ seconds
+    , before 
+      -- | @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@      
+    , orBetter
+      -- | @p1 `orBetter` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
+      --   proof that gives the better certificate
+    , orFaster
+      -- | @p1 `orFaster` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
+      --   proof of that processor that finishes fastest
+    , sequentially
+      -- | list version of "before"
+    , best
+      -- | list version of "orBetter"      
+    , fastest
+      -- | list version of "orFaster"            
     , upto
-    , withArgs
     
     -- ** Predicates
-    , trsPredicate
-    , problemPredicate
       
     -- ** Predicates
+    -- The following predicates return either Yes(?,?) or No
     , isCollapsing
     , isConstructor
     , isDuplicating
@@ -76,28 +87,88 @@ module Tct.Methods
     , isInnermost
     , isOutermost
     , isContextSensitive
+    -- *** Lifting Haskell functions      
+    , trsPredicate
+    , problemPredicate
             
       
     -- ** Transformations
-    , thenApply
-    , thenApplyPar
-    , parallelSubgoals
-    , irr
-    , uncurry
-    , pathAnalysis
-    , dependencyPairs
-    , dependencyTuples
-    , usableRules
-    , DPSimp.removeTails
-    , DPSimp.simpDPRHS      
-    , weightgap
-    , (>>>)
-    , (<>)      
-    , (>>|)    
-    , (>>||)      
+      -- | This section list all instances of 'Transformation'. A transformation 't' 
+      -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
     , idtrans
-    , exhaustively
+      -- | Identity transformation.
+    , irr
+      -- | On innermost problems, this processor removes inapplicable rules by looking at non-root overlaps.
+    , uncurry
+      -- | Uncurrying for full and innermost rewriting. Fails for runtime-complexity analysis.
+    , weightgap      
+      -- | This processor implements the weightgap principle.   
+    , Compose.compose
+      -- | The 'Transformer' @compose part bound p@ splits the input problem according to 
+      -- the 'Partitioning' @part@ into a pair of 'Problem's @(prob1,prob2)@,
+      -- constructed according to the second argument @bound@. 
+      -- The given 'Processor' @p@ is applied on the first problem @prob1@.
+      -- If @p@ succeeds on @prob1@, the input problem is transformed into @prob2@.
+      -- 
+      -- Let @prob@ denote the input problem, and let 
+      -- @w == weakTrs prob@.
+      -- Let @(s_1,s_2)@ be the partitioning of @strictTrs prob@ according to the 
+      -- 'Partitioning' @part@.
+      -- If @bound==Add@, @prob1==prob{strictTrs=s1, weakTrs=s2 `Trs.union` w}$ and 
+      -- @prob2==prob{strictTrs=s2, weakTrs=s1 `Trs.union` w}$. The bound on the input problem @prob@
+      -- is obtained from the bounds on @prob1@ and @prob2@ by addition. 
+      --
+      -- If @bound==Mult@, then @prob1@ is as above, 
+      -- but @prob2==prob{strictTrs=s2}@. The bound induced on the input problem @prob@
+      -- is obtained by multiplication. For @bound==Mult@ this 'Transformer' only
+      -- applies to non size-increasing Problems.
+      -- If @bound==Compose@, the 'Transformer' behaves as if @bound==Mult@ but 
+      -- the non size-increasing restriction is lifted. In this case the bound on the input problem
+      -- is obtained by composition.
+    , Compose.composeDynamic
+      -- | @composeDynamic = compose Dynamic@
+      
+      -- *** DP Transformations      
+    , dependencyPairs
+      -- | Implements dependency pair transformation. Only applicable on runtime-complexity problems.
+    , dependencyTuples
+      -- | Implements dependency tuples transformation. Only applicable on innermost runtime-complexity problems.
+    , pathAnalysis
+      -- | Implements path analysis. Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'.
+    , usableRules
+      -- | Implements path analysis. Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'.      
+    , DPSimp.removeTails
+      -- | Removes trailing weak paths and and dangling rules. 
+      -- A dependency pair is on a trailing weak path if it is from the weak components and all sucessors in the dependency graph 
+      -- are on trailing weak paths. A rule is dangling if it has no successors in the dependency graph.
+      --  
+      -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
+      -- not applicable when @strictTrs prob \= Trs.empty@.
+    , DPSimp.simpDPRHS      
+      -- | Simplifies right-hand sides of dependency pairs. 
+      -- Removes r_i from right-hand side @c_n(r_1,...,r_n)@ if no instance of 
+      -- r_i can be rewritten.
+      --  
+      -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
+      -- not applicable when @strictTrs prob \= Trs.empty@.
+      
+    -- *** Transformation Combinators     
+    , (>>|)    
+      -- | The processor @t >>| p@ first applies the transformation @t@. If this succeeds, the processor @p@
+      -- is applied on the resulting subproblems. Otherwise @t >>| p@ fails.
+    , (>>||)      
+      -- | Like '>>|' but resulting subproblems are solved in parallel.
     , try
+      -- | The transformer @try t@ behaves like @t@ but succeeds even if @t@ fails. When @t@ fails
+      -- the input problem is returned.
+    , exhaustively
+      -- | The transformer @exhaustively t@ applies @t@ repeatedly until @t@ fails.
+    , (>>>)
+      -- | The transformer @t1 >>> t2@ first transforms using @t1@, resulting subproblems are 
+      -- transformed using @t2@. It succeeds if either @t1@ or @t2@ succeeds.
+    , (<>)      
+      -- | The transformer @t1 <> t2@ transforms the input using @t1@ if successfull, otherwise
+      -- @t2@ is applied.
 
     -- * Custom Processors
     , CustomProcessor
@@ -121,6 +192,13 @@ module Tct.Methods
     , InitialAutomaton (..)
     , AssocArgument (..)      
     , Assoc 
+    , Compose.splitDP
+    , Compose.splitRandom
+    , Compose.splitSatisfying
+    , Compose.splitFirstCongruence      
+    , P.defaultOptions 
+    , MatrixOptions (..)
+      
     -- *** Argument Descriptions
     , Arg (..)
     , Unit    
@@ -176,6 +254,10 @@ module Tct.Methods
     , pathAnalysisProcessor
     , usableRulesProcessor
     , Weightgap.weightgapProcessor
+      
+      -- ** Misc
+    , solveBy
+    , withArgs
     )
 where
 import Prelude hiding (fail, uncurry)
@@ -262,7 +344,7 @@ a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 -- * defaultMatrix
 
-data DefaultMatrix = DefaultMatrix { cert :: NaturalMI.NaturalMIKind
+data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind
                                    , dim  :: Int
                                    , degree :: Maybe Int
                                    , bits :: Int
@@ -270,8 +352,8 @@ data DefaultMatrix = DefaultMatrix { cert :: NaturalMI.NaturalMIKind
                                    , on :: Weightgap.WgOn
                                    , useUsableArgs :: Bool }
 
-instance P.IsDefaultOption DefaultMatrix where 
-    defaultOptions = DefaultMatrix { cert   = NaturalMI.Algebraic
+instance P.IsDefaultOption MatrixOptions where 
+    defaultOptions = MatrixOptions { cert   = NaturalMI.Algebraic
                                    , dim    = 2
                                    , degree = Nothing
                                    , bits   = 2
@@ -279,13 +361,13 @@ instance P.IsDefaultOption DefaultMatrix where
                                    , useUsableArgs = True
                                    , on            = Weightgap.WgOnAny }
 
-matrix :: DefaultMatrix -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
+matrix :: MatrixOptions -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
 matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 
-arctic :: DefaultMatrix -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
+arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
 arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 
-weightgap :: DefaultMatrix -> TheTransformer Weightgap.WeightGap
+weightgap :: MatrixOptions -> TheTransformer Weightgap.WeightGap
 weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))

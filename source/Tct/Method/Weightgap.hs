@@ -92,7 +92,7 @@ instance PrettyPrintable WeightGapProof where
           pptrs = pprintNamedTrs sig vars
           sig  = signature ip
           vars = variables ip
-          intertitle | isNonlinear p = "Interpretation"
+          intertitle | isNonLinear p = "Interpretation"
                      | otherwise     = "Interpretation of constant growth"
           isNonLinear (Order (MatrixOrder _ (TriangularMatrix (Just 1)) _)) = False
           isNonLinear (Order (MatrixOrder _ (EdaMatrix (Just 1)) _)) = False

@@ -102,12 +102,12 @@ instance PrettyPrintable PopStarOrder where
             pparam = nest 1 . pprint
             ordname | popMultRecAllowed order = "LMPO"
                     | otherwise               = "POP*"
-            ppProblem = ppTrs "Strict DPs"     strictDPs probFiltered
-                        $+$ ppTrs "Weak DPs"   weakDPs probFiltered
-                        $+$ ppTrs "Strict Trs" strictTrs probFiltered
-                        $+$ ppTrs "Weak Trs"   weakTrs probFiltered
+            ppProblem = ppTrs "Strict DPs"     strictDPs prob
+                        $+$ ppTrs "Weak DPs"   weakDPs prob
+                        $+$ ppTrs "Strict Trs" strictTrs prob
+                        $+$ ppTrs "Weak Trs"   weakTrs prob
 
-            ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p, sm)
+            ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p,sm)
             probFiltered = case popArgumentFiltering order of 
                                  Nothing -> prob
                                  Just af ->  prob' { signature = sig' }

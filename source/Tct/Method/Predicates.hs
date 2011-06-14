@@ -24,7 +24,7 @@ import Data.Typeable
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 import Termlib.Utils (PrettyPrintable (..))
-import Termlib.Problem (strictTrs, weakTrs, Strategy (..), Problem (..))
+import Termlib.Problem (strictTrs, weakTrs, Strategy (..), Problem (..), StartTerms(..), startTerms)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
@@ -113,6 +113,8 @@ isWellFormedProcessor = trsPredicateProcessor "wellformed" Trs.wellFormed
 
 isStrat :: String -> (Strategy -> Bool) -> PredicateProcessor
 isStrat n check = problemPredicateProcessor n (\ prob -> check $ strategy prob)
+isStartTerms :: String -> (StartTerms -> Bool) -> PredicateProcessor
+isStartTerms n check = problemPredicateProcessor n (\ prob -> check $ startTerms prob)
 
 isOutermostProcessor :: PredicateProcessor
 isOutermostProcessor = isStrat "outermost" ((==) Outermost)
@@ -122,6 +124,10 @@ isFullProcessor :: PredicateProcessor
 isFullProcessor = isStrat "fullstrategy" ((==) Full)
 isContextSensitiveProcessor :: PredicateProcessor
 isContextSensitiveProcessor = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
+isDCProblemProcessor :: PredicateProcessor
+isDCProblemProcessor = isStartTerms "DC problem" ((==) TermAlgebra)
+isRCProblemProcessor :: PredicateProcessor
+isRCProblemProcessor = isStartTerms "RC problem" (\ t -> case t of BasicTerms{} -> True; _ -> False)
 
 predicateProcessors :: [PredicateProcessor]
 predicateProcessors = [ isDuplicatingProcessor
@@ -166,4 +172,9 @@ isFull :: P.InstanceOf (S.StdProcessor Predicate)
 isFull = isFullProcessor `S.withArgs` Union
 isContextSensitive :: P.InstanceOf (S.StdProcessor Predicate)
 isContextSensitive = isContextSensitiveProcessor `S.withArgs` Union
+
+isDCProblem :: P.InstanceOf (S.StdProcessor Predicate)
+isDCProblem = isDCProblemProcessor `S.withArgs` Union
+isRCProblem :: P.InstanceOf (S.StdProcessor Predicate)
+isRCProblem = isRCProblemProcessor `S.withArgs` Union
 

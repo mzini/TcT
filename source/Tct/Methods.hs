@@ -86,6 +86,8 @@ module Tct.Methods
     , isFull
     , isInnermost
     , isOutermost
+    , isRCProblem      
+    , isDCProblem      
     , isContextSensitive
     -- *** Lifting Haskell functions      
     , trsPredicate
@@ -171,13 +173,14 @@ module Tct.Methods
       -- @t2@ is applied.
 
     -- * Custom Processors
+    , processorFromInstance
+    , processor 
+    , strategy      
+    , customInstance
     , CustomProcessor
     , Description(..)
-    , customProcessor
-    , localProcessor 
-    , processor
-
-    -- ** Arguments
+    
+      -- ** Arguments
     , Nat (..)
     , nat
     , Size (..)

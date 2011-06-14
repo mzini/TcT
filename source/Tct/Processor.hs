@@ -365,7 +365,8 @@ instance PrettyPrintable SomeProcessor where
     pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppsyn $++$ ppdescr $++$ ppargdescr)
         where ppheading = (text "Processor" <+> doubleQuotes (text sname) <> text ":")
               underline = text (take (length $ show ppheading) $ repeat '-')
-              ppdescr   = block "Description" $ vcat [paragraph s | s <- descr]
+              ppdescr   | null descr = empty 
+                        | otherwise  = block "Description" $ vcat [paragraph s | s <- descr]
               ppsyn     = block "Usage" $ text (synopsis proc)
               ppargdescr | length l == 0 = empty
                          | otherwise     = block "Arguments" $ vcat l

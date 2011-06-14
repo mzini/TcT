@@ -81,7 +81,7 @@ instance PrettyPrintable WeightGapProof where
                                $+$ pptrs "Dependency Pairs" sDPs
                                $+$ pptrs "TRS Component" sTrs
                                $+$ text ""
-                               $+$ block' "Interpretation" [pprint p]
+                               $+$ block' intertitle [pprint p]
                                $+$ text ""
                                $+$ text "The strictly oriented rules are moved into the weak component."
              | otherwise     = text "The weightgap principle does not apply"
@@ -92,6 +92,11 @@ instance PrettyPrintable WeightGapProof where
           pptrs = pprintNamedTrs sig vars
           sig  = signature ip
           vars = variables ip
+          intertitle | isNonlinear p = "Interpretation"
+                     | otherwise     = "Interpretation of constant growth"
+          isNonLinear (Order (MatrixOrder _ (TriangularMatrix (Just 1)) _)) = False
+          isNonLinear (Order (MatrixOrder _ (EdaMatrix (Just 1)) _)) = False
+          isNonLinear _ = True
 
 instance T.TransformationProof WeightGap where 
   answer proof = case T.subProofs proof of 

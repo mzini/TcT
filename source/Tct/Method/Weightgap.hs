@@ -62,7 +62,7 @@ data WeightGap = WeightGap
 
 data WgOn = WgOnTrs
           | WgOnAny
-            deriving (Typeable, Bounded, Enum)
+            deriving (Eq, Typeable, Bounded, Enum)
 
 instance Show WgOn where
   show WgOnTrs = "trs"
@@ -195,26 +195,34 @@ instance T.Transformer WeightGap where
                                        let uarg' = case startTerms prob of
                                                      TermAlgebra    -> fullWithSignature (signature prob)
                                                      BasicTerms _ _ -> if wgUargs then usableArgs (strategy prob) sr wr else fullWithSignature (signature prob)
-                                       p <- orientMatrix (weightGapConstraints wgon (strictTrs prob)) uarg' (startTerms prob) sr wr (signature prob) (wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
-                                       return $ mkProof p 
-
-                      where mkProof p@(Order (MatrixOrder mi _ _)) = case Trs.isEmpty remdps && Trs.isEmpty remtrs of
-                                                                       True  -> T.NoProgress wgpr
-                                                                       False -> T.Progress wgpr (enumeration' [prob'])
-                                where wgpr   = WeightGapProof { wgInputProblem = prob
-                                                              , wgProof        = p
-                                                              , wgRemovableDps = Trs.toRules remdps
-                                                              , wgRemovableTrs = Trs.toRules remtrs }
-                                      remdps = strictRules mi $ strictDPs prob
-                                      remtrs = strictRules mi $ strictTrs prob
-                                      prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps
-                                                    , strictTrs = strictTrs prob Trs.\\ remtrs
-                                                    , weakDPs   = weakDPs prob `Trs.union` remdps
-                                                    , weakTrs   = weakTrs prob `Trs.union` remtrs }
-                            mkProof p = T.NoProgress WeightGapProof { wgInputProblem = prob
-                                                                    , wgProof        = p
-                                                                    , wgRemovableDps = []
-                                                                    , wgRemovableTrs = [] }
+                                       p <- orientMatrix (weightGapConstraints wgon (strictTrs prob)) uarg' (st' wgon) sr wr (signature prob) (wgKind' wgon wgKind :+: wgDeg' wgon wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
+                                       return $ mkProof p
+                                         where st' wgon | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = startTerms prob
+                                                        | otherwise                                       = TermAlgebra
+                                               wgDeg' wgon wgDeg | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgDeg
+                                                                 | otherwise                                       = Just 1
+                                               wgKind' wgon wgKind | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgKind
+                                                                   | otherwise                                       = case wgKind of
+                                                                                                                         Algebraic -> Algebraic
+                                                                                                                         Automaton -> Automaton
+                                                                                                                         Unrestricted -> Algebraic
+                                               mkProof p@(Order (MatrixOrder mi _ _)) = case Trs.isEmpty remdps && Trs.isEmpty remtrs of
+                                                                                          True  -> T.NoProgress wgpr
+                                                                                          False -> T.Progress wgpr (enumeration' [prob'])
+                                                  where wgpr   = WeightGapProof { wgInputProblem = prob
+                                                                                , wgProof        = p
+                                                                                , wgRemovableDps = Trs.toRules remdps
+                                                                                , wgRemovableTrs = Trs.toRules remtrs }
+                                                        remdps = strictRules mi $ strictDPs prob
+                                                        remtrs = strictRules mi $ strictTrs prob
+                                                        prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps
+                                                                      , strictTrs = strictTrs prob Trs.\\ remtrs
+                                                                      , weakDPs   = weakDPs prob `Trs.union` remdps
+                                                                      , weakTrs   = weakTrs prob `Trs.union` remtrs }
+                                               mkProof p = T.NoProgress WeightGapProof { wgInputProblem = prob
+                                                                                       , wgProof        = p
+                                                                                       , wgRemovableDps = []
+                                                                                       , wgRemovableTrs = [] }
 
 -- applyWeightGap :: P.SolverM m => Bool -> Trs.Trs -> UsablePositions -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool
 --                -> m (OrientationProof MatrixOrder)

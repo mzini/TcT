@@ -65,9 +65,9 @@ import qualified Tct.Processor as P
 import Tct.Processor (Answerable(..), Verifiable (..), Answer(..), ComplexityProof)
 import qualified Tct.Processor.Standard as S
 
-data NaturalMIKind = Algebraic
-                   | Automaton
-                   | Unrestricted
+data NaturalMIKind = Algebraic -- ^ count number of ones in diagonal to compute induced complexity function
+                   | Automaton -- ^ use automaton-techniques to compute induced complexity function
+                   | Unrestricted -- ^ put no further restrictions on the interpretation
                      deriving (Typeable, Bounded, Enum)
 
 instance Show NaturalMIKind where 

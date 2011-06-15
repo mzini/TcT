@@ -36,6 +36,7 @@ where
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
+import Control.Monad (liftM)
 import Termlib.Problem (Problem)
 
 data Description arg = Description { as    :: String
@@ -74,10 +75,11 @@ instance IsDescription (Description arg) arg where
 processor :: IsDescription d arg => 
                    d -> (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> (CustomProcessor arg res)
 processor d f = S.StdProcessor CP {description = toDescription d, code = f }
-                               
-strategy :: IsDescription d arg => 
-               (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> d -> (CustomProcessor arg res)
-strategy f d = processor d f               
+
+
+strategy :: (P.Processor proc, IsDescription d arg) =>
+           (A.Domains arg -> P.InstanceOf proc) -> d -> CustomProcessor arg P.SomeProof
+strategy mkinst d = processor d (\ args prob -> P.SomeProof `liftM` (P.solve (mkinst args) prob))
 
 processorFromInstance :: (IsDescription d arg, P.Processor proc) => 
              d -> (A.Domains arg -> P.InstanceOf proc) -> (CustomProcessor arg (P.ProofOf proc))

@@ -48,7 +48,7 @@ markSymbol f = do fa <- getAttributes f
 
 dependencyPairsOf :: Bool -> Prob.Problem -> Trs -> [String] -> F.SignatureMonad (Trs, [String])
 dependencyPairsOf useTuples prob trs names = do rs <- mapM mk $ zip (rules trs) names
-                                                return $ (Trs rs, take (length rs) names)
+                                                return $ (Trs rs, drop (length rs) names)
     where definedsFromTrs = definedSymbols (Prob.trsComponents prob)
           strat           = Prob.strategy prob
           mk (rule,i) = do lhs' <- mrk $ R.lhs rule

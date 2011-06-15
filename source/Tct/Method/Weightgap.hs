@@ -60,8 +60,8 @@ import qualified Tct.Processor.Transformations as T
 
 data WeightGap = WeightGap
 
-data WgOn = WgOnTrs
-          | WgOnAny
+data WgOn = WgOnTrs -- ^ orient at least all non-DP rules
+          | WgOnAny -- ^ orient some rule
             deriving (Eq, Typeable, Bounded, Enum)
 
 instance Show WgOn where

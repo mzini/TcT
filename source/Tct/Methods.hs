@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,16 +14,15 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
-
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Tct.Methods 
     (  
 
     -- * Processors
-    -- ** Default Option
-
     -- ** Direct Processors
     success
     -- | this processor returns Yes(?,?)
@@ -74,9 +71,7 @@ module Tct.Methods
     , upto
     
     -- ** Predicates
-      
-    -- ** Predicates
-    -- The following predicates return either Yes(?,?) or No
+    -- | The following predicates return either Yes(?,?) or No
     , isCollapsing
     , isConstructor
     , isDuplicating
@@ -94,7 +89,7 @@ module Tct.Methods
     , problemPredicate
             
       
-    -- ** Transformations
+    -- * Transformations
       -- | This section list all instances of 'Transformation'. A transformation 't' 
       -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
     , idtrans
@@ -194,11 +189,13 @@ module Tct.Methods
     , Enrichment (..)
     , InitialAutomaton (..)
     , AssocArgument (..)      
+    , WhichTrs(..)
     , Assoc 
     , Compose.splitDP
     , Compose.splitRandom
     , Compose.splitSatisfying
     , Compose.splitFirstCongruence      
+    , Compose.splitWithoutLeafs
     , P.defaultOptions 
     , MatrixOptions (..)
       
@@ -347,13 +344,14 @@ a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 -- * defaultMatrix
 
-data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind
-                                   , dim  :: Int
-                                   , degree :: Maybe Int
-                                   , bits :: Int
-                                   , cbits :: Maybe Int
-                                   , on :: Weightgap.WgOn
-                                   , useUsableArgs :: Bool }
+data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind -- ^ defines how the induced certificate is computed.
+                                   , dim  :: Int -- ^ dimension of matrix coefficients. The default is 'Algebraic'.
+                                   , degree :: Maybe Int -- ^ upper bound on degree of induced certificate, cf. also cert. The default is @2@.
+                                   , bits :: Int -- ^ number of bits used for encoding entries in coefficient matrix. The default is @2@.
+                                   , cbits :: Maybe Int -- ^ number of bits used for intermediate results. The default is @Just 3@. If @Nothing@ is given then sizes of intermediate results are not restricted.
+                                   , on :: Weightgap.WgOn -- ^ option solely for weightgap
+                                   , useUsableArgs :: Bool -- ^ Defines whether monotonicity-constraints are weakened by taking usable argument positions into account. The default is @True@ 
+                                   }
 
 instance P.IsDefaultOption MatrixOptions where 
     defaultOptions = MatrixOptions { cert   = NaturalMI.Algebraic

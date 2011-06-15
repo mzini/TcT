@@ -129,7 +129,7 @@ data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> Erroneous
                      , errorMsg          :: [String]
                      , version           :: String
                      , recompile         :: Bool
-                     , timeout           :: Maybe Int
+                     , timeoutAfter      :: Maybe Int
                      , answerType        :: Maybe AnswerType
                      , listStrategies    :: Maybe (Maybe String)
                      , logFile           :: Maybe FilePath
@@ -153,7 +153,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , errorMsg        = []
                        , version         = Version.version
                        , recompile       = True
-                       , timeout         = Nothing
+                       , timeoutAfter    = Nothing
                        , answerType      = Nothing
                        , listStrategies  = Nothing
                        , logFile         = Nothing
@@ -209,7 +209,7 @@ options =
   [ Option
     { long    = "timeout"
     , short    = "t"
-    , meaning = (\n f -> f{ timeout = Just n }) <$> argNum
+    , meaning = (\n f -> f{ timeoutAfter = Just n }) <$> argNum
     , help    = [ "Maximum running time in seconds."] }
   , Option
     { long    = "noproof"
@@ -323,7 +323,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                                    procs <- fromConfig processors
                                                    getProc <- fromConfig makeProcessor
                                                    proc <- liftEIO $ getProc prob procs
-                                                   tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeout
+                                                   tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeoutAfter
                                                    proof <- process tproc prob
                                                    putPretty (pprint $ answer proof)
                                                    when (showProof cfg) (putPretty $ text "" $+$ pprint proof)

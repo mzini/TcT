@@ -145,11 +145,33 @@ instance S.Processor NaturalPI where
 
   type S.ProofOf NaturalPI = OrientationProof PolynomialOrder
 
-  solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = undefined
-                     | otherwise                            = undefined
+  solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
+                     | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
+    where sig   = Prob.signature problem
+          sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
+          st    = Prob.startTerms problem
+          strat = Prob.strategy problem
+          sr    = Prob.strictComponents problem
+          wr    = Prob.weakComponents problem
 
-  solvePartial inst oblrules problem | Trs.isEmpty (Prob.strictTrs problem) = undefined
-                                     | otherwise                            = undefined
+  solvePartial inst oblrules problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
+                                     | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
+      where sig   = Prob.signature problem
+            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
+            st    = Prob.startTerms problem
+            strat = Prob.strategy problem
+            mkProof dps trs res@(Order (PolynomialOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
+                                                                                  , P.ppResult       = res 
+                                                                                  , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
+                                                                                  , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
+            mkProof _   _   res                                  = P.PartialProof { P.ppInputProblem = problem
+                                                                                  , P.ppResult       = res
+                                                                                  , P.ppRemovableDPs = []
+                                                                                  , P.ppRemovableTrs = [] }
+            sr    = Prob.strictComponents problem
+            wr    = Prob.weakComponents problem
+            sdps  = Prob.strictDPs problem
+            strs  = Prob.strictTrs problem
 
 polyProcessor :: S.StdProcessor NaturalPI
 polyProcessor = S.StdProcessor NaturalPI
@@ -258,6 +280,9 @@ safeRedpairConstraints uarg uaOn i = bigAnd $ Map.mapWithKey handlefun $ compInt
         handlefun f p = bigAnd $ map (\n -> getCoeff [Pow (V.Canon n) 1] p .>=. SR.one) $ fposs f
         fposs f = if uaOn then usablePositions f uarg else [1..F.arity sig f]
 
+strictRules :: PolyInter Int -> Trs.Trs -> Trs.Trs
+strictRules i = Trs.filterRules $ strictRuleConstraints i
+
 -- instance declarations
 
 class PIEntry a
@@ -295,4 +320,13 @@ instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar 
     where l = length f
 
 instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
-  add = undefined
+  add (N.PLVec (DioVar y) k) i =  case cast y of
+                                    Nothing -> i
+                                    Just x -> i{interpretations = Map.adjust newint fun (interpretations i)}
+                                      where newint p = case splitFirstCoeff vs p of
+                                                         (Nothing, Poly p') -> Poly $ Mono (newval $ const 0) vs:p'
+                                                         (Just ov, Poly p') -> Poly $ Mono (newval ov) vs:p'
+                                            newval old n = old n + (2 ^ ((if r then 1 else N.bits n) -k))
+                                            r   = restrict x
+                                            fun = varfun x
+                                            vs  = argpos x

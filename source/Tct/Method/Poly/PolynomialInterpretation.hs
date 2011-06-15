@@ -54,7 +54,7 @@ data PolyShape = StronglyLinear
                | Simple
                | SimpleMixed
                | Quadratic
-               deriving Show
+               deriving (Typeable, Bounded, Enum)
 
 data PIKind = UnrestrictedPoly PolyShape
             | ConstructorBased (Set.Set F.Symbol) PolyShape
@@ -83,11 +83,19 @@ instance PrettyPrintable a => PrettyPrintable (Polynomial V.Variable a) where
   pprint (Poly xs) = hsep $ punctuate (text " + ") $ map pprint xs
 
 instance PrettyPrintable a => PrettyPrintable (Monomial V.Variable a) where
+  pprint (Mono n []) = pprint n
   pprint (Mono n vs) = pprint n <> char '*' <> hsep (punctuate (char '*') $ map pprint vs)
 
 instance PrettyPrintable (Power V.Variable) where
   pprint (Pow (V.Canon v) e) = char 'x' <> int v <> char '^' <> int e
   pprint (Pow (V.User  v) e) = char 'y' <> int v <> char '^' <> int e
+
+instance Show PolyShape where
+  show StronglyLinear = "stronglylinear"
+  show Linear         = "linear"
+  show Simple         = "simple"
+  show SimpleMixed    = "smixed"
+  show Quadratic      = "quadratic"
 
 instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variable a) where
   interpretFun i f tis = bigPplus $ map handleMono fpoly

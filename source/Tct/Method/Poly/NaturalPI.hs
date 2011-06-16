@@ -226,7 +226,8 @@ orientPoly :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> T
 orientPoly f ua st strict weak sig inst = do thePI <- P.minisatValue addAct i
                                              return $ case thePI of
                                                         Nothing -> Incompatible
-                                                        Just pv -> Order $ PolynomialOrder (fmap (\x -> x n) pv) pk ua
+                                                        Just pv -> let pint = fmap (\x -> x n) pv in
+                                                                   Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua
   where addAct :: MiniSat ()
         addAct = toFormula (liftM N.bound cb) (N.bound n) (f ua st strict weak sig inst) >>= SatSolver.addFormula
         i      = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
@@ -326,7 +327,7 @@ instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
                                       where newint p = case splitFirstCoeff vs p of
                                                          (Nothing, Poly p') -> Poly $ Mono (newval $ const 0) vs:p'
                                                          (Just ov, Poly p') -> Poly $ Mono (newval ov) vs:p'
-                                            newval old n = old n + (2 ^ ((if r then 1 else N.bits n) -k))
+                                            newval old n = old n + (2 ^ ((if r then 1 else N.bits n) - k))
                                             r   = restrict x
                                             fun = varfun x
                                             vs  = argpos x

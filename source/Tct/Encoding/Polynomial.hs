@@ -79,6 +79,10 @@ shallowSimp (Poly (Mono n xs:ms)) | otherwise = Poly $ (Mono (foldl addcoeff n x
                                                       addcoeff x (Mono y _) = x `plus` y
                                                       Poly subresult        = shallowSimp $ Poly yss
 
+unEmpty :: Semiring b => Polynomial a b -> Polynomial a b
+unEmpty (Poly []) = constToPoly zero
+unEmpty p         = p
+
 pprod :: (Eq a, Eq b, Semiring b) => Polynomial a b -> Polynomial a b -> Polynomial a b
 pprod (Poly xs) p = bigPplus $ map (\x -> pmprod x p) xs
 

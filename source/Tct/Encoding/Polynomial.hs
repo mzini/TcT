@@ -36,11 +36,28 @@ getCoeff _ (Poly [])                         = zero
 getCoeff v (Poly (Mono n w:ms)) | powsEq v w = n `plus` getCoeff v (Poly ms)
                                 | otherwise  = getCoeff v $ Poly ms
 
+getFirstCoeff :: Eq a => [Power a] -> Polynomial a b -> Maybe b
+getFirstCoeff _ (Poly []) = Nothing
+getFirstCoeff v (Poly (Mono n w:ms)) | powsEq v w = Just n
+                                     | otherwise  = getFirstCoeff v $ Poly ms
+
 deleteCoeff :: Eq a => [Power a] -> Polynomial a b -> Polynomial a b
 deleteCoeff _ (Poly [])                         = Poly []
 deleteCoeff v (Poly (Mono n w:ms)) | powsEq v w = Poly subresult
                                    | otherwise  = Poly $ Mono n w:subresult
   where Poly subresult = deleteCoeff v $ Poly ms
+
+deleteFirstCoeff :: Eq a => [Power a] -> Polynomial a b -> Polynomial a b
+deleteFirstCoeff _ (Poly [])                         = Poly []
+deleteFirstCoeff v (Poly (Mono n w:ms)) | powsEq v w = Poly ms
+                                        | otherwise  = Poly $ Mono n w:subresult
+  where Poly subresult = deleteFirstCoeff v $ Poly ms
+
+splitFirstCoeff :: Eq a => [Power a] -> Polynomial a b -> (Maybe b, Polynomial a b)
+splitFirstCoeff _ (Poly [])                         = (Nothing, Poly [])
+splitFirstCoeff v (Poly (Mono n w:ms)) | powsEq v w = (Just n, Poly ms)
+                                       | otherwise  = (subres, Poly $ Mono n w:subpoly)
+  where (subres, Poly subpoly) = splitFirstCoeff v $ Poly ms
 
 powsEq :: Eq a => [Power a] -> [Power a] -> Bool
 powsEq []     [] = True
@@ -61,6 +78,10 @@ shallowSimp (Poly (Mono n xs:ms)) | otherwise = Poly $ (Mono (foldl addcoeff n x
                                                 where (xss, yss)            = List.partition (\(Mono _ xs') -> xs == xs') ms
                                                       addcoeff x (Mono y _) = x `plus` y
                                                       Poly subresult        = shallowSimp $ Poly yss
+
+unEmpty :: Semiring b => Polynomial a b -> Polynomial a b
+unEmpty (Poly []) = constToPoly zero
+unEmpty p         = p
 
 pprod :: (Eq a, Eq b, Semiring b) => Polynomial a b -> Polynomial a b -> Polynomial a b
 pprod (Poly xs) p = bigPplus $ map (\x -> pmprod x p) xs

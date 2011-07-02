@@ -182,6 +182,7 @@ module Tct.Methods
     , EnumOf
     , Processor
     , NaturalMI.NaturalMIKind (..)
+    , Poly.PolyShape(..)
     , Weightgap.WgOn (..)
     , Compose.ComposeBound (..)
     , Compose.Partitioning (..)
@@ -227,6 +228,7 @@ module Tct.Methods
     , iteProcessor
     , lmpoProcessor
     , NaturalMI.matrixProcessor
+    , NaturalPI.polyProcessor
     , popstarProcessor
     , sequentiallyProcessor
     , successProcessor
@@ -271,6 +273,8 @@ import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
 import qualified Qlogic.ArcSat as ArcSat
 import qualified Tct.Method.DP.Simplification as DPSimp
 import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
+import qualified Tct.Method.Poly.PolynomialInterpretation as Poly
+import qualified Tct.Method.Poly.NaturalPI as NaturalPI
 import Tct.Method.Custom
 import Tct.Method.Predicates
 import Tct.Method.Uncurry
@@ -311,6 +315,7 @@ builtInProcessors = timeoutProcessor
                    <|> dependencyPairsProcessor
                    <|> pathAnalysisProcessor
                    <|> NaturalMI.matrixProcessor
+                   <|> NaturalPI.polyProcessor
                    <|> ArcticMI.arcticProcessor
                    <|> Weightgap.weightgapProcessor
                    <|> Compose.composeProcessor
@@ -372,3 +377,16 @@ arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat
 
 weightgap :: MatrixOptions -> TheTransformer Weightgap.WeightGap
 weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+
+-- * defaultPoly
+
+data PolyOptions = PolyOptions { pkind :: Poly.PolyShape
+                               , pbits :: Int
+                               , pcbits :: Maybe Int
+                               , puseUsableArgs :: Bool }
+
+instance P.IsDefaultOption PolyOptions where
+  defaultOptions = PolyOptions { pkind          = Poly.Simple
+                               , pbits          = 2
+                               , pcbits         = Just 3
+                               , puseUsableArgs = True }

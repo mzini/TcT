@@ -54,7 +54,7 @@ data PolyShape = StronglyLinear
                | Simple
                | SimpleMixed
                | Quadratic
-               deriving Show
+               deriving (Typeable, Bounded, Enum)
 
 data PIKind = UnrestrictedPoly PolyShape
             | ConstructorBased (Set.Set F.Symbol) PolyShape
@@ -80,22 +80,31 @@ instance PrettyPrintable a => PrettyPrintable (PolyInter a) where
                   a = F.arity sig f
 
 instance PrettyPrintable a => PrettyPrintable (Polynomial V.Variable a) where
-  pprint (Poly xs) = hsep $ punctuate (text " + ") $ map pprint xs
+  pprint (Poly xs) = hcat $ punctuate (text " + ") $ map pprint xs
 
 instance PrettyPrintable a => PrettyPrintable (Monomial V.Variable a) where
-  pprint (Mono n vs) = pprint n <> char '*' <> hsep (punctuate (char '*') $ map pprint vs)
+  pprint (Mono n []) = pprint n
+  pprint (Mono n vs) = pprint n <> char '*' <> hcat (punctuate (char '*') $ map pprint vs)
 
 instance PrettyPrintable (Power V.Variable) where
-  pprint (Pow (V.Canon v) e) = char 'x' <> int v <> char '^' <> int e
-  pprint (Pow (V.User  v) e) = char 'y' <> int v <> char '^' <> int e
+  pprint (Pow (V.Canon v) e) = char 'x' <> int v <> if e == 1 then empty else char '^' <> int e
+  pprint (Pow (V.User  v) e) = char 'y' <> int v <> if e == 1 then empty else char '^' <> int e
+
+instance Show PolyShape where
+  show StronglyLinear = "stronglylinear"
+  show Linear         = "linear"
+  show Simple         = "simple"
+  show SimpleMixed    = "smixed"
+  show Quadratic      = "quadratic"
 
 instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variable a) where
   interpretFun i f tis = bigPplus $ map handleMono fpoly
     where Poly fpoly = case Map.lookup f $ interpretations i of
                          Nothing -> error "Tct.Method.Poly.PolynomialInterpretation.interpretFun: function symbol not found in interpretation"
                          Just p  -> p
-          handleMono (Mono n vs) = bigPplus $ map (cpprod n . handlePow) vs
-          handlePow (Pow (V.Canon v) e) = handlePow' p p (e - (2 ^ (N.natToBits e - 1))) (N.natToBits e - 1)
+          handleMono (Mono n vs) = bigPprod $ constToPoly n : map handlePow vs
+          handlePow (Pow (V.Canon v) e) | e <= 0    = constToPoly one
+                                        | otherwise = handlePow' p p (e - (2 ^ (N.natToBits e - 1))) (N.natToBits e - 1)
             where p = tis !! (v - 1)
           handlePow (Pow (V.User _) _) = error "Tct.Method.Poly.PolynomialInterpretation.interpretFun: user defined variable in interpretation"
           handlePow' origp p e j | j > 0     = if e >= 2 ^ (j - 1)
@@ -105,7 +114,7 @@ instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variab
   interpretVar _ v     = varToPoly v
 
 stronglyLinearPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-stronglyLinearPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) [Mono (ringvar $ PIVar True f []) []] [1..a]
+stronglyLinearPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) [Mono (ringvar $ PIVar False f []) []] [1..a]
   where a = F.arity sig f
         ithmono i = Mono (restrictvar $ PIVar True f [Pow (V.Canon i) 1]) [Pow (V.Canon i) 1]
 

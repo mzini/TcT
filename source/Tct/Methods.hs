@@ -33,7 +33,9 @@ module Tct.Methods
     , arctic
     -- | this processor implements arctic interpretations
     , matrix
-    -- | this processor implements arctic interpretations      
+    -- | this processor implements matrix interpretations      
+    , poly
+    -- | this processor implements polynomial path orders
     , bounds
     -- | this processor implements the bounds technique      
     , epostar
@@ -199,6 +201,7 @@ module Tct.Methods
     , Compose.splitWithoutLeafs
     , P.defaultOptions 
     , MatrixOptions (..)
+    , PolyOptions (..)
       
     -- *** Argument Descriptions
     , Arg (..)
@@ -368,11 +371,11 @@ instance P.IsDefaultOption MatrixOptions where
                                    , on            = Weightgap.WgOnAny }
 
 matrix :: MatrixOptions -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` ((cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: Nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
 arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
-arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` ((nat $ dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
 weightgap :: MatrixOptions -> TheTransformer Weightgap.WeightGap
@@ -390,3 +393,6 @@ instance P.IsDefaultOption PolyOptions where
                                , pbits          = 2
                                , pcbits         = Just 3
                                , puseUsableArgs = True }
+
+poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
+poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: Nat 3 :+: Just (Nat (pbits p)) :+: Nat `liftM` pcbits p :+: puseUsableArgs p)

@@ -515,9 +515,9 @@ hConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l 
 hConstraints deg mi = unaryNotation && jDecrease
   where d = dimension mi
         toD = [1..d]
-        unaryNotation = bigAnd [ dioAtom (H x h) --> dioAtom (H x (h - 1)) | x <- toD, h <- [2..deg] ]
+        unaryNotation = bigAnd [ dioAtom (H x h) --> dioAtom (H x (h - 1)) | x <- toD, h <- [2..deg - 1] ]
         jDecrease = bigAnd [ f i j | i <- toD, j <- toD ]
-        f i j = dioAtom (J i j) --> bigOr (map (\ h -> dioAtom (H i h) && not (dioAtom $ H j h)) [1..deg])
+        f i j = dioAtom (J i j) --> bigOr (map (\ h -> dioAtom (H i h) && not (dioAtom $ H j h)) [1..deg - 1])
 
 -- Instance declarations
 

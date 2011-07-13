@@ -75,12 +75,9 @@ stateRef = unsafePerformIO $ newIORef (STATE (ST [] []) [] Nothing)
 getState :: IO ST
 getState = curState `liftM` readIORef stateRef
 
-get :: Int -> IO Problem
-get i = do st <- getState
-           let l = selected st ++ unselected st
-           if 1 <= i && i <= length l 
-            then return $ l!!(i - 1)
-            else error "Index out of bound"
+get :: IO [Problem]
+get = do st <- getState
+         return $ selected st ++ unselected st
 
 history :: IO [ST]
 history = hist `liftM` readIORef stateRef
@@ -227,7 +224,7 @@ help :: IO ()
 help = pprint $ block' "Commands" [U.columns 2 (transpose rows)]
   where rows = map mk [ ("load :: FilePath -> IO ()", "Loads a problem from given file") 
                       , ("apply :: Applies a => a -> IO ()", "applies 'a' to the selected problems. Currently transformations, processors and functions 'f :: Problem -> Problem' can be applied to the proof state.")
-                      , ("get :: Int -> IO ()", "get the i-th problem from the state")                         
+                      , ("get :: IO ()", "get the list of open problems")                         
                       , epty                        
                       , ("state :: IO ()", "displays the current state")                                                 
                       , ("reset :: IO ()", "reset the proof state and history") 

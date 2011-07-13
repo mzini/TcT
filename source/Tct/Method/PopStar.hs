@@ -83,8 +83,6 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popInputProblem      :: Problem
                              , popMultRecAllowed    :: Bool
                              , popPsAllowed         :: Bool}
-                    deriving Show
-
 
 instance PrettyPrintable PopStarOrder where
   pprint order = (text "The input was oriented with the instance of" <+> text ordname <+> text "as induced by the precedence")

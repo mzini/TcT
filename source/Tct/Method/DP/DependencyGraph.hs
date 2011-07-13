@@ -46,6 +46,7 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
 import Termlib.Trs.PrettyPrint (pprintTrs)
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
 import Tct.Processor.PPrint
 --------------------------------------------------------------------------------
@@ -231,6 +232,9 @@ pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
           rs = sortBy compFst $ concatMap (\ (_, cn) -> [ (n, rule) | (n, (_, rule)) <- theSCC cn]) (Graph.labNodes cwdg)
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
           
+instance PrettyPrintable (CDG, F.Signature, V.Variables) where 
+  pprint (cwdg, sig, vars) = pprintCWDG cwdg sig vars (\ _ _ -> PP.empty)
+
 pprintLabeledRules :: PrettyPrintable l => F.Signature -> V.Variables -> [(l,R.Rule)] -> Doc
 pprintLabeledRules sig vars = pprintTrs pprule 
   where pprule (l,r) = pprint l <> text ":" <+> pprint (r, sig, vars)

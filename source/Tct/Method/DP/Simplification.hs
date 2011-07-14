@@ -30,7 +30,6 @@ import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs(..))
-import qualified Termlib.Rule as Rule
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
 
@@ -176,7 +175,6 @@ instance T.Transformer SimpRHS where
             where ds   = Trs.definedSymbols (Prob.dpComponents prob)
                   isDefinedOrVar (Term.Fun f _) = Set.member f ds
                   isDefinedOrVar (Term.Var _)   = True
-                  isDefinedOrVar _              = False
                   elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
                                                 | otherwise              = Just $ Rule l (Term.Fun f rs')
                         where rs' = filter isDefinedOrVar rs

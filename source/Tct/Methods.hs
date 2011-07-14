@@ -194,11 +194,15 @@ module Tct.Methods
     , AssocArgument (..)      
     , WhichTrs(..)
     , Assoc 
-    , Compose.splitDP
+    , Compose.splitNoDPs
+    , Compose.splitOnlyDPs
     , Compose.splitRandom
     , Compose.splitSatisfying
     , Compose.splitFirstCongruence      
     , Compose.splitWithoutLeafs
+    , Compose.splitUnion
+    , Compose.splitInter
+    , Compose.splitInverse
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)

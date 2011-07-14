@@ -15,12 +15,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE ParallelListComp #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
@@ -59,10 +56,41 @@ type SplitFn = (String, ComposeBound -> Problem -> ([Rule], [Rule]))
 
 data Partitioning = Static SplitFn | Dynamic deriving (Typeable)
 
+splitInverse :: Partitioning -> Partitioning
+splitInverse Dynamic         = Dynamic
+splitInverse (Static (n, f)) = Static ( "inverse of " ++ n, splitfn)
+    where splitfn bnd prob = (dps,rs) 
+              where (dps',rs') = f bnd prob
+                    dps = Trs.rules $ Prob.strictDPs prob Trs.\\ (Trs.fromRules dps')
+                    rs = Trs.rules $ Prob.strictTrs prob Trs.\\ (Trs.fromRules rs')
 
-splitDP :: Partitioning
-splitDP = Static ( "separate DPs"
-                 , const $ \ prob -> ([], Trs.rules $ Prob.strictTrs prob))
+splitUnion :: Partitioning -> Partitioning -> Partitioning
+splitUnion Dynamic            _               = Dynamic
+splitUnion _                 Dynamic          = Dynamic
+splitUnion (Static (n1, f1)) (Static (n2,f2)) = 
+    Static ( "union of " ++ n1 ++ " and " ++ n2 , splitfn)
+        where splitfn bnd prob = (dps1 `un` dps2, rs1 `un` rs2) 
+                  where (dps1,rs1) = f1 bnd prob         
+                        (dps2,rs2) = f2 bnd prob         
+                        r `un` s = Trs.rules $ Trs.fromRules r `Trs.union` Trs.fromRules s
+
+splitInter :: Partitioning -> Partitioning -> Partitioning
+splitInter Dynamic            _               = Dynamic
+splitInter _                 Dynamic          = Dynamic
+splitInter (Static (n1, f1)) (Static (n2,f2)) = 
+    Static ( "intersect of " ++ n1 ++ " and " ++ n2, splitfn)
+        where splitfn bnd prob = (dps1 `inter` dps2, rs1 `inter` rs2) 
+                  where (dps1,rs1) = f1 bnd prob         
+                        (dps2,rs2) = f2 bnd prob         
+                        r `inter` s = Trs.rules $ Trs.fromRules r `Trs.intersect` Trs.fromRules s                               
+
+splitNoDPs :: Partitioning
+splitNoDPs = Static ( "split no DPs"
+                    , const $ \ prob -> ([], Trs.rules $ Prob.strictTrs prob))
+
+splitOnlyDPs :: Partitioning
+splitOnlyDPs = Static ( "split only DPs"
+                    , const $ \ prob -> (Trs.rules $ Prob.strictDPs prob, []))
 
 splitRandom :: Partitioning
 splitRandom = Static ("random selection"
@@ -84,7 +112,7 @@ splitFirstCongruence = Static ("split first congruence from CWD"
                   --                             | otherwise             = False
 
 splitWithoutLeafs :: Partitioning
-splitWithoutLeafs = Static ("split all congruence from CWD except leafs"
+splitWithoutLeafs = Static ("split all rules from CWD except leafs"
                      , sfc)
     where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
                      | otherwise = (Trs.rules $ Prob.strictDPs prob Trs.\\ rts, [])
@@ -104,10 +132,13 @@ instance Show Partitioning where
 
 instance AssocArgument Partitioning where 
     assoc _ = [ ("dynamic",    Dynamic)
-              , ("separateDP", splitDP)
-              , ("random",     splitRandom)]
+              , ("splitNoDPs", splitNoDPs)
+              , ("splitOnlyDPs", splitOnlyDPs)
+              , ("random",     splitRandom)
+              , ("splitFirstCongruence", splitFirstCongruence)
+              , ("splitWithoutLeafs", splitWithoutLeafs)]
 
--- Processor
+-- Compose Processor ala Waldmann
 
 data ComposeProc p = ComposeProc
 

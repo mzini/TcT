@@ -166,8 +166,10 @@ toCongruenceGraph gr = Graph.mkGraph ns es
 
 
 instance PrettyPrintable (DG, F.Signature, V.Variables) where 
-  pprint (wdg, sig, vars) = vcat [ ppnode n rule $+$ text "" | (n, rule) <- rs]
-    where rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
+  pprint (wdg, sig, vars) | isEmpty   = text "empty" 
+                          | otherwise = vcat [ ppnode n rule $+$ text "" | (n, rule) <- rs]
+    where isEmpty = length rs == 0
+          rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
           ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $ 
                             vcat [ text "  -->" <+> pprule rule_m  <> text ":" <+> text (show m) 

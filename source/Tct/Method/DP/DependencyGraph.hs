@@ -43,9 +43,8 @@ import qualified Termlib.Term as Term
 import Termlib.Term (Term)
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs(..))
 import Termlib.Trs.PrettyPrint (pprintTrs)
-import Text.PrettyPrint.HughesPJ hiding (empty)
+import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty)
 import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
 import Tct.Processor.PPrint
@@ -54,43 +53,46 @@ import Tct.Processor.PPrint
 --------------------------------------------------------------------------------
 
 
-type DependencyGraph n = GraphT.Gr n ()
+type DependencyGraph n e = GraphT.Gr n e
 
 type NodeId = Graph.Node
 
 data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
 
 type DGNode = (Strictness, R.Rule)
-type DG = DependencyGraph DGNode
+type DG = DependencyGraph DGNode Int
 
 data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)] } deriving (Show)
 
-type CDG = DependencyGraph CDGNode
+type CDG = DependencyGraph CDGNode (R.Rule, Int)
 
 --------------------------------------------------------------------------------
 -- Graph Inspection
 --------------------------------------------------------------------------------
 
 
-lookupNode :: DependencyGraph n -> NodeId -> Maybe n
+lookupNode :: DependencyGraph n e -> NodeId -> Maybe n
 lookupNode = Graph.lab
 
-lookupNode' :: DependencyGraph n -> NodeId -> n
+lookupNode' :: DependencyGraph n e -> NodeId -> n
 lookupNode' gr n = fromJust $ lookupNode gr n
 
-roots :: DependencyGraph n -> [NodeId]
+roots :: DependencyGraph n e -> [NodeId]
 roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
 
-leafs :: DependencyGraph n -> [NodeId]
+leafs :: DependencyGraph n e -> [NodeId]
 leafs gr = [n | n <- Graph.nodes gr, Graph.outdeg gr n == 0]
 
-successors :: DependencyGraph n -> NodeId -> [NodeId]
+successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
 
-withNodes :: DependencyGraph n -> [NodeId] -> [(NodeId, n)]
+lsuccessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
+lsuccessors gr nde = [(n, fromJust (lookupNode gr n), e) | (n,e) <- Graph.lsuc gr nde]
+
+withNodes :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
 withNodes gr ns = [(n,fromJust $ lookupNode gr n) | n <- ns]
 
-nodes :: DependencyGraph n -> [NodeId]
+nodes :: DependencyGraph n e -> [NodeId]
 nodes = Graph.nodes
 
 -- rulesFromNode :: CDG -> Strictness -> NodeId -> [R.Rule]
@@ -113,7 +115,7 @@ congruence :: CDG -> NodeId -> [NodeId]
 congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
 
 
-isEdgeTo :: DependencyGraph n -> NodeId -> NodeId -> Bool
+isEdgeTo :: DependencyGraph n e -> NodeId -> NodeId -> Bool
 isEdgeTo g n1 n2 = n2 `elem` successors g n1 
 
 --------------------------------------------------------------------------------
@@ -129,23 +131,21 @@ estimatedDependencyGraph :: Approximation -> Problem -> DG
 estimatedDependencyGraph approx prob = Graph.mkGraph ns es
     where ns = zip [1..] ([(StrictDP, r) | r <- Trs.rules $ Prob.strictDPs prob] 
                           ++ [(WeakDP, r) | r <- Trs.rules $ Prob.weakDPs prob])
-          es = [ (n1, n2, ()) | (n1,(_,l1)) <- ns
+          es = [ (n1, n2, i) | (n1,(_,l1)) <- ns
                              , (n2,(_,l2)) <- ns
-                             , R.rhs l1 `edgeTo` R.lhs l2] 
-          s `edgeTo` t | approx == Edg     = any (\ si -> (match (etcap lhss si) t)) ss && invMatch
-                       | otherwise        = True
-              where invMatch = if any Term.isVariable rhss then True else any (match $ etcap rhss t) ss
-                    lhss = Trs.lhss rs
-                    rhss = Trs.rhss rs
-                    ss = filter ((== funroot t) . funroot) (sharpedSs s)
-                    funroot x = case Term.root x of
-                                  Left _  -> error "Variable root in funroot in Wdg.checkEdge"
-                                  Right fun -> fun
-                    sharpedSs (Term.Var _)                        = []
-                    sharpedSs (Term.Fun f ss') | F.isMarked sig f = [Term.Fun f ss']
-                                               | otherwise        = concatMap sharpedSs ss'
+                             , i <- R.rhs l1 `edgesTo` R.lhs l2] 
+          (Term.Var _)      `edgesTo` _ = []
+          s@(Term.Fun f ts) `edgesTo` t = [ i | (i,ti) <- zip [1..] ts', ti `edgeToP` t] 
+              where ts' | F.isCompound sig f = ts
+                        | otherwise          = [s]
+          (Term.Var _) `edgeToP` _    = False
+          s            `edgeToP` t | approx == Edg = match (etcap lhss s) t 
+                                                    && (any Term.isVariable rhss || match (etcap rhss t) s)
+                                   | otherwise    = True
           sig = Prob.signature prob
           rs = Prob.trsComponents prob
+          lhss = Trs.lhss rs
+          rhss = Trs.rhss rs
 
 
 
@@ -157,11 +157,13 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
 toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es
     where ns    = zip [1..] [sccNode scc | scc <- GraphDFS.scc gr]
-          es    = [ (n1, n2, ()) | (n1, cn1) <- ns
+          es    = [ (n1, n2, i) | (n1, cn1) <- ns
                                  , (n2, cn2) <- ns
                                  , n1 /= n2
-                                 , cn1 `edgeTo` cn2 ]
-          cn1 `edgeTo` cn2 = any id [ n2 `elem` successors gr n1 | (n1,_) <- theSCC cn1, (n2,_) <- theSCC cn2]
+                                 , i <- cn1 `edgesTo` cn2 ]
+          cn1 `edgesTo` cn2 = [ (r1, i) | (n1,(_,r1)) <- theSCC cn1
+                              , (n, _, i) <- lsuccessors gr n1
+                              , n `elem` map fst (theSCC cn2)]
           sccNode scc = CongrNode { theSCC = [ (n, fromJust $ lookupNode gr n) | n <- scc]}
 
 
@@ -172,9 +174,10 @@ instance PrettyPrintable (DG, F.Signature, V.Variables) where
           rs = sortBy compFst [ (n, rule) | (n, (_, rule)) <- Graph.labNodes wdg]
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
           ppnode n rule = hang (text (show n) <> text ":" <+> pprule rule) 3 $ 
-                            vcat [ text "  -->" <+> pprule rule_m  <> text ":" <+> text (show m) 
-                                 | (m, (_,rule_m)) <- withNodes wdg $ successors wdg n ]
+                            vcat [ arr i <+> pprule rule_m  <+> text ":" <> text (show m) 
+                                 | (m,(_, rule_m),i) <- lsuccessors wdg n ]
           pprule r = pprint (r, sig, vars)
+          arr i = text "-->_" <> text (show i)
 
 -- utilities
 

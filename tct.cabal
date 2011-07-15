@@ -60,6 +60,7 @@ Library
                     Tct.Method.PopStar
                     Tct.Method.EpoStar
                     Tct.Method.Compose
+                    Tct.Method.ComposeRC
                     Tct.Method.Uncurry
                     Tct.Method.Matrix.MatrixInterpretation
                     Tct.Method.Matrix.NaturalMI

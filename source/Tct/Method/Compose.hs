@@ -50,93 +50,85 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 
 data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 
-type SplitFn = (String, ComposeBound -> Problem -> ([Rule], [Rule]))
--- the function should return the pair (dps,trs)
--- of rules that have to be strictly oriented by the subprocessor
+data RuleSelector a = RS { rsName :: String
+                         , rsSelect :: a -> Problem -> Prob.Ruleset }
 
-data Partitioning = Static SplitFn | Dynamic deriving (Typeable)
+selInverse :: RuleSelector a -> RuleSelector a
+selInverse s = RS { rsName = "inverse of " ++ rsName s
+                  , rsSelect = fn }
+    where fn a prob = Prob.Ruleset { Prob.sdp  = inv Prob.strictDPs Prob.sdp
+                                   , Prob.wdp  = inv Prob.weakDPs Prob.wdp
+                                   , Prob.strs = inv Prob.strictTrs Prob.strs
+                                   , Prob.wtrs = inv Prob.weakTrs Prob.wtrs }
+              where rs = rsSelect s a prob
+                    inv pfn rfn = pfn prob Trs.\\ rfn rs
 
-splitInverse :: Partitioning -> Partitioning
-splitInverse Dynamic         = Dynamic
-splitInverse (Static (n, f)) = Static ( "inverse of " ++ n, splitfn)
-    where splitfn bnd prob = (dps,rs) 
-              where (dps',rs') = f bnd prob
-                    dps = Trs.rules $ Prob.strictDPs prob Trs.\\ (Trs.fromRules dps')
-                    rs = Trs.rules $ Prob.strictTrs prob Trs.\\ (Trs.fromRules rs')
+selCombine :: (String -> String -> String) -> (Trs.Trs -> Trs.Trs -> Trs.Trs) -> (RuleSelector a -> RuleSelector a -> RuleSelector a)
+selCombine cn ctrs s1 s2 = RS { rsName = cn (rsName s1) (rsName s2)
+                              , rsSelect = fn }
+        where fn a prob = Prob.Ruleset { Prob.sdp  = un Prob.sdp
+                                       , Prob.wdp  = un Prob.wdp
+                                       , Prob.strs = un Prob.strs
+                                       , Prob.wtrs = un Prob.wtrs }
+                  where rs1 = rsSelect s1 a prob
+                        rs2 = rsSelect s2 a prob
+                        un rfn = rfn rs1 `ctrs` rfn rs2
 
-splitUnion :: Partitioning -> Partitioning -> Partitioning
-splitUnion Dynamic            _               = Dynamic
-splitUnion _                 Dynamic          = Dynamic
-splitUnion (Static (n1, f1)) (Static (n2,f2)) = 
-    Static ( "union of " ++ n1 ++ " and " ++ n2 , splitfn)
-        where splitfn bnd prob = (dps1 `un` dps2, rs1 `un` rs2) 
-                  where (dps1,rs1) = f1 bnd prob         
-                        (dps2,rs2) = f2 bnd prob         
-                        r `un` s = Trs.rules $ Trs.fromRules r `Trs.union` Trs.fromRules s
+selUnion :: RuleSelector a -> RuleSelector a -> RuleSelector a
+selUnion = selCombine (\ n1 n2 -> "union of " ++ n1 ++ " and " ++ n2) Trs.union
 
-splitInter :: Partitioning -> Partitioning -> Partitioning
-splitInter Dynamic            _               = Dynamic
-splitInter _                 Dynamic          = Dynamic
-splitInter (Static (n1, f1)) (Static (n2,f2)) = 
-    Static ( "intersect of " ++ n1 ++ " and " ++ n2, splitfn)
-        where splitfn bnd prob = (dps1 `inter` dps2, rs1 `inter` rs2) 
-                  where (dps1,rs1) = f1 bnd prob         
-                        (dps2,rs2) = f2 bnd prob         
-                        r `inter` s = Trs.rules $ Trs.fromRules r `Trs.intersect` Trs.fromRules s                               
-
-splitNoDPs :: Partitioning
-splitNoDPs = Static ( "split no DPs"
-                    , const $ \ prob -> ([], Trs.rules $ Prob.strictTrs prob))
-
-splitOnlyDPs :: Partitioning
-splitOnlyDPs = Static ( "split only DPs"
-                    , const $ \ prob -> (Trs.rules $ Prob.strictDPs prob, []))
-
-splitRandom :: Partitioning
-splitRandom = Static ("random selection"
-                     , const $ \ prob -> (halve $ Prob.strictDPs prob, halve $ Prob.strictTrs prob))
-    where halve (Trs rs) = [ rule | (True,rule) <- zip tfs rs ]
-          tfs = [True,False] ++ tfs
+selInter :: RuleSelector a -> RuleSelector a -> RuleSelector a
+selInter= selCombine (\ n1 n2 -> "intersect of " ++ n1 ++ " and " ++ n2) Trs.intersect
 
 
-splitFirstCongruence :: Partitioning
-splitFirstCongruence = Static ("split first congruence from CWD"
-                     , sfc)
-    where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
-                     | otherwise = (Trs.rules rts, [])
-            where dg = estimatedDependencyGraph Edg prob
-                  cdg = toCongruenceGraph dg
-                  rts = allRulesFromNodes cdg (roots cdg)
-                  -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
-                  -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
-                  --                             | otherwise             = False
+selRules :: RuleSelector a
+selRules = RS { rsName   = "select rules" , rsSelect = fn } 
+    where fn _ prob = Prob.Ruleset { Prob.sdp = Trs.empty
+                                   , Prob.wdp = Trs.empty
+                                   , Prob.strs = Prob.strictTrs prob
+                                   , Prob.wtrs = Prob.weakTrs prob }
+           
+selOnlyDPs :: RuleSelector a
+selOnlyDPs = RS { rsName = "select DPs" , rsSelect = fn }
+    where fn _ prob = Prob.Ruleset { Prob.sdp = Prob.strictDPs prob
+                                   , Prob.wdp = Prob.weakDPs prob
+                                   , Prob.strs = Trs.empty
+                                   , Prob.wtrs = Trs.empty }
+                      
+-- splitFirstCongruence :: RuleSelector a
+-- splitFirstCongruence = Static ("split first congruence from CWD"
+--                      , sfc)
+--     where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
+--                      | otherwise = (Trs.rules rts, [])
+--             where dg = estimatedDependencyGraph Edg prob
+--                   cdg = toCongruenceGraph dg
+--                   rts = allRulesFromNodes cdg (roots cdg)
+--                   -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
+--                   -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
+--                   --                             | otherwise             = False
 
-splitWithoutLeafs :: Partitioning
-splitWithoutLeafs = Static ("split all rules from CWD except leafs"
-                     , sfc)
-    where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
-                     | otherwise = (Trs.rules $ Prob.strictDPs prob Trs.\\ rts, [])
-            where dg = DG.estimatedDependencyGraph Edg prob
-                  cdg = DG.toCongruenceGraph dg
-                  rts = DG.allRulesFromNodes cdg (DG.leafs cdg)
+-- splitWithoutLeafs :: RuleSelector a
+-- splitWithoutLeafs = Static ("split all rules from CWD except leafs"
+--                      , sfc)
+--     where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
+--                      | otherwise = (Trs.rules $ Prob.strictDPs prob Trs.\\ rts, [])
+--             where dg = DG.estimatedDependencyGraph Edg prob
+--                   cdg = DG.toCongruenceGraph dg
+--                   rts = DG.allRulesFromNodes cdg (DG.leafs cdg)
 
-splitSatisfying :: String -> (Rule -> Bool) -> Partitioning
-splitSatisfying n p = Static ( n
-                             , const $ \ prob -> ( filter p $ Trs.rules $ Prob.strictDPs prob
-                                                , filter p $ Trs.rules $ Prob.strictTrs prob))
+-- splitSatisfying :: String -> (Rule -> Bool) -> RuleSelector a
+-- splitSatisfying n p = Static ( n
+--                              , const $ \ prob -> ( filter p $ Trs.rules $ Prob.strictDPs prob
+--                                                 , filter p $ Trs.rules $ Prob.strictTrs prob))
 
+data Partitioning = Static (RuleSelector ComposeBound) | Dynamic deriving (Typeable)
 
 instance Show Partitioning where
     show Dynamic         = "dynamic"
-    show (Static (n, _)) = show $ text "statically using" <+> quotes (text n)
+    show (Static s) = show $ text "statically using" <+> quotes (text (rsName s))
 
 instance AssocArgument Partitioning where 
-    assoc _ = [ ("dynamic",    Dynamic)
-              , ("splitNoDPs", splitNoDPs)
-              , ("splitOnlyDPs", splitOnlyDPs)
-              , ("random",     splitRandom)
-              , ("splitFirstCongruence", splitFirstCongruence)
-              , ("splitWithoutLeafs", splitWithoutLeafs)]
+    assoc _ = [ ("dynamic",    Dynamic) ] --TODO extend
 
 -- Compose Processor ala Waldmann
 
@@ -207,11 +199,11 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
                               rDps = Trs.fromRules (P.ppRemovableDPs sp1)
                               sDps = Prob.strictDPs prob \\ rDps
                           return $ mkResult (Right sp1) (rDps, sDps) (rTrs, sTrs)                         
-          Static (_,fn) -> do sp1 <- P.apply inst1 prob1
-                              return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
-              where (rdps', rtrs') = fn compfn prob
-                    rDps           = Trs.fromRules $ rdps' ++ forcedDps
-                    rTrs           = Trs.fromRules $ rtrs' ++ forcedTrs
+          Static s -> do sp1 <- P.apply inst1 prob1
+                         return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
+              where rs             = rsSelect s compfn prob
+                    rDps           = Prob.sdp rs `Trs.union` Trs.fromRules forcedDps
+                    rTrs           = Prob.strs rs `Trs.union` Trs.fromRules forcedTrs
                     sTrs           = strictTrs prob Trs.\\ rTrs
                     sDps           = strictDPs prob Trs.\\ rDps
                     prob1 = prob { strictDPs = rDps

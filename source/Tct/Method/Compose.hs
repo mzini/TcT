@@ -53,6 +53,9 @@ data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Type
 data RuleSelector a = RS { rsName :: String
                          , rsSelect :: a -> Problem -> Prob.Ruleset }
 
+instance Show (RuleSelector a) where show = rsName
+
+
 selInverse :: RuleSelector a -> RuleSelector a
 selInverse s = RS { rsName = "inverse of " ++ rsName s
                   , rsSelect = fn }
@@ -88,24 +91,32 @@ selRules = RS { rsName   = "select rules" , rsSelect = fn }
                                    , Prob.strs = Prob.strictTrs prob
                                    , Prob.wtrs = Prob.weakTrs prob }
            
-selOnlyDPs :: RuleSelector a
-selOnlyDPs = RS { rsName = "select DPs" , rsSelect = fn }
+selDPs :: RuleSelector a
+selDPs = RS { rsName = "select DPs" , rsSelect = fn }
     where fn _ prob = Prob.Ruleset { Prob.sdp = Prob.strictDPs prob
                                    , Prob.wdp = Prob.weakDPs prob
                                    , Prob.strs = Trs.empty
                                    , Prob.wtrs = Trs.empty }
+
+selStricts :: RuleSelector a
+selStricts = RS { rsName = "select strict rules" , rsSelect = fn }
+    where fn _ prob = Prob.Ruleset { Prob.sdp = Prob.strictDPs prob
+                                   , Prob.wdp = Trs.empty
+                                   , Prob.strs = Prob.strictTrs prob
+                                   , Prob.wtrs = Trs.empty }
+
                       
--- splitFirstCongruence :: RuleSelector a
--- splitFirstCongruence = Static ("split first congruence from CWD"
---                      , sfc)
---     where sfc _ prob | Trs.isEmpty (Prob.strictDPs prob) = ([],[])
---                      | otherwise = (Trs.rules rts, [])
---             where dg = estimatedDependencyGraph Edg prob
---                   cdg = toCongruenceGraph dg
---                   rts = allRulesFromNodes cdg (roots cdg)
---                   -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
---                   -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
---                   --                             | otherwise             = False
+selFirstCongruences :: RuleSelector a
+selFirstCongruences = RS { rsName = "select first congruence from CWDG"
+                         , rsSelect = fn }
+    where fn _ prob = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- rs]
+                                        , Prob.wdp = Trs.fromRules [ r | (DG.WeakDP, r) <- rs] }
+            where dg = estimatedDependencyGraph Edg prob
+                  cdg = toCongruenceGraph dg
+                  rs = allRulesFromNodes cdg (roots cdg)
+                  -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
+                  -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
+                  --                             | otherwise             = False
 
 -- splitWithoutLeafs :: RuleSelector a
 -- splitWithoutLeafs = Static ("split all rules from CWD except leafs"
@@ -125,7 +136,7 @@ data Partitioning = Static (RuleSelector ComposeBound) | Dynamic deriving (Typea
 
 instance Show Partitioning where
     show Dynamic         = "dynamic"
-    show (Static s) = show $ text "statically using" <+> quotes (text (rsName s))
+    show (Static s) = show $ text "statically using" <+> quotes (text (show s))
 
 instance AssocArgument Partitioning where 
     assoc _ = [ ("dynamic",    Dynamic) ] --TODO extend

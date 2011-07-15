@@ -194,15 +194,19 @@ module Tct.Methods
     , AssocArgument (..)      
     , WhichTrs(..)
     , Assoc 
-    , Compose.splitNoDPs
-    , Compose.splitOnlyDPs
-    , Compose.splitRandom
-    , Compose.splitSatisfying
-    , Compose.splitFirstCongruence      
-    , Compose.splitWithoutLeafs
-    , Compose.splitUnion
-    , Compose.splitInter
-    , Compose.splitInverse
+    , Compose.RuleSelector(..)
+    , Compose.selRules
+    , Compose.selDPs
+    , Compose.selStricts
+    -- , Compose.splitOnlyDPs
+    -- , Compose.splitRandom
+    -- , Compose.splitSatisfying
+    , Compose.selFirstCongruences
+    -- , Compose.splitWithoutLeafs
+    , Compose.selCombine
+    , Compose.selUnion
+    , Compose.selInter
+    , Compose.selInverse
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)

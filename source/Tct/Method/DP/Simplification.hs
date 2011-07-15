@@ -178,6 +178,7 @@ instance T.Transformer SimpRHS where
                   elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
                                                 | otherwise              = Just $ Rule l (Term.Fun f rs')
                         where rs' = filter isDefinedOrVar rs
+                  elim _                                                 = Nothing
           prob' = withFreshCompounds prob { Prob.strictDPs = Trs.fromRules [ fromMaybe (fst p) (snd p) | p <- elims] }
 
 simpDPRHSProcessor :: T.TransformationProcessor SimpRHS P.AnyProcessor

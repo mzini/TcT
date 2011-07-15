@@ -73,8 +73,9 @@ instance T.Transformer PathAnalysis where
               walkFrom prefix weaks n = new ++ concatMap (walkFrom path weaks') (successors cedg n)
                   where path = prefix ++ [n]
                         sucs = successors cedg n
-                        strict_n = rulesFromNodes cedg StrictDP [n]
-                        weak_n = rulesFromNodes cedg WeakDP [n]
+                        rs = allRulesFromNodes cedg [n]
+                        strict_n = Trs.fromRules [ r | (StrictDP, r) <- rs]
+                        weak_n = Trs.fromRules [ r | (WeakDP, r) <- rs]
                         weaks' = strict_n `Trs.union` weak_n `Trs.union` weaks
                         new | subsumed  = [Left  ( Path path, [Path $ path ++ [n'] | n' <- sucs ] )]
                             | otherwise = [Right ( Path path
@@ -83,7 +84,7 @@ instance T.Transformer PathAnalysis where
 
               progressed = case paths of 
                              [pth] -> length spath < length sprob
-                                 where Trs spath = rulesFromNodes cedg StrictDP (thePath pth)
+                                 where spath = [ r | (StrictDP, r) <- allRulesFromNodes cedg (thePath pth) ]
                                        Trs sprob = Prob.strictDPs prob
                              _     -> True
 

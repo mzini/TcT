@@ -87,13 +87,16 @@ successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
 
 lsuccessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
-lsuccessors gr nde = [(n, fromJust (lookupNode gr n), e) | (n,e) <- Graph.lsuc gr nde]
+lsuccessors gr nde = [(n, lookupNode' gr n, e) | (n,e) <- Graph.lsuc gr nde]
 
-withNodes :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
-withNodes gr ns = [(n,fromJust $ lookupNode gr n) | n <- ns]
+withNodeLabels :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
+withNodeLabels gr ns = [(n,lookupNode' gr n) | n <- ns]
 
 nodes :: DependencyGraph n e -> [NodeId]
 nodes = Graph.nodes
+
+lnodes :: DependencyGraph n e -> [(NodeId,n)]
+lnodes = Graph.labNodes
 
 -- rulesFromNode :: CDG -> Strictness -> NodeId -> [R.Rule]
 -- rulesFromNode gr str n = case lookupNode gr n of 
@@ -117,6 +120,9 @@ congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
 
 isEdgeTo :: DependencyGraph n e -> NodeId -> NodeId -> Bool
 isEdgeTo g n1 n2 = n2 `elem` successors g n1 
+
+isLEdgeTo :: Eq e => DependencyGraph n e -> NodeId -> e -> NodeId -> Bool
+isLEdgeTo g n1 e n2 = n2 `elem` [n | (n, _, e2) <- lsuccessors g n1, e == e2]
 
 --------------------------------------------------------------------------------
 -- Estimated Dependency Graph
@@ -152,7 +158,6 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
 --------------------------------------------------------------------------------
 -- Congruence Dependency Graph
 --------------------------------------------------------------------------------
-
 
 toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es

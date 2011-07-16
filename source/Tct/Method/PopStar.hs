@@ -50,7 +50,7 @@ import qualified Qlogic.SatSolver as S
 import Termlib.FunctionSymbol (Symbol, Signature)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
-import Termlib.Signature (runSignature)
+-- import Termlib.Signature (runSignature)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
 import Termlib.Utils (PrettyPrintable(..), ($++$), block)
@@ -106,19 +106,19 @@ instance PrettyPrintable PopStarOrder where
                         $+$ ppTrs "Weak Trs"   weakTrs prob
 
             ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p,sm)
-            probFiltered = case popArgumentFiltering order of 
-                                 Nothing -> prob
-                                 Just af ->  prob' { signature = sig' }
-                                      where (prob',sig') = runSignature mkProb (Prob.signature prob) 
-                                            filtered trs = AF.apply trs af 
-                                            mkProb = do sdp <- filtered $ Prob.strictDPs prob 
-                                                        wdp <- filtered $ Prob.weakDPs prob
-                                                        s <- filtered $ Prob.strictTrs prob
-                                                        w <- filtered $ Prob.weakTrs prob
-                                                        return prob { strictDPs = sdp
-                                                                    , strictTrs = s
-                                                                    , weakDPs   = wdp
-                                                                    , weakTrs   = w }
+            -- probFiltered = case popArgumentFiltering order of 
+            --                      Nothing -> prob
+            --                      Just af ->  prob' { signature = sig' }
+            --                           where (prob',sig') = runSignature mkProb (Prob.signature prob) 
+            --                                 filtered trs = AF.apply trs af 
+            --                                 mkProb = do sdp <- filtered $ Prob.strictDPs prob 
+            --                                             wdp <- filtered $ Prob.weakDPs prob
+            --                                             s <- filtered $ Prob.strictTrs prob
+            --                                             w <- filtered $ Prob.weakTrs prob
+            --                                             return prob { strictDPs = sdp
+            --                                                         , strictTrs = s
+            --                                                         , weakDPs   = wdp
+            --                                                         , weakTrs   = w }
             prob           = popInputProblem order
             sm             = popSafeMapping order
 

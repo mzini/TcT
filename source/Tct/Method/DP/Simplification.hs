@@ -102,7 +102,7 @@ instance T.Transformer RemoveTail where
                    | null labTails  = return $ T.NoProgress proof
                    | otherwise      = return $ T.Progress proof (enumeration' [prob'])
         where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
-                  where initials = [ n | (n,cn) <- withNodes cwdg $ leafs cwdg
+                  where initials = [ n | (n,cn) <- withNodeLabels cwdg $ leafs cwdg
                                        , onlyWeaks cn || nonSelfCyclic wdg cn ]
               ls = map (snd . snd) labTails
               computeTails []             lfs = lfs

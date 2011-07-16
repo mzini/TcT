@@ -25,7 +25,7 @@ module Tct.Method.Compose where
 
 import Data.Typeable (Typeable)
 import Text.PrettyPrint.HughesPJ
-
+import Data.Typeable ()
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
 import Tct.Processor.Args
@@ -40,7 +40,6 @@ import Termlib.Utils (PrettyPrintable (..))
 import Termlib.Trs (Trs(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
-import Termlib.Rule (Rule)
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
 import Tct.Method.DP.DependencyGraph
@@ -51,7 +50,7 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 
 data RuleSelector a = RS { rsName :: String
-                         , rsSelect :: a -> Problem -> Prob.Ruleset }
+                         , rsSelect :: a -> Problem -> Prob.Ruleset } deriving Typeable
 
 instance Show (RuleSelector a) where show = rsName
 
@@ -85,21 +84,21 @@ selInter= selCombine (\ n1 n2 -> "intersect of " ++ n1 ++ " and " ++ n2) Trs.int
 
 
 selRules :: RuleSelector a
-selRules = RS { rsName   = "select rules" , rsSelect = fn } 
+selRules = RS { rsName   = "rewrite-rules" , rsSelect = fn } 
     where fn _ prob = Prob.Ruleset { Prob.sdp = Trs.empty
                                    , Prob.wdp = Trs.empty
                                    , Prob.strs = Prob.strictTrs prob
                                    , Prob.wtrs = Prob.weakTrs prob }
            
 selDPs :: RuleSelector a
-selDPs = RS { rsName = "select DPs" , rsSelect = fn }
+selDPs = RS { rsName = "DPs" , rsSelect = fn }
     where fn _ prob = Prob.Ruleset { Prob.sdp = Prob.strictDPs prob
                                    , Prob.wdp = Prob.weakDPs prob
                                    , Prob.strs = Trs.empty
                                    , Prob.wtrs = Trs.empty }
 
 selStricts :: RuleSelector a
-selStricts = RS { rsName = "select strict rules" , rsSelect = fn }
+selStricts = RS { rsName = "strict-rules" , rsSelect = fn }
     where fn _ prob = Prob.Ruleset { Prob.sdp = Prob.strictDPs prob
                                    , Prob.wdp = Trs.empty
                                    , Prob.strs = Prob.strictTrs prob
@@ -107,7 +106,7 @@ selStricts = RS { rsName = "select strict rules" , rsSelect = fn }
 
                       
 selFirstCongruences :: RuleSelector a
-selFirstCongruences = RS { rsName = "select first congruence from CWDG"
+selFirstCongruences = RS { rsName = "first congruence from CWDG"
                          , rsSelect = fn }
     where fn _ prob = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- rs]
                                         , Prob.wdp = Trs.fromRules [ r | (DG.WeakDP, r) <- rs] }

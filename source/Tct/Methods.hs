@@ -207,6 +207,7 @@ module Tct.Methods
     , Compose.selUnion
     , Compose.selInter
     , Compose.selInverse
+    , ComposeRC.composeRC
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)
@@ -279,6 +280,7 @@ import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
 import qualified Tct.Method.Compose as Compose
+import qualified Tct.Method.ComposeRC as ComposeRC
 import Tct.Method.Bounds
 import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
 import qualified Qlogic.ArcSat as ArcSat
@@ -330,6 +332,7 @@ builtInProcessors = timeoutProcessor
                    <|> ArcticMI.arcticProcessor
                    <|> Weightgap.weightgapProcessor
                    <|> Compose.composeProcessor
+                   <|> ComposeRC.composeRCProcessor
                    <|> emptyProcessor
                    <|> foldr (<|>) none predicateProcessors
 

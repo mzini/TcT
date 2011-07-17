@@ -86,8 +86,14 @@ leafs gr = [n | n <- Graph.nodes gr, Graph.outdeg gr n == 0]
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
 
+predecessors :: DependencyGraph n e -> NodeId -> [NodeId]
+predecessors = Graph.pre
+
 lsuccessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
 lsuccessors gr nde = [(n, lookupNode' gr n, e) | (n,e) <- Graph.lsuc gr nde]
+
+lpredecessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
+lpredecessors gr nde = [(n, lookupNode' gr n, e) | (n,e) <- Graph.lpre gr nde]
 
 withNodeLabels :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
 withNodeLabels gr ns = [(n,lookupNode' gr n) | n <- ns]
@@ -231,15 +237,16 @@ pprintCWDGNode cwdg _ _ n = braces $ hcat $ punctuate (text ",") [text $ show i 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
 pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
                                    $+$ text ""
-                                   $+$ text "Here rules are as follows:"
+                                   $+$ text "Here dependency-pairs are as follows:"
                                    $+$ text ""
-                                   $+$ (indent $ pprintLabeledRules sig vars rs )
+                                   $+$ block' "Strict DPs" [pprintLabeledRules sig vars (rs StrictDP)]
+                                   $+$ block' "Weak DPs" [pprintLabeledRules sig vars (rs WeakDP)]
     where ppNode _ n    = printNodeId n
           pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
                          , pptSuc = sortBy compareLabel . successors cwdg}
           compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2
           printNodeId = pprintCWDGNode cwdg sig vars 
-          rs = sortBy compFst $ concatMap (\ (_, cn) -> [ (n, rule) | (n, (_, rule)) <- theSCC cn]) (Graph.labNodes cwdg)
+          rs strictness = sortBy compFst $ concatMap (\ (_, cn) -> [ (n, rule) | (n, (s, rule)) <- theSCC cn, s == strictness]) (Graph.labNodes cwdg)
             where (a1,_) `compFst` (a2,_) = a1 `compare` a2
           
 instance PrettyPrintable (CDG, F.Signature, V.Variables) where 

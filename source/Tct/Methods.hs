@@ -71,6 +71,8 @@ module Tct.Methods
     , fastest
       -- | list version of "orFaster"            
     , upto
+    , withProblem
+    , step
     
     -- ** Predicates
     -- | The following predicates return either Yes(?,?) or No
@@ -201,13 +203,16 @@ module Tct.Methods
     -- , Compose.splitOnlyDPs
     -- , Compose.splitRandom
     -- , Compose.splitSatisfying
-    , Compose.selFirstCongruences
+    , Compose.selFirstCongruence
+    , Compose.selFirstStrictCongruence
     -- , Compose.splitWithoutLeafs
     , Compose.selCombine
     , Compose.selUnion
     , Compose.selInter
     , Compose.selInverse
     , ComposeRC.composeRC
+    , ComposeRC.solveAWith
+    , ComposeRC.solveBWith
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)
@@ -272,10 +277,12 @@ module Tct.Methods
       -- ** Misc
     , solveBy
     , withArgs
+    , mixed
     )
 where
 import Prelude hiding (fail, uncurry)
 import Control.Monad (liftM)
+import Termlib.Problem (Problem)
 import Tct.Method.Combinator
 import Tct.Method.PopStar
 import Tct.Method.EpoStar
@@ -407,3 +414,16 @@ instance P.IsDefaultOption PolyOptions where
 
 poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
 poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: Nat 3 :+: Just (Nat (pbits p)) :+: Nat `liftM` pcbits p :+: puseUsableArgs p)
+
+
+withProblem :: P.Processor proc =>
+              (Problem -> P.InstanceOf proc) -> P.InstanceOf (CustomProcessor Unit (P.ProofOf proc))
+withProblem f = customInstance "Inspecting Problem..." (\ prob -> P.solve (f prob) prob)
+
+mixed :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
+mixed = P.someInstance
+
+step :: (Transformer t1, P.Processor a) =>
+       [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
+step [] _ _ = mixed empty
+step (i:is) t p = mixed $ t i >>| (p i `before` step is t p)

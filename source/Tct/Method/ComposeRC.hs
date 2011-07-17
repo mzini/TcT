@@ -92,7 +92,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
 
     description ComposeRCProc = [ unwords [ ] ]
     arguments ComposeRCProc   = opt { A.name         = "split" 
-                                    , A.defaultValue = selFirstCongruences
+                                    , A.defaultValue = selFirstStrictCongruence
                                     , A.description  = ""}
                                 :+: opt { A.name = "subprocessor 1"
                                         , A.defaultValue = Nothing
@@ -193,8 +193,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                                 $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
                                 $+$ text ""
                                 $+$ text "These ruleset (A) was choosen by selecting function" 
-                                $+$ indent text (show (cpRuleSelector tproof)) <> text ","
-                                $+$ text "and closed under successors using the following dependency graph.")
+                                $+$ indent (text (show (cpRuleSelector tproof)) <> text ",")
+                                $+$ text "and closed under successors using the following dependency graph."
                                 $+$ indent (pprint (cpWdg tproof, sig, vars))
                                 $+$ text ""
                                 $+$ text "The length of a single A-subderivation is expressed by the following problem."
@@ -229,8 +229,20 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
               certFrom mp1 mp2 = maybe Cert.uncertified id mcert 
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
-composeRC :: RuleSelector () -> T.TheTransformer (ComposeRCProc P.SomeProcessor P.SomeProcessor)
-composeRC s = ComposeRCProc `T.calledWith` (s :+: Nothing :+: Nothing)
+defaultSelect :: RuleSelector a
+defaultSelect = selBfs "compose-select" fn
+    where fn cdg n = any ((==) DG.StrictDP . fst) rs 
+              where rs = DG.allRulesFromNodes cdg (DG.predecessors cdg n)
 
 composeRCProcessor :: T.TransformationProcessor (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
 composeRCProcessor = T.transformationProcessor ComposeRCProc
+
+
+composeRC :: RuleSelector () -> T.TheTransformer (ComposeRCProc P.SomeProcessor P.SomeProcessor)
+composeRC s = ComposeRCProc `T.calledWith` (s :+: Nothing :+: Nothing)
+
+solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p3) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p3 -> (T.TheTransformer (ComposeRCProc p1 p3))
+solveAWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRCProc (s :+: p1 :+: Just p)
+
+solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p3) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p3 -> (T.TheTransformer (ComposeRCProc p3 p2))
+solveBWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRCProc (s :+: Just p :+: p2)

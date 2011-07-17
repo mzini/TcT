@@ -43,6 +43,7 @@ import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
 import Tct.Method.DP.DependencyGraph
+import Data.Graph.Inductive.Query.BFS (bfsn)
 import qualified Tct.Method.DP.DependencyGraph as DG
 -- import Termlib.Term (..)
 -- static partitioning
@@ -104,18 +105,34 @@ selStricts = RS { rsName = "strict-rules" , rsSelect = fn }
                                    , Prob.strs = Prob.strictTrs prob
                                    , Prob.wtrs = Trs.empty }
 
-                      
-selFirstCongruences :: RuleSelector a
-selFirstCongruences = RS { rsName = "first congruence from CWDG"
-                         , rsSelect = fn }
-    where fn _ prob = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- rs]
-                                        , Prob.wdp = Trs.fromRules [ r | (DG.WeakDP, r) <- rs] }
-            where dg = estimatedDependencyGraph Edg prob
-                  cdg = toCongruenceGraph dg
-                  rs = allRulesFromNodes cdg (roots cdg)
-                  -- isIso (Var x) (Var y) perm | x `elem` perm = x == y
-                  -- isIso (Fun f ts) (Fun g ss) | length ts == length ss = case f `elem` perm
-                  --                             | otherwise             = False
+
+selFromCWDG :: String -> (a -> CDG -> Prob.Ruleset) -> RuleSelector a
+selFromCWDG n f = RS { rsName = n
+                     , rsSelect = \a prob -> f a (dg prob) }
+    where dg = toCongruenceGraph . estimatedDependencyGraph Edg
+
+restrictToCongruences :: Prob.Ruleset -> [NodeId] -> CDG -> Prob.Ruleset
+restrictToCongruences rs ns cdg = rs { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- rr]
+                                     , Prob.wdp = Trs.fromRules [ r | (DG.WeakDP, r) <- rr] }
+    where rr = allRulesFromNodes cdg ns
+
+selFirstCongruence :: RuleSelector a
+selFirstCongruence = selFromCWDG "first congruence from CWDG" fn
+    where fn _ cdg = restrictToCongruences Prob.emptyRuleset (roots cdg) cdg 
+
+selFirstStrictCongruence :: RuleSelector a
+selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from CWDG" fn
+    where fn _ cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
+              where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg
+                                  , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
+
+selBfs :: String -> (CDG  -> NodeId -> Bool) -> RuleSelector a
+selBfs nm f = selFromCWDG nm fn
+    where fn _ cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
+              where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg , f cdg n ]
+
+                                      
+
 
 -- splitWithoutLeafs :: RuleSelector a
 -- splitWithoutLeafs = Static ("split all rules from CWD except leafs"

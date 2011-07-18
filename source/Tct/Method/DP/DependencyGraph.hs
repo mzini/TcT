@@ -52,6 +52,12 @@ module Tct.Method.DP.DependencyGraph
      -- | List version of @lookupNodeLabel'@.
      , successors
     -- | Returns the list of successors in a given node.
+     , reachablesDfs
+    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- the successor relation with respect to @ns@ in a depth-first manner
+     , reachablesBfs
+    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- the successor relation with respect to @ns@ in a breath-first manner
      , lsuccessors
     -- | Returns the list of successors in a given node, including their labels.
      , predecessors
@@ -98,6 +104,11 @@ module Tct.Method.DP.DependencyGraph
     -- | @congruence cdg n@ 
     -- returns the nodes from the original dependency graph (i.e., the one 
     -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
+    , isCyclicNode
+    -- | @isCyclicNode cdg n@ 
+    -- returns @True@ iff there is an edge from a node in @congruence cdg n@
+    -- to @congruence cdg n@ in the original dependency graph (i.e., the one 
+    -- given to @toCongruenceGraph@).
 
     -- ** Utilities
     , pprintCWDGNode
@@ -111,7 +122,9 @@ where
 
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Graph.Inductive.Tree as GraphT
+import Data.Graph.Inductive.Query.DFS (dfs)
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
+import Data.Graph.Inductive.Query.BFS (bfsn)
 
 import qualified Control.Monad.State.Lazy as State
 import Data.List (delete, sortBy)
@@ -185,6 +198,12 @@ withNodeLabels' gr ns = [(n,lookupNodeLabel' gr n) | n <- ns]
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
 
+reachablesBfs :: DependencyGraph n e -> [NodeId] -> [NodeId]
+reachablesBfs = flip bfsn
+
+reachablesDfs :: DependencyGraph n e -> [NodeId] -> [NodeId]
+reachablesDfs = flip dfs
+
 predecessors :: DependencyGraph n e -> NodeId -> [NodeId]
 predecessors = Graph.pre
 
@@ -245,7 +264,11 @@ allRulesFromNodes :: CDG -> [NodeId] -> [(Strictness, R.Rule)]
 allRulesFromNodes gr ns = concatMap (allRulesFromNode gr) ns
 
 congruence :: CDG -> NodeId -> [NodeId]
-congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
+congruence cdg n = fromMaybe [] ((map fst . theSCC) `liftM` lookupNodeLabel cdg n)
+
+isCyclicNode :: CDG -> NodeId -> Bool
+isCyclicNode cdg n = isCyclic $ lookupNodeLabel' cdg n
+
 
 toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es

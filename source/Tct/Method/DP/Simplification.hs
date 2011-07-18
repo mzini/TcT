@@ -35,14 +35,14 @@ import qualified Termlib.Term as Term
 
 import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Utils hiding (block)
-import Data.Maybe (fromJust, isJust, fromMaybe)
+import Data.Maybe (isJust, fromMaybe)
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args
 import Tct.Processor.PPrint
 import Tct.Method.DP.Utils 
-import Tct.Method.DP.DependencyGraph hiding (GroundContext)
+import Tct.Method.DP.DependencyGraph
 import Tct.Method.DP.DependencyPairs
 import qualified Data.Graph.Inductive.Graph as Graph
 
@@ -79,7 +79,7 @@ instance T.TransformationProof RemoveTail where
            ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
                        | nonSelfCyclic wdg scc = text "Noncyclic, trivial, SCC"
                        | otherwise             = PP.empty
-               where scc = fromJust $ lookupNode cwdg n
+               where scc = lookupNodeLabel' cwdg n
                                           
 
 onlyWeaks :: CDGNode -> Bool
@@ -102,7 +102,7 @@ instance T.Transformer RemoveTail where
                    | null labTails  = return $ T.NoProgress proof
                    | otherwise      = return $ T.Progress proof (enumeration' [prob'])
         where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
-                  where initials = [ n | (n,cn) <- withNodeLabels cwdg $ leafs cwdg
+                  where initials = [ n | (n,cn) <- withNodeLabels' cwdg $ leafs cwdg
                                        , onlyWeaks cn || nonSelfCyclic wdg cn ]
               ls = map (snd . snd) labTails
               computeTails []             lfs = lfs
@@ -116,7 +116,7 @@ instance T.Transformer RemoveTail where
                                   else lfs 
                                     
                     
-              mkPairs n = theSCC $ lookupNode' cwdg n
+              mkPairs n = theSCC $ lookupNodeLabel' cwdg n
               wdg   = estimatedDependencyGraph Edg prob
               cwdg  = toCongruenceGraph wdg
               sig   = Prob.signature prob

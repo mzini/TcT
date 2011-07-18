@@ -126,10 +126,10 @@ selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from 
               where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg
                                   , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
 
-selBfs :: String -> (CDG  -> NodeId -> Bool) -> RuleSelector a
+selBfs :: String -> (CDG -> NodeId -> [NodeId]) -> RuleSelector a
 selBfs nm f = selFromCWDG nm fn
-    where fn _ cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
-              where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg , f cdg n ]
+    where fn _ dg = restrictToCongruences Prob.emptyRuleset ns dg 
+              where ns = concatMap (f dg) (bfsn (roots dg) dg)
 
                                       
 

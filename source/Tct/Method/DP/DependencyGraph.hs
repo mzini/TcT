@@ -20,7 +20,93 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Tct.Method.DP.DependencyGraph where
+module Tct.Method.DP.DependencyGraph 
+    (
+     -- * Unified Graph Interface
+     -- ** Datatypes
+     DependencyGraph
+     -- | @DependencyGraph n e@ is a Graph with node-labels @n@ and 
+     -- edge-labels 'e'
+    , Strictness (..)
+    , NodeId
+     -- | A node in the dependency graph. Most operations work on @NodeId@s. 
+     -- Use @lookupNodeLabel@ to get the label of the node
+
+     -- ** Operations
+    , nodes
+    -- | Returns the set of nodes. 
+    , lnodes
+    -- | Returns the set of nodes together with their labels. 
+     , roots 
+     -- | Returns the list of nodes without predecessor.
+     , leafs
+     -- | Returns the list of nodes without successor.
+     , lookupNodeLabel
+     -- | Returns the label of the given node, if present.
+     , lookupNodeLabel'
+     -- | Returns the label of the given node, if present. 
+     -- Otherwise an exception is raised
+     , withNodeLabels
+     -- | List version of @lookupNodeLabel@.
+     , withNodeLabels'
+     -- | List version of @lookupNodeLabel'@.
+     , successors
+    -- | Returns the list of successors in a given node.
+     , lsuccessors
+    -- | Returns the list of successors in a given node, including their labels.
+     , predecessors
+    -- | Returns the list of predecessors in a given node.
+     , lpredecessors
+    -- | Returns the list of predecessors in a given node, including their labels.
+    , isEdgeTo
+    -- | @isEdgeTo dg n1 n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- the dependency graph @dg@
+    , isLEdgeTo
+    -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
+    -- labeled by @l@.
+
+    -- * Dependency Graph
+    -- ** Datatype 
+    , DG
+    -- | The dependency graph.
+    , DGNode
+    -- | Nodes of the DG are labeled by rules and their strictness-annotation.
+    , Approximation (..)
+    -- | Implemented approximations for DGs
+
+    -- ** Operations
+    , estimatedDependencyGraph
+    -- | @estimatedDependencyGraph approx prob@ 
+    -- returns the estimated dependency-graph of a given problem @prob@ with 
+    -- respect to the approximation @approx@.
+     
+    -- * Congruence Graph
+    -- ** Datatype 
+    , CDG
+    -- | The congruence dependency graph.
+    , CDGNode (..)
+
+    -- ** Operations
+    ,  toCongruenceGraph
+    -- | Computes the congruence graph of a given dependency graph.
+    , allRulesFromNode 
+    -- | Returns the list of annotated rules of the given node.
+    , allRulesFromNodes
+    -- | List version of @allRulesFromNode@.
+    , congruence
+    -- | @congruence cdg n@ 
+    -- returns the nodes from the original dependency graph (i.e., the one 
+    -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
+
+    -- ** Utilities
+    , pprintCWDGNode
+    -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
+    -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
+    , pprintCWDG
+    -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+    )
+where
 
 
 import qualified Data.Graph.Inductive.Graph as Graph
@@ -62,7 +148,8 @@ data Strictness = StrictDP | WeakDP deriving (Ord, Eq, Show)
 type DGNode = (Strictness, R.Rule)
 type DG = DependencyGraph DGNode Int
 
-data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)] } deriving (Show)
+data CDGNode = CongrNode { theSCC :: [(NodeId, DGNode)]
+                         , isCyclic :: Bool } deriving (Show)
 
 type CDG = DependencyGraph CDGNode (R.Rule, Int)
 
@@ -70,18 +157,30 @@ type CDG = DependencyGraph CDGNode (R.Rule, Int)
 -- Graph Inspection
 --------------------------------------------------------------------------------
 
+nodes :: DependencyGraph n e -> [NodeId]
+nodes = Graph.nodes
 
-lookupNode :: DependencyGraph n e -> NodeId -> Maybe n
-lookupNode = Graph.lab
-
-lookupNode' :: DependencyGraph n e -> NodeId -> n
-lookupNode' gr n = fromJust $ lookupNode gr n
+lnodes :: DependencyGraph n e -> [(NodeId,n)]
+lnodes = Graph.labNodes
 
 roots :: DependencyGraph n e -> [NodeId]
 roots gr = [n | n <- Graph.nodes gr, Graph.indeg gr n == 0]
 
 leafs :: DependencyGraph n e -> [NodeId]
 leafs gr = [n | n <- Graph.nodes gr, Graph.outdeg gr n == 0]
+
+lookupNodeLabel :: DependencyGraph n e -> NodeId -> Maybe n
+lookupNodeLabel = Graph.lab
+
+lookupNodeLabel' :: DependencyGraph n e -> NodeId -> n
+lookupNodeLabel' gr n = fromJust $ lookupNodeLabel gr n
+
+withNodeLabels :: DependencyGraph n e -> [NodeId] -> [(NodeId, Maybe n)]
+withNodeLabels gr ns = [(n,lookupNodeLabel gr n) | n <- ns]
+
+withNodeLabels' :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
+withNodeLabels' gr ns = [(n,lookupNodeLabel' gr n) | n <- ns]
+
 
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
@@ -90,45 +189,17 @@ predecessors :: DependencyGraph n e -> NodeId -> [NodeId]
 predecessors = Graph.pre
 
 lsuccessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
-lsuccessors gr nde = [(n, lookupNode' gr n, e) | (n,e) <- Graph.lsuc gr nde]
+lsuccessors gr nde = [(n, lookupNodeLabel' gr n, e) | (n,e) <- Graph.lsuc gr nde]
 
 lpredecessors :: DependencyGraph n e -> NodeId -> [(NodeId, n, e)]
-lpredecessors gr nde = [(n, lookupNode' gr n, e) | (n,e) <- Graph.lpre gr nde]
-
-withNodeLabels :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
-withNodeLabels gr ns = [(n,lookupNode' gr n) | n <- ns]
-
-nodes :: DependencyGraph n e -> [NodeId]
-nodes = Graph.nodes
-
-lnodes :: DependencyGraph n e -> [(NodeId,n)]
-lnodes = Graph.labNodes
-
--- rulesFromNode :: CDG -> Strictness -> NodeId -> [R.Rule]
--- rulesFromNode gr str n = case lookupNode gr n of 
---                             Nothing -> []
---                             Just cn -> [ r | (_, (str', r)) <- theSCC cn, str == str']
-
-allRulesFromNode :: CDG -> NodeId -> [(Strictness, R.Rule)]
-allRulesFromNode gr n = case lookupNode gr n of 
-                            Nothing -> []
-                            Just cn -> [ sr | (_, sr) <- theSCC cn]
-                            
--- rulesFromNodes :: CDG -> Strictness -> [NodeId] -> Trs
--- rulesFromNodes gr str ns = Trs $ concatMap (rulesFromNode gr str) ns
-
-allRulesFromNodes :: CDG -> [NodeId] -> [(Strictness, R.Rule)]
-allRulesFromNodes gr ns = concatMap (allRulesFromNode gr) ns
-
-congruence :: CDG -> NodeId -> [NodeId]
-congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
-
+lpredecessors gr nde = [(n, lookupNodeLabel' gr n, e) | (n,e) <- Graph.lpre gr nde]
 
 isEdgeTo :: DependencyGraph n e -> NodeId -> NodeId -> Bool
 isEdgeTo g n1 n2 = n2 `elem` successors g n1 
 
 isLEdgeTo :: Eq e => DependencyGraph n e -> NodeId -> e -> NodeId -> Bool
 isLEdgeTo g n1 e n2 = n2 `elem` [n | (n, _, e2) <- lsuccessors g n1, e == e2]
+
 
 --------------------------------------------------------------------------------
 -- Estimated Dependency Graph
@@ -165,6 +236,17 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
 -- Congruence Dependency Graph
 --------------------------------------------------------------------------------
 
+allRulesFromNode :: CDG -> NodeId -> [(Strictness, R.Rule)]
+allRulesFromNode gr n = case lookupNodeLabel gr n of 
+                            Nothing -> []
+                            Just cn -> [ sr | (_, sr) <- theSCC cn]
+
+allRulesFromNodes :: CDG -> [NodeId] -> [(Strictness, R.Rule)]
+allRulesFromNodes gr ns = concatMap (allRulesFromNode gr) ns
+
+congruence :: CDG -> NodeId -> [NodeId]
+congruence gr n = fromMaybe [] ((map fst . theSCC) `liftM` Graph.lab gr n)
+
 toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es
     where ns    = zip [1..] [sccNode scc | scc <- GraphDFS.scc gr]
@@ -175,8 +257,10 @@ toCongruenceGraph gr = Graph.mkGraph ns es
           cn1 `edgesTo` cn2 = [ (r1, i) | (n1,(_,r1)) <- theSCC cn1
                               , (n, _, i) <- lsuccessors gr n1
                               , n `elem` map fst (theSCC cn2)]
-          sccNode scc = CongrNode { theSCC = [ (n, fromJust $ lookupNode gr n) | n <- scc]}
-
+          sccNode scc = CongrNode { theSCC = [ (n, fromJust $ lookupNodeLabel gr n) | n <- scc]
+                                  , isCyclic = checkCyclic scc}
+          checkCyclic [n] = n `elem` successors gr n
+          checkCyclic _   = True
 
 instance PrettyPrintable (DG, F.Signature, V.Variables) where 
   pprint (wdg, sig, vars) | isEmpty   = text "empty" 

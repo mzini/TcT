@@ -146,7 +146,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
                                              DG.StrictDP -> (r : rss',rsw')
                                              DG.WeakDP   -> (rss', r : rsw')) ([],[]) rsel
                         selected = closeBySuccessor $ rsSelect s () prob
-                        closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels wdg (dfs initials wdg) ]
+                        closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
                             where initials = [ n | (n, (_, r)) <- allLabeledNodes, Trs.member dps r ]
                                   dps = Prob.sdp rs `Trs.union` Prob.wdp rs
 
@@ -230,9 +230,10 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
 defaultSelect :: RuleSelector a
-defaultSelect = selBfs "compose-select" fn
-    where fn cdg n = any ((==) DG.StrictDP . fst) rs 
-              where rs = DG.allRulesFromNodes cdg (DG.predecessors cdg n)
+defaultSelect = s1
+    where s1 = selBfs "admits strict predecessor in CDG" fn
+              where fn cdg n = if any ((==) DG.StrictDP . fst) rs then [n] else []
+                        where rs = DG.allRulesFromNodes cdg (DG.predecessors cdg n)
 
 composeRCProcessor :: T.TransformationProcessor (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
 composeRCProcessor = T.transformationProcessor ComposeRCProc

@@ -128,6 +128,9 @@ module Tct.Methods
       -- is obtained by composition.
     , Compose.composeDynamic
       -- | @composeDynamic = compose Dynamic@
+    , ComposeRC.composeRC
+    , ComposeRC.solveAWith
+    , ComposeRC.solveBWith
       
       -- *** DP Transformations      
     , dependencyPairs
@@ -196,6 +199,10 @@ module Tct.Methods
     , AssocArgument (..)      
     , WhichTrs(..)
     , Assoc 
+    -- *** RuleSelector
+    -- | A @RuleSelector@ is used to select 
+    -- rules from a problem. Various combinators 
+    -- are implemented
     , Compose.RuleSelector(..)
     , Compose.selRules
     , Compose.selDPs
@@ -205,14 +212,13 @@ module Tct.Methods
     -- , Compose.splitSatisfying
     , Compose.selFirstCongruence
     , Compose.selFirstStrictCongruence
+    , Compose.selFromCWDG
     -- , Compose.splitWithoutLeafs
     , Compose.selCombine
     , Compose.selUnion
     , Compose.selInter
     , Compose.selInverse
-    , ComposeRC.composeRC
-    , ComposeRC.solveAWith
-    , ComposeRC.solveBWith
+    -- *** Default Options
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)

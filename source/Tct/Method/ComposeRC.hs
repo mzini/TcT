@@ -174,7 +174,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
                         mkrl _ []  = return Nothing
                         mkrl _ [(_,t)] = return $ Just $ Rule l t
                         mkrl sn tis    = do attribs <- F.getAttributes f 
-                                            c <- F.fresh attribs { F.symArity    = length ts
+                                            c <- F.fresh attribs { F.symArity    = length tis
                                                                 , F.symIsCompound = True 
                                                                 , F.symIdent = F.symIdent attribs ++ sn}
                                             return $ Just $ Rule l (Term.Fun c [ti | (_, ti) <- tis])

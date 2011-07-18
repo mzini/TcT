@@ -154,8 +154,11 @@ withFreshCompounds prob = fst . flip Sig.runSignature (Prob.signature prob)  $
          names i = ["c_" ++ show j | j <- [ i..] ]
          sdps = Trs.rules $ Prob.strictDPs prob
          wdps = Trs.rules $ Prob.weakDPs prob
-         frsh (R.Rule l (Term.Fun _ rs), n) = do c <- fresh (defaultAttribs n (length rs)) {symIsCompound = True}
-                                                 return $ R.Rule l (Term.Fun c rs)
+         frsh (rule@(R.Rule _ (Term.Fun f rs)), n) = do attribs <- getAttributes f 
+                                                        c <- if symIsCompound attribs
+                                                             then fresh (defaultAttribs n (length rs)) {symIsCompound = True}
+                                                             else return f
+                                                        return rule { R.rhs = (Term.Fun c rs) }
          frsh (rule, _)                     = return rule
 
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor

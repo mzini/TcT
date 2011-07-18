@@ -237,12 +237,13 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
                              , (n2,(_,l2)) <- ns
                              , i <- R.rhs l1 `edgesTo` R.lhs l2] 
           (Term.Var _)      `edgesTo` _ = []
-          s@(Term.Fun f ts) `edgesTo` t = [ i | (i,ti) <- zip [1..] ts', ti `edgeToP` t] 
-              where ts' | F.isCompound sig f = ts
+          s@(Term.Fun f ss) `edgesTo` t = [ i | (i,si) <- zip [1..] ss', si `edgeToP` t] 
+              where ss' | F.isCompound sig f = ss
                         | otherwise          = [s]
           (Term.Var _) `edgeToP` _    = False
           s            `edgeToP` t | approx == Edg = match (etcap lhss s) t 
-                                                    && (any Term.isVariable rhss || match (etcap rhss t) s)
+                                                    && (any Term.isVariable rhss 
+                                                       || match (etcap rhss t) s)
                                    | otherwise    = True
           sig = Prob.signature prob
           rs = Prob.trsComponents prob

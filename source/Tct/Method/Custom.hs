@@ -79,7 +79,7 @@ processor d f = S.StdProcessor CP {description = toDescription d, code = f }
 
 strategy :: (P.Processor proc, IsDescription d arg) =>
            (A.Domains arg -> P.InstanceOf proc) -> d -> CustomProcessor arg P.SomeProof
-strategy mkinst d = processor d (\ as prob -> P.SomeProof `liftM` (P.solve (mkinst as) prob))
+strategy mkinst d = processor d (\ sargs prob -> P.SomeProof `liftM` (P.solve (mkinst sargs) prob))
 
 processorFromInstance :: (IsDescription d arg, P.Processor proc) => 
              d -> (A.Domains arg -> P.InstanceOf proc) -> (CustomProcessor arg (P.ProofOf proc))

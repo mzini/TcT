@@ -339,7 +339,7 @@ etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
     where c = Fun f $ map (etcap lhss) ts
 
 pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
-pprintCWDGNode cwdg _ _ n = braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ]
+pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> (braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ])
 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
 pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree

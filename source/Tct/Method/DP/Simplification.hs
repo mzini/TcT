@@ -21,11 +21,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.DP.Simplification where
 
 import qualified Data.Set as Set
+import Data.List (partition)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
 
 import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
@@ -143,6 +145,7 @@ removeTails = RemoveTail `T.calledWith` ()
 
 data SimpRHS = SimpRHS
 data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] 
+                              , srhsDG            :: DG
                               , srhsSig           :: F.Signature
                               , srhsVars          :: V.Variables}                                
                   | SRHSError DPError
@@ -151,12 +154,17 @@ instance T.TransformationProof SimpRHS where
   answer = T.answerFromSubProof
   pprintProof _ _ (SRHSError e) = pprint e
   pprintProof _ _ p | null repls = text "No rule was simplified"
-                    | otherwise = text "The right-hand sides of following rules could be simplified:"
+                    | otherwise = text "We consider the following dependency-graph" 
+                                  $+$ text ""
+                                  $+$ indent (pprint (dg, sig, vars))
+
+                                  $+$ text "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
                                   $+$ text ""
                                   $+$ indent (pprint (Trs repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p
+           dg    = srhsDG p
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"
@@ -166,20 +174,29 @@ instance T.Transformer SimpRHS where
   transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SRHSError ContainsStrictRule
                    | progr            = return $ T.Progress proof (enumeration' [prob'])
                    | otherwise        = return $ T.NoProgress proof
-    where proof = SRHSProof { srhsReplacedRules = [rule | (rule, Just _) <- elims]
-                            , srhsSig           = Prob.signature prob
-                            , srhsVars          = Prob.variables prob }
+    where proof = SRHSProof { srhsReplacedRules = [rule | (_, _, rule, Just _) <- elims]
+                            , srhsDG            = wdg
+                            , srhsSig           = Prob.signature prob'
+                            , srhsVars          = Prob.variables prob' }
           strs  = Prob.strictTrs prob
-          progr = any (isJust . snd) elims
-          elims = [(rule, elim rule) | rule <- Trs.toRules $ Prob.strictDPs prob]
-            where ds   = Trs.definedSymbols (Prob.dpComponents prob)
-                  isDefinedOrVar (Term.Fun f _) = Set.member f ds
-                  isDefinedOrVar (Term.Var _)   = True
-                  elim (Rule l (Term.Fun f rs)) | length rs == length rs' = Nothing
-                                                | otherwise              = Just $ Rule l (Term.Fun f rs')
-                        where rs' = filter isDefinedOrVar rs
-                  elim _                                                 = Nothing
-          prob' = withFreshCompounds prob { Prob.strictDPs = Trs.fromRules [ fromMaybe (fst p) (snd p) | p <- elims] }
+          (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
+          wdg   = estimatedDependencyGraph Edg prob
+          progr = any (\ (_,_,_,mr) -> isJust mr) elims
+          elims = [(n, s, rule, elim n rule) | (n,(s,rule)) <- lnodes wdg]
+            where elim n (Rule l r@(Term.Fun f rs)) 
+                      | F.isCompound sig f = elim' n l rs
+                      | otherwise          = elim' n l [r]
+                  elim n (Rule l r)        = elim' n l [r]
+                  elim' n l rs | length rs == length rs' = Nothing
+                               | otherwise              = Just $ Rule l (Term.Fun c rs')
+                      where rs' = [ ri | (i,ri) <- zip [1..] rs
+                                  , any (\ (_,_, j) -> i == j) succs ]
+                            succs = lsuccessors wdg n
+          prob' = withFreshCompounds prob { Prob.strictDPs = toTrs stricts
+                                          , Prob.weakDPs   = toTrs weaks
+                                          , Prob.signature = sig }
+              where (stricts, weaks) = partition (\ (_, s, _, _) -> s == StrictDP) elims
+                    toTrs l = Trs.fromRules [ fromMaybe r mr | (_,_,r,mr) <- l ]
 
 simpDPRHSProcessor :: T.TransformationProcessor SimpRHS P.AnyProcessor
 simpDPRHSProcessor = T.transformationProcessor SimpRHS

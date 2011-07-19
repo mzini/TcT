@@ -46,7 +46,6 @@ import Text.Parsec.Char
 import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
 
-import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Trs as Trs
 import Termlib.Problem (strictComponents) 
 import qualified Tct.Processor as P
@@ -64,20 +63,18 @@ data TrivialProof = Succeeded
                   | Failed
                   | Empty Bool
 
-instance P.Answerable TrivialProof where 
-    answer Succeeded = P.YesAnswer
-    answer Failed    = P.NoAnswer
-    answer (Empty True)    = P.answerFromCertificate $ certified (constant,constant)
-    answer (Empty False)   = P.NoAnswer
+instance P.ComplexityProof TrivialProof where 
+    answer Succeeded     = P.YesAnswer
+    answer Failed        = P.NoAnswer
+    answer (Empty True)  = P.answerFromCertificate $ certified (constant,constant)
+    answer (Empty False) = P.NoAnswer
+    pprintProof Succeeded     _ = text "Success"
+    pprintProof Failed        _ = text "Fail"
+    pprintProof (Empty True)  _ = text "Empty rules are trivially bounded"
+    pprintProof (Empty False) _ = text "Empty strict component of the problem is NOT empty."
 
-instance PrettyPrintable TrivialProof where 
-    pprint Succeeded = text "Success"
-    pprint Failed    = text "Fail"
-    pprint (Empty True)  = text "Empty rules are trivially bounded"
-    pprint (Empty False) = text "Empty strict component of the problem is NOT empty."
-
-instance P.Verifiable TrivialProof where
-    verify _ _ = P.verifyOK
+-- instance P.Verifiable TrivialProof where
+--     verify _ _ = P.verifyOK
 
 data Fail = Fail deriving (Show)
 
@@ -139,33 +136,29 @@ data Ite g t e = Ite
 data IteProof g t e = IteProof { guardProof  :: P.ProofOf g
                                , branchProof :: Either (P.ProofOf t) (P.ProofOf e) }
 
-instance ( P.Answerable (P.ProofOf t)
-         , P.Answerable (P.ProofOf e))
-    => P.Answerable (IteProof g t e) where
+instance ( P.ComplexityProof (P.ProofOf g)
+         , P.ComplexityProof (P.ProofOf t)
+         , P.ComplexityProof (P.ProofOf e)) => P.ComplexityProof (IteProof g t e) where
       answer p = either P.answer P.answer $ branchProof p
-
-instance ( P.Answerable (P.ProofOf g)
-         , PrettyPrintable (P.ProofOf g)
-         , PrettyPrintable (P.ProofOf t)
-         , PrettyPrintable (P.ProofOf e)) 
-    => PrettyPrintable (IteProof g t e) where
-        pprint p = ppcond $+$ text "" $+$ ppbranch
+      pprintProof p mde@P.StrategyOutput = ppcond $+$ text "" $+$ ppbranch
             where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
-                             $+$ (nest 3 $ pprint $ guardProof p)
+                             $+$ (indent $ P.pprintProof (guardProof p) mde)
                   ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
-                             $+$ (nest 3 $ either pprint pprint $ branchProof p)
                   suc      = P.succeeded $ guardProof p
+      pprintProof p mde@P.ProofOutput    = case branchProof p of 
+                                             Left pb  -> P.pprintProof pb mde
+                                             Right pb -> P.pprintProof pb mde
 
-instance ( P.Verifiable (P.ProofOf g)
-         , P.Verifiable (P.ProofOf t)
-         , P.Verifiable (P.ProofOf e) )
-    => P.Verifiable (IteProof g t e) where 
-        verify prob proof = P.verify prob  (guardProof proof) `P.andVerify` vfy (branchProof proof)
-            where vfy (Left p)  = P.verify prob p
-                  vfy (Right p) = P.verify prob p
+
+-- instance ( P.Verifiable (P.ProofOf g)
+--          , P.Verifiable (P.ProofOf t)
+--          , P.Verifiable (P.ProofOf e) )
+--     => P.Verifiable (IteProof g t e) where 
+--         verify prob proof = P.verify prob  (guardProof proof) `P.andVerify` vfy (branchProof proof)
+--             where vfy (Left p)  = P.verify prob p
+--                   vfy (Right p) = P.verify prob p
 
 instance ( P.Processor g
-         , P.Answerable (P.ProofOf g)
          , P.Processor t
          , P.Processor e) 
     => P.Processor (Ite g t e) where
@@ -224,25 +217,32 @@ data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show)
 data OneOfProof p = OneOfFailed (OneOf p) [P.Proof p]
                   | OneOfSucceeded (OneOf p) (P.Proof p)
 
-instance P.Answerable (P.Proof p) => P.Answerable (OneOfProof p) where
+-- instance P.Answerable (P.Proof p) => P.Answerable (OneOfProof p) where
+--     answer (OneOfFailed _ _)    = P.MaybeAnswer
+--     answer (OneOfSucceeded _ p) = P.answer p
+
+-- instance P.Verifiable (P.Proof p) => P.Verifiable (OneOfProof p) where
+--     verify _    (OneOfFailed _ _)    = P.verifyOK
+--     verify prob (OneOfSucceeded _ p) = P.verify prob p
+
+instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
+    pprintProof proof mde = 
+        case proof of 
+          (OneOfFailed _ failures) -> text "None of the processors succeeded."
+                                     $+$ text "" 
+                                     $+$ detailsFailed (enumeration' failures) mde
+          (OneOfSucceeded o p) 
+              | mde == P.StrategyOutput -> case o of 
+                                           Sequentially -> procName p <+> text "succeeded:"
+                                           Fastest      -> procName p <+> text "proved the goal fastest:"
+                                           Best         -> procName p <+> text "proved the best result:"
+                                         $+$ text ""
+                                         $+$ P.pprintProof (P.result p) mde
+              | otherwise              -> P.pprintProof (P.result p) mde
+
     answer (OneOfFailed _ _)    = P.MaybeAnswer
     answer (OneOfSucceeded _ p) = P.answer p
 
-instance P.Verifiable (P.Proof p) => P.Verifiable (OneOfProof p) where
-    verify _    (OneOfFailed _ _)    = P.verifyOK
-    verify prob (OneOfSucceeded _ p) = P.verify prob p
-
-instance (P.Processor p) => PrettyPrintable (OneOfProof p) where
-    pprint proof = case proof of 
-                     (OneOfFailed _ failures) -> text "None of the processors succeeded."
-                                                $+$ text "" 
-                                                $+$ detailsFailed (enumeration' failures)
-                     (OneOfSucceeded o p)     -> descr o
-                                                $+$ text ""
-                                                $+$ pprint (P.result p)
-                                                    where descr Sequentially = procName p <+> text "succeeded:"
-                                                          descr Fastest      = procName p <+> text "proved the goal fastest:"
-                                                          descr Best         = procName p <+> text "proved the best result:"
 
 instance (P.Processor p) => S.Processor (OneOf p) where
     type S.ArgumentsOf (OneOf p) = Arg [Proc p]
@@ -256,7 +256,6 @@ instance (P.Processor p) => S.Processor (OneOf p) where
         where c Best         = "Best"
               c Fastest      = "Fastest"
               c Sequentially = "Sequentially"
-
     description Best         = ["Processor 'Best' applies the given list of processors in parallel and returns the proof admitting the lowest complexity certificate."]
     description Fastest      = ["Processor 'Fastest' applies the given list of processors in parallel and returns the first successful proof."]
     description Sequentially = ["Processor 'Sequentially' applies the given list of processors sequentially and returns the first successful proof."]

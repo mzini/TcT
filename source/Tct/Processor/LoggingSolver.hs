@@ -73,7 +73,7 @@ instance PrettyPrintable LoggingMsg where
               body = text "#+BEGIN_EXAMPLE"
                      $+$ (case sig of 
                             SolveStart -> pprint prob
-                            SolveFinish p -> pprint p)
+                            SolveFinish p -> pprintProof p StrategyOutput)
                      $+$ text "#+END_EXAMPLE"
 
               ppPropertyName n = text $ ":" ++ n ++ ":"

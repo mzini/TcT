@@ -52,7 +52,6 @@ instance (Numbering a, Numbering b) => Numbering (Either a b) where
     ppNumbering (Right b) = ppNumbering b
 
 data SomeNumbering = forall a. Numbering a => SN a
---instance Numbering SomeNumbering where ppNumbering (SN e) = ppNumbering e
 instance PrettyPrintable SomeNumbering where pprint (SN e) = ppNumbering e
 
 --------------------------------------------------------------------------------
@@ -133,27 +132,27 @@ procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
 
 
 
-details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
-details ps | any (failed . snd) ps = detailsFailed ps 
-           | otherwise             = detailsSuccess ps
+-- details :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
+-- details ps | any (failed . snd) ps = detailsFailed ps 
+--            | otherwise             = detailsSuccess ps
 
-detailsFailed :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
-detailsFailed ps = block "Details of failed attempt(s)" 
+detailsFailed :: (P.Processor a) => Enumeration (P.Proof a) -> P.PPMode -> Doc
+detailsFailed ps mde = block "Details of failed attempt(s)" 
                        $ [ (a, procName p <+> text "failed due to the following reason:" 
-                                 $+$ (indent $ pprint $ P.result p)) 
+                                 $+$ (indent $ P.pprintProof (P.result p) mde))
                            | (a,p) <- ps, failed p]
 
-detailsSuccess :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
-detailsSuccess ps = block "Details" 
-                    $ [(e, procName p <+> text "succeeded with the following output:" $+$ (nest 1 $ pprint p)) 
-                       | (e, p) <- ps]
+-- detailsSuccess :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
+-- detailsSuccess ps = block "Details" 
+--                     $ [(e, procName p <+> text "succeeded with the following output:" $+$ (nest 1 $ pprint p)) 
+--                        | (e, p) <- ps]
 
-overview :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
-overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
-    where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
-                         $+$ indent (pprint (P.inputProblem p))
-                           where status | succeeded p = text "reports bound" <+> pprint (answer p)
-                                        | otherwise   = text "FAILED"
+-- overview :: (P.Processor a) => Enumeration (P.Proof a) -> Doc
+-- overview ps = block "Overview" $ [(e, ppOverview p) | (e,p) <- ps]
+--     where ppOverview p = procName p <+> status <+> text "on the subproblem defined by:"
+--                          $+$ indent (pprint (P.inputProblem p))
+--                            where status | succeeded p = text "reports bound" <+> pprint (answer p)
+--                                         | otherwise   = text "FAILED"
 
 
 

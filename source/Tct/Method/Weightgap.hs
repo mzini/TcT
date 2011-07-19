@@ -76,16 +76,17 @@ data WeightGapProof = WeightGapProof { wgInputProblem :: Problem
                                      }
 
 instance PrettyPrintable WeightGapProof where
-  pprint (WeightGapProof _ e@Empty _ _ _) = pprint e
-  pprint wgp | P.succeeded p = text "The weightgap principle applies, where following rules are oriented strictly:"
-                               $+$ text ""
-                               $+$ pptrs "Dependency Pairs" sDPs
-                               $+$ pptrs "TRS Component" sTrs
-                               $+$ text ""
-                               $+$ block' intertitle [pprint p]
-                               $+$ text ""
-                               $+$ text "The strictly oriented rules are moved into the weak component."
-             | otherwise     = text "The weightgap principle does not apply"
+  pprint (WeightGapProof _ e@Empty _ _ _) = P.pprintProof e P.ProofOutput
+  pprint wgp 
+      | P.succeeded p = text "The weightgap principle applies, where following rules are oriented strictly:"
+                        $+$ text ""
+                        $+$ pptrs "Dependency Pairs" sDPs
+                        $+$ pptrs "TRS Component" sTrs
+                        $+$ text ""
+                        $+$ block' intertitle [P.pprintProof p P.ProofOutput]
+                        $+$ text ""
+                        $+$ text "The strictly oriented rules are moved into the weak component."
+      | otherwise     = text "The weightgap principle does not apply"
     where ip = wgInputProblem wgp
           p  = wgProof wgp
           sDPs = Trs.fromRules $ wgRemovableDps wgp
@@ -106,7 +107,7 @@ instance T.TransformationProof WeightGap where
           mkAnswer (P.CertAnswer tc) (P.CertAnswer c) = P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
           mkAnswer _                 a                = a
                        
-  pprintProof _ _  = pprint 
+  pprintTProof _ _  = pprint 
 
 
 instance T.Transformer WeightGap where

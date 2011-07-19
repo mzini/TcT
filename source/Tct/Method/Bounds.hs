@@ -45,7 +45,7 @@ import qualified Termlib.FunctionSymbol as FS
 
 import Tct.Certificate (certified, unknown, poly)
 import qualified Tct.Processor as P
-import Tct.Processor (Verifiable(..), Answerable(..), Answer(..))
+import Tct.Processor (ComplexityProof(..), Answer(..))
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -72,15 +72,11 @@ data BoundsProof = BP Enrichment (Maybe BoundsCertificate)
 ppEnrichment :: Enrichment -> Doc
 ppEnrichment = text . show
 
-instance PrettyPrintable BoundsProof where
-    pprint (BP e Nothing)  = (ppEnrichment e) <> text "-boundness" <+> text "of the problem could not be verified." 
-    pprint (BP e (Just p)) = text "The problem is" <+> (ppEnrichment e) <> text "-bounded by" <+> pprint (boundHeight p) <> text "."
-                             $+$ text "The enriched problem is compatible with the following automaton:"
-                             $+$ pprint (toRules (automaton p), (sig p))
-
-instance Verifiable BoundsProof
-
-instance Answerable BoundsProof where
+instance ComplexityProof BoundsProof where
+    pprintProof (BP e Nothing) _ = (ppEnrichment e) <> text "-boundness" <+> text "of the problem could not be verified." 
+    pprintProof (BP e (Just p)) _ = text "The problem is" <+> (ppEnrichment e) <> text "-bounded by" <+> pprint (boundHeight p) <> text "."
+                                    $+$ text "The enriched problem is compatible with the following automaton:"
+                                    $+$ pprint (toRules (automaton p), (sig p))
     answer (BP _ Nothing) = MaybeAnswer
     answer (BP _ _)       = CertAnswer $ certified (unknown, poly (Just 1))
 

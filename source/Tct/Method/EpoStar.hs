@@ -63,7 +63,7 @@ import qualified Tct.Processor.Standard as S
 import qualified Tct.Certificate as C
 import Tct.Processor.Orderings
 import Tct.Processor.Args
-import Tct.Processor (Answerable (..), Answer (..), Verifiable(..))
+import Tct.Processor (ComplexityProof (..), Answer (..))
 
 import Tct.Processor.Args.Instances ()
 import qualified Tct.Processor.Args as A
@@ -163,19 +163,14 @@ instance PrettyPrintable (ArgumentPermutation,Sig) where
 
 data EpoProof = EpoProof Trs SM.SafeMapping Prec.Precedence ArgumentPermutation Sig
 
-instance PrettyPrintable EpoProof where
-    pprint (EpoProof trs sm prec perm sign) = ppstrict $$ ppsm $$ ppperm $$ ppprec 
+instance ComplexityProof EpoProof where
+    pprintProof (EpoProof trs sm prec perm sign) _ = ppstrict $$ ppsm $$ ppperm $$ ppprec 
       where ppsm           = text "Safe Mapping:" $$ (nest 1 $ pprint $ sm)
             ppprec         = text "Precedence:" $$ (nest 1 $ pprint $ prec)
             ppperm         = text "Argument Permutation:" $$ (nest 1 $ pprint (perm,sign))
             ppstrict       = text "Strict Rules in Predicative Notation:" 
                              $$ (nest 1 $ pprint $ (trs, sig sign, vars sign, sm))
-
-instance Answerable EpoProof where 
     answer _ = CertAnswer $ C.certified (C.unknown, C.expo $ Nothing)
-
-instance Verifiable EpoProof 
--- instance ComplexityProof EpoProof
 
 
 --------------------------------------------------------------------------------

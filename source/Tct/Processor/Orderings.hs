@@ -15,31 +15,28 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module Tct.Processor.Orderings where
+module Tct.Processor.Orderings 
+    (OrientationProof (..))
+where
 
-import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
 import Tct.Certificate (constant, certified)
-import Tct.Processor (Answerable (..), Answer (..), Verifiable(..), verifyOK)
+import Tct.Processor (Answer (..), ComplexityProof(..))
+import Tct.Processor.PPrint (indent)
 
 data OrientationProof o = Order o
                         | Incompatible
                         | Empty
                         | Inapplicable String deriving Show
 
-instance PrettyPrintable o => PrettyPrintable (OrientationProof o) where
-    pprint Empty     = text "All strict components are empty, nothing to further orient"
-    pprint (Order o) = pprint o
-    pprint Incompatible = text "The input cannot be shown compatible"
-    pprint (Inapplicable s) = text s
+instance ComplexityProof o => ComplexityProof (OrientationProof o) where
+    pprintProof Empty            _  = text "All strict components are empty, nothing to further orient"
+    pprintProof (Order o)        mde = pprintProof o mde
+    pprintProof Incompatible     _   = text "The input cannot be shown compatible"
+    pprintProof (Inapplicable s) _   = text "The processor is inapplicable, reason:"
+                                       $+$ indent (text s)
 
-instance Answerable o => Answerable (OrientationProof o) where
     answer (Order o) = answer o
     answer Empty     = CertAnswer $ certified (constant, constant)
     answer Incompatible = MaybeAnswer
     answer (Inapplicable _) = MaybeAnswer
-
-instance Verifiable o => Verifiable (OrientationProof o) where
-    verify prob  (Order o)        = verify prob o
-    verify _     Incompatible     = verifyOK
-    verify _     (Inapplicable _) = verifyOK

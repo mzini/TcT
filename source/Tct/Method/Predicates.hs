@@ -23,7 +23,6 @@ import Text.PrettyPrint.HughesPJ
 import Data.Typeable 
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
-import Termlib.Utils (PrettyPrintable (..))
 import Termlib.Problem (strictTrs, weakTrs, Strategy (..), Problem (..), StartTerms(..), startTerms)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args
@@ -52,19 +51,14 @@ data Predicate = TrsPredicate String (Trs -> Bool)
                | ProblemPredicate String (Problem -> Bool)
 data PredicateProof = PredicateProof Predicate P.Answer
 
-instance P.Answerable PredicateProof where
+instance P.ComplexityProof PredicateProof where
     answer (PredicateProof _ a) = a
-
-instance PrettyPrintable PredicateProof where
-    pprint (PredicateProof (TrsPredicate n _) a) = text "The input is" <+> ans <+> text n <> text "."
+    pprintProof (PredicateProof (TrsPredicate n _) a) _ = text "The input is" <+> ans <+> text n <> text "."
         where ans | P.succeeded a = empty
                   | otherwise     = text "NOT"
-    pprint (PredicateProof (ProblemPredicate n _) a) = text "The input problem is" <+> ans <+> text n <> text "."
+    pprintProof (PredicateProof (ProblemPredicate n _) a) _ = text "The input problem is" <+> ans <+> text n <> text "."
         where ans | P.succeeded a = empty
                   | otherwise     = text "NOT"
-
-instance P.Verifiable PredicateProof where
-    verify _ _ = P.verifyOK
 
 instance S.Processor Predicate where
     type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)

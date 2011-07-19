@@ -60,7 +60,7 @@ import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable(..), ComplexityProof, Verifiable(..), Answer(..))
+import Tct.Processor (ComplexityProof(..),Answer(..))
 import qualified Tct.Processor.Standard as S
 
 data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt
@@ -68,17 +68,14 @@ data ArcticOrder = ArcticOrder { ordInter :: MatrixInter ArcInt
 
 data ArcticMI = ArcticMI deriving (Typeable, Show)
 
-instance PrettyPrintable ArcticOrder where
-    pprint order = (text "The following argument positions are usable:")
-                   $+$ pprint (uargs order, signature $ ordInter order)
-                   $+$ (text "The input is compatible using the following" <+> text "arctic interpretation:")
-                   $+$ pprint (ordInter order)
-
-instance Answerable ArcticOrder where
+instance ComplexityProof ArcticOrder where
+    pprintProof order _ = 
+        text "The following argument positions are usable:"
+        $+$ pprint (uargs order, signature $ ordInter order)
+        $+$ text "The input is compatible using the following" <+> text "arctic interpretation:"
+        $+$ pprint (ordInter order)
     answer (ArcticOrder _ _) = CertAnswer $ certified (unknown, poly (Just 1))
 
-instance Verifiable ArcticOrder
-instance ComplexityProof ArcticOrder
 
 instance S.Processor ArcticMI where
     name ArcticMI = "arctic"

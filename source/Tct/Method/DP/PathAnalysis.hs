@@ -105,51 +105,53 @@ instance T.TransformationProof PathAnalysis where
                          where mproofs = sequence [ T.findProof e proof | (SN e,_) <- subprobs]
                                mkUb proofs = maximum $ (Poly $ Just 1) : [upperBound $ P.certificate p | p <- proofs]
                            
-    pprint proof = case T.transformationProof proof of 
-                     Error   e   -> pprint e
-                     tproof -> text "We use following congruence DG for path analysis"
-                               $+$ text ""
-                               $+$ pprintCWDG cwdg sig vars ppLabel
-                                $+$ text ""
-                               $+$ ppDetails
-                         where cwdg = computedCongrDG tproof
-                               sig = signature tproof
-                               vars = variables tproof
+    pprintProof proof mde = 
+        case T.transformationProof proof of 
+          Error   e   -> pprint e
+          tproof -> text "We use following congruence DG for path analysis"
+                   $+$ text ""
+                   $+$ pprintCWDG cwdg sig vars ppLabel
+                   $+$ text ""
+                   $+$ ppDetails
+              where cwdg = computedCongrDG tproof
+                    sig = signature tproof
+                    vars = variables tproof
   
-                               ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth)
-                                   where centering n d =  text $ take pre ss ++ s ++ take post ss
-                                             where s = show d
-                                                   l = length s
-                                                   ss = repeat ' '
-                                                   pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
-                                                   post = n - l - pre
+                    ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth)
+                        where centering n d =  text $ take pre ss ++ s ++ take post ss
+                                  where s = show d
+                                        l = length s
+                                        ss = repeat ' '
+                                        pre = floor $ (fromIntegral (n - l) / 2.0 :: Double)
+                                        post = n - l - pre
 
-                               ppMaybeAnswerOf pth = fromMaybe (text "?") (ppSpAns <|> ppSubsumed)
-                                   where ppSpAns    = pprint `liftM` P.answer `liftM` findSubProof pth
-                                         ppSubsumed = const (text "subsumed") `liftM` List.lookup pth (subsumedBy tproof)
+                    ppMaybeAnswerOf pth = fromMaybe (text "?") (ppSpAns <|> ppSubsumed)
+                        where ppSpAns    = pprint `liftM` P.answer `liftM` findSubProof pth
+                              ppSubsumed = const (text "subsumed") `liftM` List.lookup pth (subsumedBy tproof)
 
-                               findSubProof pth = T.findProof (thePath pth) proof
+                    findSubProof pth = T.findProof (thePath pth) proof
 
-                               ppPathName path = printPathName cwdg sig vars path
+                    ppPathName path = printPathName cwdg sig vars path
 
-                               ppDetails = vcat $ List.intersperse (text "") [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
-                                                                                              $+$ text ""
-                                                                                              $+$ ppDetail path))
-                                                                               | path <- List.sortBy comparePath $ computedPaths tproof]
-                                   where comparePath p1 p2 = mkpath p1 `compare` mkpath p2
-                                             where mkpath p = [congruence cwdg n | n <- thePath p]
-                                         ppDetail path = fromMaybe errMsg (ppsubsumed <|> ppsubproof)
-                                             where errMsg = text "CANNOT find proof of path" <+> ppPathName path <> text "." 
-                                                            <+> text "Propably computation has been aborted since some other path cannot be solved."
-                                                   ppsubsumed = do paths <- List.lookup path (subsumedBy tproof)
-                                                                   return $ (text "This path is subsumed by the proof of paths" 
-                                                                             <+> sep (punctuate (text ",") [ppPathName pth | pth <- paths])
-                                                                             <> text ".")
-                                                   ppsubproof = do subproof <- findSubProof path
-                                                                   return $ pprint subproof
+                    ppDetails = vcat $ List.intersperse (text "") 
+                                         [ (text "*" <+> (underline (text "Path" <+> ppPathName path <> text ":" <+> ppMaybeAnswerOf path)
+                                                          $+$ text ""
+                                                          $+$ ppDetail path))
+                                           | path <- List.sortBy comparePath $ computedPaths tproof]
+                        where comparePath p1 p2 = mkpath p1 `compare` mkpath p2
+                              mkpath p = [congruence cwdg n | n <- thePath p]
+                              ppDetail path = fromMaybe errMsg (ppsubsumed <|> ppsubproof)
+                                  where errMsg = text "CANNOT find proof of path" <+> ppPathName path <> text "." 
+                                                 <+> text "Propably computation has been aborted since some other path cannot be solved."
+                                        ppsubsumed = do paths <- List.lookup path (subsumedBy tproof)
+                                                        return $ (text "This path is subsumed by the proof of paths" 
+                                                                  <+> sep (punctuate (text ",") [ppPathName pth | pth <- paths])
+                                                                  <> text ".")
+                                        ppsubproof = do subproof <- findSubProof path
+                                                        return $ P.pprintProof subproof mde
 
-    pprintProof _ _ (Error e) = pprint e
-    pprintProof _ _ tproof    = block' "Transformation Details" [ppTrans]
+    pprintTProof _ _ (Error e) = pprint e
+    pprintTProof _ _ tproof    = block' "Transformation Details" [ppTrans]
         where ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
                         $+$ pprintCWDG cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")

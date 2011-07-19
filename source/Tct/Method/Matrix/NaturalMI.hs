@@ -62,7 +62,7 @@ import Tct.Processor.Args.Instances ()
 import Tct.Processor.Orderings
 import Tct.Processor.PPrint (indent)
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable(..), Verifiable (..), Answer(..), ComplexityProof)
+import Tct.Processor (Answer(..), ComplexityProof(..))
 import qualified Tct.Processor.Standard as S
 
 data NaturalMIKind = Algebraic -- ^ count number of ones in diagonal to compute induced complexity function
@@ -81,13 +81,20 @@ data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
-instance PrettyPrintable MatrixOrder where
-    pprint order = (if uargs order == fullWithSignature (signature $ ordInter order)
-                    then empty
-                    else (text "The following argument positions are usable:")
-                    $+$ indent (pprint (uargs order, signature $ ordInter order)))
-                   $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
-                   $+$ pprint (ordInter order)
+instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
+    pprint (order, trs, var) = pprintProof order P.ProofOutput $+$ pptrs
+        where sig = signature $ ordInter order
+              pptrs = text "Interpretations of rules:" $+$ vcat (map pprule $ Trs.rules trs)
+              pprule r = (text "Rule" <+> pprint (r, sig, var) <+> char ':') $+$ ppterm (R.lhs r) $+$ ppterm (R.rhs r)
+              ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
+
+instance ComplexityProof MatrixOrder where
+    pprintProof order _ = (if uargs order == fullWithSignature (signature $ ordInter order)
+                            then empty
+                            else (text "The following argument positions are usable:")
+                            $+$ indent (pprint (uargs order, signature $ ordInter order)))
+                            $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
+                            $+$ pprint (ordInter order)
         where ppknd UnrestrictedMatrix            = text "unrestricted"
               ppknd (TriangularMatrix Nothing)    = text "triangular"
               ppknd (TriangularMatrix (Just n))   = text "triangular with at most" <+> int n <+> text (if n == 1 then "one" else "ones") <+> text "in the main diagonals"
@@ -98,14 +105,6 @@ instance PrettyPrintable MatrixOrder where
               ppknd (ConstructorEda _ Nothing)    = text "constructor-based EDA-non-satisfying"
               ppknd (ConstructorEda _ (Just n))   = text "constructor-based EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
 
-instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
-    pprint (order, trs, var) = pprint order $+$ pptrs
-        where sig = signature $ ordInter order
-              pptrs = text "Interpretations of rules:" $+$ vcat (map pprule $ Trs.rules trs)
-              pprule r = (text "Rule" <+> pprint (r, sig, var) <+> char ':') $+$ ppterm (R.lhs r) $+$ ppterm (R.rhs r)
-              ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
-
-instance Answerable MatrixOrder where
     answer (MatrixOrder _ UnrestrictedMatrix _)          = CertAnswer $ certified (unknown, expo (Just 1))
     answer (MatrixOrder m (TriangularMatrix _) _)        = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
     answer (MatrixOrder m (ConstructorBased cs _) _)     = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
@@ -116,8 +115,6 @@ instance Answerable MatrixOrder where
     answer (MatrixOrder m (ConstructorEda _ Nothing) _)  = CertAnswer $ certified (unknown, poly (Just $ dimension m))
     answer (MatrixOrder _ (ConstructorEda _ (Just n)) _) = CertAnswer $ certified (unknown, poly (Just n))
 
-instance Verifiable MatrixOrder
-instance ComplexityProof MatrixOrder
 
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"

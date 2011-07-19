@@ -60,23 +60,21 @@ data UncurryProof = UncurryProof { inputProblem    :: Problem
                   | EmptyStrictRules
 
 
-instance PrettyPrintable UncurryProof where 
-    pprint (NotUncurryable r) = text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
-    pprint EmptyStrictRules   = text "The strict rules are empty."
-    pprint proof              = text "We uncurry the input using the following uncurry rules."
-                                $+$ (nest 2 $ pptrs $ uncurryTrs proof)
-             where pptrs trs = pprint (trs,sig,vars)
-                   sig = newSignature proof
-                   vars = Prob.variables $ inputProblem proof
-
-
 instance T.TransformationProof Uncurry where
     answer proof = case (T.transformationProof proof, T.subProofs proof) of 
                      (NotUncurryable _, _             ) -> P.MaybeAnswer
                      (EmptyStrictRules, _             ) -> P.answerFromCertificate $ certified (constant, constant)
                      (_               , [(_,subproof)]) -> P.answer subproof
                      (_               , _             ) -> P.MaybeAnswer
-    pprintProof _ _ = pprint
+    pprintTProof _ _ proof =
+        case proof of 
+          NotUncurryable r -> text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
+          EmptyStrictRules -> text "The strict rules are empty."
+          _                -> text "We uncurry the input using the following uncurry rules."
+                             $+$ (nest 2 $ pptrs $ uncurryTrs proof)
+             where pptrs trs = pprint (trs,sig,vars)
+                   sig = newSignature proof
+                   vars = Prob.variables $ inputProblem proof
 
 instance T.Transformer Uncurry where
     type T.ArgumentsOf Uncurry = A.Unit

@@ -37,7 +37,6 @@ import qualified Tct.Processor.Parse as PP
 import Tct.Processor.Args 
 import Tct.Processor.Args.Instances hiding (Processor)
 import Tct.Processor hiding (Proof, (<|>))
-import Termlib.Utils (PrettyPrintable(..))
 import Text.PrettyPrint.HughesPJ hiding (brackets)
 
 data Timeout p = Timeout
@@ -93,14 +92,10 @@ instance ParsableProcessor (Timeout AnyProcessor) where
 
 
 
-instance Verifiable (ProofOf p) => Verifiable (TOProof p) where
-    verify prob (TOProof p)  = verify prob p
-    verify _    (TimedOut _) = verifyOK
-
-instance PrettyPrintable (ProofOf p) => PrettyPrintable (TOProof p) where
-    pprint (TOProof p)  = pprint p
-    pprint (TimedOut i) = text "Computation stopped due to timeout after" <+> double (toSeconds i) <+> text "seconds"
-
-instance Answerable (ProofOf p) => Answerable (TOProof p) where 
+instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
+    pprintProof (TOProof p)  mde = pprintProof p mde
+    pprintProof (TimedOut i) _   = text "Computation stopped due to timeout after" 
+                                   <+> double (toSeconds i) 
+                                   <+> text "seconds."
     answer (TOProof p)  = answer p
     answer (TimedOut _) = TimeoutAnswer

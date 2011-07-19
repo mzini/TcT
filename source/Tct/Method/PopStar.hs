@@ -62,7 +62,7 @@ import qualified Termlib.Trs as Trs
 import Tct.Certificate (poly, expo, certified, uncertified, unknown)
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
-import Tct.Processor (Answerable (..), ComplexityProof, Answer (..), Verifiable(..))
+import Tct.Processor (ComplexityProof(..), Answer (..))
 import Tct.Processor.Orderings
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances ()
@@ -84,18 +84,18 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popMultRecAllowed    :: Bool
                              , popPsAllowed         :: Bool}
 
-instance PrettyPrintable PopStarOrder where
-  pprint order = (text "The input was oriented with the instance of" <+> text ordname <+> text "as induced by the precedence")
-                 $++$ pparam (popPrecedence order)
-                 $++$ text "and safe mapping"
-                 $++$ pparam (popSafeMapping order) <+> text "."
-                 $+$ (case popArgumentFiltering order of 
+instance ComplexityProof PopStarOrder where
+  pprintProof order _ = (text "The input was oriented with the instance of" <+> text ordname <+> text "as induced by the precedence")
+                        $++$ pparam (popPrecedence order)
+                        $++$ text "and safe mapping"
+                        $++$ pparam (popSafeMapping order) <+> text "."
+                        $+$ (case popArgumentFiltering order of 
                                Nothing -> PP.empty
                                Just af -> text "" 
-                                          $+$ text "Further, following argument filtering is employed:"
-                                          $++$ pparam af)
-                 $++$ text "For your convenience, here is the input in predicative notation:"
-                 $++$ pparam ppProblem
+                                         $+$ text "Further, following argument filtering is employed:"
+                                         $++$ pparam af)
+                        $++$ text "For your convenience, here is the input in predicative notation:"
+                        $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam = nest 1 . pprint
             ordname | popMultRecAllowed order = "LMPO"
@@ -123,13 +123,9 @@ instance PrettyPrintable PopStarOrder where
             sm             = popSafeMapping order
 
 
-instance Answerable PopStarOrder where
-    answer order | popMultRecAllowed order && popPsAllowed order = CertAnswer $ uncertified
-                 | popMultRecAllowed order                       = CertAnswer $ certified (unknown, expo Nothing)
-                 | otherwise                                     = CertAnswer $ certified (unknown, poly Nothing)
-
-instance Verifiable PopStarOrder
-instance ComplexityProof PopStarOrder
+  answer order | popMultRecAllowed order && popPsAllowed order = CertAnswer $ uncertified
+               | popMultRecAllowed order                      = CertAnswer $ certified (unknown, expo Nothing)
+               | otherwise                                    = CertAnswer $ certified (unknown, poly Nothing)
 
 
 --------------------------------------------------------------------------------

@@ -20,10 +20,6 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
-
-
---MA:TODO explicit applicable methods => only applicable processors get applied in solve?
 
 module Tct.Processor
     ( SatSolver (..)
@@ -43,22 +39,14 @@ module Tct.Processor
     , parseProcessor
     , fromString
       -- * Proofs 
-    , ComplexityProof
+    , PPMode (..)
+    , ComplexityProof (..)
     , Answer (..)
-    , Answerable (..)
-    , Verifiable (..)
-    , VerificationStatus
     , succeeded
     , failed
     , isTimeout
     , certificate
     , answerFromCertificate
-    , andVerify
-    , allVerify
-    , verifyOK
-    , verifyFail
-    , verifyUnchecked
-    , isFail 
     -- * Some Processor
     , SomeProcessor (..)
     , SomeProof (..)
@@ -138,8 +126,12 @@ instance SolverM StdSolverM where
                                 
 -- processor
 
-class (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
-instance (Answerable proof, PrettyPrintable proof, Verifiable proof) => ComplexityProof proof
+data PPMode = StrategyOutput | ProofOutput deriving (Show, Eq, Ord)
+
+class ComplexityProof proof where
+    answer :: proof -> Answer
+    pprintProof :: proof -> PPMode -> Doc
+    
 
 class ComplexityProof (ProofOf proc) => Processor proc where
     name            :: proc -> String
@@ -236,7 +228,7 @@ fromString p s = mk $ Parse.fromString (parseProcessor p) p "supplied strategy" 
         mk (Left e)           = Left e
 -- * proof
 
---- * Answers
+-- ** Answers
 data Answer = CertAnswer Certificate 
             | MaybeAnswer
             | YesAnswer
@@ -256,31 +248,29 @@ instance PrettyPrintable Answer where
   pprint YesAnswer         = text "YES"
   pprint NoAnswer          = text "NO"
 
-
-class Answerable proof where 
-    answer :: proof -> Answer
-
-instance Answerable Answer where
+instance ComplexityProof Answer where
+    pprintProof a _ = pprint a
     answer = id
+
 
 answerFromCertificate :: Certificate -> Answer
 answerFromCertificate cert = CertAnswer cert
 
-succeeded :: Answerable p => p -> Bool
+succeeded :: ComplexityProof p => p -> Bool
 succeeded p = case answer p of 
                 CertAnswer _ -> True
                 YesAnswer    -> True
                 _            -> False
 
-failed :: Answerable p => p -> Bool
+failed :: ComplexityProof p => p -> Bool
 failed = not . succeeded
 
-isTimeout :: Answerable p => p -> Bool
+isTimeout :: ComplexityProof p => p -> Bool
 isTimeout p = case answer p of 
                 TimeoutAnswer -> True
                 _             -> False
 
-certificate :: Answerable p => p -> Certificate
+certificate :: ComplexityProof p => p -> Certificate
 certificate p = case answer p of 
                 CertAnswer c -> c
                 _            -> uncertified
@@ -292,9 +282,8 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
                         , inputProblem     :: Problem 
                         , result           :: ProofOf proc}
 
-
-instance (Processor proc) => PrettyPrintable (Proof proc) where
-    pprint p@(Proof inst prob res) = 
+instance (Processor proc) => ComplexityProof (Proof proc) where
+    pprintProof p@(Proof inst prob res) mde = 
         text "We consider the following Problem:"
         $+$ text ""
         $+$ nest 2 (pprint prob)
@@ -302,13 +291,8 @@ instance (Processor proc) => PrettyPrintable (Proof proc) where
         $+$ text "Certificate:" <+> pprint (answer p)
         $+$ text ""
         $+$ underlineWith "-" (text "Application of" <+> qtext (instanceName inst) <> text ":")
-        $+$ nest 2 (pprint res)
-
-instance (Answerable (ProofOf proc)) => Answerable (Proof proc) where
-    answer p = answer (result p)
-
-instance (Verifiable (ProofOf proc)) => Verifiable (Proof proc) where
-    verify prob p = verify prob (result p)
+        $+$ nest 2 (pprintProof res mde)
+    answer = answer . result
 
 data PartialProof proof = PartialProof { ppInputProblem     :: Problem
                                        , ppResult           :: proof
@@ -321,13 +305,10 @@ data PartialProof proof = PartialProof { ppInputProblem     :: Problem
 progressed :: PartialProof proof -> Bool
 progressed p = not $ null $ ppRemovableTrs p ++ ppRemovableDPs p
 
-instance (PrettyPrintable proof) => PrettyPrintable (PartialProof proof) where
-  pprint p = pprint (ppResult p)
-
-instance (Answerable proof) => Answerable (PartialProof proof) where
-    answer p | progressed p = answer $ ppResult p
-             | otherwise    = CertAnswer $ certified (constant, constant)
-
+instance (ComplexityProof proof) => ComplexityProof (PartialProof proof) where
+  pprintProof p = pprintProof (ppResult p)
+  answer p | progressed p = answer $ ppResult p
+           | otherwise    = CertAnswer $ certified (constant, constant)
 
 -- * Someprocessor
 
@@ -335,9 +316,9 @@ data SomeProcessor = forall p. (ParsableProcessor p) => SomeProcessor p
 data SomeProof     = forall p. (ComplexityProof p) => SomeProof p
 data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 
-instance PrettyPrintable SomeProof where pprint (SomeProof p) = pprint p
-instance Answerable SomeProof where answer (SomeProof p) = answer p
-instance Verifiable SomeProof where verify prob (SomeProof p) = verify prob p
+instance ComplexityProof SomeProof where 
+    pprintProof (SomeProof p) = pprintProof p
+    answer (SomeProof p)      = answer p
 
 instance Typeable (InstanceOf SomeProcessor) where 
     typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]
@@ -425,8 +406,8 @@ instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
     optArgs _                 = []
     posArgs _                 = []
     parseProcessor_ (OO _ []   ) = error "AnyOf.parseProcessor should have at least one processor given"
-    parseProcessor_ (OO _ (p:ps)) = do inst <- choice [ Parsec.try $ parseProcessor p' | p' <- p:ps]
-                                       return $ OOI inst
+    -- parseProcessor_ (OO _ (p:ps)) = do inst <- choice [ Parsec.try $ parseProcessor p' | p' <- p:ps]
+    --                                    return $ OOI inst
     parseProcessor_ (OO _ ps) = do inst <- choice [ Parsec.try $ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
 
@@ -451,44 +432,42 @@ parseAnyProcessor = getState >>= parseProcessor
 
 
 --- * Quasi-verification
-                
-                
-data VerificationStatus = NotChecked | VerificationOK | VerificationFail SomeProof Doc
+-- data VerificationStatus = NotChecked | VerificationOK | VerificationFail SomeProof Doc
 
-instance PrettyPrintable VerificationStatus where
-  pprint NotChecked = text "Proof not Checked"
-  pprint VerificationOK = text "Proof checked"
-  pprint (VerificationFail p r) = text ",VERIFICATION' FAILED:"
-                                  $+$ r
-                                  $+$ pprint p
+-- instance PrettyPrintable VerificationStatus where
+--   pprint NotChecked = text "Proof not Checked"
+--   pprint VerificationOK = text "Proof checked"
+--   pprint (VerificationFail p r) = text ",VERIFICATION' FAILED:"
+--                                   $+$ r
+--                                   $+$ pprint p
 
-verifyOK :: VerificationStatus
-verifyOK = VerificationOK
+-- verifyOK :: VerificationStatus
+-- verifyOK = VerificationOK
 
-verifyUnchecked :: VerificationStatus
-verifyUnchecked = NotChecked
+-- verifyUnchecked :: VerificationStatus
+-- verifyUnchecked = NotChecked
 
-verifyFail :: ComplexityProof p => p -> Doc -> VerificationStatus
-verifyFail p = VerificationFail (SomeProof p)
+-- verifyFail :: ComplexityProof p => p -> Doc -> VerificationStatus
+-- verifyFail p = VerificationFail (SomeProof p)
 
-class Verifiable proof where 
-    verify :: Problem -> proof -> VerificationStatus
-    verify _ _ = NotChecked
+-- class Verifiable proof where 
+--     verify :: Problem -> proof -> VerificationStatus
+--     verify _ _ = NotChecked
 
 
-andVerify :: VerificationStatus -> VerificationStatus -> VerificationStatus
-s@(VerificationFail _ _) `andVerify` _                        = s
-_                        `andVerify` t@(VerificationFail _ _) = t
-s@NotChecked             `andVerify` _                        = s
-_                        `andVerify` t@NotChecked             = t
-VerificationOK           `andVerify` VerificationOK           = VerificationOK
+-- andVerify :: VerificationStatus -> VerificationStatus -> VerificationStatus
+-- s@(VerificationFail _ _) `andVerify` _                        = s
+-- _                        `andVerify` t@(VerificationFail _ _) = t
+-- s@NotChecked             `andVerify` _                        = s
+-- _                        `andVerify` t@NotChecked             = t
+-- VerificationOK           `andVerify` VerificationOK           = VerificationOK
 
-allVerify :: [VerificationStatus] -> VerificationStatus
-allVerify = foldr andVerify VerificationOK
+-- allVerify :: [VerificationStatus] -> VerificationStatus
+-- allVerify = foldr andVerify VerificationOK
 
-isFail :: VerificationStatus -> Bool
-isFail (VerificationFail _ _) = True
-isFail _                      = False
+-- isFail :: VerificationStatus -> Bool
+-- isFail (VerificationFail _ _) = True
+-- isFail _                      = False
 
 
 -- * Construct instances from defaultValues

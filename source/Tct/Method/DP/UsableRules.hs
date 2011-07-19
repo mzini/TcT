@@ -82,7 +82,7 @@ instance PrettyPrintable URProof where
 
 instance T.TransformationProof UR where
     answer = T.answerFromSubProof
-    pprintProof _ _ = pprint
+    pprintTProof _ _ = pprint
 
 
 instance T.Transformer UR where 

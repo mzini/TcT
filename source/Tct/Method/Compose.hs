@@ -32,7 +32,7 @@ import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Processor.Args.Instances
-import Tct.Processor (Answerable (..), certificate)
+import Tct.Processor (ComplexityProof (..), certificate)
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
@@ -288,10 +288,10 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                                Compose -> ub1 `Cert.mult` (ub2 `Cert.compose` (Cert.poly (Just 1) `Cert.add` ub1))
                         ub1 = either ubound ubound esp1
                         ub2 = ubound sp2
-                        ubound :: P.Answerable p => p -> Cert.Complexity
-                        ubound p = Cert.upperBound $ certificate $ answer p
-      pprintProof _ _ (Inapplicable reason) = text "Compose is inapplicable since" <+> text reason
-      pprintProof t prob (tproof@(ComposeProof compfn split stricts esp1)) = 
+                        ubound :: P.ComplexityProof p => p -> Cert.Complexity
+                        ubound p = Cert.upperBound $ certificate p
+      pprintTProof _ _ (Inapplicable reason) = text "Compose is inapplicable since" <+> text reason
+      pprintTProof t prob (tproof@(ComposeProof compfn split stricts esp1)) = 
         if progress tproof 
         then fsep [text "We use the processor", tName, text "to orient following rules strictly.", parens ppsplit]
              $+$ text ""
@@ -321,7 +321,7 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                   qtext = quotes . text
                   tName = qtext $ T.instanceName t
                   pptrs = pprintNamedTrs sig vars
-                  ppSubproof = either pprint pprint esp1
+                  ppSubproof = either (\p -> P.pprintProof p P.ProofOutput) (\p -> P.pprintProof p P.ProofOutput) esp1
                   ppsplit = text "These rules where chosen" <+> text (show split) <> text "."
 
 composeProcessor :: T.TransformationProcessor (ComposeProc P.AnyProcessor) P.AnyProcessor

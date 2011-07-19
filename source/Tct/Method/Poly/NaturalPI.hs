@@ -54,7 +54,7 @@ import Tct.Encoding.Natring ()
 import Tct.Encoding.Polynomial
 import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Poly.PolynomialInterpretation
-import Tct.Processor (Answerable(..), Verifiable(..), Answer(..), ComplexityProof)
+import Tct.Processor (Answer(..), ComplexityProof(..))
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -69,13 +69,14 @@ data PolynomialOrder = PolynomialOrder { ordInter :: PolyInter Int
 
 data NaturalPI = NaturalPI deriving (Typeable, Show)
 
-instance PrettyPrintable PolynomialOrder where
-  pprint order = (if uargs order == fullWithSignature (signature $ ordInter order)
-                  then empty
-                  else (text "The following argument positions are usable:")
-                  $+$ indent (pprint (uargs order, signature $ ordInter order)))
-                 $+$ (text "We have the following" <+> ppknd (param order) <+> text "polynomial interpretation:")
-                 $+$ pprint (ordInter order)
+instance ComplexityProof PolynomialOrder where
+  pprintProof order _ = 
+      (if uargs order == fullWithSignature (signature $ ordInter order)
+       then empty
+       else (text "The following argument positions are usable:")
+       $+$ indent (pprint (uargs order, signature $ ordInter order)))
+      $+$ (text "We have the following" <+> ppknd (param order) <+> text "polynomial interpretation:")
+      $+$ pprint (ordInter order)
     where ppknd (UnrestrictedPoly   shp) = ppshp shp
           ppknd (ConstructorBased _ shp) = text "restricted" <+> ppshp shp
           ppshp StronglyLinear = text "strongly linear"
@@ -84,7 +85,6 @@ instance PrettyPrintable PolynomialOrder where
           ppshp SimpleMixed = text "simple-mixed"
           ppshp Quadratic = text "quadratic"
 
-instance Answerable PolynomialOrder where
   answer (PolynomialOrder _ (UnrestrictedPoly   StronglyLinear) _) = CertAnswer $ certified (unknown, poly (Just 1))
   answer (PolynomialOrder _ (UnrestrictedPoly   Linear)         _) = CertAnswer $ certified (unknown, expo (Just 1))
   answer (PolynomialOrder _ (UnrestrictedPoly   Simple)         _) = CertAnswer $ certified (unknown, expo (Just 1))
@@ -101,9 +101,6 @@ instance Answerable PolynomialOrder where
   answer (PolynomialOrder i (ConstructorBased _ Quadratic)      _) = CertAnswer $ certified (unknown, poly (Just a))
     where a = 2 * maximum [ F.arity sig f | f <- Set.elems (F.symbols sig) ]
           sig = signature i
-
-instance Verifiable PolynomialOrder
-instance ComplexityProof PolynomialOrder
 
 instance S.Processor NaturalPI where
   name NaturalPI = "poly"

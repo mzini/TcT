@@ -191,8 +191,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
 instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCProc p1 p2) where
-    pprintProof _ _ (ComposeRCInapplicable reason) = text "Compose RC is inapplicable since" <+> text reason
-    pprintProof _ prob tproof = text "We measure the number of applications of following selected rules relative to the remaining rules"
+    pprintTProof _ _ (ComposeRCInapplicable reason) = text "Compose RC is inapplicable since" <+> text reason
+    pprintTProof _ prob tproof = text "We measure the number of applications of following selected rules relative to the remaining rules"
                                 $+$ text ""
                                 $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
                                 $+$ text ""
@@ -217,8 +217,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
              pptrs = pprintNamedTrs sig vars
              maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
              maybePrintSub Nothing  _ = empty
-             maybePrintSub (Just p) n | P.succeeded p = text "We orient Problem" <+> text n 
-                                                        $+$ indent (pprint p)
+             maybePrintSub (Just p) n | P.succeeded p = text "We certify Problem" <+> text n 
+                                                        $+$ indent (P.pprintProof p P.ProofOutput)
                                       | otherwise     = text "We did not obtain a certificate for Problem" <+> text n
                                                         $+$ text "We abort."
 
@@ -231,7 +231,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
               lb = Cert.lowerBound cert1 `Cert.add` Cert.lowerBound cert2
               cert1 = certFrom (cpProofA tproof) (find (1 :: Int) subproofs)
               cert2 = certFrom (cpProofB tproof) (find (2 :: Int) subproofs)
-              certFrom :: (P.Answerable a1, P.Answerable a2) => Maybe a1 -> Maybe a2 -> Cert.Certificate
+              certFrom :: (P.ComplexityProof a1, P.ComplexityProof a2) => Maybe a1 -> Maybe a2 -> Cert.Certificate
               certFrom mp1 mp2 = maybe Cert.uncertified id mcert 
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 

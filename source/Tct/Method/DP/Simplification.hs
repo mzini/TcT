@@ -59,19 +59,19 @@ data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)]
                        
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
-  pprintProof _ _ (Error e) = pprint e
-  pprintProof _ _ p | null remls = text "No dependency-pair could be removed"
-                    | otherwise  = text "We consider the the dependency-graph"
-                                   $+$ text ""
-                                   $+$ indent (pprint (wdg, sig, vars))
-                                   $+$ text ""
-                                   $+$ text "together with the congruence-graph"
-                                   $+$ text ""
-                                   $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-                                   $+$ text ""
-                                   $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
-                                   $+$ text ""
-                                   $+$ indent (pprintTrs ppRule remls)
+  pprintTProof _ _ (Error e) = pprint e
+  pprintTProof _ _ p | null remls = text "No dependency-pair could be removed"
+                     | otherwise  = text "We consider the the dependency-graph"
+                                    $+$ text ""
+                                    $+$ indent (pprint (wdg, sig, vars))
+                                    $+$ text ""
+                                    $+$ text "together with the congruence-graph"
+                                    $+$ text ""
+                                    $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+                                    $+$ text ""
+                                    $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+                                    $+$ text ""
+                                    $+$ indent (pprintTrs ppRule remls)
      where vars          = variables p                              
            sig           = signature p
            cwdg          = cgraph p
@@ -152,15 +152,15 @@ data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule]
                        
 instance T.TransformationProof SimpRHS where
   answer = T.answerFromSubProof
-  pprintProof _ _ (SRHSError e) = pprint e
-  pprintProof _ _ p | null repls = text "No rule was simplified"
-                    | otherwise = text "We consider the following dependency-graph" 
-                                  $+$ text ""
-                                  $+$ indent (pprint (dg, sig, vars))
-
-                                  $+$ text "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
-                                  $+$ text ""
-                                  $+$ indent (pprint (Trs repls, sig, vars))
+  pprintTProof _ _ (SRHSError e) = pprint e
+  pprintTProof _ _ p | null repls = text "No rule was simplified"
+                     | otherwise = text "We consider the following dependency-graph" 
+                                   $+$ text ""
+                                   $+$ indent (pprint (dg, sig, vars))
+ 
+                                   $+$ text "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
+                                   $+$ text ""
+                                   $+$ indent (pprint (Trs repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p

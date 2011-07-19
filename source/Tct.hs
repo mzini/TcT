@@ -145,9 +145,9 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , processors      = Methods.builtInProcessors
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
-                       , putProof        = hPutPretty stdout
-                       , putError        = \ e -> hPutStrLn stdout "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr e
-                       , putWarning      = hPutPretty stderr
+                       , putProof        = \p -> hPutPretty stdout (pprintProof p ProofOutput)
+                       , putError        = \ e -> hPutStrLn stdout "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr (pprint e)
+                       , putWarning      = hPutPretty stderr . pprint 
                        , configDir       = do home <- liftIO $ getHomeDirectory 
                                               return $ home </> ".tct"
                        , errorMsg        = []
@@ -198,8 +198,8 @@ processorFromFile fn allProcessors =  do str <- (liftIO $ readFile fn `catch` co
                                            _   -> processorFromString str allProcessors
 
 
-hPutPretty :: PrettyPrintable a => Handle -> a -> IO ()
-hPutPretty handle = liftIO . hPutStrLn handle . show . pprint 
+hPutPretty :: Handle -> Doc -> IO ()
+hPutPretty handle = liftIO . hPutStrLn handle . show
 
 ----------------------------------------------------------------------
 --- Options
@@ -326,7 +326,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
                                                    tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeoutAfter
                                                    proof <- process tproc prob
                                                    putPretty (pprint $ answer proof)
-                                                   when (showProof cfg) (putPretty $ text "" $+$ pprint proof)
+                                                   when (showProof cfg) (putPretty $ text "" $+$ pprintProof proof ProofOutput) -- TODO make flag
                                                    when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof 
                                                                                                   then text "Hurray, we answered"  <+> pprint (answer proof)
                                                                                                   else text "Arrrr..")

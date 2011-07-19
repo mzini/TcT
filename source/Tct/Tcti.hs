@@ -268,10 +268,10 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
                                                         $+$ text ""
                                                         $+$ ppres
                                       where ppres = case res_i of 
-                                              T.Progress p_i subprobs_i -> block' "Transformation Output (progress)" [T.pprintProof t prob_i p_i]
+                                              T.Progress p_i subprobs_i -> block' "Transformation Output (progress)" [T.pprintTProof t prob_i p_i]
                                                                            $+$ text ""
                                                                            $+$ block "Computed new problem(s)" [ (SN (i,j), prob_ij) | (SN j, prob_ij) <- subprobs_i ]
-                                              T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintProof t prob_i p_i]                                              
+                                              T.NoProgress p_i -> block' "Transformation Output (no progress)" [T.pprintTProof t prob_i p_i]                                              
                             printOverview = pprint $ block "Transformation Overview" l
                                 where l | null progressedResults = enumeration' [text "No Progress :("]
                                         | otherwise              = [ (SN i, pp i res_i) | (SN i, (_, res_i )) <- probResEnum ]
@@ -295,7 +295,7 @@ instance P.Processor p => Apply (P.InstanceOf p) where
                               printPrfs = pprint $ block "Proofs" [ (SN i, pp prob_i proof_i) | (SN i, (prob_i, proof_i)) <- pps ]
                                 where pp prob_i proof_i = block' "Considered Problem" [prob_i]
                                                           $+$ text ""
-                                                          $+$ block' "Processor Output" [U.pprint proof_i]
+                                                          $+$ block' "Processor Output" [P.pprintProof proof_i P.StrategyOutput]
 
                               printOverview = pprint $ block "Processor Overview" l
                                   where l | all (P.failed . snd . snd) pps = enumeration' [text "No Progress :("]

@@ -213,6 +213,7 @@ module Tct.Methods
     , Compose.selFirstCongruence
     , Compose.selFirstStrictCongruence
     , Compose.selFromCWDG
+    , Compose.selFromWDG
     -- , Compose.splitWithoutLeafs
     , Compose.selCombine
     , Compose.selUnion

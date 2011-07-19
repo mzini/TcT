@@ -27,7 +27,6 @@ module Tct.Method.ComposeRC where
 import Control.Monad (liftM, mplus)
 import Text.PrettyPrint.HughesPJ
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import qualified Data.List as List
 import Data.Maybe (catMaybes)
 
@@ -52,19 +51,22 @@ import Tct.Method.DP.DependencyGraph
 import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Method.Compose hiding (progress)
 import Data.Graph.Inductive.Query.DFS (dfs)
+import qualified Data.Graph.Inductive.Graph as Gr
+import Data.Graph.Inductive.Query.TransClos (trc)
 import Data.Typeable ()
+import Data.Either (partitionEithers)
 
 data ComposeRCProc p1 p2 = ComposeRCProc
-
 data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: RuleSelector ()
                                            , cpUnselected   :: Trs.Trs
                                            , cpSelected     :: Trs.Trs 
                                            , cpCut          :: Trs.Trs 
                                            , cpUncut        :: Trs.Trs 
-                                           , cpProof1       :: Maybe (P.Proof p1) 
-                                           , cpProof2       :: Maybe (P.Proof p2)
-                                           , cpProb1        :: Prob.Problem
-                                           , cpProb2        :: Prob.Problem
+                                           , cpUnchanged    :: Trs.Trs
+                                           , cpProofA       :: Maybe (P.Proof p1) 
+                                           , cpProofB       :: Maybe (P.Proof p2)
+                                           , cpProbA        :: Prob.Problem
+                                           , cpProbB        :: Prob.Problem
                                            , cpWdg          :: DG.DG
                                            , cpSig          :: F.Signature
                                            , cpVars         :: V.Variables }
@@ -72,8 +74,8 @@ data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: RuleSelector ()
 
 progress :: (P.Processor p1, P.Processor p2) => ComposeRCProof p1 p2 -> Bool
 progress ComposeRCInapplicable {} = False
-progress proof = maybe True P.succeeded (cpProof1 proof) 
-                 && maybe True P.succeeded (cpProof2 proof)
+progress proof = maybe True P.succeeded (cpProofA proof) 
+                 && maybe True P.succeeded (cpProofB proof)
                  && not (Trs.isEmpty (cpCut proof)) 
                  && not (Trs.isEmpty (cpUncut proof))
 
@@ -94,49 +96,51 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
     arguments ComposeRCProc   = opt { A.name         = "split" 
                                     , A.defaultValue = selFirstStrictCongruence
                                     , A.description  = ""}
-                                :+: opt { A.name = "subprocessor 1"
+                                :+: opt { A.name = "subprocessor A"
                                         , A.defaultValue = Nothing
                                         , A.description = ""}
-                                :+: opt { A.name = "subprocessor 2"
+                                :+: opt { A.name = "subprocessor B"
                                         , A.defaultValue = Nothing
                                         , A.description = ""}
 
     transform inst prob | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
-                        | otherwise                 = do mproof1 <- mapply mproc1 prob1
-                                                         mproof2 <- case maybe True P.succeeded mproof1 of 
-                                                                     True  -> mapply mproc2 prob2
+                        | otherwise                 = do mProofA <- mapply mProcA probA
+                                                         mProofB <- case maybe True P.succeeded mProofA of 
+                                                                     True  -> mapply mProcB probB
                                                                      False -> return Nothing
-                                                         return $ mkProof mproof1 mproof2
+                                                         return $ mkProof mProofA mProofB
 
-        where s :+: mproc1 :+: mproc2 = T.transformationArgs inst 
+        where s :+: mProcA :+: mProcB = T.transformationArgs inst 
               wdg = estimatedDependencyGraph Edg prob
               allLabeledNodes = lnodes wdg
               sig = Prob.signature prob
 
-              mkProof mproof1 mproof2 | progress tproof = T.Progress tproof subprobs
+              mkProof mProofA mProofB | progress tproof = T.Progress tproof subprobs
                                       | otherwise       = T.NoProgress tproof
                   where tproof = ComposeRCProof { cpRuleSelector = s
                                                 , cpUnselected   = unselectedDPs
                                                 , cpSelected     = selectedStrictDPs `Trs.union` selectedWeakDPs
-                                                , cpCut          = cutTrs
-                                                , cpUncut        = uncutTrs
-                                                , cpProof1       = mproof1
-                                                , cpProof2       = mproof2
-                                                , cpProb1        = prob1
-                                                , cpProb2        = prob2
+                                                , cpCut          = cutDPs
+                                                , cpUncut        = uncutDPs
+                                                , cpUnchanged    = unchangedStrictDPs `Trs.union` unchangedWeakDPs
+                                                , cpProofA       = mProofA
+                                                , cpProofB       = mProofB
+                                                , cpProbA        = probA
+                                                , cpProbB        = probB
                                                 , cpWdg          = wdg
                                                 , cpSig          = sig'
                                                 , cpVars         = Prob.variables prob }
-                        subprobs = catMaybes [ maybe (Just (SN (1 :: Int), prob1)) (const Nothing) mproof1
-                                             , maybe (Just (SN (2 :: Int), prob2)) (const Nothing) mproof2 ]
+                        subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
+                                             , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
 
-              prob1 = prob { Prob.signature = sig'
-                           , Prob.strictDPs = uncutTrs
-                           , Prob.weakDPs   = Trs.empty }
-
-              prob2 = prob { Prob.signature = sig'
+              probA = prob { Prob.signature = sig'
                            , Prob.strictDPs = selectedStrictDPs
-                           , Prob.weakDPs   = Trs.unions [ cutTrs, uncutTrs, selectedWeakDPs ] }
+                           , Prob.weakDPs   = Trs.unions [ cutDPs, uncutDPs, selectedWeakDPs ] }
+
+              probB = prob { Prob.signature = sig'
+                           , Prob.strictDPs = uncutDPs `Trs.union` unchangedStrictDPs
+                           , Prob.weakDPs   = unchangedWeakDPs }
+
               
               (selectedNodes, selectedStrictDPs, selectedWeakDPs) = 
                   (Set.fromList ns, Trs.fromRules rss, Trs.fromRules rsw)
@@ -150,35 +154,37 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
                             where initials = [ n | (n, (_, r)) <- allLabeledNodes, Trs.member dps r ]
                                   dps = Prob.sdp rs `Trs.union` Prob.wdp rs
 
-              unselectedDPs = (Prob.strictDPs prob Trs.\\ selectedStrictDPs)
-                              `Trs.union` (Prob.weakDPs prob Trs.\\ selectedWeakDPs)
-                              
-              ((uncutTrs, cutTrs), sig') = 
+              unselectedNodes          = Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
+              unselectedNodesWithLabel = withNodeLabels' wdg $ Set.toList unselectedNodes
+              unselectedDPs            = Trs.fromRules [ r | (_,(_,r)) <- unselectedNodesWithLabel]
+              ((uncutDPs, cutDPs, unchangedStrictDPs, unchangedWeakDPs), sig') = 
                   flip Sig.runSignature sig $ 
-                       do (uncuts,cuts) <- unzip `liftM` splitRulesM unselectedDPs
-                          let toTrs = Trs.fromRules . catMaybes
-                          return (toTrs uncuts, toTrs cuts)
-
-              splitRulesM trs = mapM splitRuleM (Trs.toRules trs)
-              splitRuleM  rl@(Rule l r@(Term.Fun f ts)) | F.isCompound sig f = mk (zip [1..] ts)
-                                                        | otherwise          = mk (zip [1] [r])
-                  where mk its = do rUncut <- mkrl "" uncut 
-                                    rCut   <- mkrl "'" cut
-                                    return (rUncut, rCut)
-                            where (uncut,cut) = List.partition (\ (n,_) -> n `Set.member` uncutPositions) its
-                        ruleToNode = Map.fromList [(rn,n) | (n, (_,rn)) <- allLabeledNodes]
-                        uncutPositions = case Map.lookup rl ruleToNode of 
-                                           Just n -> Set.fromList [ p | (m, _, p) <- lsuccessors wdg n, not $ m `Set.member` selectedNodes ]
-                                           Nothing -> Set.empty
-
-                        mkrl _ []  = return Nothing
-                        mkrl _ [(_,t)] = return $ Just $ Rule l t
-                        mkrl sn tis    = do attribs <- F.getAttributes f 
-                                            c <- F.fresh attribs { F.symArity    = length tis
-                                                                , F.symIsCompound = True 
-                                                                , F.symIdent = F.symIdent attribs ++ sn}
-                                            return $ Just $ Rule l (Term.Fun c [ti | (_, ti) <- tis])
-              splitRuleM  rl  = return (Just rl, Nothing)
+                       do ls <- mapM splitRuleM $ unselectedNodesWithLabel
+                          let (unchanged, changed) = partitionEithers ls
+                              unchangedStrict      = [ r | (DG.StrictDP,r) <- unchanged ]
+                              unchangedWeak        = [ r | (DG.WeakDP,r)   <- unchanged ]
+                              (uncuts,cuts)          = unzip changed
+                              toTrs = Trs.fromRules
+                          return (toTrs uncuts, toTrs cuts, toTrs unchangedStrict, toTrs unchangedWeak)
+              splitRuleM (n, arl@(_,(Rule l r@(Term.Fun f ts)))) 
+                  | F.isCompound sig f = mk (zip [1..] ts)
+                  | otherwise          = mk (zip [1] [r])
+                  where mk its 
+                            | Set.null cutPositions = return $ Left arl
+                            | otherwise = do uncutRule <- mkrl "" uncutTerms
+                                             cutRule   <- mkrl "'" cutTerms
+                                             return $ Right (uncutRule, cutRule)
+                            where (uncutTerms,cutTerms) = List.partition (\ (i,_) -> i `Set.member` uncutPositions) its
+                                  uncutPositions = Set.fromList [ p | (m, _, p) <- lsuccessors wdg n, not $ m `Set.member` selectedNodes ]
+                                  cutPositions = Set.fromList [i | (i,_) <- its] Set.\\ uncutPositions
+                                  mkrl _ [(_,t)] = return $ Rule l t
+                                  mkrl sn tis    = 
+                                      do attribs <- F.getAttributes f 
+                                         c <- F.fresh attribs { F.symArity    = length tis
+                                                             , F.symIsCompound = True 
+                                                             , F.symIdent = F.symIdent attribs ++ sn}
+                                         return $ Rule l (Term.Fun c [ti | (_, ti) <- tis])
+              splitRuleM  (_,arl)  = return $ Left arl
 
               mapply :: (P.Processor p, P.SolverM m) => Maybe (P.InstanceOf p) -> Prob.Problem -> m (Maybe (P.Proof p))
               mapply Nothing      _     = return Nothing
@@ -192,20 +198,20 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                                 $+$ text ""
                                 $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
                                 $+$ text ""
-                                $+$ text "These ruleset (A) was choosen by selecting function" 
-                                $+$ indent (text (show (cpRuleSelector tproof)) <> text ",")
-                                $+$ text "and closed under successors using the following dependency graph."
-                                $+$ indent (pprint (cpWdg tproof, sig, vars))
-                                $+$ text ""
+                                $+$ (text "These ruleset (A) was choosen by selecting function" 
+                                     <+> quotes (text (show (cpRuleSelector tproof))) <> text ","
+                                     <+> text "and closed under successors in the dependency graph.")
+                                -- $+$ indent (pprint (cpWdg tproof, sig, vars))
+                                -- $+$ text ""
                                 $+$ text "The length of a single A-subderivation is expressed by the following problem."
                                 $+$ text ""
-                                $+$ block' "Problem A" [pprint (cpProb2 tproof)]
+                                $+$ block' "Problem A" [pprint (cpProbA tproof)]
                                 $+$ text ""
                                 $+$ text "The number of B-applications is expressed by the following problem"
                                 $+$ text ""
-                                $+$ block' "Problem B" [pprint (cpProb1 tproof)]
-                                $+$ maybePrintSub (cpProof1 tproof) "A"
-                                $+$ maybePrintSub (cpProof2 tproof) "B"
+                                $+$ block' "Problem B" [pprint (cpProbB tproof)]
+                                $+$ maybePrintSub (cpProofA tproof) "A"
+                                $+$ maybePrintSub (cpProofB tproof) "B"
        where sig = cpSig tproof
              vars = Prob.variables prob
              pptrs = pprintNamedTrs sig vars
@@ -223,17 +229,28 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
               subproofs = T.subProofs proof
               ub = Cert.upperBound cert1 `Cert.mult` Cert.upperBound cert2
               lb = Cert.lowerBound cert1 `Cert.add` Cert.lowerBound cert2
-              cert1 = certFrom (cpProof1 tproof) (find (1 :: Int) subproofs)
-              cert2 = certFrom (cpProof2 tproof) (find (2 :: Int) subproofs)
+              cert1 = certFrom (cpProofA tproof) (find (1 :: Int) subproofs)
+              cert2 = certFrom (cpProofB tproof) (find (2 :: Int) subproofs)
               certFrom :: (P.Answerable a1, P.Answerable a2) => Maybe a1 -> Maybe a2 -> Cert.Certificate
               certFrom mp1 mp2 = maybe Cert.uncertified id mcert 
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
+
 defaultSelect :: RuleSelector a
-defaultSelect = s1
-    where s1 = selBfs "admits strict predecessor in CDG" fn
-              where fn cdg n = if any ((==) DG.StrictDP . fst) rs then [n] else []
-                        where rs = DG.allRulesFromNodes cdg (DG.predecessors cdg n)
+defaultSelect = selFromWDG "below first cut in WDG" fn
+    where fn _ dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
+                                      , Prob.wdp = Trs.fromRules [r | (DG.WeakDP,r) <- selectedRules ] }
+              where dgclosure = trc dg
+                    reachables = Gr.suc dgclosure 
+                    n `pathTo` m = m `elem` reachables n
+                    nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, m `pathTo` n ]
+                    cutEdges n =    Set.fromList [ i | (_,_,i) <- DG.lsuccessors dg n, not (i `Set.member` nonCutEdges n) ]
+                    admitCuts = [ n | n <- DG.nodes dg , not (Set.null $ cutEdges n) && not (Set.null $ nonCutEdges n) ]
+                    highestCuts = [ n | n <- admitCuts , not (any (\ m -> m /= n && m `pathTo` n) admitCuts) ]
+                    selectedNodes = intersects [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
+                        where intersects = foldl Set.union Set.empty
+                    selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
+
 
 composeRCProcessor :: T.TransformationProcessor (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
 composeRCProcessor = T.transformationProcessor ComposeRCProc
@@ -242,8 +259,8 @@ composeRCProcessor = T.transformationProcessor ComposeRCProc
 composeRC :: RuleSelector () -> T.TheTransformer (ComposeRCProc P.SomeProcessor P.SomeProcessor)
 composeRC s = ComposeRCProc `T.calledWith` (s :+: Nothing :+: Nothing)
 
-solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p3) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p3 -> (T.TheTransformer (ComposeRCProc p1 p3))
-solveAWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRCProc (s :+: p1 :+: Just p)
+solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRCProc p p2))
+solveAWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRCProc (s :+: Just p :+: p2)
 
-solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p3) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p3 -> (T.TheTransformer (ComposeRCProc p3 p2))
-solveBWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRCProc (s :+: Just p :+: p2)
+solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRCProc p1 p))
+solveBWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRCProc (s :+: p1 :+: Just p)

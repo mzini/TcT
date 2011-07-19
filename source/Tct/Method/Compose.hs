@@ -105,6 +105,11 @@ selStricts = RS { rsName = "strict-rules" , rsSelect = fn }
                                    , Prob.strs = Prob.strictTrs prob
                                    , Prob.wtrs = Trs.empty }
 
+selFromWDG :: String -> (a -> DG -> Prob.Ruleset) -> RuleSelector a
+selFromWDG n f = RS { rsName = n
+                    , rsSelect = \a prob -> f a (dg prob) }
+    where dg = estimatedDependencyGraph Edg
+
 
 selFromCWDG :: String -> (a -> CDG -> Prob.Ruleset) -> RuleSelector a
 selFromCWDG n f = RS { rsName = n

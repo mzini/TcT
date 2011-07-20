@@ -432,5 +432,5 @@ mixed = P.someInstance
 
 step :: (Transformer t1, P.Processor a) =>
        [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
-step [] _ _ = mixed empty
-step (i:is) t p = mixed $ t i >>| (p i `before` step is t p)
+step []     _ _ = mixed empty
+step (i:is) t p = mixed $ p i `before` (t i >>| step is t p)

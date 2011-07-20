@@ -55,17 +55,20 @@ data IRRProof = IRRProof { inputProblem :: Problem
               | NotApplicable String
 
 instance PrettyPrintable IRRProof where 
+    pprint (NotApplicable r) = text "The processor is not applicable, reason is:" $+$ (nest 2 $ text r)
     pprint proof | length (removals proof) == 0 = text "The input problem contains no overlaps that give rise to inapplicable rules."
-                 | otherwise                   = text "Following rules were removed:"
-                                                 $+$ (nest 3 $ hcat $ map pprr $ removals proof)
-             where pprr rr = text "The rule" <+> ppr (reason rr) 
-                             $+$ text "makes following rules inapplicable:"
-                             $+$ (nest 3 $ (hcat $ map ppr (removed rr)))
-                             $+$ text ""
-                             $+$ text ""
-                   ppr r   = pprint (r, sig, vars)
-                   sig     = Prob.signature $ inputProblem proof
-                   vars    = Prob.variables $ inputProblem proof
+                 | otherwise                   = text "We check for rules inapplicable in innermost-derivation:"
+                                                 $+$ (nest 2 $ hcat [pprr remvl | remvl <- removals proof])
+                                                 $+$ text ""
+                                                 $+$ text "All above mentioned rules can be savely removed."
+                 where pprr rr = text "Arguments of following rules are not normal-forms:" 
+                                 $+$ text ""
+                                 $+$ nest 2 (hcat [ ppr rs | rs <- removed rr])
+                                             -- $+$ text ""
+                                             -- $+$ text "Reason:" <+> ppr (reason rr))
+                       ppr r   = pprint (r, sig, vars)
+                       sig     = Prob.signature $ inputProblem proof
+                       vars    = Prob.variables $ inputProblem proof
 
 
 instance T.TransformationProof InnermostRuleRemoval where 
@@ -73,19 +76,7 @@ instance T.TransformationProof InnermostRuleRemoval where
                      (NotApplicable _, _             ) -> P.MaybeAnswer
                      (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
                      (IRRProof _ _   , _             ) -> P.MaybeAnswer
-    pprintTProof _ _ (NotApplicable r) = text "The processor is not applicable, reason is:" $$ (nest 1 $ text r)
-    pprintTProof _ _ proof 
-        | length (removals proof) == 0  = text "The input problem contains no overlaps that give rise to inapplicable rules."
-        | otherwise                    = text "Following rules were removed:"
-                                         $+$ (nest 3 $ hcat $ map pprr $ removals proof)
-             where pprr rr = text "The rule" <+> ppr (reason rr) 
-                             $+$ text "makes following rules inapplicable:"
-                             $+$ (nest 3 $ (hcat $ map ppr (removed rr)))
-                             $+$ text ""
-                             $+$ text ""
-                   ppr r   = pprint (r, sig, vars)
-                   sig     = Prob.signature $ inputProblem proof
-                   vars    = Prob.variables $ inputProblem proof
+    pprintTProof _ _ = pprint
               
 instance T.Transformer InnermostRuleRemoval where
     type T.ArgumentsOf InnermostRuleRemoval = A.Unit

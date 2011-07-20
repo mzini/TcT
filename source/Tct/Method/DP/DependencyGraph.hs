@@ -347,11 +347,11 @@ pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
                                    $+$ text ""
                                    $+$ text "Here dependency-pairs are as follows:"
                                    $+$ text ""
-                                   $+$ block' "Strict DPs" [pprintLabeledRules sig vars (rs StrictDP)]
-                                   $+$ block' "Weak DPs" [pprintLabeledRules sig vars (rs WeakDP)]
+                                   $+$ pprintLabeledRules "Strict DPs" sig vars (rs StrictDP)
+                                   $+$ pprintLabeledRules "WeakDPs DPs" sig vars (rs WeakDP)
     where ppNode _ n    = printNodeId n
           pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
-                         , pptSuc = sortBy compareLabel . successors cwdg}
+                         , pptSuc = sortBy compareLabel . snub . successors cwdg}
           compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2
           printNodeId = pprintCWDGNode cwdg sig vars 
           rs strictness = sortBy compFst $ concatMap (\ (_, cn) -> [ (n, rule) | (n, (s, rule)) <- theSCC cn, s == strictness]) (Graph.labNodes cwdg)
@@ -360,6 +360,8 @@ pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
 instance PrettyPrintable (CDG, F.Signature, V.Variables) where 
   pprint (cwdg, sig, vars) = pprintCWDG cwdg sig vars (\ _ _ -> PP.empty)
 
-pprintLabeledRules :: PrettyPrintable l => F.Signature -> V.Variables -> [(l,R.Rule)] -> Doc
-pprintLabeledRules sig vars = pprintTrs pprule 
+pprintLabeledRules :: PrettyPrintable l => String -> F.Signature -> V.Variables -> [(l,R.Rule)] -> Doc
+pprintLabeledRules _    _   _ [] = PP.empty
+pprintLabeledRules name sig vars rs = text name <> text ":"
+                                      $+$ indent (pprintTrs pprule rs)
   where pprule (l,r) = pprint l <> text ":" <+> pprint (r, sig, vars)

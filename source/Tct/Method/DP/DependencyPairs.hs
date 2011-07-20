@@ -93,8 +93,8 @@ instance PrettyPrintable DPProof where
     pprint TuplesNonInnermost  = text "Dependency tuples only applicable to innermost problems."
     pprint p            = text "We have computed the following dependency pairs"
                           $+$ text ""
-                          $+$ ppTrs "Strict Dependency Pairs" (strictDPs p)
-                          $+$ ppTrs  "Weak Dependency Pairs" (weakDPs p)
+                          $+$ nest 2 (ppTrs "Strict DPs" (strictDPs p)
+                                      $+$ ppTrs  "Weak DPs" (weakDPs p))
         where sig = newSignature p
               vars = newVariables p
               ppTrs = pprintNamedTrs sig vars

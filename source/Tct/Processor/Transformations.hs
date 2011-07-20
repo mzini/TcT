@@ -80,28 +80,28 @@ class TransformationProof t where
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
   pprintProof proof mde = 
       pprintTProof t input tproof
-      $+$ text "" 
-      $+$ text "Overall, the transformation results in the following sub-problem(s):"
       $+$ text ""
-      $+$ vcat [ ppOverview i sub | (i, sub) <- subprobs]
-      $+$ text ""
-      $+$ if null subproofs
-           then text "No subproblems were checked."
-           else cat [ ppDetail i sub | (i, sub) <- subproofs]
+      $+$ case subprobs of 
+            []   -> text "No subproblems were generated"
+            [_]  -> ppDetails Nothing
+            _    -> ppOverviews
+                   $+$ text ""
+                   $+$ ppDetails (Just "Proofs for generated problems")
       where subproofs = subProofs proof
             subprobs  = subProblems proof
             tproof    = transformationProof proof
             t         = appliedTransformer proof
             input     = inputProblem proof
-            ppOverview (SN i) prob_i = 
-                block' n [ ppProb prob_i (findProof i proof) ]
-                where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
-            ppDetail i subproof = block' n [P.pprintProof subproof mde]
-                where n = show $ text "Proof of sub-problem" <+> Util.pprint i
+            ppOverviews = text "Overall, the transformation results in the following sub-problem(s):"
+                          $+$ text ""
+                          $+$ block "Generated new problems" (ppOverview `map` subprobs)
+            ppOverview (sn@(SN i), prob_i) = (sn, ppProb prob_i (findProof i proof))
+            ppDetails mheading = case subproofs of 
+                                   [] -> text "No subproblems were checked."
+                                   _  -> maybe (vcat . map snd) block mheading $ ppDetail `map` subproofs
+            ppDetail (i,proof_i) = (i,P.pprintProof proof_i mde)
             ppProb prob_i Nothing =  
                 Util.pprint prob_i                                                               
-                $+$ text ""
-                $+$ text "No proof was generated for this problem."
             ppProb prob_i (Just proof_i) =  
                 Util.pprint prob_i                                                               
                 $+$ text ""
@@ -480,7 +480,7 @@ instance TransformationProof t => TransformationProof (Try t) where
         case result of 
           NoProgress (TryProof p) 
               | mde == P.ProofOutput -> ppsub
-              | mde == P.StrategyOutput -> 
+              | otherwise -> 
                   pprintTProof t' (inputProblem proof) p
                   $+$ text ""
                   $+$ text "We abort the transformation and continue with the subprocessor on the previous problem" 

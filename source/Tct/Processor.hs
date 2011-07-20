@@ -84,7 +84,7 @@ import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Termlib.Problem
-import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext, underlineWith)
+import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 import Tct.Certificate
@@ -290,7 +290,9 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
         $+$ text ""
         $+$ text "Certificate:" <+> pprint (answer p)
         $+$ text ""
-        $+$ underlineWith "-" (text "Application of" <+> qtext (instanceName inst) <> text ":")
+        $+$ case mde of 
+              StrategyOutput -> text "Application of" <+> qtext (instanceName inst) <> text ":"
+              ProofOutput    -> text "Proof:"
         $+$ nest 2 (pprintProof res mde)
     answer = answer . result
 

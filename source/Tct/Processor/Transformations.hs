@@ -78,43 +78,38 @@ class TransformationProof t where
   answer :: P.Processor sub => Proof t sub -> P.Answer
   pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> Doc
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
-  pprintProof proof mde = pprintTProof t input tproof
-                          $+$ text "" 
-                          $+$ case subprobs of 
-                                []             -> text "No subproblems were generated."
-                                [(SN i, prob_i)] -> case findProof i proof of 
-                                                     Just proof_i -> P.pprintProof proof_i mde
-                                                     _            -> text "The transformation results in the following problem"
-                                                                    $+$ text ""
-                                                                    $+$ Util.pprint prob_i                                                               
-                                                                    $+$ text ""
-                                                                    $+$ text "However, no processor was applied on this problem. We abort!"                                                               
-                                _              -> text "Overall, the transformation results in the following sub-problem(s):"
-                                                 $+$ text ""
-                                                 $+$ vcat [ ppOverview i sub | (i, sub) <- subprobs]
-                                                 $+$ text ""
-                                                 $+$ if null subproofs
-                                                     then text "No subproblems were checked."
-                                                     else cat [ ppDetail i sub | (i, sub) <- subproofs]
+  pprintProof proof mde = 
+      pprintTProof t input tproof
+      $+$ text "" 
+      $+$ text "Overall, the transformation results in the following sub-problem(s):"
+      $+$ text ""
+      $+$ vcat [ ppOverview i sub | (i, sub) <- subprobs]
+      $+$ text ""
+      $+$ if null subproofs
+           then text "No subproblems were checked."
+           else cat [ ppDetail i sub | (i, sub) <- subproofs]
       where subproofs = subProofs proof
             subprobs  = subProblems proof
             tproof    = transformationProof proof
             t         = appliedTransformer proof
             input     = inputProblem proof
             ppOverview (SN i) prob_i = 
-                block' n [ Util.pprint prob_i
-                           $+$ text ""
-                           $+$ case findProof i proof of 
-                                 Just proof_i -> text "This problem" 
-                                                <+> (if P.succeeded proof_i
-                                                     then text "was proven" <+> Util.pprint (P.answer proof_i)
-                                                     else text "remains open")
-                                                <+> text "."
---                                                <+> text "using" <+> Util.qtext (P.instanceName (P.appliedProcessor proof_i)) <> text "."
-                                 Nothing -> text "No proof was generated for this problem."]
+                block' n [ ppProb prob_i (findProof i proof) ]
                 where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
             ppDetail i subproof = block' n [P.pprintProof subproof mde]
                 where n = show $ text "Proof of sub-problem" <+> Util.pprint i
+            ppProb prob_i Nothing =  
+                Util.pprint prob_i                                                               
+                $+$ text ""
+                $+$ text "No proof was generated for this problem."
+            ppProb prob_i (Just proof_i) =  
+                Util.pprint prob_i                                                               
+                $+$ text ""
+                $+$ (text "This problem" 
+                     <+> (if P.succeeded proof_i
+                           then text "was proven" <+> Util.pprint (P.answer proof_i)
+                           else text "remains open")
+                     PP.<> text ".")
 
 data Result t = NoProgress (ProofOf t)
               | Progress (ProofOf t) (Enumeration Problem)
@@ -315,13 +310,15 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                                     $+$ text ""
                                     $+$ case find i r2s of 
                                           Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
-                                          Just r2_i@(Progress _ ps) -> pprintTProof t2 prob (proofFromResult r2_i)
-                                                                      $+$ if null ps 
-                                                                           then PP.empty
-                                                                           else text ""
-                                                                                 $+$ text "The consider problem is replaced by"
-                                                                                 $+$ enum ps
-                                          Just r2_i@(NoProgress _) -> pprintTProof t2 prob (proofFromResult r2_i) ]
+                                          Just r2_i@(Progress _ ps) -> 
+                                              pprintTProof t2 prob (proofFromResult r2_i)
+                                              $+$ if null ps 
+                                                   then PP.empty
+                                                   else text ""
+                                                        $+$ text "The consider problem is replaced by"
+                                                        $+$ enum ps
+                                          Just r2_i@(NoProgress _) -> 
+                                              pprintTProof t2 prob (proofFromResult r2_i) ]
                               where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
 
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
@@ -479,23 +476,29 @@ fromTry (TheTransformer (Try t) as) = TheTransformer t as
 
 
 instance TransformationProof t => TransformationProof (Try t) where
-    pprintProof proof mde = case result of 
-                              NoProgress (TryProof p) 
-                                  | mde == P.ProofOutput -> PP.empty 
-                                  | mde == P.StrategyOutput -> 
-                                      pprintTProof (fromTry t) input p
-                                      $+$ text ""
-                                      $+$ text "We abort the transformation and continue with the subprocessor on the problem" 
-                                      $+$ text ""
-                                      $+$ Util.pprint input
-                                      $+$ text ""
-                                      $+$ enum (((flip P.pprintProof mde) . P.result) `mapEnum` subproofs)
-                              Progress (TryProof p) _ -> pprintProof proof { appliedTransformer = fromTry t
-                                                                          , transformationResult = const p `mapResult` result } mde
-      where t = appliedTransformer proof
-            input = inputProblem proof
-            subproofs = subProofs proof
+    pprintProof proof mde = 
+        case result of 
+          NoProgress (TryProof p) 
+              | mde == P.ProofOutput -> ppsub
+              | mde == P.StrategyOutput -> 
+                  pprintTProof t' (inputProblem proof) p
+                  $+$ text ""
+                  $+$ text "We abort the transformation and continue with the subprocessor on the previous problem" 
+                  $+$ text ""
+                  $+$ Util.pprint (inputProblem proof)
+                  $+$ text ""
+                  $+$ ppsub
+          Progress (TryProof p) _ -> pprintProof proof { appliedTransformer  = t'
+                                                      , transformationResult = const p `mapResult` result } mde
+      where t         = appliedTransformer proof
+            t'        = fromTry t
+            msubproof = case subProofs proof of 
+                          [(_,sp)] -> Just sp
+                          _        -> Nothing
             result    = transformationResult proof
+            ppsub = case msubproof of 
+                      Just sp -> P.pprintProof sp mde
+                      Nothing -> text "No subproof was generated, we abort!"
     answer proof = 
         case transformationResult proof of 
           Progress (TryProof p) ps -> answer $ proof { appliedTransformer   = fromTry t

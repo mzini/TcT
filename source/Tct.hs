@@ -118,11 +118,15 @@ instance PrettyPrintable [TCTWarning] where
 ----------------------------------------------------------------------
 --- Config
 
+data OutputMode = OnlyAnswer 
+                | WithProof PPMode
+
 data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
                      , processors        :: AnyProcessor
                      , problemFile       :: String
                      , getSolver         :: ErroneousIO SatSolver
-                     , putProof          :: Proof SomeProcessor -> IO ()
+                     , outputMode        :: OutputMode
+                     , putProof          :: Proof SomeProcessor -> PPMode -> IO ()
                      , putError          :: TCTError -> IO ()
                      , putWarning        :: TCTWarning -> IO ()
                      , configDir         :: ErroneousIO FilePath
@@ -133,7 +137,6 @@ data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> Erroneous
                      , answerType        :: Maybe AnswerType
                      , listStrategies    :: Maybe (Maybe String)
                      , logFile           :: Maybe FilePath
-                     , showProof         :: Bool
                      , showHelp          :: Bool
                      , showVersion       :: Bool
                      , performChecks     :: Bool }
@@ -145,7 +148,8 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , processors      = Methods.builtInProcessors
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
-                       , putProof        = \p -> hPutPretty stdout (pprintProof p ProofOutput)
+                       , outputMode      = WithProof ProofOutput
+                       , putProof        = \ p mde -> hPutPretty stdout (pprintProof p mde)
                        , putError        = \ e -> hPutStrLn stdout "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr (pprint e)
                        , putWarning      = hPutPretty stderr . pprint 
                        , configDir       = do home <- liftIO $ getHomeDirectory 
@@ -157,7 +161,6 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , answerType      = Nothing
                        , listStrategies  = Nothing
                        , logFile         = Nothing
-                       , showProof       = True
                        , showHelp        = False
                        , showVersion     = False
                        , performChecks   = False}
@@ -212,10 +215,20 @@ options =
     , meaning = (\n f -> f{ timeoutAfter = Just n }) <$> argNum
     , help    = [ "Maximum running time in seconds."] }
   , Option
-    { long    = "noproof"
-    , short    = "p"
-    , meaning = unit (\f -> f{ showProof = False })
-    , help    = [ "Hide proof output."] }
+    { long    = "verbosity"
+    , short    = "v"
+    , meaning = let readOutputMode ('a':_) = OnlyAnswer
+                    readOutputMode ('p':_) = WithProof ProofOutput
+                    readOutputMode ('s':_) = WithProof StrategyOutput
+                    readOutputMode md      = error $ "unsupported output mode (this is covered by flagparser anyway): " ++ md
+                in (\n f -> f{ outputMode = readOutputMode n }) <$> argOption ["answer","proof","strategy", "a", "p", "s"]
+    , help    = [ "Verbosity of proof mode."
+                , " answer:   print only answer from proof"
+                , " proof:    print the full proof"
+                , " strategy: print the full proof, enriched with strategy information"
+                , " a:        like answer"
+                , " p:        like proof"
+                , " s:        like strategy"] }
   , Option
     { long    = "answer"
     , short    = "a"
@@ -263,7 +276,7 @@ options =
     }
   , Option
     { long    = "version"
-    , short    = "v"
+    , short    = "z"
     , meaning = (\_ f -> f{ showVersion = True }) <$> argNone
     , help    = [ "Displays the version number."]
     }
@@ -311,25 +324,31 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
   where (TCT m) | showVersion cfg             = do vs <- fromConfig version
                                                    putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
                 | showHelp cfg                = putPretty $ text $ unlines (makeHelpMessage options)
-                | isJust $ listStrategies cfg = do Just mreg <- fromConfig listStrategies
-                                                   let procs = case mreg of 
-                                                                 Just reg -> [ proc | proc <- toProcessorList (processors cfg)
-                                                                            , matches reg (name proc) || matches reg (unlines (description proc))]
-                                                                 Nothing  -> toProcessorList (processors cfg)
-                                                       p1 `ord` p2     = name p1 `compare` name p2 ;
-                                                       matches reg str = isJust $ matchRegex (mkRegex reg) str ;
-                                                   putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
-                | otherwise                   = do prob <- readProblem
-                                                   procs <- fromConfig processors
-                                                   getProc <- fromConfig makeProcessor
-                                                   proc <- liftEIO $ getProc prob procs
-                                                   tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeoutAfter
-                                                   proof <- process tproc prob
-                                                   putPretty (pprint $ answer proof)
-                                                   when (showProof cfg) (putPretty $ text "" $+$ pprintProof proof ProofOutput) -- TODO make flag
-                                                   when (showProof cfg) (putPretty $ text "" $+$ if succeeded proof 
-                                                                                                  then text "Hurray, we answered"  <+> pprint (answer proof)
-                                                                                                  else text "Arrrr..")
+                | isJust $ listStrategies cfg = 
+                    do Just mreg <- fromConfig listStrategies
+                       let procs = case mreg of 
+                                     Just reg -> [ proc | proc <- toProcessorList (processors cfg)
+                                                , matches reg (name proc) || matches reg (unlines (description proc))]
+                                     Nothing  -> toProcessorList (processors cfg)
+                           p1 `ord` p2     = name p1 `compare` name p2 ;
+                           matches reg str = isJust $ matchRegex (mkRegex reg) str ;
+                       putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
+                | otherwise                   = 
+                    do prob <- readProblem
+                       procs <- fromConfig processors
+                       getProc <- fromConfig makeProcessor
+                       proc <- liftEIO $ getProc prob procs
+                       tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeoutAfter
+                       proof <- process tproc prob
+                       putPretty (pprint $ answer proof)
+                       case outputMode cfg of 
+                         OnlyAnswer    -> return ()
+                         WithProof mde -> putPretty $ text "" 
+                                                     $+$ pprintProof proof mde
+                                                     $+$ text "" 
+                                                     $+$ if succeeded proof 
+                                                          then text "Hurray, we answered"  <+> pprint (answer proof)
+                                                          else text "Arrrr.."
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 

@@ -37,6 +37,7 @@ module Tct.Main.Flags
  , argFile
  , argString
  , argNone
+ , argOption
  , argOptString
  )
 where 
@@ -144,7 +145,7 @@ argOption as = MkArg [choices] $ \xs ->
         elts x' | x' `elem` as = Right x'
                 | otherwise   = Left ["unexpected option " ++ x'
                                     , "expecting one of " ++ choices]
-  where choices = "<" ++ concat (intersperse " | " as) ++ ">"
+  where choices = "< " ++ concat (intersperse " | " as) ++ " >"
 
 type Options a = [Option a]
 

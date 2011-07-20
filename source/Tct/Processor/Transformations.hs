@@ -498,7 +498,7 @@ instance TransformationProof t => TransformationProof (Try t) where
             result    = transformationResult proof
             ppsub = case msubproof of 
                       Just sp -> P.pprintProof sp mde
-                      Nothing -> text "No subproof was generated, we abort!"
+                      Nothing -> text "No further proof was generated, we abort!"
     answer proof = 
         case transformationResult proof of 
           Progress (TryProof p) ps -> answer $ proof { appliedTransformer   = fromTry t

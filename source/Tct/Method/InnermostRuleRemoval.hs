@@ -25,6 +25,7 @@ module Tct.Method.InnermostRuleRemoval
     , irrProcessor
     , InnermostRuleRemoval
     , IRRProof (..)
+    , RuleRemoval (..)
     ) 
 where
 
@@ -39,7 +40,7 @@ import Tct.Processor.Args as A
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import Termlib.Rule (Rule, rewrite)
 import Termlib.Term (immediateSubterms)
-import Termlib.Trs ((\\), Trs(..))
+import Termlib.Trs ((\\), Trs(..), unions, fromRules)
 import Termlib.Utils (PrettyPrintable(..))
 
 import qualified Termlib.Problem as Prob
@@ -57,18 +58,12 @@ data IRRProof = IRRProof { inputProblem :: Problem
 instance PrettyPrintable IRRProof where 
     pprint (NotApplicable r) = text "The processor is not applicable, reason is:" $+$ (nest 2 $ text r)
     pprint proof | length (removals proof) == 0 = text "The input problem contains no overlaps that give rise to inapplicable rules."
-                 | otherwise                   = text "We check for rules inapplicable in innermost-derivation:"
-                                                 $+$ (nest 2 $ hcat [pprr remvl | remvl <- removals proof])
+                 | otherwise                   = text "Arguments of following rules are not normal-forms:" 
+                                                 $+$ pprint (trs, Prob.signature prob, Prob.variables prob)
                                                  $+$ text ""
                                                  $+$ text "All above mentioned rules can be savely removed."
-                 where pprr rr = text "Arguments of following rules are not normal-forms:" 
-                                 $+$ text ""
-                                 $+$ nest 2 (hcat [ ppr rs | rs <- removed rr])
-                                             -- $+$ text ""
-                                             -- $+$ text "Reason:" <+> ppr (reason rr))
-                       ppr r   = pprint (r, sig, vars)
-                       sig     = Prob.signature $ inputProblem proof
-                       vars    = Prob.variables $ inputProblem proof
+                 where trs  = unions [ fromRules (removed rr) | rr <- removals proof] 
+                       prob = inputProblem proof
 
 
 instance T.TransformationProof InnermostRuleRemoval where 

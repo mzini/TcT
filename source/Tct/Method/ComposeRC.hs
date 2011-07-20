@@ -195,7 +195,6 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
     pprintTProof _ prob tproof = text "We measure the number of applications of following selected rules relative to the remaining rules"
                                 $+$ text ""
                                 $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
-                                $+$ text ""
                                 $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
                                 $+$ text ""
                                 $+$ (text "These ruleset (A) was choosen by selecting function" 
@@ -207,7 +206,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                                 $+$ text ""
                                 $+$ block' "Problem A" [pprint (cpProbA tproof)]
                                 $+$ text ""
-                                $+$ text "The number of B-applications is expressed by the following problem"
+                                $+$ text "The number of B-applications is expressed by the following problem."
                                 $+$ text ""
                                 $+$ block' "Problem B" [pprint (cpProbB tproof)]
                                 $+$ maybePrintSub (cpProofA tproof) "A"
@@ -217,7 +216,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
              pptrs = pprintNamedTrs sig vars
              maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
              maybePrintSub Nothing  _ = empty
-             maybePrintSub (Just p) n | P.succeeded p = text "We certify Problem" <+> text n 
+             maybePrintSub (Just p) n | P.succeeded p = text ""
+                                                        $+$ text "We first check Problem" <+> text n <> text ":"
                                                         $+$ indent (P.pprintProof p P.ProofOutput)
                                       | otherwise     = text "We did not obtain a certificate for Problem" <+> text n
                                                         $+$ text "We abort."

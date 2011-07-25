@@ -200,8 +200,6 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                                 $+$ (text "These ruleset (A) was choosen by selecting function" 
                                      <+> quotes (text (show (cpRuleSelector tproof))) <> text ","
                                      <+> text "and closed under successors in the dependency graph.")
-                                -- $+$ indent (pprint (cpWdg tproof, sig, vars))
-                                -- $+$ text ""
                                 $+$ text "The length of a single A-subderivation is expressed by the following problem."
                                 $+$ text ""
                                 $+$ block' "Problem A" [pprint (cpProbA tproof)]

@@ -144,6 +144,7 @@ instance ( P.ComplexityProof (P.ProofOf g)
             where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
                              $+$ (indent $ P.pprintProof (guardProof p) mde)
                   ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
+                             $+$ (indent $ P.pprintProof p P.ProofOutput)
                   suc      = P.succeeded $ guardProof p
       pprintProof p mde@P.ProofOutput    = case branchProof p of 
                                              Left pb  -> P.pprintProof pb mde

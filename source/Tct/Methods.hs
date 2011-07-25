@@ -18,17 +18,18 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Tct.Methods 
     (  
 
-    -- * Processors
-    -- ** Direct Processors
-    success
+    -- * Techniques
+    -- ** Direct Techniques
+    Combinators.success
     -- | this processor returns Yes(?,?)
-    , fail
+    , Combinators.fail
     -- | this processor returns No
-    , empty
+    , Combinators.empty
     -- | this processor returns Yes(1,1) if the strict component is empty      
     , arctic
     -- | this processor implements arctic interpretations
@@ -36,25 +37,25 @@ module Tct.Methods
     -- | this processor implements matrix interpretations      
     , poly
     -- | this processor implements polynomial path orders
-    , bounds
+    , Bounds.bounds
     -- | this processor implements the bounds technique      
-    , epostar
+    , EpoStar.epostar
     -- | this processor implements exponential path orders      
-    , popstar
+    , PopStar.popstar
     -- | this processor implements polynomial path orders            
-    , popstarPS
+    , PopStar.popstarPS
     -- | this processor implements polynomial path orders with parameter substitution      
-    , lmpo     
+    , PopStar.lmpo     
     -- | this processor implements lightweight multiset path orders 
-    , lmpoPS
+    , PopStar.lmpoPS
     -- | this processor implements lightweight multiset path orders with parameter substitution            
 
 
-    -- ** Processor Combinators
-    , ite
+    -- ** Combinators
+    , Combinators.ite
       -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied
-    , timeout
-      -- > timeout sec t 
+    , Timeout.timeout
+      -- | @timeout sec t@ 
       -- aborts processor @t@ after @sec@ seconds
     , before 
       -- | @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@      
@@ -64,43 +65,53 @@ module Tct.Methods
     , orFaster
       -- | @p1 `orFaster` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
       --   proof of that processor that finishes fastest
-    , sequentially
+    , Combinators.sequentially
       -- | list version of "before"
-    , best
+    , Combinators.best
       -- | list version of "orBetter"      
-    , fastest
+    , Combinators.fastest
       -- | list version of "orFaster"            
-    , upto
     , withProblem
+    -- | @withProblem mkproc@ allows the creation of a processor 
+    -- depending on the problem it should handle.
     , step
+    -- | @step [l..u] trans proc@ successively applies the transformations 
+    -- @[trans l..trans u]@, additionally checking after each application of @trans i@ 
+    -- whether @proc i@ can solve the problem. More precise
+    -- >>> @step [l..] trans proc == proc l `before` (trans l >>| (proc l `before` (trans l >>| ...)))@.
+    -- The resulting processor can be infinite.
+
+    , upto
+    -- | @upto mkproc (b :+: l :+: u) == f [ mkproc i | i <- [l..u]] @ where 
+    -- @f == fastest$ if @b == True@ and @f == sequentially@ otherwise
     
     -- ** Predicates
     -- | The following predicates return either Yes(?,?) or No
-    , isCollapsing
-    , isConstructor
-    , isDuplicating
-    , isLeftLinear
-    , isRightLinear
-    , isWellFormed
-    , isFull
-    , isInnermost
-    , isOutermost
-    , isRCProblem      
-    , isDCProblem      
-    , isContextSensitive
+    , Predicates.isCollapsing
+    , Predicates.isConstructor
+    , Predicates.isDuplicating
+    , Predicates.isLeftLinear
+    , Predicates.isRightLinear
+    , Predicates.isWellFormed
+    , Predicates.isFull
+    , Predicates.isInnermost
+    , Predicates.isOutermost
+    , Predicates.isRCProblem      
+    , Predicates.isDCProblem      
+    , Predicates.isContextSensitive
     -- *** Lifting Haskell functions      
-    , trsPredicate
-    , problemPredicate
+    , Predicates.trsPredicate
+    , Predicates.problemPredicate
             
       
     -- * Transformations
       -- | This section list all instances of 'Transformation'. A transformation 't' 
       -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
-    , idtrans
+    , T.idtrans
       -- | Identity transformation.
-    , irr
+    , IRR.irr
       -- | On innermost problems, this processor removes inapplicable rules by looking at non-root overlaps.
-    , uncurry
+    , Uncurry.uncurry
       -- | Uncurrying for full and innermost rewriting. Fails for runtime-complexity analysis.
     , weightgap      
       -- | This processor implements the weightgap principle.   
@@ -128,18 +139,15 @@ module Tct.Methods
       -- is obtained by composition.
     , Compose.composeDynamic
       -- | @composeDynamic = compose Dynamic@
-    , ComposeRC.composeRC
-    , ComposeRC.solveAWith
-    , ComposeRC.solveBWith
       
       -- *** DP Transformations      
-    , dependencyPairs
+    , DP.dependencyPairs
       -- | Implements dependency pair transformation. Only applicable on runtime-complexity problems.
-    , dependencyTuples
+    , DP.dependencyTuples
       -- | Implements dependency tuples transformation. Only applicable on innermost runtime-complexity problems.
-    , pathAnalysis
+    , PathAnalysis.pathAnalysis
       -- | Implements path analysis. Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'.
-    , usableRules
+    , UR.usableRules
       -- | Implements path analysis. Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'.      
     , DPSimp.removeTails
       -- | Removes trailing weak paths and and dangling rules. 
@@ -155,50 +163,60 @@ module Tct.Methods
       --  
       -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
       -- not applicable when @strictTrs prob \= Trs.empty@.
+    , ComposeRC.composeRC
+      -- | A compose processor specific for RC.
+    , ComposeRC.solveAWith
+      -- | Specify a processor to solve Problem A immediately. 
+      -- The Transformation aborts if the problem cannot be handled.
+    , ComposeRC.solveBWith
+      -- | Specify a processor to solve Problem B immediately. 
+      -- The Transformation aborts if the problem cannot be handled.
+    , dpsimps
+      -- | fast simplifications based on dependency graph analysis
       
-    -- *** Transformation Combinators     
-    , (>>|)    
+    -- *** Combinators     
+    , (T.>>|)    
       -- | The processor @t >>| p@ first applies the transformation @t@. If this succeeds, the processor @p@
       -- is applied on the resulting subproblems. Otherwise @t >>| p@ fails.
-    , (>>||)      
+    , (T.>>||)      
       -- | Like '>>|' but resulting subproblems are solved in parallel.
-    , try
+    , T.try
       -- | The transformer @try t@ behaves like @t@ but succeeds even if @t@ fails. When @t@ fails
       -- the input problem is returned.
     , exhaustively
       -- | The transformer @exhaustively t@ applies @t@ repeatedly until @t@ fails.
-    , (>>>)
+    , (T.>>>)
       -- | The transformer @t1 >>> t2@ first transforms using @t1@, resulting subproblems are 
       -- transformed using @t2@. It succeeds if either @t1@ or @t2@ succeeds.
-    , (<>)      
+    , (T.<>)      
       -- | The transformer @t1 <> t2@ transforms the input using @t1@ if successfull, otherwise
       -- @t2@ is applied.
 
-    -- * Custom Processors
-    , processorFromInstance
-    , processor 
-    , strategy      
-    , customInstance
-    , CustomProcessor
-    , Description(..)
+    -- ** Custom Processors
+    , Custom.processorFromInstance
+    , Custom.processor 
+    , Custom.strategy      
+    , Custom.customInstance
+    , Custom.CustomProcessor
+    , Custom.Description(..)
     
       -- ** Arguments
-    , Nat (..)
-    , nat
+    , ArgInstances.Nat (..)
+    , ArgInstances.nat
     , Size (..)
-    , EnumOf
-    , Processor
+    , ArgInstances.EnumOf
+    , ArgInstances.Processor
     , NaturalMI.NaturalMIKind (..)
     , Poly.PolyShape(..)
     , Weightgap.WgOn (..)
     , Compose.ComposeBound (..)
     , Compose.Partitioning (..)
-    , Approximation(..)
-    , Enrichment (..)
-    , InitialAutomaton (..)
-    , AssocArgument (..)      
-    , WhichTrs(..)
-    , Assoc 
+    , DG.Approximation(..)
+    , Bounds.Enrichment (..)
+    , Bounds.InitialAutomaton (..)
+    , ArgInstances.AssocArgument (..)      
+    , ArgInstances.Assoc 
+    , Predicates.WhichTrs(..)
     -- *** RuleSelector
     -- | A @RuleSelector@ is used to select 
     -- rules from a problem. Various combinators 
@@ -207,173 +225,112 @@ module Tct.Methods
     , Compose.selRules
     , Compose.selDPs
     , Compose.selStricts
-    -- , Compose.splitOnlyDPs
-    -- , Compose.splitRandom
-    -- , Compose.splitSatisfying
     , Compose.selFirstCongruence
     , Compose.selFirstStrictCongruence
     , Compose.selFromCWDG
     , Compose.selFromWDG
-    -- , Compose.splitWithoutLeafs
     , Compose.selCombine
     , Compose.selUnion
     , Compose.selInter
     , Compose.selInverse
+    , ComposeRC.defaultSelect
     -- *** Default Options
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)
       
     -- *** Argument Descriptions
-    , Arg (..)
-    , Unit    
-    , (:+:)(..)
-    , arg
-    , optional
+    , Args.Arg (..)
+    , Args.Unit    
+    , (Args.:+:)(..)
+    , Args.arg
+    , Args.optional
       
     -- *** Argument Description Constructors  
-    , assocArg 
-    , boolArg
-    , enumArg
-    , maybeArg
-    , naturalArg
-    , processorArg
+    , ArgInstances.assocArg 
+    , ArgInstances.boolArg
+    , ArgInstances.enumArg
+    , ArgInstances.maybeArg
+    , ArgInstances.naturalArg
+    , ArgInstances.processorArg
 
-    -- *  Parsable Processors
-    , (<|>)
-    , AnyProcessor
-    , ArcticMI.arcticProcessor
-    , bestProcessor
-    , boundsProcessor
-    , Compose.composeProcessor
-    , epostarProcessor
-    , failProcessor
-    , fastestProcessor
-    , iteProcessor
-    , lmpoProcessor
-    , NaturalMI.matrixProcessor
-    , NaturalPI.polyProcessor
-    , popstarProcessor
-    , sequentiallyProcessor
-    , successProcessor
-    , timeoutProcessor
-    -- ** Predicates
-    , isCollapsingProcessor
-    , isConstructorProcessor
-    , isDuplicatingProcessor
-    , isLeftLinearProcessor
-    , isRightLinearProcessor
-    , isWellFormedProcessor
-    , isFullProcessor
-    , isInnermostProcessor
-    , isOutermostProcessor
-    , isContextSensitiveProcessor
       
-      -- ** The Built-In Processor Used by TCT
-    , builtInProcessors
-    , predicateProcessors
-
-    -- ** Transformations
-    , irrProcessor    
-    , uncurryProcessor
-    , dependencyPairsProcessor
-    , pathAnalysisProcessor
-    , usableRulesProcessor
-    , Weightgap.weightgapProcessor
-      
-      -- ** Misc
+      -- * Misc
     , solveBy
     , withArgs
+
+      -- * Existential Quantification
+    , EQuantified (..)
+    -- | This class establishes a mapping between types and their existential 
+    -- quantified counterparts
     , mixed
+    -- | Wrap an object by existential quantification
     )
 where
-import Prelude hiding (fail, uncurry)
 import Control.Monad (liftM)
 import Termlib.Problem (Problem)
-import Tct.Method.Combinator
-import Tct.Method.PopStar
-import Tct.Method.EpoStar
+import qualified Tct.Method.Combinator as Combinators
+import qualified Tct.Method.PopStar as PopStar
+import qualified Tct.Method.EpoStar as EpoStar
 import qualified Tct.Method.Compose as Compose
 import qualified Tct.Method.ComposeRC as ComposeRC
-import Tct.Method.Bounds
+import qualified Tct.Method.Bounds as Bounds
 import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
 import qualified Qlogic.ArcSat as ArcSat
 import qualified Tct.Method.DP.Simplification as DPSimp
 import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
 import qualified Tct.Method.Poly.PolynomialInterpretation as Poly
 import qualified Tct.Method.Poly.NaturalPI as NaturalPI
-import Tct.Method.Custom
-import Tct.Method.Predicates
-import Tct.Method.Uncurry
-import Tct.Method.DP.UsableRules
-import Tct.Method.DP.DependencyPairs
-import Tct.Method.DP.PathAnalysis
+import qualified Tct.Method.Custom as Custom
+import qualified Tct.Method.Predicates as Predicates
+import qualified Tct.Method.Uncurry as Uncurry
+import qualified Tct.Method.DP.UsableRules as UR
+import qualified Tct.Method.DP.DependencyPairs as DP
+import qualified Tct.Method.DP.PathAnalysis as PathAnalysis
 import qualified Tct.Method.Weightgap as Weightgap
-import Tct.Method.DP.DependencyGraph
-import Tct.Method.InnermostRuleRemoval
+import qualified Tct.Method.DP.DependencyGraph as DG
+import qualified Tct.Method.InnermostRuleRemoval as IRR
 import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor (solveBy)
 import Tct.Processor.Standard (withArgs)
-import Tct.Processor.Args
-import Tct.Processor.Args.Instances
-import Tct.Processor.Transformations -- (strict, nonstrict, parallelSubgoals, sequentialSubgoals, TransformationProcessor)
-import Tct.Processor.Timeout
-import Tct.Processor (none, (<|>), AnyProcessor)
-
-builtInProcessors :: AnyProcessor
-builtInProcessors = timeoutProcessor
-                   <|> failProcessor 
-                   <|> successProcessor
-                   <|> iteProcessor
-                   <|> irrProcessor
-                   <|> bestProcessor
-                   <|> fastestProcessor
-                   <|> sequentiallyProcessor
-                   <|> lmpoProcessor
-                   <|> popstarProcessor
-                   <|> epostarProcessor
-                   <|> boundsProcessor
-                   <|> uncurryProcessor
-                   <|> usableRulesProcessor
-                   <|> DPSimp.removeTailProcessor
-                   <|> DPSimp.simpDPRHSProcessor                 
-                   <|> dependencyPairsProcessor
-                   <|> pathAnalysisProcessor
-                   <|> NaturalMI.matrixProcessor
-                   <|> NaturalPI.polyProcessor
-                   <|> ArcticMI.arcticProcessor
-                   <|> Weightgap.weightgapProcessor
-                   <|> Compose.composeProcessor
-                   <|> ComposeRC.composeRCProcessor
-                   <|> emptyProcessor
-                   <|> foldr (<|>) none predicateProcessors
+import qualified Tct.Processor.Args as Args
+import Tct.Processor.Args ((:+:)(..), Unit(..))
+import qualified Tct.Processor.Args.Instances as ArgInstances
+import Tct.Processor.Args.Instances (nat)
+import Tct.Processor.Transformations as T
+import qualified Tct.Processor.Timeout as Timeout
 
 -- combinators
 
--- call :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
--- call = P.someInstance
+step :: (Transformer t1, P.Processor a) =>
+       [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
+step []     _ _ = mixed Combinators.empty
+step (i:is) t p = mixed $ p i `before` (t i >>| step is t p)
 
 upto :: (Enum n, Ord n, P.ComplexityProof (P.ProofOf p), P.Processor p) =>
-        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (OneOf p))
-upto prc (fast :+: l :+: u) | l > u     = fastest []
-                            | fast      = fastest subs
-                            | otherwise = sequentially subs
+        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (Combinators.OneOf p))
+upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
+                            | fast      = Combinators.fastest subs
+                            | otherwise = Combinators.sequentially subs
     where subs = [ prc i | i <- [l..u] ]
 
 orFaster :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
-a `orFaster` b = fastest [P.someInstance a, P.someInstance b]
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (Combinators.OneOf P.SomeProcessor))
+a `orFaster` b = Combinators.fastest [P.someInstance a, P.someInstance b]
 
 orBetter :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
-a `orBetter` b = best [P.someInstance a, P.someInstance b]
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (Combinators.OneOf P.SomeProcessor))
+a `orBetter` b = Combinators.best [P.someInstance a, P.someInstance b]
 
 before :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
-a `before` b = sequentially [P.someInstance a, P.someInstance b]
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (Combinators.OneOf P.SomeProcessor))
+a `before` b = Combinators.sequentially [P.someInstance a, P.someInstance b]
 
+
+dpsimps :: TheTransformer SomeTrans
+dpsimps   = try DPSimp.removeTails >>> try DPSimp.simpDPRHS >>> UR.usableRules
 
 -- * defaultMatrix
 
@@ -396,15 +353,15 @@ instance P.IsDefaultOption MatrixOptions where
                                    , on            = Weightgap.WgOnAny }
 
 matrix :: MatrixOptions -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: Nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
 arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
-arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (Nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
+arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
-weightgap :: MatrixOptions -> TheTransformer Weightgap.WeightGap
-weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (Nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+weightgap :: MatrixOptions -> T.TheTransformer Weightgap.WeightGap
+weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 -- * defaultPoly
 
@@ -420,17 +377,29 @@ instance P.IsDefaultOption PolyOptions where
                                , puseUsableArgs = True }
 
 poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
-poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: Nat 3 :+: Just (Nat (pbits p)) :+: Nat `liftM` pcbits p :+: puseUsableArgs p)
+poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
 
 
 withProblem :: P.Processor proc =>
-              (Problem -> P.InstanceOf proc) -> P.InstanceOf (CustomProcessor Unit (P.ProofOf proc))
-withProblem f = customInstance "Inspecting Problem..." (\ prob -> P.solve (f prob) prob)
+              (Problem -> P.InstanceOf proc) -> P.InstanceOf (Custom.CustomProcessor Unit (P.ProofOf proc))
+withProblem f = Custom.customInstance "Inspecting Problem..." (\ prob -> P.solve (f prob) prob)
 
-mixed :: (P.Processor p) => P.InstanceOf p -> P.InstanceOf P.SomeProcessor
-mixed = P.someInstance
 
-step :: (Transformer t1, P.Processor a) =>
-       [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
-step []     _ _ = mixed empty
-step (i:is) t p = mixed $ p i `before` (t i >>| step is t p)
+-- * existential quantification 
+
+class EQuantified a where 
+    type EQuantifiedOf a
+    equantify :: a -> (EQuantifiedOf a)
+
+instance Transformer t => EQuantified (T.TheTransformer t) where
+    type EQuantifiedOf (T.TheTransformer t) = T.TheTransformer T.SomeTrans
+    equantify t = T.someTransformation t
+
+instance P.Processor p => EQuantified (P.InstanceOf p) where
+    type EQuantifiedOf (P.InstanceOf p) = P.InstanceOf P.SomeProcessor
+    equantify p = P.someInstance p
+
+
+mixed :: EQuantified a => a -> EQuantifiedOf a
+mixed = equantify
+

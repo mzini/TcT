@@ -61,6 +61,7 @@ import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
 import qualified Tct.Methods as Methods
+import qualified Tct.Processors as Processors
 import qualified Tct.Processor.Timeout as Timeout
 
 ----------------------------------------------------------------------
@@ -145,7 +146,7 @@ data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> Erroneous
 
 defaultConfig :: Config
 defaultConfig = Config { makeProcessor   = defaultProcessor
-                       , processors      = Methods.builtInProcessors
+                       , processors      = Processors.builtInProcessors
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
                        , outputMode      = WithProof ProofOutput

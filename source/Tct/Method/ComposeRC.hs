@@ -39,7 +39,7 @@ import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
-import Termlib.Utils (PrettyPrintable (..))
+import Termlib.Utils (PrettyPrintable (..), snub)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Signature as Sig
@@ -244,7 +244,9 @@ defaultSelect = selFromWDG "below first cut in WDG" fn
                     nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, m `pathTo` n ]
                     cutEdges n =    Set.fromList [ i | (_,_,i) <- DG.lsuccessors dg n, not (i `Set.member` nonCutEdges n) ]
                     admitCuts = [ n | n <- DG.nodes dg , not (Set.null $ cutEdges n) && not (Set.null $ nonCutEdges n) ]
-                    highestCuts = [ n | n <- admitCuts , not (any (\ m -> m /= n && m `pathTo` n) admitCuts) ]
+                    highestCuts = snub $ concatMap (DG.congruence cdg) $ DG.roots cdg
+                        where cdg = DG.toCongruenceGraph $ DG.subGraph dg admitCuts
+--                    highestCuts = [ n | n <- admitCuts , not (any (\ m -> m /= n && m `pathTo` n) admitCuts) ]
                     selectedNodes = intersects [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
                         where intersects = foldl Set.union Set.empty
                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)

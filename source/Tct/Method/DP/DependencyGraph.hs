@@ -71,7 +71,8 @@ module Tct.Method.DP.DependencyGraph
     -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
     -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
     -- labeled by @l@.
-
+    , subGraph
+    -- | Computes the subgraph based on the given nodes.
     -- * Dependency Graph
     -- ** Datatype 
     , DG
@@ -119,7 +120,6 @@ module Tct.Method.DP.DependencyGraph
     )
 where
 
-
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Graph.Inductive.Tree as GraphT
 import Data.Graph.Inductive.Query.DFS (dfs)
@@ -147,10 +147,10 @@ import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty)
 import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
 import Tct.Processor.PPrint
+
 --------------------------------------------------------------------------------
 -- Dependency Graph Type
 --------------------------------------------------------------------------------
-
 
 type DependencyGraph n e = GraphT.Gr n e
 
@@ -219,6 +219,8 @@ isEdgeTo g n1 n2 = n2 `elem` successors g n1
 isLEdgeTo :: Eq e => DependencyGraph n e -> NodeId -> e -> NodeId -> Bool
 isLEdgeTo g n1 e n2 = n2 `elem` [n | (n, _, e2) <- lsuccessors g n1, e == e2]
 
+subGraph :: DependencyGraph n e -> [NodeId] -> DependencyGraph n e
+subGraph g ns = Graph.delNodes (nodes g List.\\ ns) g
 
 --------------------------------------------------------------------------------
 -- Estimated Dependency Graph

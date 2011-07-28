@@ -101,7 +101,7 @@ isGroundProcessor = trsPredicateProcessor "ground" Trs.isGround
 isLeftLinearProcessor :: PredicateProcessor
 isLeftLinearProcessor = trsPredicateProcessor "leftlinear" Trs.isLeftLinear
 isRightLinearProcessor :: PredicateProcessor
-isRightLinearProcessor = trsPredicateProcessor "rightlinear" Trs.isLeftLinear
+isRightLinearProcessor = trsPredicateProcessor "rightlinear" Trs.isRightLinear
 isWellFormedProcessor :: PredicateProcessor
 isWellFormedProcessor = trsPredicateProcessor "wellformed" Trs.wellFormed
 

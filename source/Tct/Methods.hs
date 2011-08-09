@@ -455,7 +455,7 @@ dc2011 = mixed $ ite (isDuplicating Strict) Combinators.fail strategy
 rc2011 :: P.InstanceOf P.SomeProcessor
 rc2011 = mixed $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
     where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `orFaster` matchbounds `orFaster` dp mkdp
-          matricesForDegree deg = [matrix P.defaultOptions {dim = n, degree = Just deg} | n <- [max 1 deg..max 5 deg]] -- matrices for degree deg
+          matricesForDegree deg = [ matrix P.defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
           
           matricesBlockOf l = fastest [ sequentially $ concatMap (\ j -> matricesForDegree (i + (j * l))) [0..] | i <- [1..max 1 l]] 
           -- fastest [ sequentially (matricesForDegree 1 ++ matricesForDegree (1 + l) ++ matricesForDegree (1 + 2l) ...  ] 

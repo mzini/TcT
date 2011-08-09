@@ -49,8 +49,10 @@ module Tct.Methods
     -- | this processor implements lightweight multiset path orders 
     , PopStar.lmpoPS
     -- | this processor implements lightweight multiset path orders with parameter substitution            
-
-
+    , rc2011
+    -- | this processor reflects the runtime complexity strategy employed in the competition 2011
+    , dc2011
+    -- | this processor reflects the derivational complexity strategy employed in the competition 2011
     -- ** Combinators
     , Combinators.ite
       -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied
@@ -302,6 +304,8 @@ import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations as T
 import qualified Tct.Processor.Timeout as Timeout
 
+import Tct.Method.Combinator (ite, empty, fastest,sequentially)
+import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
 -- combinators
 
 step :: (Transformer t1, P.Processor a) =>
@@ -402,4 +406,80 @@ instance P.Processor p => EQuantified (P.InstanceOf p) where
 
 mixed :: EQuantified a => a -> EQuantifiedOf a
 mixed = equantify
+
+
+-- * Competition Strategy 
+
+
+dos :: MatrixOptions
+dos   = P.defaultOptions { cbits = Just 4, bits = 3}
+
+lin :: MatrixOptions
+lin   = dos { dim = 1, degree = Just 1}
+
+quad :: MatrixOptions
+quad  = dos { dim = 2, degree = Nothing}
+
+cubic :: MatrixOptions
+cubic = dos { dim = 3, degree = Nothing}
+
+quartic :: MatrixOptions
+quartic = dos { dim = 4, degree = Nothing}
+
+quintic :: MatrixOptions
+quintic = dos { dim = 5, degree = Nothing}
+
+te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTrans)
+te = try . exhaustively
+
+dc2011 :: P.InstanceOf P.SomeProcessor
+dc2011 = mixed $ ite (isDuplicating Strict) Combinators.fail strategy
+      where matrices simple c | simple = empty `before` fastest [matrix P.defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
+                              | otherwise = empty `before` fastest [ matrix P.defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
+            bound       = 6
+            direct      = matrices False NaturalMI.Algebraic
+            insidewg    = matrices False NaturalMI.Algebraic
+            matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
+                          `orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
+            wgs         = weightgap lin 
+                          <> weightgap quad
+                          <> weightgap cubic
+                          <> weightgap quartic
+                          <> weightgap quintic
+            strategy    = try IRR.irr 
+                          >>| try Uncurry.uncurry 
+                          >>| (direct 
+                               `orFaster` (te wgs >>| insidewg) 
+                               `orFaster` matchbounds)
+
+rc2011 :: P.InstanceOf P.SomeProcessor
+rc2011 = mixed $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
+    where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `orFaster` matchbounds `orFaster` dp mkdp
+          matricesForDegree deg = [matrix P.defaultOptions {dim = n, degree = Just deg} | n <- [max 1 deg..max 5 deg]] -- matrices for degree deg
+          
+          matricesBlockOf l = fastest [ sequentially $ concatMap (\ j -> matricesForDegree (i + (j * l))) [0..] | i <- [1..max 1 l]] 
+          -- fastest [ sequentially (matricesForDegree 1 ++ matricesForDegree (1 + l) ++ matricesForDegree (1 + 2l) ...  ] 
+          --           , ..., 
+          --           sequentially (matricesForDegree l ++ matricesForDegree (l + l) ++ matricesForDegree (l + 2l) ...  ] 
+          -- dh l prozesse laufen parallel, und im rad sequentiell
+          
+          
+          matchbounds = Timeout.timeout 5 (Bounds.bounds Bounds.Minimal Bounds.Match 
+                                           `orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match)
+          
+          dp mkdp = mkdp
+                     >>| UR.usableRules 
+                     >>| (insideDP 
+                         `orFaster` (PathAnalysis.pathAnalysis >>|| UR.usableRules >>| insideDP))
+             where insideDP  = te dpsimps >>| empty `before` (try wgUsables >>| te (try dpsimps >>> wgAll) >>| directs)
+                   wgAll     = weightgap lin 
+                               <> weightgap quad
+                               <> weightgap cubic
+                   wgUsables = weightgap lin {on = Weightgap.WgOnTrs} 
+                               <> weightgap quad {on = Weightgap.WgOnTrs} 
+                               <> weightgap cubic {on = Weightgap.WgOnTrs}
+                   -- composeMult = compose splitWithoutLeafs Mult elim 
+                   -- elim     = P.someInstance (try dpsimp >>| directs `before` insideDP) -- arrr
+                   
+                   directs  = empty `before` (matricesBlockOf 3 `orFaster` matchbounds)
 

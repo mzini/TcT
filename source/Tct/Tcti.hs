@@ -9,6 +9,7 @@ module Tct.Tcti
     , reset
     , undo 
     , get
+    , modify
     , select
     , unselect
     , selectAll

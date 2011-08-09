@@ -110,7 +110,7 @@ simpPower ((Pow _ n):xs) | n == 0    = simpPower xs
 simpPower ((Pow v n):xs) | otherwise = (Pow v (foldl addpow n xss):(simpPower yss))
                                        where (xss, yss)           = List.partition isRightPow xs
                                              isRightPow (Pow w _) = v == w
-                                             addpow x (Pow _ y)   = x `plus` y
+                                             addpow x (Pow _ y)   = x + y
 
 varToPoly :: Semiring b => a -> Polynomial a b
 varToPoly v = Poly [Mono one [Pow v 1]]

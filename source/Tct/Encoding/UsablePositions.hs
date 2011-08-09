@@ -22,9 +22,21 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Encoding.UsablePositions
-  -- ( UsablePositions
-  -- , empty
-  -- )
+  ( UsablePositions
+  , empty
+  , singleton
+  , emptyWithSignature
+  , fullWithSignature
+  , setUsable
+  , setUsables
+  , usablePositions
+  , union
+  , unions
+  , restrictToSignature
+  , isUsable
+  , usableSubtermsOf
+  , usableArgs
+  )
 where
 
 import Termlib.Rule (Rule(..))
@@ -89,12 +101,13 @@ isUsable sym i (UP m) = case IntMap.lookup (enum sym) m of
                           Just poss -> IntSet.member i poss
                           Nothing ->  False
 
-isBlockedProperSubtermOf :: UsablePositions -> Term -> Term -> Bool
-isBlockedProperSubtermOf up s t = any (isBlockedProperSubtermOf up s . snd) uSubs || any (isSubtermOf s . snd) nonSubs
-  where (uSubs, nonSubs) = partition (\ (i, _) -> isUsable f i up ) $ zip [1 :: Int ..] $ immediateSubterms t
-        f                = case root t of
-                             Left  _  -> error "Tct.Encoding.UsablePositions.isBlockedProperSubtermOf: root t called for a variable t"
-                             Right f' -> f'
+
+usableSubtermsOf :: UsablePositions -> Term -> [Term]
+usableSubtermsOf _   v@(Var _)   = [v]
+usableSubtermsOf up t@(Fun f ts) = t : usables ++ concatMap (usableSubtermsOf up) usables
+    where usables = [ ti | (i,ti) <- zip [1..] ts, isUsable f i up ]
+
+
 
 instance PrettyPrintable (UsablePositions, Signature) where 
   pprint (up, sig) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ Set.filter (\sym -> arity sig sym > 0) $ symbols sig]
@@ -119,10 +132,15 @@ usableArgsCap _ r s         = fix (usableReplacementMap $ r `Trs.union` s) empty
 
 usableReplacementMap :: Trs -> UsablePositions -> UsablePositions
 usableReplacementMap trs up = unions [ snd $ uArgs l r | Rule l r <- Trs.rules trs]
-    where uArgs l t@(Var _)    = ( not $ isBlockedProperSubtermOf up t l, empty)
-          uArgs l t@(Fun f ts) = ( not (isBlockedProperSubtermOf up t l) && (subtermUsable || hasRedex)
+    where uArgs l t@(Var _)    = ( not $ isBlockedProperSubtermOf t l, empty)
+          uArgs l t@(Fun f ts) = ( not (isBlockedProperSubtermOf t l) && (subtermUsable || hasRedex)
                              , unions $ new : [ uargs | (_,_,uargs) <- uArgs'] )
               where uArgs' = [ let (usable,uargs) = uArgs l ti in (i,usable,uargs)  | (i, ti) <- zip [1 :: Int ..] ts]
                     subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
                     hasRedex = any (\ rule -> isRenamedUnifiable t $ lhs rule) $ rules trs
                     new = singleton f [i | (i, usable, _) <- uArgs', usable]
+          isBlockedProperSubtermOf s t = any (isBlockedProperSubtermOf s . snd) uSubs || any (isSubtermOf s . snd) nonSubs
+              where (uSubs, nonSubs) = partition (\ (i, _) -> isUsable f i up ) $ zip [1 :: Int ..] $ immediateSubterms t
+                    f                = case root t of
+                                         Left  _  -> error "Tct.Encoding.UsablePositions.isBlockedProperSubtermOf: root t called for a variable t"
+                                         Right f' -> f'

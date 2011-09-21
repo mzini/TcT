@@ -15,7 +15,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module Main where
+module Tct.StrategyInfo where
 import Tct (Config (..), defaultConfig)
 import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ
@@ -49,6 +49,3 @@ runStrategyInfo cfg = putStrLn $ show $ vcat [ pp $ descriptionOf proc | proc <-
                                     , ppattrib "optionalArguments"
                                       (brackets $ vcat [ pprint d | d <- optionalArguments d] ) ])
           ppattrib n s = nest 1 $ text n <+> text "=" <+> s <> text ";"
-
-main :: IO ()
-main = runStrategyInfo defaultConfig

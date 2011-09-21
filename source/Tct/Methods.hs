@@ -241,9 +241,9 @@ module Tct.Methods
     , MatrixOptions (..)
     , PolyOptions (..)
       
-    -- *** Argument Descriptions
+    -- *** Argument Description Combinators
     , Args.Arg (..)
-    , Args.Unit    
+    , Args.Unit (..)
     , (Args.:+:)(..)
     , Args.arg
     , Args.optional

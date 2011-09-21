@@ -73,19 +73,19 @@ instance IsDescription (Description arg) arg where
 
 
 processor :: IsDescription d arg => 
-                   d -> (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> (CustomProcessor arg res)
-processor d f = S.StdProcessor CP {description = toDescription d, code = f }
+                   (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> d -> (CustomProcessor arg res)
+processor f d = S.StdProcessor CP {description = toDescription d, code = f }
 
 
 strategy :: (P.Processor proc, IsDescription d arg) =>
            (A.Domains arg -> P.InstanceOf proc) -> d -> CustomProcessor arg P.SomeProof
-strategy mkinst d = processor d (\ sargs prob -> P.SomeProof `liftM` (P.solve (mkinst sargs) prob))
+strategy mkinst d = processor (\ sargs prob -> P.SomeProof `liftM` (P.solve (mkinst sargs) prob)) d 
 
 processorFromInstance :: (IsDescription d arg, P.Processor proc) => 
-             d -> (A.Domains arg -> P.InstanceOf proc) -> (CustomProcessor arg (P.ProofOf proc))
-processorFromInstance d mkInst = processor d (P.solve . mkInst) 
+             (A.Domains arg -> P.InstanceOf proc) -> d -> (CustomProcessor arg (P.ProofOf proc))
+processorFromInstance mkInst  d = processor (P.solve . mkInst) d 
 
 
 customInstance :: P.ComplexityProof res => String -> (forall m. P.SolverM m => Problem -> m res) -> P.InstanceOf (CustomProcessor A.Unit res)
-customInstance name f = processor d (const f) `S.withArgs` ()
+customInstance name f = processor (const f) d `S.withArgs` ()
   where d = Description { as = name, descr = [], args = A.unit }

@@ -62,6 +62,7 @@ module Tct.Processor
     , none
 --    , anyOf
     , (<|>)
+    , (<++>)
     , toProcessorList
     , parseAnyProcessor
     -- * Machine Readable Description of Processors
@@ -422,6 +423,9 @@ infixr 5 <|>
 (<|>) :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
 p <|> OO s l = OO s $ someProcessor p : l
 
+infixr 6 <++>
+(<++>) :: AnyProcessor -> AnyProcessor -> AnyProcessor
+OO s l1 <++> OO _ l2 = OO s $ l1 ++ l2
 
 none :: AnyOf a
 none = OO "any processor" []

@@ -18,6 +18,8 @@ module Tct.Processors
     ( 
     -- *  Parsable Processors
     (P.<|>)
+    , (P.<++>)
+    , P.none
     , P.AnyProcessor
     , ArcticMI.arcticProcessor
     , Combinators.bestProcessor
@@ -25,6 +27,7 @@ module Tct.Processors
     , Combinators.failProcessor
     , Combinators.fastestProcessor
     , Combinators.iteProcessor
+    , Combinators.emptyProcessor
     , Compose.composeProcessor
     , EpoStar.epostarProcessor
     , PopStar.lmpoProcessor

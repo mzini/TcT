@@ -16,7 +16,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 module Tct.StrategyInfo where
-import Tct (Config (..), defaultConfig)
+import Tct (Config (..))
 import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..))
@@ -45,7 +45,7 @@ runStrategyInfo cfg = putStrLn $ show $ vcat [ pp $ descriptionOf proc | proc <-
                                     , ppattrib "description" (text (show $ description d))
                                     , ppattrib "synopsis" (text $ show $ synopsis d)
                                     , ppattrib "positionalArguments" 
-                                                   (brackets $ vcat [ parens $ text (show i) <+> text "," <+>  pprint d | (i,d) <- positionalArguments d] )
+                                                   (brackets $ vcat [ parens $ text (show i) <+> text "," <+>  pprint a | (i,a) <- positionalArguments d] )
                                     , ppattrib "optionalArguments"
-                                      (brackets $ vcat [ pprint d | d <- optionalArguments d] ) ])
+                                      (brackets $ vcat [ pprint a | a <- optionalArguments d] ) ])
           ppattrib n s = nest 1 $ text n <+> text "=" <+> s <> text ";"

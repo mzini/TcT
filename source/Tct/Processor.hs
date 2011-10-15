@@ -1,3 +1,4 @@
+
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 

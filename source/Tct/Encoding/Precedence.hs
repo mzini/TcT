@@ -18,6 +18,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Tct.Encoding.Precedence 
     ( validPrecedenceM
@@ -33,7 +34,7 @@ import Qlogic.NatSat (mGrt,mEqu,Size(..),natAtom, toFormula)
 import Termlib.FunctionSymbol (Symbol)
 import Qlogic.SatSolver
 
-instance PropAtom Order
+instance PropAtom (Order Symbol)
 instance PropAtom Symbol
 
 gt :: Eq l => Symbol -> Symbol -> PropFormula l
@@ -56,13 +57,13 @@ validPrecedenceM syms = toFormula constraint
           f `meq` g = return $ f `eq` g
 
 precGt :: Eq l => Symbol -> Symbol -> PropFormula l
-f `precGt` g | f == g    = Bot 
+f `precGt` g | f == g          = Bot 
              | otherwise      = f `gt` g
 
 precEq :: Eq l => Symbol -> Symbol -> PropFormula l
-f `precEq` g | f == g    = Top
+f `precEq` g | f == g     = Top
              | f < g     = f `eq` g
              | otherwise = g `eq` f
 
-instance Decoder Precedence Order where
+instance Decoder Precedence (Order Symbol) where
   add = insert

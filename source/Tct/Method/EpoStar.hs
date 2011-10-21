@@ -224,7 +224,7 @@ data EpoOrder = Epo Term Term
 type EpoSAT r = Memo EpoOrder SAT r
 
 
-type Precedence  = Order -> Boolean
+type Precedence  = Order Symbol -> Boolean
 data PrecedenceDecoder = PrecDecode (Map (Symbol, Symbol) (Boolean,Boolean)) Sig -- TODO: sehr stupide idee
 type SafeMapping = Symbol -> Int -> Boolean -- (Relation Int ()) -- (Ix Symbol) not adequate
 data SafeMappingDecoder = SMDecode (Map Symbol (Relation Int ())) Sig

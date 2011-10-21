@@ -93,6 +93,7 @@ builtInProcessors = Timeout.timeoutProcessor
                     P.<|> Combinators.sequentiallyProcessor
                     P.<|> PopStar.lmpoProcessor
                     P.<|> PopStar.popstarProcessor
+                    P.<|> PopStar.ppopstarProcessor
                     P.<|> EpoStar.epostarProcessor
                     P.<|> Bounds.boundsProcessor
                     P.<|> Uncurry.uncurryProcessor

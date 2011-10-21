@@ -23,11 +23,13 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.PopStar 
     ( popstarProcessor
+    , ppopstarProcessor
     , lmpoProcessor
     , popstar
     , lmpo
     , popstarPS
-    , lmpoPS
+    , smallPopstar
+    , smallPopstarPS
     , PopStarOrder (..)
     , PopStar)
 where
@@ -35,6 +37,7 @@ where
 import Control.Monad (liftM)
 import Data.Set (Set, (\\))
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
 import qualified Text.PrettyPrint.HughesPJ as PP
@@ -47,7 +50,7 @@ import Qlogic.PropositionalFormula
 import Qlogic.SatSolver ((:&:) (..), addFormula)
 import qualified Qlogic.SatSolver as S
 
-import Termlib.FunctionSymbol (Symbol, Signature)
+import Termlib.FunctionSymbol (Symbol)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
 -- import Termlib.Signature (runSignature)
@@ -59,7 +62,7 @@ import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
-import Tct.Certificate (poly, expo, certified, uncertified, unknown)
+import Tct.Certificate (poly, expo, certified, unknown)
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import Tct.Processor (ComplexityProof(..), Answer (..))
@@ -77,15 +80,19 @@ import qualified Tct.Encoding.SafeMapping as SMEnc
 --------------------------------------------------------------------------------
 --- proof object
 
+data OrdType = POP | ProdPOP | LMPO deriving (Typeable, Show, Eq)
+
+data PopStar = PopStar { kind :: OrdType } deriving (Typeable, Show)
+
+
 data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popPrecedence        :: Prec.Precedence
                              , popArgumentFiltering :: Maybe AF.ArgumentFiltering
                              , popInputProblem      :: Problem
-                             , popMultRecAllowed    :: Bool
-                             , popPsAllowed         :: Bool}
+                             , popInstance          :: S.TheProcessor PopStar}
 
 instance ComplexityProof PopStarOrder where
-  pprintProof order _ = (text "The input was oriented with the instance of" <+> text ordname <+> text "as induced by the precedence")
+  pprintProof order _ = (text "The input was oriented with the instance of" <+> text (S.instanceName inst) <+> text "as induced by the precedence")
                         $++$ pparam (popPrecedence order)
                         $++$ text "and safe mapping"
                         $++$ pparam (popSafeMapping order) <+> text "."
@@ -98,66 +105,63 @@ instance ComplexityProof PopStarOrder where
                         $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam = nest 1 . pprint
-            ordname | popMultRecAllowed order = "LMPO"
-                    | otherwise               = "POP*"
+            inst = popInstance order
             ppProblem = ppTrs "Strict DPs"     strictDPs prob
                         $+$ ppTrs "Weak DPs"   weakDPs prob
                         $+$ ppTrs "Strict Trs" strictTrs prob
                         $+$ ppTrs "Weak Trs"   weakTrs prob
 
             ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p,sm)
-            -- probFiltered = case popArgumentFiltering order of 
-            --                      Nothing -> prob
-            --                      Just af ->  prob' { signature = sig' }
-            --                           where (prob',sig') = runSignature mkProb (Prob.signature prob) 
-            --                                 filtered trs = AF.apply trs af 
-            --                                 mkProb = do sdp <- filtered $ Prob.strictDPs prob 
-            --                                             wdp <- filtered $ Prob.weakDPs prob
-            --                                             s <- filtered $ Prob.strictTrs prob
-            --                                             w <- filtered $ Prob.weakTrs prob
-            --                                             return prob { strictDPs = sdp
-            --                                                         , strictTrs = s
-            --                                                         , weakDPs   = wdp
-            --                                                         , weakTrs   = w }
             prob           = popInputProblem order
             sm             = popSafeMapping order
+                             
 
-
-  answer order | popMultRecAllowed order && popPsAllowed order = CertAnswer $ uncertified
-               | popMultRecAllowed order                      = CertAnswer $ certified (unknown, expo Nothing)
-               | otherwise                                    = CertAnswer $ certified (unknown, poly Nothing)
-
+  answer order = case kind $ S.processor inst of 
+                   LMPO    -> CertAnswer $ certified (unknown, expo Nothing)
+                   POP     -> CertAnswer $ certified (unknown, poly Nothing)
+                   ProdPOP | wsc       -> CertAnswer $ certified (unknown, poly $ Just ub) 
+                           | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
+      where inst       = popInstance order
+            _ :+: wsc  = S.processorArgs inst
+            ub         = maximum $ 0 : Map.elems (Prec.ranks $ popPrecedence order)
 
 --------------------------------------------------------------------------------
 --- processor 
 
-data PopStar = PopStar {isLmpo :: Bool} deriving (Typeable, Show)
-
 instance S.Processor PopStar where
-    name p | isLmpo p  = "lmpo"
-           | otherwise = "pop*"
+    name p = case kind p of 
+               LMPO    -> "lmpo"
+               POP     -> "pop*"
+               ProdPOP -> "ppop*"
 
-    description p | isLmpo p  = [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
-                                          , "a technique applicable for innermost runtime-complexity analysis."
-                                          , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
-                                          , "restricted so that compatibility assesses polytime computability of the functions defined, "
-                                          , "cf. http://www.loria.fr/~marionjy/Papers/icc99.ps ."
-                                          , "Further, it induces exponentially bounded innermost runtime-complexity."]
-                                ]
-                  | otherwise = [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
-                                          , "a technique applicable for innermost runtime-complexity analysis."
-                                          , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
-                                          , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity, "
-                                          , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/FLOPS08.pdf ."]
-                                , unlines [ "The implementation for the WDP-setting follows closely"
-                                          , "http://cl-informatik.uibk.ac.at/~zini/publications/RTA09.pdf ,"
-                                          , "where addionally argument filterings are employed." ]
-                                ]
+    description p = case kind p of 
+                      LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
+                                       , "a technique applicable for innermost runtime-complexity analysis."
+                                       , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
+                                       , "restricted so that compatibility assesses polytime computability of the functions defined, "
+                                       , "cf. http://www.loria.fr/~marionjy/Papers/icc99.ps ."
+                                       , "Further, it induces exponentially bounded innermost runtime-complexity."]]
+                      POP   -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
+                                        , "a technique applicable for innermost runtime-complexity analysis."
+                                        , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
+                                        , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity, "
+                                        , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/FLOPS08.pdf ."]
+                              , unlines [ "The implementation for the WDP-setting follows closely"
+                                        , "http://cl-informatik.uibk.ac.at/~zini/publications/RTA09.pdf ,"
+                                        , "where addionally argument filterings are employed." ]]
+                      ProdPOP -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders'"
+                                          , "with product extension, c.f. processor 'pop*'"]]
+
 
     type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool
 
-    instanceName inst = show $ text "Pop*" <+> ppargs
-        where ppargs | ps && wsc = text "with parameter subtitution and weak safe composition"
+    instanceName inst = show $ ppname <+> ppargs
+        where ppname = case kind $ S.processor inst of 
+                         LMPO -> text "Lightweight Multiset Path Order"
+                         POP -> text "Polynomial Path Order"
+                         ProdPOP -> text "Polynomial Path Order (product extension)"
+
+              ppargs | ps && wsc = text "with parameter subtitution and weak safe composition"
                      | ps        = text "with parameter subtitution"
                      | wsc       = text "with weak safe composition"
                      | otherwise = PP.empty
@@ -175,29 +179,35 @@ instance S.Processor PopStar where
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
-                     ((BasicTerms _ cs), Innermost) -> orientProblem (isLmpo $ S.processor inst) ps wsc cs prob
-                         where ps :+: wsc = S.processorArgs inst
-                     _                              -> return (Inapplicable "POP* only applicable for innermost runtime complexity analysis")
+                     ((BasicTerms _ cs), Innermost) -> orientProblem inst cs prob
+                     _                              -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
 
 
 
 popstarProcessor :: S.StdProcessor PopStar
-popstarProcessor = S.StdProcessor (PopStar False)
+popstarProcessor = S.StdProcessor (PopStar POP)
+
+ppopstarProcessor :: S.StdProcessor PopStar
+ppopstarProcessor = S.StdProcessor (PopStar ProdPOP)
 
 lmpoProcessor :: S.StdProcessor PopStar
-lmpoProcessor = S.StdProcessor (PopStar True)
+lmpoProcessor = S.StdProcessor (PopStar LMPO)
 
 popstar :: P.InstanceOf (S.StdProcessor PopStar)
-popstar = S.StdProcessor (PopStar False) `S.withArgs` (False :+: False)
+popstar = popstarProcessor `S.withArgs` (False :+: False)
 
 lmpo :: P.InstanceOf (S.StdProcessor PopStar)
-lmpo = S.StdProcessor (PopStar True) `S.withArgs` (False :+: False)
+lmpo = lmpoProcessor `S.withArgs` (False :+: False)
 
 popstarPS :: P.InstanceOf (S.StdProcessor PopStar)
-popstarPS = S.StdProcessor (PopStar False) `S.withArgs` (True :+: False)
+popstarPS = popstarProcessor `S.withArgs` (True :+: False)
 
-lmpoPS :: P.InstanceOf (S.StdProcessor PopStar)
-lmpoPS = S.StdProcessor (PopStar True) `S.withArgs` (True :+: False)
+smallPopstar :: P.InstanceOf (S.StdProcessor PopStar)
+smallPopstar = ppopstarProcessor `S.withArgs` (False :+: True)
+
+smallPopstarPS :: P.InstanceOf (S.StdProcessor PopStar)
+smallPopstarPS = ppopstarProcessor `S.withArgs` (True :+: True)
+
 
 
 --------------------------------------------------------------------------------
@@ -214,17 +224,17 @@ quasiConstructorsFor constructors strict weak = constructors
 
 
 data Predicates l = Predicates {
-      definedP :: Symbol -> PropFormula l
-    , collapsingP :: Symbol -> PropFormula l
-    , inFilterP :: Symbol -> Int -> PropFormula l
-    , safeP :: Symbol -> Int -> PropFormula l
-    , precGtP :: Symbol -> Symbol -> PropFormula l
-    , precEqP :: Symbol -> Symbol -> PropFormula l
-    , allowMulRecP :: PropFormula l
-    , allowPsP :: PropFormula l
+      definedP      :: Symbol -> PropFormula l
+    , collapsingP   :: Symbol -> PropFormula l
+    , inFilterP     :: Symbol -> Int -> PropFormula l
+    , safeP         :: Symbol -> Int -> PropFormula l
+    , precGtP       :: Symbol -> Symbol -> PropFormula l
+    , precEqP       :: Symbol -> Symbol -> PropFormula l
+    , allowMulRecP  :: PropFormula l
+    , allowPsP      :: PropFormula l
     , weakSafeCompP :: PropFormula l
+    , prodExtP      :: PropFormula l
   }
-
 
 data PopArg = Gt Term Term
             | Gsq Term Term
@@ -232,94 +242,72 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: P.SolverM m => Bool -> Bool -> Bool -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem lmpop ps wsc cs prob = maybe Incompatible Order `liftM` slv 
+orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem inst cs prob = maybe Incompatible Order `liftM` slv 
                                     
-    where slv | Prob.isDPProblem prob 
-                && Trs.isEmpty (Prob.strictTrs prob) = solveDP
-              | otherwise = solveDirect
-
-          solveDP = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob False ps
-                    form                = dpConstraint ps wsc quasiConstrs strict weak sig 
-                                          && orientationConstraints
-                    initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig :&: AFEnc.initial sig
-                    quasiConstrs        = quasiConstructorsFor cs strict weak
-
-          solveDirect = solveConstraint form initial mkOrd                                          
-              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob lmpop ps
-                    form                = directConstraint lmpop ps wsc quasiConstrs strict weak sig 
-                                          && orientationConstraints
-                    initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
-                    quasiConstrs        = quasiConstructorsFor cs strict weak
-
-          orientationConstraints = bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
-                                   && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
-
+    where knd = kind $ S.processor inst
+          ps :+: wsc = S.processorArgs inst
+          isDP = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
+          quasiConstrs = quasiConstructorsFor cs strict weak
+          quasiDefineds = Trs.definedSymbols both \\ quasiConstrs
           strict = Prob.strictComponents prob
           weak   = Prob.weakComponents prob
+          both   = strict `Trs.union` weak
           sig    = Prob.signature prob
- 
-solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
-solveConstraint constraint initial makeResult = 
-    do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
-       return $ makeResult `liftM` r
 
+          slv | isDP      = solveDP 
+              | otherwise = solveDirect
+          
+          solveDP = solveConstraint form initial mkOrd
+              where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob inst 
+                    initial                    = SMEnc.empty sig quasiConstrs :&: Prec.empty sig :&: AFEnc.initial sig
 
-directConstraint :: (S.Solver s l, Eq l, Show l) => Bool -> Bool -> Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
-directConstraint allowMR allowPS weakSafeComposition quasiConstrs strict weak _ = fm maybeOrientable && 
-                                                                                  strict `orientStrictBy` pop 
-                                                                                  && weak `orientWeakBy` popEq
-                                                                                  && validPrecedence
+          solveDirect = solveConstraint form initial mkOrd
+              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob inst
+                    initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
 
-  where maybeOrientable     = allowMR || (all maybeOrientableRule $ rules both)
-            where maybeOrientableRule r = case rtl of 
-                                            Left  _   -> False 
-                                            Right sym -> sym `Set.member` quasiDefinedSymbols --> cardinality rtl (rhs r) <= 1
+          solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
+          solveConstraint constraint initial makeResult = 
+              do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
+                 return $ makeResult `liftM` r
+
+                                          
+          form = fm maybeOrientable 
+                 && bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
+                 && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
+                 && validPrecedence
+                 && (fm isDP --> validArgumentFiltering)
+                 && orderingConstraints (isDP && knd /= LMPO) (knd == LMPO) ps wsc (knd == ProdPOP) strict weak quasiDefineds
+
+          maybeOrientable = (knd == LMPO) || isDP || (all maybeOrientableRule $ rules both)
+            where maybeOrientableRule r = 
+                      case rtl of 
+                        Left  _   -> False 
+                        Right sym -> sym `Set.member` quasiDefineds --> cardinality rtl (rhs r) <= 1
                       where rtl = root (lhs r)
+          validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols both)) sig
+          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
 
-        both                = strict `Trs.union` weak
-        quasiDefinedSymbols = Trs.definedSymbols both \\ quasiConstrs
-        pop s t             = orient preds (Gt s t)
-        popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
-        preds               = Predicates {
-                                definedP    = defP
-                              , collapsingP = const bot
-                              , inFilterP   = const . const top
-                              , safeP       = \ f i -> not (defP f) || SMEnc.isSafeP f i
-                              , precGtP     = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
-                              , precEqP     = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
-                              , allowMulRecP = fm allowMR
-                              , allowPsP     = fm allowPS
-                              , weakSafeCompP = fm weakSafeComposition
-                              } where defP f = fm $ f `Set.member` quasiDefinedSymbols
-        validPrecedence     = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefinedSymbols)
-
-dpConstraint :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Set Symbol -> Trs -> Trs -> Signature -> MemoFormula PopArg s l
-dpConstraint allowPS weakSafeComposition quasiConstrs strict weak sig = strict `orientStrictBy` pop 
-                                                                        && weak `orientWeakBy` popEq
-                                                                        && validPrecedence 
-                                                                        && validArgumentFiltering
-    where both                = strict `Trs.union` weak
-          allSymbols          = Trs.functionSymbols both
-          quasiDefinedSymbols = Trs.definedSymbols both \\ quasiConstrs
+orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Bool -> Bool -> Bool -> Trs -> Trs -> Set Symbol -> MemoFormula PopArg s l
+orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasiDefineds = 
+    strict `orientStrictBy` pop && weak `orientWeakBy` popEq
+    where orientBy ob trs ord = bigAnd [atom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
+          orientStrictBy = orientBy strictlyOriented 
+          orientWeakBy = orientBy weaklyOriented
           pop s t             = orient preds (Gt s t)
-          popEq s t           = orient preds (Eq s t) || pop s t
+          popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
           preds               = Predicates {
-                                  definedP    = defP
-                                , collapsingP = AFEnc.isCollapsing
-                                , inFilterP   = AFEnc.isInFilter
-                                , safeP       = \ f i  -> not (defP f) || SMEnc.isSafeP f i
-                                , precGtP     =  \ f g -> fm (f /= g) && defP f && (not (defP g) || f `PrecEnc.precGt` g)
-                                , precEqP     = \ f g  -> (fm (f == g) 
-                                                          || not (defP f) && not (defP g)
-                                                          || defP f && defP g && f `PrecEnc.precEq` g)
-                                , allowMulRecP = bot
+                                definedP    = defP
+                                , collapsingP = if allowAF then AFEnc.isCollapsing else const bot
+                                , inFilterP   = if allowAF then AFEnc.isInFilter else const . const top
+                                , safeP       = \ f i -> not (defP f) || SMEnc.isSafeP f i
+                                , precGtP     = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
+                                , precEqP     = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
+                                , allowMulRecP = fm allowMR
                                 , allowPsP     = fm allowPS
-                                , weakSafeCompP = fm weakSafeComposition
-                            } where defP f = fm $ f `Set.member` quasiDefinedSymbols
-          validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList allSymbols) sig
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefinedSymbols)
+                                , weakSafeCompP = fm forceWSC
+                                , prodExtP    = fm forcePROD
+                              } where defP f = fm $ f `Set.member` quasiDefineds
 
 
 newtype AlphaAtom   = Alpha   (Int, (Term, Term))      deriving (Eq, Ord, Typeable, Show)
@@ -331,17 +319,6 @@ instance PropAtom AlphaAtom
 instance PropAtom DeltaAtom
 instance PropAtom EpsilonAtom
 instance PropAtom GammaAtom
-
-
-orientBy :: (S.Solver s l, Eq l) => (Rule -> Orientation) -> Trs ->  (Term -> Term -> MemoFormula PopArg s l) -> MemoFormula PopArg s l
-orientBy ob trs ord = bigAnd [atom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
-
-orientStrictBy :: (S.Solver s l, Eq l) => Trs ->  (Term -> Term -> MemoFormula PopArg s l) -> MemoFormula PopArg s l
-orientStrictBy = orientBy strictlyOriented
-
-orientWeakBy :: (S.Solver s l, Eq l) => Trs ->  (Term -> Term -> MemoFormula PopArg s l) -> MemoFormula PopArg s l
-orientWeakBy = orientBy weaklyOriented
-
 
 orient :: (S.Solver s l, Eq l, Show l) => Predicates l -> (PopArg -> MemoFormula PopArg s l)
 orient p = memoized $ \ a -> 
@@ -365,20 +342,22 @@ orient p = memoized $ \ a ->
                                                         | (t_j, j) <- its ]
                                               && (isCollapsing g 
                                                   || (f `pGt` g && (mulRecForbidden --> atmostOne [alpha j | (_,j) <- its]))
-                                                  || (f `pEq` g && isDefined f && mulGt))
-                                     where mulGt = encodeCover
+                                                  || (f `pEq` g && isDefined f && seqExtGt))
+                                     where seqExtGt = encodeCover
                                                    && bigAnd [gamma i j --> bigAnd [ inFilter f i
                                                                                    , ite paramSubst 
-                                                                                             (isNormal f i) 
-                                                                                             (isSafe f i <-> isSafe g j)
-                                                                                   , ite (epsilon i) (s_i `equiv` t_j) (s_i `gpop` t_j) ]
+                                                                                         (isNormal f i) 
+                                                                                         (isSafe f i <-> isSafe g j)
+                                                                                   , ite (epsilon i) 
+                                                                                         (s_i `equiv` t_j) 
+                                                                                         (s_i `gpop` t_j) ]
                                                          | (s_i, i) <- iss, (t_j, j) <- its]
                                                    && bigOr [not (epsilon i) && isNormal f i && inFilter f i | i <- is]
                                            encodeCover = (forall js $ \ j ->  
                                                               inFilter g j && (paramSubst --> isNormal g j) --> bigOr [gamma i j | i <- is])
                                                          && (forall is $ \ i -> 
                                                              (paramSubst --> (inFilter f i && isNormal f i || bigAnd [not (gamma i j) | j <- js]))
-                                                             && (epsilon i --> exactlyOne [gamma i j | j <- js]))
+                                                             && ((pext || epsilon i) --> exactlyOne [gamma i j | j <- js]))
                                            its = indexed ts
                                            is  = [ i | (_, i) <- iss ]
                                            js  = [ j | (_, j) <- its ]
@@ -444,7 +423,6 @@ orient p = memoized $ \ a ->
           isCollapsing f   = return $ collapsingP p f
           isDefined f      = return $ definedP p f
           wsc              = return $ weakSafeCompP p
-
-
+          pext              = return $ prodExtP p
 indexed :: [a] -> [(a, Int)]
 indexed = flip zip [1..]

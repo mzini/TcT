@@ -123,7 +123,7 @@ instance ComplexityProof PopStarOrder where
                            | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
             _ :+: wsc  = S.processorArgs inst
-            ub         = maximum $ 0 : Map.elems (Prec.ranks $ popPrecedence order)
+            ub         = 1 + maximum (0 : Map.elems (Prec.ranks $ popPrecedence order))
 
 --------------------------------------------------------------------------------
 --- processor 
@@ -332,32 +332,38 @@ orient p = memoized $ \ a ->
                                  (Var _)    -> bot
                                  (Fun g []) -> not (isCollapsing f) && f `pGt` g
                                  (Fun g ts) -> not (isCollapsing f) 
-                                              && bigAnd [inFilter g j --> bigAnd [ isCollapsing g 
-                                                                                  || (isDefined f 
-                                                                                      && (not (f `pGt` g) || isSafe g j || s `gsq` t_j)
-                                                                                      && bigOr [ isNormal g j
-                                                                                               , precRestrictedP f t_j
-                                                                                               , f `pGt` g && alpha j])
-                                                                                 , s `gpop` t_j || not (isCollapsing g) && isNormal g j]
-                                                        | (t_j, j) <- its ]
+                                              && forall its (\ (t_j, j) -> 
+                                                       inFilter g j 
+                                                       --> bigAnd [ isCollapsing g 
+                                                                    || (isDefined f 
+                                                                       && (not (f `pGt` g) || isSafe g j || s `gsq` t_j)
+                                                                       && bigOr [ isNormal g j
+                                                                               , precRestrictedP f t_j
+                                                                               , f `pGt` g && alpha j])
+                                                                  , s `gpop` t_j || not (isCollapsing g) && isNormal g j])
                                               && (isCollapsing g 
                                                   || (f `pGt` g && (mulRecForbidden --> atmostOne [alpha j | (_,j) <- its]))
                                                   || (f `pEq` g && isDefined f && seqExtGt))
-                                     where seqExtGt = encodeCover
-                                                   && bigAnd [gamma i j --> bigAnd [ inFilter f i
-                                                                                   , ite paramSubst 
-                                                                                         (isNormal f i) 
-                                                                                         (isSafe f i <-> isSafe g j)
-                                                                                   , ite (epsilon i) 
-                                                                                         (s_i `equiv` t_j) 
-                                                                                         (s_i `gpop` t_j) ]
-                                                         | (s_i, i) <- iss, (t_j, j) <- its]
-                                                   && bigOr [not (epsilon i) && isNormal f i && inFilter f i | i <- is]
-                                           encodeCover = (forall js $ \ j ->  
-                                                              inFilter g j && (paramSubst --> isNormal g j) --> bigOr [gamma i j | i <- is])
-                                                         && (forall is $ \ i -> 
-                                                             (paramSubst --> (inFilter f i && isNormal f i || bigAnd [not (gamma i j) | j <- js]))
-                                                             && ((pext || epsilon i) --> exactlyOne [gamma i j | j <- js]))
+                                     where seqExtGt = -- every position j of rhs is covered:
+                                                      -- for ps, only cover of normal args of rhs required
+                                                      forall js (\ j -> (inFilter g j && (not ps || isNormal g j)) -- for ps, only constraint on normal args
+                                                                   --> exist is (\ i -> gamma i j))
+                                                      -- if ps, cover only on by normal argument positions of rhs
+                                                      && (ps --> (forall is (\ i -> (exist js (\ j -> gamma i j)) --> inFilter f i && isNormal f i)))
+                                                      -- if one of following holds then s_i covers single t_j:
+                                                      -- * s_i ~ t_j (i.e. epsilon i)
+                                                      -- * product extension is used and in case of ps i is normal arg pos
+                                                      && forall is (\ i -> 
+                                                              (epsilon i || (pext && (not ps || isNormal f i))) --> exactlyOne [gamma i j | j <- js])
+                                                      -- there exists a strict decrease in the rhs
+                                                      && exist is (\ i -> not (epsilon i) && isNormal f i && inFilter f i)
+                                                      -- and finally the recursive ordering constraints
+                                                      && forall iss (\ (s_i, i) -> 
+                                                               forall its (\ (t_j, j) -> 
+                                                                      gamma i j 
+                                                                      --> bigAnd [ inFilter f i
+                                                                                 , ite ps (isNormal f i) (isSafe f i <-> isSafe g j)
+                                                                                 , ite (epsilon i) (s_i `equiv` t_j) (s_i `gpop` t_j) ]))
                                            its = indexed ts
                                            is  = [ i | (_, i) <- iss ]
                                            js  = [ j | (_, j) <- its ]
@@ -366,7 +372,7 @@ orient p = memoized $ \ a ->
                                            epsilon i   = return $ propAtom $ Epsilon (i, (s, t))
                                            isNormal f' i = not (isSafe f' i)
                                            mulRecForbidden = return $ not (allowMulRecP p)
-                                           paramSubst = return $ allowPsP p
+                                           ps = return $ allowPsP p
                                            precRestrictedP _ (Var _)    = top
                                            precRestrictedP f' (Fun g' ts') = f' `pGt` g' && bigAnd [ inFilter g' j --> precRestrictedP f' t_j  
                                                                                                | (t_j,j) <- indexed ts']

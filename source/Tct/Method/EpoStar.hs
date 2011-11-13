@@ -197,7 +197,7 @@ instance S.Processor EpoStar where
     type S.ProofOf EpoStar = OrientationProof EpoProof
 
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.allComponents prob) of 
-                        ((BasicTerms ds cs), Innermost, trs) | Trs.isConstructor trs -> do r <- liftIO $ orientTrs sign ec trs
+                        ((BasicTerms ds cs), Innermost, trs) | Trs.isConstructor trs -> do r <- orientTrs sign ec trs
                                                                                            case r of 
                                                                                             Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
                                                                                             Nothing               -> return Incompatible
@@ -391,8 +391,9 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
               where unsatisfiable = unorientable sign u v 
 
 
-orientTrs :: Sig -> Bool -> Trs -> IO (Maybe (SM.SafeMapping, (Prec.Precedence, ArgumentPermutation)))
-orientTrs sign b (Trs rs) = Minisat.solve (run constraint)
+orientTrs :: P.SolverM m => Sig -> Bool -> Trs -> m (Maybe (SM.SafeMapping, (Prec.Precedence, ArgumentPermutation)))
+orientTrs sign b (Trs rs) = do P.MiniSat s <- P.satSolver
+                               liftIO $ Minisat.using s $ (run constraint)
     where constraint = do (sm, smdecode) <- safeMapping sign
                           (prec, precdecode) <- precedence sign
                           (mu, mudecode) <- muMapping sign

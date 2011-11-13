@@ -101,6 +101,7 @@ class MonadIO m => SolverM m where
     type St m
     runSolver    :: St m -> m a -> IO a
     mkIO         :: m a -> m (IO a)
+    satSolver    :: m SatSolver
     minisatValue :: (Decoder e a) => MiniSat () -> e -> m (Maybe e)
     solve        :: (Processor proc) => InstanceOf proc -> Problem -> m (ProofOf proc)
     solvePartial :: (Processor proc) => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
@@ -116,6 +117,8 @@ instance SolverM StdSolverM where
     type St StdSolverM = SolverState
     mkIO m            = do s <- ask
                            return $ runSolver s m
+    satSolver         = do SolverState s <- ask
+                           return s
     runSolver slver m = runReaderT (runS m) slver
     minisatValue m e  = do SolverState slver <- ask
                            r <- liftIO $ val slver

@@ -129,6 +129,7 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                 m' <- lift $ mkIO $ runLS m chan time lv
                 return $ m'
 
+    satSolver = lift satSolver
     runSolver st m = do chan <- liftIO $ newChan
                         mv <- liftIO $ newEmptyMVar
                         let handle = logHandle st

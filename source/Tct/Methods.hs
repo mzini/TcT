@@ -213,7 +213,6 @@ module Tct.Methods
     , ArgInstances.EnumOf
     , ArgInstances.Processor
     , NaturalMI.NaturalMIKind (..)
-    , Poly.PolyShape(..)
     , Weightgap.WgOn (..)
     , Compose.ComposeBound (..)
     , Compose.Partitioning (..)
@@ -244,6 +243,34 @@ module Tct.Methods
     , P.defaultOptions 
     , MatrixOptions (..)
     , PolyOptions (..)
+    -- **** Specific Polynomials 
+    , simplePolynomial 
+    , linearPolynomial
+    , stronglyLinearPolynomial
+    , simpleMixedPolynomial
+    , quadraticPolynomial
+    , customPolynomial
+     -- | Option for polynomials of custom shape, as defined by the first argument.
+     -- This function receives a list of variables @[v_1,...,v_n]$ denoting the @n@
+     -- arguments of the interpretation function. The return value of type @[SimpleMonomial]@
+     -- corresponds to the list of monomials of the constructed interpretation function.
+     -- A polynomial is a list of unique @SimpleMonomial@, where @SimpleMonomial@ are 
+     -- considered equal if the set variables together with powers match.
+     -- @SimpleMonomial@ can be build using @^^^@, @Poly.constant@ and @mono@.
+     -- For instance, linear interpretations are constructed using the function 
+     -- @\vs -> [constant] ++ [ v^^^1 | v <- vs]@. 
+    , Poly.SimpleMonomial
+     -- | A @Poly.SimpleMonomial@ denotes a monomial with variables in @Variable@, 
+     -- and can be build using @Poly.^^^@, @constant@ and @Poly.mono@.
+    , (Poly.^^^)
+      -- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@
+    , Poly.mono
+      -- | @mono [v_1^^^k_1,...,v_n^^^k]@ constructs the monomial @c * v_1^k_1 * ... * v_1^k_n@
+      -- where @c$ is unique for the constructed monomial
+    , Poly.boolCoefficient
+      -- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
+    , Poly.constant
+      -- | returns a new monomial without variables.
       
     -- *** Argument Description Combinators
     , Args.Arg (..)
@@ -275,6 +302,7 @@ module Tct.Methods
 where
 import Control.Monad (liftM)
 import Termlib.Problem (Problem)
+import Termlib.Variable (Variable)
 import qualified Tct.Method.Combinator as Combinators
 import qualified Tct.Method.PopStar as PopStar
 import qualified Tct.Method.EpoStar as EpoStar
@@ -379,10 +407,28 @@ data PolyOptions = PolyOptions { pkind :: Poly.PolyShape
                                , puseUsableArgs :: Bool }
 
 instance P.IsDefaultOption PolyOptions where
-  defaultOptions = PolyOptions { pkind          = Poly.Simple
+  defaultOptions = PolyOptions { pkind          = Poly.SimpleShape Poly.Simple
                                , pbits          = 2
                                , pcbits         = Just 3
                                , puseUsableArgs = True }
+
+simplePolynomial :: PolyOptions
+simplePolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Simple }
+
+linearPolynomial :: PolyOptions
+linearPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Linear }
+
+stronglyLinearPolynomial :: PolyOptions
+stronglyLinearPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.StronglyLinear }
+
+simpleMixedPolynomial :: PolyOptions
+simpleMixedPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.SimpleMixed }
+
+quadraticPolynomial :: PolyOptions
+quadraticPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Quadratic } 
+
+customPolynomial :: ([Variable] -> [Poly.SimpleMonomial]) -> PolyOptions
+customPolynomial mk = P.defaultOptions { pkind = Poly.CustomShape mk}
 
 poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
 poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)

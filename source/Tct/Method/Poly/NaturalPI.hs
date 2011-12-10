@@ -79,41 +79,42 @@ instance ComplexityProof PolynomialOrder where
       $+$ pprint (ordInter order)
     where ppknd (UnrestrictedPoly   shp) = ppshp shp
           ppknd (ConstructorBased _ shp) = text "restricted" <+> ppshp shp
-          ppshp StronglyLinear = text "strongly linear"
-          ppshp Linear = text "linear"
-          ppshp Simple = text "simple"
-          ppshp SimpleMixed = text "simple-mixed"
-          ppshp Quadratic = text "quadratic"
+          ppshp (SimpleShape s) = text (show s)
+          ppshp (CustomShape _) = text ""          
 
-  answer (PolynomialOrder _ (UnrestrictedPoly   StronglyLinear) _) = CertAnswer $ certified (unknown, poly (Just 1))
-  answer (PolynomialOrder _ (UnrestrictedPoly   Linear)         _) = CertAnswer $ certified (unknown, expo (Just 1))
-  answer (PolynomialOrder _ (UnrestrictedPoly   Simple)         _) = CertAnswer $ certified (unknown, expo (Just 1))
-  answer (PolynomialOrder _ (UnrestrictedPoly   SimpleMixed)    _) = CertAnswer $ certified (unknown, expo (Just 2))
-  answer (PolynomialOrder _ (UnrestrictedPoly   Quadratic)      _) = CertAnswer $ certified (unknown, expo (Just 2))
-  answer (PolynomialOrder _ (ConstructorBased _ StronglyLinear) _) = CertAnswer $ certified (unknown, poly (Just 1))
-  answer (PolynomialOrder _ (ConstructorBased _ Linear)         _) = CertAnswer $ certified (unknown, poly (Just 1))
-  answer (PolynomialOrder i (ConstructorBased _ Simple)         _) = CertAnswer $ certified (unknown, poly (Just a))
-    where a = maximum [ F.arity sig f | f <- Set.elems (F.symbols sig) ]
-          sig = signature i
-  answer (PolynomialOrder i (ConstructorBased _ SimpleMixed)    _) = CertAnswer $ certified (unknown, poly (Just a))
-    where a = maximum $ 2:[ F.arity sig f | f <- Set.elems (F.symbols sig) ]
-          sig = signature i
-  answer (PolynomialOrder i (ConstructorBased _ Quadratic)      _) = CertAnswer $ certified (unknown, poly (Just a))
-    where a = 2 * maximum [ F.arity sig f | f <- Set.elems (F.symbols sig) ]
-          sig = signature i
+  answer order = CertAnswer $ certified (unknown, ub)
+    where ub = case knd of 
+                 ConstructorBased _ _ -> poly (Just degree)
+                 UnrestrictedPoly _ | isStrong && degree <= 1 -> poly (Just 1)
+                                    | degree <= 1            -> expo (Just 1)
+                                    | otherwise             -> expo (Just 2)
+                 
+          degree = foldl max 0 [ foldl max 0 [ maxdegree m | m <- monos] 
+                                    | (f,(Poly monos)) <- inters, consider f ]
+            where maxdegree (Mono 0 _)      = 0
+                  maxdegree (Mono _ powers) = foldl (+) 0 [e | Pow _ e <- powers]
+                  consider f = 
+                    case knd of 
+                      ConstructorBased cs _ -> not $ f `Set.member` cs
+                      _                     -> True
+          
+          isStrong = all (all (\ (Mono n _) -> n <= 1)) [ monos | (_,Poly monos) <- inters]
+          
+          knd      = param order
+          inters   = Map.toList $ interpretations $ ordInter order
 
 instance S.Processor NaturalPI where
   name NaturalPI = "poly"
 
   description NaturalPI = [ "This processor orients the problem using polynomial interpretation over natural numbers." ]
 
-  type S.ArgumentsOf NaturalPI = (Arg (EnumOf PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+  type S.ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
   arguments NaturalPI = opt { A.name         = "kind"
                             , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
                                                        , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
                                                        , "referring to the respective shapes of the abstract polynomials used."
                                                        , "The deault value is 'stronglylinear'." ]
-                            , A.defaultValue = StronglyLinear }
+                            , A.defaultValue = SimpleShape StronglyLinear }
                         :+:
                         opt { A.name        = "bound"
                             , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."

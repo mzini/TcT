@@ -22,6 +22,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Method.Poly.PolynomialInterpretation where
 
 import Data.Typeable
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
@@ -34,6 +35,7 @@ import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
+import Tct.Processor.Args.Instances (AssocArgument (..))
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Polynomial
 
@@ -49,16 +51,22 @@ data PIVar = PIVar { restrict :: Bool
 type VPolynomial a = Polynomial V.Variable a
 type VMonomial a = Monomial V.Variable a
 
-data PolyShape = StronglyLinear
-               | Linear
-               | Simple
-               | SimpleMixed
-               | Quadratic
-               deriving (Typeable, Bounded, Enum)
+data SimpleMonomial = SimpleMonomial {smPowers :: [Power V.Variable]}
+                    | CoefficientMonomial {smPowers :: [Power V.Variable]}
 
+data SimplePolyShape = StronglyLinear
+                     | Linear
+                     | Simple
+                     | SimpleMixed
+                     | Quadratic
+               deriving (Typeable)
+
+data PolyShape = SimpleShape SimplePolyShape                      
+               | CustomShape ([V.Variable] -> [SimpleMonomial])
+               deriving (Typeable)
 data PIKind = UnrestrictedPoly PolyShape
             | ConstructorBased (Set.Set F.Symbol) PolyShape
-            deriving Show
+            deriving Show 
 
 instance PropAtom PIVar
 
@@ -90,12 +98,24 @@ instance PrettyPrintable (Power V.Variable) where
   pprint (Pow (V.Canon v) e) = char 'x' <> int v <> if e == 1 then empty else char '^' <> int e
   pprint (Pow (V.User  v) e) = char 'y' <> int v <> if e == 1 then empty else char '^' <> int e
 
-instance Show PolyShape where
-  show StronglyLinear = "stronglylinear"
+instance Show SimplePolyShape where
+  show StronglyLinear = "strongly linear"
   show Linear         = "linear"
   show Simple         = "simple"
-  show SimpleMixed    = "smixed"
+  show SimpleMixed    = "mixed"
   show Quadratic      = "quadratic"
+
+instance AssocArgument PolyShape where
+  assoc _ = [ ("linear", SimpleShape Linear)
+            , ("stronglylinear", SimpleShape StronglyLinear)
+            , ("simple", SimpleShape Simple)
+            , ("simplemixed", SimpleShape SimpleMixed)              
+            , ("quadratic", SimpleShape Quadratic)
+            ]
+
+instance Show PolyShape where
+  show (SimpleShape s) = show s
+  show (CustomShape _) = "custom shape"
 
 instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variable a) where
   interpretFun i f tis = bigPplus $ map handleMono fpoly
@@ -113,43 +133,52 @@ instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variab
                                  | otherwise = p
   interpretVar _ v     = varToPoly v
 
-stronglyLinearPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-stronglyLinearPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) [Mono (ringvar $ PIVar False f []) []] [1..a]
-  where a = F.arity sig f
-        ithmono i = Mono (restrictvar $ PIVar True f [Pow (V.Canon i) 1]) [Pow (V.Canon i) 1]
 
-linearPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-linearPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) [Mono (ringvar $ PIVar False f []) []] [1..a]
-  where a = F.arity sig f
-        ithmono i = Mono (ringvar $ PIVar False f [Pow (V.Canon i) 1]) [Pow (V.Canon i) 1]
+(^^^) :: a -> Int -> Power a
+a ^^^ i = Pow a i
 
-simplePolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-simplePolynomial f sig = Poly $ foldr additharg [Mono (ringvar $ PIVar False f []) []] [1..a]
-  where a = F.arity sig f
-        additharg i p = concatMap (\(Mono n vs) -> [Mono n vs, Mono (ringvar $ PIVar False f $ Pow (V.Canon i) 1:vs) $ Pow (V.Canon i) 1:vs]) p
+constant :: SimpleMonomial
+constant = mono []
 
-simpleMixedPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-simpleMixedPolynomial f sig = Poly $ foldr (\i p -> ithmono i:p) subresult [1..a]
-  where a = F.arity sig f
-        Poly subresult = simplePolynomial f sig
-        ithmono i = Mono (ringvar $ PIVar False f [Pow (V.Canon i) 2]) [Pow (V.Canon i) 2]
+mono :: [Power V.Variable] -> SimpleMonomial
+mono = CoefficientMonomial
 
-quadraticPolynomial :: RingConst a => F.Symbol -> F.Signature -> VPolynomial a
-quadraticPolynomial f sig = Poly $ foldr additharg [Mono (ringvar $ PIVar False f []) []] [1..a]
-  where a = F.arity sig f
-        additharg i p = concatMap (\(Mono n vs) -> [Mono n vs, addedMono i vs 1, addedMono i vs 2]) p
-        addedMono i vs e = Mono (ringvar $ PIVar False f $ Pow (V.Canon i) e:vs) $ Pow (V.Canon i) e:vs
+boolCoefficient :: SimpleMonomial -> SimpleMonomial
+boolCoefficient (CoefficientMonomial ps) = SimpleMonomial ps
+boolCoefficient sm                       = sm
+
+-- arbitraryCoefficient :: SimpleMonomial -> SimpleMonomial
+-- arbitraryCoefficient (SimpleMonomial ps)      = CoefficientMonomial ps
+-- arbitraryCoefficient sm                       = sm
+
+polynomialFromShape :: RingConst a => PolyShape -> (F.Symbol, Int) -> VPolynomial a
+polynomialFromShape shape (f,ar) = mkPoly $ normalise $ monoFromShape shape
+  where mkPoly monos = Poly $ [mkMono sm | sm <- monos]
+          where mkMono (SimpleMonomial ps) = Mono (restrictvar $ PIVar True f ps) ps
+                mkMono (CoefficientMonomial ps) = Mono (ringvar $ PIVar False f ps) ps
+                                                  
+        normalise = List.nubBy eqpowers
+          where sm1 `eqpowers` sm2 = Set.fromList (smPowers sm1) == Set.fromList (smPowers sm2)
+        
+        monoFromShape (CustomShape mks) = mks vs
+        monoFromShape (SimpleShape s) = 
+          case s of 
+            Linear         -> [ mono [v^^^1] | v <- vs] ++ [constant]
+            StronglyLinear -> [ boolCoefficient $ mono [v^^^1] | v <- vs] ++ [constant]
+            Simple         -> map mono $ foldr addvar [[]] vs
+              where addvar v = concatMap (\vs' -> [vs', v^^^1:vs'])
+            SimpleMixed    -> [ mono [v^^^2] | v <- vs ] ++ monoFromShape (SimpleShape Simple)
+            Quadratic      -> map mono $ foldr addvar [[]] vs
+              where addvar v = concatMap (\vs' -> [vs', v^^^1:vs',v^^^2:vs'])
+        
+        vs = [V.Canon i | i <- [1..ar]]
+        
 
 abstractInterpretation :: RingConst a => PIKind -> F.Signature -> PolyInter a
 abstractInterpretation pk sig = PI sig $ Map.fromList $ map (\f -> (f, interpretf f)) $ Set.elems $ F.symbols sig
-  where interpretf f = case pk of
-                         UnrestrictedPoly shape    -> op shape f sig
-                         ConstructorBased cs shape -> if f `Set.member` cs
-                                                      then stronglyLinearPolynomial f sig
-                                                      else op shape f sig
-        op shape = case shape of
-                     StronglyLinear -> stronglyLinearPolynomial
-                     Linear -> linearPolynomial
-                     Simple -> simplePolynomial
-                     SimpleMixed -> simpleMixedPolynomial
-                     Quadratic -> quadraticPolynomial
+  where interpretf f = polynomialFromShape (getShape pk) (f,ar)
+          where ar = F.arity sig f
+                getShape (UnrestrictedPoly shape) = shape
+                getShape (ConstructorBased cs shape) 
+                  | f `Set.member` cs = SimpleShape StronglyLinear
+                  | otherwise         = shape

@@ -32,10 +32,11 @@ module Tct.Processor.Standard
 where
 
 import Text.ParserCombinators.Parsec
+import Control.Monad (liftM)
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-import Tct.Processor.Args hiding (name, description, synopsis)
+import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
 import Termlib.Rule (Rule)
 
@@ -84,9 +85,19 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
 
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
-mkParseProcessor nm args = do _ <- try (string nm) 
-                              whiteSpace
-                              parseArguments nm args
+mkParseProcessor nm args = do _ <- string nm
+                              nxt <- lookAhead (choice [ try anyChar
+                                                      , eof >> return '\n'])
+                              if continueWith nxt 
+                               then whiteSpace >> parseArguments hlp args
+                               else unexpected [nxt]
+  where hlp = "proper arguments for processor '" ++ nm ++ "':\n  " ++ syn
+        syn = nm ++ " " ++ (synopsis args)
+        continueWith ' '  = True
+        continueWith '\n' = True
+        continueWith ')' = True
+        continueWith '\t' = True
+        continueWith _    = False 
 
 withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
 (StdProcessor p) `withArgs` a = TP $ TheProcessor { processor = p

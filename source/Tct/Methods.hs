@@ -81,15 +81,27 @@ module Tct.Methods
     -- | @withProblem mkproc@ allows the creation of a processor 
     -- depending on the problem it should handle.
     , step
-    -- | @step [l..u] trans proc@ successively applies the transformations 
-    -- @[trans l..trans u]@, additionally checking after each application of @trans i@ 
-    -- whether @proc i@ can solve the problem. More precise
-    -- >>> @step [l..] trans proc == proc l `before` (trans l >>| (proc l `before` (trans l >>| ...)))@.
-    -- The resulting processor can be infinite.
+      -- | @
+      -- step [l..u] trans proc
+      -- @ 
+      -- successively applies the transformations 
+      -- @
+      -- [trans l..trans u]
+      -- @
+      -- , additionally checking after each application of @trans i@ 
+      -- whether @proc i@ can solve the problem. More precise
+      -- @ 
+      -- step [l..] trans proc == proc l `before` (trans l >>| (proc l `before` (trans l >>| ...)))
+      -- @
+      -- .
+      -- The resulting processor can be infinite.
 
     , upto
-    -- | @upto mkproc (b :+: l :+: u) == f [ mkproc i | i <- [l..u]] @ where 
-    -- @f == fastest$ if @b == True@ and @f == sequentially@ otherwise
+      -- | @
+      -- upto mkproc (b :+: l :+: u) == f [ mkproc i | i <- [l..u]] 
+      -- @ 
+      -- where 
+      -- @f == fastest@ if @b == True@ and @f == sequentially@ otherwise
     
     -- ** Predicates
     -- | The following predicates return either Yes(?,?) or No
@@ -250,23 +262,32 @@ module Tct.Methods
     , simpleMixedPolynomial
     , quadraticPolynomial
     , customPolynomial
-     -- | Option for polynomials of custom shape, as defined by the first argument.
-     -- This function receives a list of variables @[v_1,...,v_n]$ denoting the @n@
-     -- arguments of the interpretation function. The return value of type @[SimpleMonomial]@
-     -- corresponds to the list of monomials of the constructed interpretation function.
-     -- A polynomial is a list of unique @SimpleMonomial@, where @SimpleMonomial@ are 
-     -- considered equal if the set variables together with powers match.
-     -- @SimpleMonomial@ can be build using @^^^@, @Poly.constant@ and @mono@.
-     -- For instance, linear interpretations are constructed using the function 
-     -- @\vs -> [constant] ++ [ v^^^1 | v <- vs]@. 
+      -- | Option for polynomials of custom shape, as defined by the first argument.
+      -- This function receives a list of variables 
+      -- denoting the @n@ arguments of the interpretation function. The return value of type ['Poly.SimpleMonomial']
+      -- corresponds to the list of monomials of the constructed interpretation function.
+      -- A polynomial is a list of unique 'Poly.SimpleMonomial', where 'Poly.SimpleMonomial' are 
+      -- considered equal if the set variables together with powers match.
+      -- 'SimpleMonomial' can be build using 'Poly.^^^', 'Poly.constant' and 'Poly.mono'.
+      -- For instance, linear interpretations are constructed using the function 
+      -- @ 
+      -- \vs -> [constant] ++ [ v^^^1 | v <- vs]
+      -- @
+      -- . 
     , Poly.SimpleMonomial
-     -- | A @Poly.SimpleMonomial@ denotes a monomial with variables in @Variable@, 
-     -- and can be build using @Poly.^^^@, @constant@ and @Poly.mono@.
+     -- | A 'Poly.SimpleMonomial' denotes a monomial with variables in 'Variable', 
+     -- and can be build using 'Poly.^^^', 'Poly.constant' and 'Poly.mono'.
     , (Poly.^^^)
-      -- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@
+      -- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@.
     , Poly.mono
-      -- | @mono [v_1^^^k_1,...,v_n^^^k]@ constructs the monomial @c * v_1^k_1 * ... * v_1^k_n@
-      -- where @c$ is unique for the constructed monomial
+      -- | @
+      -- mono [v1^^^k1,...,vn^^^kn]
+      -- @ 
+      -- constructs the 'Poly.SimpleMonomial'
+      -- @
+      -- c * v1^k1 * ... * v1^kn
+      -- @
+      -- where @c@ is unique for the constructed monomial
     , Poly.boolCoefficient
       -- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
     , Poly.constant

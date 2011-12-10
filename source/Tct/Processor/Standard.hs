@@ -32,7 +32,6 @@ module Tct.Processor.Standard
 where
 
 import Text.ParserCombinators.Parsec
-import Control.Monad (liftM)
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A

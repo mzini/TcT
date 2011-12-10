@@ -351,8 +351,8 @@ orient p = memoized $ \ a ->
                                                       -- if ps, cover only on by normal argument positions of rhs
                                                       && (ps --> (forall is (\ i -> (exist js (\ j -> gamma i j)) --> inFilter f i && isNormal f i)))
                                                       -- if one of following holds then s_i covers single t_j:
-                                                      -- * s_i ~ t_j (i.e. epsilon i)
-                                                      -- * product extension is used and in case of ps i is normal arg pos
+                                                      --   s_i = t_j (i.e. epsilon i)
+                                                      --   product extension is used and in case of ps i is normal arg pos
                                                       && forall is (\ i -> 
                                                               (epsilon i || (pext && (not ps || isNormal f i))) --> exactlyOne [gamma i j | j <- js])
                                                       -- there exists a strict decrease in the rhs

@@ -35,9 +35,9 @@ import Termlib.Trs (Trs(..))
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
 
-import Termlib.Trs.PrettyPrint (pprintTrs)
+import Termlib.Trs.PrettyPrint (pprintTrs,pprintNamedTrs)
 import Termlib.Utils hiding (block)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust, fromMaybe, listToMaybe)
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -203,3 +203,75 @@ simpDPRHSProcessor = T.transformationProcessor SimpRHS
 
 simpDPRHS :: T.TheTransformer SimpRHS
 simpDPRHS = SimpRHS `T.calledWith` ()
+
+
+--------------------------------------------------------------------------------
+--- Simplify DP-RHSs
+
+data SimpKP = SimpKP
+data SimpKPProof = SimpKPProof { skpDG            :: DG
+                               , skpRule          :: Maybe (Int,Rule)
+                               , skpPres          :: [Rule]
+                               , skpSig           :: F.Signature
+                               , skpVars          :: V.Variables}                                
+                 | SimpKPErr DPError
+                       
+instance T.TransformationProof SimpKP where
+  answer = T.answerFromSubProof
+  pprintTProof _ _ (SimpKPErr e) = pprint e
+  pprintTProof _ _ p = 
+    case skpRule p of 
+      Nothing -> text "No rule found for knowledge propagation"
+      Just (i,rl) -> text "We consider the following dependency-graph" 
+                    $+$ text ""
+                    $+$ indent (pprint (dg, sig, vars))
+                    $+$ text ""
+                    $+$ text "The number of applications of the rule"
+                    $+$ text ""
+                    $+$ indent (pprintNamedTrs sig vars rlname (Trs [rl]))
+                    $+$ text ""                  
+                    $+$ text "is given by the number of applications of following rules"
+                    $+$ text ""
+                    $+$ indent (pprintNamedTrs sig vars prename (Trs (skpPres p)))
+                    $+$ text ""
+                    $+$ (text "We remove" <+> text rlname 
+                         <+> text "from and add" <+> text prename 
+                         <+> text "to the strict component.")
+                      where vars  = skpVars p                              
+                            sig   = skpSig p
+                            dg    = skpDG p
+                            rlname = "{" ++ show i ++ "}"
+                            prename = "Pre(" ++ rlname ++ ")"
+
+instance T.Transformer SimpKP where 
+  name _ = "simpKP"
+  type T.ArgumentsOf SimpKP = Unit
+  type T.ProofOf SimpKP     = SimpKPProof
+  arguments _ = Unit
+  transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
+                   | isJust mres          = return $ T.Progress proof (enumeration' [prob'])
+                   | otherwise            = return $ T.NoProgress proof
+    where wdg   = estimatedDependencyGraph Edg prob
+          mres = listToMaybe [((n,rl),  [r | (_,(_,r),_) <- preds] ) 
+                             | (n,(StrictDP, rl)) <- lnodes wdg
+                             , let preds = lpredecessors wdg n
+                             , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
+          strs  = Prob.strictTrs prob
+          sdps  = Prob.strictDPs prob
+          wdps  = Prob.weakDPs prob
+          proof = SimpKPProof { skpDG   = wdg
+                              , skpRule = mrl
+                              , skpPres = pres
+                              , skpSig  = Prob.signature prob
+                              , skpVars  = Prob.variables prob}
+          (mrl,pres) = maybe (Nothing,[]) (\ (nrl,rs) -> (Just nrl, rs)) mres
+          prob' = maybe prob (\ (_,rl) -> prob { Prob.strictDPs = (Trs pres `Trs.union` sdps) Trs.\\ Trs [rl]
+                                              , Prob.weakDPs   = (wdps Trs.\\ Trs pres) `Trs.union` Trs [rl]}) mrl
+
+         
+
+simpKPProcessor :: T.TransformationProcessor SimpKP P.AnyProcessor
+simpKPProcessor = T.transformationProcessor SimpKP
+
+simpKP :: T.TheTransformer SimpKP
+simpKP = SimpKP `T.calledWith` ()

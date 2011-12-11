@@ -60,6 +60,9 @@ module Tct.Processors
     , PathAnalysis.pathAnalysisProcessor
     , UR.usableRulesProcessor
     , Weightgap.weightgapProcessor
+    , DPSimp.removeTailProcessor
+    , DPSimp.simpDPRHSProcessor
+    , DPSimp.simpKPProcessor      
     ) where
 
 import qualified Tct.Method.Combinator as Combinators

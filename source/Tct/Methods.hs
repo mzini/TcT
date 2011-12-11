@@ -181,6 +181,8 @@ module Tct.Methods
       --  
       -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
       -- not applicable when @strictTrs prob \= Trs.empty@.
+    , DPSimp.simpKP
+      -- | Knowledge Propagation. 
     , ComposeRC.composeRC
       -- | A compose processor specific for RC.
     , ComposeRC.solveAWith

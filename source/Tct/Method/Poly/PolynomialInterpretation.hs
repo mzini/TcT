@@ -79,20 +79,23 @@ instance Functor (Polynomial V.Variable) where
 instance Functor (Monomial V.Variable) where
   fmap f (Mono n vs) = Mono (f n) vs
 
-instance PrettyPrintable a => PrettyPrintable (PolyInter a) where
+instance (Num a, PrettyPrintable a) => PrettyPrintable (PolyInter a) where
   pprint (PI sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints))
     where printInters = vcat . map (uncurry printInter) . Map.assocs
           printInter f p = fHead <+> nest (length (show fHead) + 1) (pprint p)
-            where fHead = pprint (f,sig) <> fargs <+> char '='
+            where fHead = brackets (pprint (f,sig)) <> fargs <+> char '='
                   fargs = parens $ hsep $ punctuate comma $ map (\i -> char 'x' <> int i) [1..a]
                   a = F.arity sig f
 
-instance PrettyPrintable a => PrettyPrintable (Polynomial V.Variable a) where
+instance (Num a, PrettyPrintable a) => PrettyPrintable (Polynomial V.Variable a) where
   pprint (Poly xs) = hcat $ punctuate (text " + ") $ map pprint xs
 
-instance PrettyPrintable a => PrettyPrintable (Monomial V.Variable a) where
+instance (Num a, PrettyPrintable a) => PrettyPrintable (Monomial V.Variable a) where
   pprint (Mono n []) = pprint n
-  pprint (Mono n vs) = pprint n <> char '*' <> hcat (punctuate (char '*') $ map pprint vs)
+  pprint (Mono n vs) | n == 0 = empty
+                     | n == 1 = ppvars
+                     | otherwise = pprint n <> char '*' <> ppvars
+     where ppvars = hcat (punctuate (char '*') $ map pprint vs)
 
 instance PrettyPrintable (Power V.Variable) where
   pprint (Pow (V.Canon v) e) = char 'x' <> int v <> if e == 1 then empty else char '^' <> int e

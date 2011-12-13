@@ -36,6 +36,7 @@ where
 
 import Control.Monad (liftM)
 import Data.Set (Set, (\\))
+import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Typeable
@@ -72,6 +73,7 @@ import Tct.Processor.Args.Instances ()
 import qualified Tct.Processor.Args as A
 import Tct.Encoding.Relative hiding (trs)
 import qualified Tct.Encoding.ArgumentFiltering as AFEnc
+import qualified Tct.Encoding.UsableRules as UREnc
 import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
@@ -89,31 +91,43 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popPrecedence        :: Prec.Precedence
                              , popArgumentFiltering :: Maybe AF.ArgumentFiltering
                              , popInputProblem      :: Problem
-                             , popInstance          :: S.TheProcessor PopStar}
+                             , popInstance          :: S.TheProcessor PopStar
+                             , popUsableSymbols     :: [Symbol]}
 
 instance ComplexityProof PopStarOrder where
   pprintProof order _ = (text "The input was oriented with the instance of" <+> text (S.instanceName inst) <+> text "as induced by the precedence")
                         $++$ pparam (popPrecedence order)
                         $++$ text "and safe mapping"
                         $++$ pparam (popSafeMapping order) <+> text "."
-                        $+$ (case popArgumentFiltering order of 
+                        $+$ (case maf of 
                                Nothing -> PP.empty
                                Just af -> text "" 
                                          $+$ text "Further, following argument filtering is employed:"
-                                         $++$ pparam af)
-                        $++$ text "For your convenience, here is the input in predicative notation:"
+                                         $++$ pparam af
+                                         $++$ text "Usable defined function symbols are a subset of:"
+                                         $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us]))
+                        $++$ text "For your convenience, here is the oriented problem in predicative notation:"
                         $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam = nest 1 . pprint
             inst = popInstance order
-            ppProblem = ppTrs "Strict DPs"     strictDPs prob
-                        $+$ ppTrs "Weak DPs"   weakDPs prob
-                        $+$ ppTrs "Strict Trs" strictTrs prob
-                        $+$ ppTrs "Weak Trs"   weakTrs prob
+            ppProblem = ppTrs     "Strict DPs"     strictDPs prob
+                        $+$ ppTrs "Weak DPs  "   weakDPs   prob
+                        $+$ ppTrs "Strict Trs" (restrictUsables . strictTrs) prob
+                        $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)   prob
 
-            ppTrs n f p = block n $ pprint (f p, Prob.signature p, Prob.variables p,sm)
+            ppTrs n f p = block n $ pprint (f p, sig, vars,sm)
             prob           = popInputProblem order
+            sig            = Prob.signature prob
+            vars           = Prob.variables prob
             sm             = popSafeMapping order
+            us             = popUsableSymbols order
+            maf            = popArgumentFiltering order
+            restrictUsables trs | isJust maf = Trs.filterRules 
+                                               (\ rl -> case root (lhs rl) of 
+                                                   Right f -> f `elem` us
+                                                   Left _  -> True) trs
+                                | otherwise  = trs
                              
 
   answer order = case kind $ S.processor inst of 
@@ -179,8 +193,8 @@ instance S.Processor PopStar where
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
-                     ((BasicTerms _ cs), Innermost) -> orientProblem inst cs prob
-                     _                              -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
+                     ((BasicTerms _ _), Innermost) -> orientProblem inst prob
+                     _                             -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
 
 
 
@@ -213,13 +227,15 @@ smallPopstarPS = ppopstarProcessor `S.withArgs` (True :+: True)
 --------------------------------------------------------------------------------
 -- encoding
 
-quasiConstructorsFor :: Set Symbol -> Trs -> Trs -> Set Symbol
-quasiConstructorsFor constructors strict weak = constructors
-                                                `Set.union` (quasiConstructors strict)
-                                                `Set.union` (quasiConstructors weak)
+quasiConstructorsFor :: Problem -> Set Symbol
+quasiConstructorsFor prob = constructors
+                            `Set.union` (quasiConstructors $ Prob.allComponents prob)
     where quasiConstructors rs = Set.unions [qd (lhs r) | r <- rules rs ]
           qd (Fun _ ts) = Set.unions [ functionSymbols t | t <- ts] 
           qd _          = error "Method.PopStar: non-trs given"
+          constructors = case Prob.startTerms prob of 
+            BasicTerms _ cs -> cs
+            _               -> Set.empty
 
 
 
@@ -242,52 +258,82 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Set Symbol -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem inst cs prob = maybe Incompatible Order `liftM` slv 
+orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem inst prob = maybe Incompatible Order `liftM` slv 
                                     
     where knd = kind $ S.processor inst
-          ps :+: wsc = S.processorArgs inst
+          psP :+: wscP = S.processorArgs inst
+          afP   = (isDP && knd /= LMPO)
+          mrP   = knd == LMPO 
+          prodP = knd == ProdPOP          
           isDP = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
-          quasiConstrs = quasiConstructorsFor cs strict weak
-          quasiDefineds = Trs.definedSymbols both \\ quasiConstrs
-          strict = Prob.strictComponents prob
-          weak   = Prob.weakComponents prob
-          both   = strict `Trs.union` weak
-          sig    = Prob.signature prob
+          quasiConstrs = quasiConstructorsFor prob
+          quasiDefineds = Trs.definedSymbols allrules \\ quasiConstrs
+          strs     = Prob.strictTrs prob
+          wtrs     = Prob.weakTrs prob
+          sdps     = Prob.strictDPs prob
+          wdps     = Prob.weakDPs prob
+          stricts  = Prob.strictComponents prob
+          weaks    = Prob.weakComponents prob
+          allrules = Prob.allComponents prob
+          sig      = Prob.signature prob
 
           slv | isDP      = solveDP 
               | otherwise = solveDirect
           
           solveDP = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec :&: af) = PopOrder sm prec (Just af) prob inst 
-                    initial                    = SMEnc.empty sig quasiConstrs :&: Prec.empty sig :&: AFEnc.initial sig
+              where mkOrd (us :&: sm :&: prec :&: af) = PopOrder { popSafeMapping       = sm
+                                                                 , popPrecedence        = prec
+                                                                 , popArgumentFiltering = Just af 
+                                                                 , popInputProblem      = prob 
+                                                                 , popInstance          = inst 
+                                                                 , popUsableSymbols     = us }
+                    initial                            = UREnc.initialUsables 
+                                                         :&: SMEnc.empty sig quasiConstrs 
+                                                         :&: Prec.empty sig 
+                                                         :&: AFEnc.initial sig
 
           solveDirect = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec) = PopOrder sm prec Nothing prob inst
-                    initial             = SMEnc.empty sig quasiConstrs :&: Prec.empty sig
+              where mkOrd (sm :&: prec) = PopOrder { popSafeMapping       = sm
+                                                   , popPrecedence        = prec
+                                                   , popArgumentFiltering = Nothing
+                                                   , popInputProblem      = prob 
+                                                   , popInstance          = inst 
+                                                   , popUsableSymbols     = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob }
+                    initial             = SMEnc.empty sig quasiConstrs 
+                                          :&: Prec.empty sig
 
           solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
           solveConstraint constraint initial makeResult = 
               do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
                  return $ makeResult `liftM` r
-
-                                          
+          
           form = fm maybeOrientable 
-                 && bigAnd [atom $ strictlyOriented r | r <- rules $ strict]
-                 && bigAnd [atom $ weaklyOriented r | r <- rules $ weak]
+                 && bigAnd [atom (strictlyOriented r) | r <- rules $ sdps]
+                 && bigAnd [atom (weaklyOriented r)   | r <- rules $ wdps]                 
+                 && bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ strs]
+                 && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ wtrs]
                  && validPrecedence
                  && (fm isDP --> validArgumentFiltering)
-                 && orderingConstraints (isDP && knd /= LMPO) (knd == LMPO) ps wsc (knd == ProdPOP) strict weak quasiDefineds
+                 && (fm isDP --> validUsableRules)
+                 && orderingConstraints afP mrP psP wscP prodP stricts weaks quasiDefineds
 
-          maybeOrientable = (knd == LMPO) || isDP || (all maybeOrientableRule $ rules both)
+          usable r = return $ UREnc.usable r
+          maybeOrientable = mrP || isDP || (all maybeOrientableRule $ rules allrules)
             where maybeOrientableRule r = 
                       case rtl of 
                         Left  _   -> False 
                         Right sym -> sym `Set.member` quasiDefineds --> cardinality rtl (rhs r) <= 1
                       where rtl = root (lhs r)
-          validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols both)) sig
+          
+          validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols allrules)) sig
+          
           validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
-
+          
+          validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
+            where isUnfiltered f i | afP       = AFEnc.isInFilter f i
+                                   | otherwise = top
+                                                 
 orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Bool -> Bool -> Bool -> Trs -> Trs -> Set Symbol -> MemoFormula PopArg s l
 orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasiDefineds = 
     strict `orientStrictBy` pop && weak `orientWeakBy` popEq

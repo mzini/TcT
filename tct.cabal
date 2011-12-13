@@ -18,7 +18,7 @@ cabal-version:      >= 1.6
 build-type:         Simple
 Executable tct
  main-is:           Main.hs
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, ansi-wl-pprint >= 0.6 && < 0.7, graphviz, text<=0.11.1.5
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, ansi-wl-pprint >= 0.6 && < 0.7, graphviz, text
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -fno-spec-constr-count
 
@@ -80,7 +80,7 @@ Library
                     Tct.Methods
                     Tct.Processors
 
- build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, graphviz, text<=0.11.1.5
+ build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, graphviz, text
  hs-source-dirs:    source
  if impl(ghc < 7.0)
     ghc-options:       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count

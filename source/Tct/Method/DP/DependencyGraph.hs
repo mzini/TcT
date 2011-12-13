@@ -383,11 +383,12 @@ pprintLabeledRules name sig vars rs = text name <> text ":"
 
 -- graphviz output of dgs
 
-toGraphViz :: [DG] -> F.Signature -> V.Variables -> DotGraph NodeId
-toGraphViz dgs sig vars = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
-  where digraph (i,dg) = do mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
-                            mapM_ edgesToGV nds
-                            GV.graphAttrs [GVattribs.toLabel $ "\\l" ++ show (pprintLabeledRules "Rules" sig vars lrules)]
+toGraphViz :: [(DG,F.Signature,V.Variables)] -> DotGraph NodeId
+toGraphViz dgs = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
+  where digraph (i,(dg,sig,vars)) = 
+          do mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
+             mapM_ edgesToGV nds
+             GV.graphAttrs [GVattribs.toLabel $ "\\l" ++ show (pprintLabeledRules "Rules" sig vars lrules)]
           where nds   = nodes dg
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
                 sccToGV (j,scc) = GV.cluster (Str $ pack $ show i ++ "_" ++ show j) $ mapM nodesToGV $ withNodeLabels' dg scc
@@ -396,8 +397,8 @@ toGraphViz dgs sig vars = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
                         attribs WeakDP   = [GVattribs.shape GVattribs.Circle, GVattribs.style GVattribs.dotted]
                 edgesToGV n = mapM (\ (m,_,k) -> GV.edge n m [GVattribs.toLabel (show k)]) (lsuccessors dg n)
         
-saveGraphViz :: [DG] -> F.Signature -> V.Variables -> FilePath -> IO FilePath
-saveGraphViz dgs sig vars = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs sig vars) GVcommands.Svg
+saveGraphViz :: [(DG,F.Signature,V.Variables)] -> FilePath -> IO FilePath
+saveGraphViz dgs = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs) GVcommands.Svg
                 
-graphvizShowDG :: [DG] -> F.Signature -> V.Variables -> IO ()              
-graphvizShowDG dgs sig vars = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs sig vars) GVcommands.Gtk
+graphvizShowDG :: [(DG,F.Signature,V.Variables)] -> IO ()              
+graphvizShowDG dgs = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs) GVcommands.Gtk

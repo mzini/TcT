@@ -113,10 +113,16 @@ module Tct.Method.DP.DependencyGraph
 
     -- ** Utilities
     , pprintCWDGNode
-    -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
-    -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
+      -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
+      -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
     , pprintCWDG
-    -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+      -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+    , toGraphViz
+      -- | translates 'DG' into a GraphViz graph.
+    , saveGraphViz
+      -- | output 'DG' as Svg.
+    , graphvizShowDG
+      -- | show a 'DG' in a GraphViz canvas.
     )
 where
 
@@ -125,6 +131,12 @@ import qualified Data.Graph.Inductive.Tree as GraphT
 import Data.Graph.Inductive.Query.DFS (dfs)
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 import Data.Graph.Inductive.Query.BFS (bfsn)
+
+import qualified Data.GraphViz.Types.Monadic as GV
+import qualified Data.GraphViz.Attributes as GVattribs
+import Data.GraphViz.Types.Generalised
+import qualified Data.GraphViz.Commands as GVcommands
+import Data.Text.Lazy (pack)
 
 import qualified Control.Monad.State.Lazy as State
 import Data.List (delete, sortBy)
@@ -143,7 +155,7 @@ import Termlib.Term (Term)
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Trs.PrettyPrint (pprintTrs)
-import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty)
+import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty, Str)
 import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
 import Tct.Processor.PPrint
@@ -367,3 +379,25 @@ pprintLabeledRules _    _   _ [] = PP.empty
 pprintLabeledRules name sig vars rs = text name <> text ":"
                                       $+$ indent (pprintTrs pprule rs)
   where pprule (l,r) = pprint l <> text ":" <+> pprint (r, sig, vars)
+
+
+-- graphviz output of dgs
+
+toGraphViz :: [DG] -> F.Signature -> V.Variables -> DotGraph NodeId
+toGraphViz dgs sig vars = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
+  where digraph (i,dg) = do mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
+                            mapM_ edgesToGV nds
+                            GV.graphAttrs [GVattribs.toLabel $ "\\l" ++ show (pprintLabeledRules "Rules" sig vars lrules)]
+          where nds   = nodes dg
+                lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
+                sccToGV (j,scc) = GV.cluster (Str $ pack $ show i ++ "_" ++ show j) $ mapM nodesToGV $ withNodeLabels' dg scc
+                nodesToGV (n,(strictness,_)) = GV.node n (attribs strictness)
+                  where attribs StrictDP = [GVattribs.shape GVattribs.Circle]
+                        attribs WeakDP   = [GVattribs.shape GVattribs.Circle, GVattribs.style GVattribs.dotted]
+                edgesToGV n = mapM (\ (m,_,k) -> GV.edge n m [GVattribs.toLabel (show k)]) (lsuccessors dg n)
+        
+saveGraphViz :: [DG] -> F.Signature -> V.Variables -> FilePath -> IO FilePath
+saveGraphViz dgs sig vars = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs sig vars) GVcommands.Svg
+                
+graphvizShowDG :: [DG] -> F.Signature -> V.Variables -> IO ()              
+graphvizShowDG dgs sig vars = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs sig vars) GVcommands.Gtk

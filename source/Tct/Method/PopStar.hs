@@ -111,9 +111,9 @@ instance ComplexityProof PopStarOrder where
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam = nest 1 . pprint
             inst = popInstance order
-            ppProblem = ppTrs     "Strict DPs"     strictDPs prob
+            ppProblem = ppTrs     "Strict DPs"   strictDPs prob
                         $+$ ppTrs "Weak DPs  "   weakDPs   prob
-                        $+$ ppTrs "Strict Trs" (restrictUsables . strictTrs) prob
+                        $+$ ppTrs "Strict Trs"   (restrictUsables . strictTrs) prob
                         $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)   prob
 
             ppTrs n f p = block n $ pprint (f p, sig, vars,sm)
@@ -221,11 +221,11 @@ lmpo = lmpoProcessor `S.withArgs` (False :+: False :+: Nothing)
 popstarPS :: P.InstanceOf (S.StdProcessor PopStar)
 popstarPS = popstarProcessor `S.withArgs` (True :+: False :+: Nothing)
 
-popstarSmall :: Int -> P.InstanceOf (S.StdProcessor PopStar)
-popstarSmall i = ppopstarProcessor `S.withArgs` (False :+: True :+: Just (nat i))
+popstarSmall :: Maybe Int -> P.InstanceOf (S.StdProcessor PopStar)
+popstarSmall mi = ppopstarProcessor `S.withArgs` (False :+: True :+: (nat `liftM` mi))
 
-popstarSmallPS :: Int -> P.InstanceOf (S.StdProcessor PopStar)
-popstarSmallPS i = ppopstarProcessor `S.withArgs` (True :+: True :+: Just (nat i))
+popstarSmallPS :: Maybe Int -> P.InstanceOf (S.StdProcessor PopStar)
+popstarSmallPS mi = ppopstarProcessor `S.withArgs` (True :+: True :+: (nat `liftM` mi))
 
 
 
@@ -267,11 +267,12 @@ orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Problem -> m (Orientat
 orientProblem inst prob = maybe Incompatible Order `liftM` slv 
                                     
     where knd = kind $ S.processor inst
-          psP :+: wscP :+: bnd = S.processorArgs inst
-          afP   = (isDP && knd /= LMPO)
-          mrP   = knd == LMPO 
-          prodP = knd == ProdPOP          
-          isDP = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
+          allowPS :+: forceWSC :+: bnd = S.processorArgs inst
+          allowAF   = (isDP && knd /= LMPO)
+          allowMR   = knd == LMPO 
+--          allowEP   = bnd >>= \ Nat i -> return (i > 0)
+          forcePROD = knd == ProdPOP          
+          isDP      = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
           quasiConstrs = quasiConstructorsFor prob
           quasiDefineds = Trs.definedSymbols allrules \\ quasiConstrs
           strs     = Prob.strictTrs prob
@@ -321,10 +322,10 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                  && validPrecedence
                  && (fm isDP --> validArgumentFiltering)
                  && (fm isDP --> validUsableRules)
-                 && orderingConstraints afP mrP psP wscP prodP stricts weaks quasiDefineds
+                 && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD stricts weaks quasiDefineds
 
           usable r = return $ UREnc.usable r
-          maybeOrientable = mrP || isDP || (all maybeOrientableRule $ rules allrules)
+          maybeOrientable = allowMR || isDP || (all maybeOrientableRule $ rules allrules)
             where maybeOrientableRule r = 
                       case rtl of 
                         Left  _   -> False 
@@ -333,10 +334,10 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
           
           validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols allrules)) sig
           
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (bnd >>= \ (Nat i) -> return i)
+          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (bnd >>= \ (Nat i) -> return (max 0 (i - 1)))
           
           validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
-            where isUnfiltered f i | afP       = AFEnc.isInFilter f i
+            where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
                                    | otherwise = top
                                                  
 orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Bool -> Bool -> Bool -> Trs -> Trs -> Set Symbol -> MemoFormula PopArg s l
@@ -349,15 +350,15 @@ orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasi
           popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
           preds               = Predicates {
                                 definedP    = defP
-                                , collapsingP = if allowAF then AFEnc.isCollapsing else const bot
-                                , inFilterP   = if allowAF then AFEnc.isInFilter else const . const top
-                                , safeP       = \ f i -> not (defP f) || SMEnc.isSafeP f i
-                                , precGtP     = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
-                                , precEqP     = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
-                                , allowMulRecP = fm allowMR
-                                , allowPsP     = fm allowPS
+                                , collapsingP   = if allowAF then AFEnc.isCollapsing else const bot
+                                , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
+                                , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
+                                , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
+                                , precEqP       = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
+                                , allowMulRecP  = fm allowMR
+                                , allowPsP      = fm allowPS
                                 , weakSafeCompP = fm forceWSC
-                                , prodExtP    = fm forcePROD
+                                , prodExtP      = fm forcePROD
                               } where defP f = fm $ f `Set.member` quasiDefineds
 
 

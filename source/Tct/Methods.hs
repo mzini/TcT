@@ -47,10 +47,10 @@ module Tct.Methods
     -- | this processor implements polynomial path orders with parameter substitution      
     , PopStar.lmpo     
     -- | this processor implements lightweight multiset path orders 
-    , PopStar.smallPopstar
+    , PopStar.popstarSmall
     -- | this processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
     --   which allow to determine the degree of the obtained polynomial certificate
-    , PopStar.smallPopstarPS
+    , PopStar.popstarSmallPS
     -- | this processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
     --   with parameter substitution which allow to determine the degree of the obtained polynomial certificate
     , rc2011

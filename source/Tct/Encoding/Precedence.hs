@@ -30,7 +30,7 @@ import Qlogic.Formula hiding (size)
 import Qlogic.Boolean
 import Prelude hiding ((&&),(||),not)
 import Qlogic.PropositionalFormula
-import Qlogic.NatSat (mGrt,mEqu,Size(..),natAtom, toFormula)
+import Qlogic.NatSat (mGrt,mEqu,Size(..),natAtom, toFormula, natToFormula)
 import Termlib.FunctionSymbol (Symbol)
 import Qlogic.SatSolver
 
@@ -44,17 +44,20 @@ eq :: Eq l => Symbol -> Symbol -> PropFormula l
 f `eq` g = propAtom $ f :~: g
 
 -- TODO: AS:AM: think about monadic code
-validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> SatSolver s l (PropFormula l)
-validPrecedenceM []  = return $ Top
-validPrecedenceM syms = toFormula constraint
+validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Maybe Int -> SatSolver s l (PropFormula l)
+validPrecedenceM []   _      = return $ Top
+validPrecedenceM syms mbound = toFormula constraint
     where rank sym   = natAtom size sym
           size       = Bound $ length syms
-          constraint = bigAnd [ bigAnd [f `mgt` g --> rank f `mGrt` rank g
-                             , g `mgt` f --> rank g `mGrt` rank f
-                             , f `meq` g <-> rank f `mEqu` rank g]
-                           | f <- syms, g <- syms,  f < g ]
+          constraint = bigAnd [ bigAnd [ f `mgt` g --> rank f `mGrt` rank g
+                                       , g `mgt` f --> rank g `mGrt` rank f
+                                       , f `meq` g <-> rank f `mEqu` rank g]
+                              | f <- syms, g <- syms,  f < g ]
+                       && maybe top restrictRanks mbound
+          restrictRanks bound = bigAnd [ natToFormula (bound + 1) `mGrt` rank f | f <- syms]
           f `mgt` g = return $ f `gt` g
           f `meq` g = return $ f `eq` g
+          
 
 precGt :: Eq l => Symbol -> Symbol -> PropFormula l
 f `precGt` g | f == g          = Bot 

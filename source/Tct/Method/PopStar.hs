@@ -28,8 +28,8 @@ module Tct.Method.PopStar
     , popstar
     , lmpo
     , popstarPS
-    , smallPopstar
-    , smallPopstarPS
+    , popstarSmall
+    , popstarSmallPS
     , PopStarOrder (..)
     , PopStar)
 where
@@ -69,7 +69,7 @@ import qualified Tct.Processor as P
 import Tct.Processor (ComplexityProof(..), Answer (..))
 import Tct.Processor.Orderings
 import Tct.Processor.Args
-import Tct.Processor.Args.Instances ()
+import Tct.Processor.Args.Instances (Nat (..), nat)
 import qualified Tct.Processor.Args as A
 import Tct.Encoding.Relative hiding (trs)
 import qualified Tct.Encoding.ArgumentFiltering as AFEnc
@@ -136,7 +136,7 @@ instance ComplexityProof PopStarOrder where
                    ProdPOP | wsc       -> CertAnswer $ certified (unknown, poly $ Just ub) 
                            | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
-            _ :+: wsc  = S.processorArgs inst
+            _ :+: wsc :+: _ = S.processorArgs inst
             ub         = 1 + maximum (0 : Map.elems (Prec.ranks $ popPrecedence order))
 
 --------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ instance S.Processor PopStar where
                                           , "with product extension, c.f. processor 'pop*'"]]
 
 
-    type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool
+    type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool :+: Arg (Maybe Nat)
 
     instanceName inst = show $ ppname <+> ppargs
         where ppname = case kind $ S.processor inst of 
@@ -179,17 +179,22 @@ instance S.Processor PopStar where
                      | ps        = text "with parameter subtitution"
                      | wsc       = text "with weak safe composition"
                      | otherwise = PP.empty
-              ps :+: wsc = S.processorArgs inst
+              ps :+: wsc :+: _ = S.processorArgs inst
 
-    arguments _ = opt { A.name = "ps"
-                      , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"
+    arguments _ = ps :+: wsc :+: bnd
+        where ps = opt { A.name = "ps"
+                       , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"
                                                  , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders." ]
-                      , A.defaultValue = True }
-                  :+:
-                  opt { A.name = "wsc"
-                      , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
-                                                 , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
-                      , A.defaultValue = False }
+                       , A.defaultValue = True } 
+              wsc = opt { A.name = "wsc"
+                        , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
+                                                  , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
+                        , A.defaultValue = False }
+              bnd = opt { A.name = "ub"
+                        , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
+                                                  , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
+                        , A.defaultValue = Nothing }
+                  
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
@@ -208,19 +213,19 @@ lmpoProcessor :: S.StdProcessor PopStar
 lmpoProcessor = S.StdProcessor (PopStar LMPO)
 
 popstar :: P.InstanceOf (S.StdProcessor PopStar)
-popstar = popstarProcessor `S.withArgs` (False :+: False)
+popstar = popstarProcessor `S.withArgs` (False :+: False :+: Nothing)
 
 lmpo :: P.InstanceOf (S.StdProcessor PopStar)
-lmpo = lmpoProcessor `S.withArgs` (False :+: False)
+lmpo = lmpoProcessor `S.withArgs` (False :+: False :+: Nothing)
 
 popstarPS :: P.InstanceOf (S.StdProcessor PopStar)
-popstarPS = popstarProcessor `S.withArgs` (True :+: False)
+popstarPS = popstarProcessor `S.withArgs` (True :+: False :+: Nothing)
 
-smallPopstar :: P.InstanceOf (S.StdProcessor PopStar)
-smallPopstar = ppopstarProcessor `S.withArgs` (False :+: True)
+popstarSmall :: Int -> P.InstanceOf (S.StdProcessor PopStar)
+popstarSmall i = ppopstarProcessor `S.withArgs` (False :+: True :+: Just (nat i))
 
-smallPopstarPS :: P.InstanceOf (S.StdProcessor PopStar)
-smallPopstarPS = ppopstarProcessor `S.withArgs` (True :+: True)
+popstarSmallPS :: Int -> P.InstanceOf (S.StdProcessor PopStar)
+popstarSmallPS i = ppopstarProcessor `S.withArgs` (True :+: True :+: Just (nat i))
 
 
 
@@ -262,7 +267,7 @@ orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Problem -> m (Orientat
 orientProblem inst prob = maybe Incompatible Order `liftM` slv 
                                     
     where knd = kind $ S.processor inst
-          psP :+: wscP = S.processorArgs inst
+          psP :+: wscP :+: bnd = S.processorArgs inst
           afP   = (isDP && knd /= LMPO)
           mrP   = knd == LMPO 
           prodP = knd == ProdPOP          
@@ -328,7 +333,7 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
           
           validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols allrules)) sig
           
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
+          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (bnd >>= \ (Nat i) -> return i)
           
           validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
             where isUnfiltered f i | afP       = AFEnc.isInFilter f i

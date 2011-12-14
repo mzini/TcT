@@ -17,7 +17,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 module Tct.Method.DP.DependencyPairs where
-import Control.Monad (liftM)
+import Control.Monad (liftM, foldM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
@@ -145,22 +145,25 @@ instance T.Transformer DPs where
 
 withFreshCompounds :: Prob.Problem -> Prob.Problem
 withFreshCompounds prob = fst . flip Sig.runSignature (Prob.signature prob)  $ 
-                          do sdps' <- mapM frsh $ zip sdps (names 1)
-                             wdps' <- mapM frsh $ zip wdps (names $ length sdps + 1)
+                          do (nxt,sdps') <- foldM frsh (1::Int, []) sdps 
+                             (_  ,wdps') <- foldM frsh (nxt  , []) wdps 
                              sig' <- Sig.getSignature
                              return $ prob { Prob.signature = sig'
                                            , Prob.strictDPs = Trs.fromRules sdps'
                                            , Prob.weakDPs = Trs.fromRules wdps'}
-   where names :: Int -> [String]
-         names i = ["c_" ++ show j | j <- [ i..] ]
-         sdps = Trs.rules $ Prob.strictDPs prob
+   where sdps = Trs.rules $ Prob.strictDPs prob
          wdps = Trs.rules $ Prob.weakDPs prob
-         frsh (rule@(R.Rule _ (Term.Fun f rs)), n) = do attribs <- getAttributes f 
-                                                        c <- if symIsCompound attribs
-                                                             then fresh (defaultAttribs n (length rs)) {symIsCompound = True}
-                                                             else return f
-                                                        return rule { R.rhs = (Term.Fun c rs) }
-         frsh (rule, _)                     = return rule
+         frsh (i, dps) rl = 
+           case R.rhs rl of 
+             Term.Var _    -> return (i, rl:dps)
+             Term.Fun f rs -> 
+               do attribs <- getAttributes f
+                  case (symIsCompound attribs, rs) of 
+                    (False, _)   -> return (i, rl:dps)
+                    (True , [r]) -> return (i, rl{ R.rhs = r }:dps)
+                    _            -> do c <- frshCompound i (length rs)
+                                       return (i+1, rl{ R.rhs = Term.Fun c rs}:dps) 
+         frshCompound i ar = fresh (defaultAttribs ("c_" ++ show i) ar) {symIsCompound = True}
 
 dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
 dependencyPairsProcessor = T.transformationProcessor DPs

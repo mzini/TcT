@@ -23,41 +23,50 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tct.Encoding.Precedence 
     ( validPrecedenceM
     , precGt
-    , precEq)
+    , precEq
+    , isRecursive
+--    , isRecursive
+    , RecursiveSymbols (..)
+    , initial
+    , initialRecursiveSymbols)
 where
-import Termlib.Precedence
+import Data.Typeable (Typeable)
+import qualified Data.Set as Set
+
+import qualified Termlib.Precedence as Prec
+import Termlib.Precedence (Precedence, Order(..))
 import Qlogic.Formula hiding (size)
 import Qlogic.Boolean
 import Prelude hiding ((&&),(||),not)
 import Qlogic.PropositionalFormula
 import Qlogic.NatSat (mGrt,mEqu,Size(..),natAtom, toFormula, natToFormula)
-import Termlib.FunctionSymbol (Symbol)
+import Termlib.FunctionSymbol (Symbol, Signature)
 import Qlogic.SatSolver
 
 instance PropAtom (Order Symbol)
-instance PropAtom Symbol
 
+data Rank = Rank Symbol deriving (Typeable, Show, Eq, Ord)
+instance PropAtom Rank
+
+data RecDepth = RecDepth Symbol deriving (Typeable, Show, Eq, Ord)
+instance PropAtom RecDepth
+
+data IsRecursive = IsRecursive Symbol deriving (Typeable, Show, Eq, Ord)
+instance PropAtom IsRecursive
+
+newtype RecursiveSymbols = RS (Set.Set Symbol)
+
+initial :: Signature -> Precedence
+initial = Prec.empty
+
+initialRecursiveSymbols :: RecursiveSymbols
+initialRecursiveSymbols = RS Set.empty
+  
 gt :: Eq l => Symbol -> Symbol -> PropFormula l
 f `gt` g = propAtom $ f :>: g
 
 eq :: Eq l => Symbol -> Symbol -> PropFormula l
 f `eq` g = propAtom $ f :~: g
-
--- TODO: AS:AM: think about monadic code
-validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Maybe Int -> SatSolver s l (PropFormula l)
-validPrecedenceM []   _      = return $ Top
-validPrecedenceM syms mbound = toFormula constraint
-    where rank sym   = natAtom size sym
-          size       = Bound $ length syms
-          constraint = bigAnd [ bigAnd [ f `mgt` g --> rank f `mGrt` rank g
-                                       , g `mgt` f --> rank g `mGrt` rank f
-                                       , f `meq` g <-> rank f `mEqu` rank g]
-                              | f <- syms, g <- syms,  f < g ]
-                       && maybe top restrictRanks mbound
-          restrictRanks bound = bigAnd [ natToFormula (bound + 1) `mGrt` rank f | f <- syms]
-          f `mgt` g = return $ f `gt` g
-          f `meq` g = return $ f `eq` g
-          
 
 precGt :: Eq l => Symbol -> Symbol -> PropFormula l
 f `precGt` g | f == g          = Bot 
@@ -68,5 +77,37 @@ f `precEq` g | f == g     = Top
              | f < g     = f `eq` g
              | otherwise = g `eq` f
 
+isRecursive :: Eq l => Symbol -> PropFormula l
+isRecursive = propAtom . IsRecursive
+
+validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Maybe Int -> SatSolver s l (PropFormula l)
+validPrecedenceM []   _      = return $ Top
+validPrecedenceM syms mbound = toFormula constraint
+    where rank sym     = natAtom size (Rank sym)
+          recdepth sym = natAtom size (RecDepth sym)
+          size         = Bound $ length syms
+          constraint   = bigAnd [ bigAnd [ f `mgt` g --> rank f `mGrt` rank g
+                                         , g `mgt` f --> rank g `mGrt` rank f
+                                         , f `meq` g --> rank f `mEqu` rank g]
+                                | f <- syms, g <- syms,  f < g ]
+                         && maybe top restrictDepths mbound
+          restrictDepths bound = bigAnd [ natToFormula (bound + 1) `mGrt` recdepth f 
+                                          && (isRecursiveM f --> recdepth f `mGrt` natToFormula 0)
+                                        | f <- syms]
+                                 && bigAnd [ bigAnd [ f `mgt` g --> f `recGt` g
+                                                   , g `mgt` f --> g `recGt` f
+                                                   , f `meq` g --> (recdepth f `mEqu` recdepth g)]
+                                          | f <- syms, g <- syms,  f < g ]
+          f `mgt` g = return $ f `gt` g
+          f `meq` g = return $ f `eq` g
+          isRecursiveM = return . isRecursive
+          isNonRecursiveM = not . isRecursiveM 
+          f `recGt` g = recdepth f `mGrt` recdepth g 
+                        || (isNonRecursiveM f && recdepth f `mEqu` recdepth g)
+          
 instance Decoder Precedence (Order Symbol) where
-  add = insert
+  add = Prec.insert
+
+
+instance Decoder RecursiveSymbols IsRecursive where
+  add (IsRecursive f) (RS fs) = RS (f `Set.insert` fs)

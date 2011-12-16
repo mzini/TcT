@@ -51,7 +51,7 @@ import Qlogic.PropositionalFormula
 import Qlogic.SatSolver ((:&:) (..), addFormula)
 import qualified Qlogic.SatSolver as S
 
-import Termlib.FunctionSymbol (Symbol)
+import Termlib.FunctionSymbol (Symbol, isMarked)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
 -- import Termlib.Signature (runSignature)
@@ -69,7 +69,7 @@ import qualified Tct.Processor as P
 import Tct.Processor (ComplexityProof(..), Answer (..))
 import Tct.Processor.Orderings
 import Tct.Processor.Args
-import Tct.Processor.Args.Instances (Nat (..), nat)
+import Tct.Processor.Args.Instances (nat, natToInt, Nat(..))
 import qualified Tct.Processor.Args as A
 import Tct.Encoding.Relative hiding (trs)
 import qualified Tct.Encoding.ArgumentFiltering as AFEnc
@@ -89,6 +89,7 @@ data PopStar = PopStar { kind :: OrdType } deriving (Typeable, Show)
 
 data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popPrecedence        :: Prec.Precedence
+                             , popRecursives        :: PrecEnc.RecursiveSymbols
                              , popArgumentFiltering :: Maybe AF.ArgumentFiltering
                              , popInputProblem      :: Problem
                              , popInstance          :: S.TheProcessor PopStar
@@ -137,7 +138,18 @@ instance ComplexityProof PopStarOrder where
                            | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
             _ :+: wsc :+: _ = S.processorArgs inst
-            ub         = 1 + maximum (0 : Map.elems (Prec.ranks $ popPrecedence order))
+            ub              = maximum (minUb : Map.elems (Prec.recursionDepth rs prec))
+            (PrecEnc.RS rs) = popRecursives order
+            prec            = popPrecedence order
+            minUb           = 
+              case popArgumentFiltering order of 
+                Just af -> if hasProjection af then 1 else 0
+                Nothing -> 0
+            sig = Prob.signature $ popInputProblem order
+            hasProjection af = AF.fold (\ sym filtering -> (||) (f sym filtering)) af False
+              where f sym (AF.Projection _) | isMarked sig sym = True
+                                            | otherwise        = False
+                    f _ _                                      = False
 
 --------------------------------------------------------------------------------
 --- processor 
@@ -270,7 +282,6 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
           allowAF   = (isDP && knd /= LMPO)
           allowMR   = knd == LMPO 
---          allowEP   = bnd >>= \ Nat i -> return (i > 0)
           forcePROD = knd == ProdPOP          
           isDP      = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
           quasiConstrs = quasiConstructorsFor prob
@@ -288,26 +299,30 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
               | otherwise = solveDirect
           
           solveDP = solveConstraint form initial mkOrd
-              where mkOrd (us :&: sm :&: prec :&: af) = PopOrder { popSafeMapping       = sm
-                                                                 , popPrecedence        = prec
-                                                                 , popArgumentFiltering = Just af 
-                                                                 , popInputProblem      = prob 
-                                                                 , popInstance          = inst 
-                                                                 , popUsableSymbols     = us }
+              where mkOrd (us :&: sm :&: rs :&: prec :&: af) = PopOrder { popSafeMapping       = sm
+                                                                        , popPrecedence        = prec
+                                                                        , popRecursives        = rs
+                                                                        , popArgumentFiltering = Just af 
+                                                                        , popInputProblem      = prob 
+                                                                        , popInstance          = inst 
+                                                                        , popUsableSymbols     = us }
                     initial                            = UREnc.initialUsables 
                                                          :&: SMEnc.empty sig quasiConstrs 
-                                                         :&: Prec.empty sig 
+                                                         :&: PrecEnc.initialRecursiveSymbols                                                         
+                                                         :&: PrecEnc.initial sig 
                                                          :&: AFEnc.initial sig
 
           solveDirect = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: prec) = PopOrder { popSafeMapping       = sm
-                                                   , popPrecedence        = prec
-                                                   , popArgumentFiltering = Nothing
-                                                   , popInputProblem      = prob 
-                                                   , popInstance          = inst 
-                                                   , popUsableSymbols     = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob }
+              where mkOrd (sm :&: rs :&: prec) = PopOrder { popSafeMapping       = sm
+                                                          , popPrecedence        = prec
+                                                          , popRecursives        = rs
+                                                          , popArgumentFiltering = Nothing
+                                                          , popInputProblem      = prob 
+                                                          , popInstance          = inst 
+                                                          , popUsableSymbols     = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob }
                     initial             = SMEnc.empty sig quasiConstrs 
-                                          :&: Prec.empty sig
+                                          :&: PrecEnc.initialRecursiveSymbols
+                                          :&: PrecEnc.initial sig
 
           solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
           solveConstraint constraint initial makeResult = 
@@ -320,7 +335,7 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                  && bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ strs]
                  && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ wtrs]
                  && validPrecedence
-                 && (fm isDP --> validArgumentFiltering)
+                 && (fm allowAF --> validArgumentFiltering)
                  && (fm isDP --> validUsableRules)
                  && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD stricts weaks quasiDefineds
 
@@ -332,9 +347,14 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                         Right sym -> sym `Set.member` quasiDefineds --> cardinality rtl (rhs r) <= 1
                       where rtl = root (lhs r)
           
-          validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering (Set.toList (Trs.functionSymbols allrules)) sig
+          validArgumentFiltering = return $ 
+                                   AFEnc.validSafeArgumentFiltering fs sig
+                                   && (case bnd of 
+                                         Just (Nat 0) -> bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
+                                         _            -> top)
+            where fs = Set.toList $ Trs.functionSymbols allrules
           
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (bnd >>= \ (Nat i) -> return (max 0 (i - 1)))
+          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (natToInt `liftM` bnd)
           
           validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
             where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
@@ -395,7 +415,7 @@ orient p = memoized $ \ a ->
                                                                   , s `gpop` t_j || not (isCollapsing g) && isNormal g j])
                                               && (isCollapsing g 
                                                   || (f `pGt` g && (mulRecForbidden --> atmostOne [alpha j | (_,j) <- its]))
-                                                  || (f `pEq` g && isDefined f && seqExtGt))
+                                                  || (f `pEq` g && isRecursive f && isRecursive g && isDefined f && seqExtGt))
                                      where seqExtGt = -- every position j of rhs is covered:
                                                       -- for ps, only cover of normal args of rhs required
                                                       forall js (\ j -> (inFilter g j && (not ps || isNormal g j)) -- for ps, only constraint on normal args
@@ -423,6 +443,7 @@ orient p = memoized $ \ a ->
                                            gamma i j   = return $ propAtom $ Gamma (i, j, (s, t))
                                            epsilon i   = return $ propAtom $ Epsilon (i, (s, t))
                                            isNormal f' i = not (isSafe f' i)
+                                           isRecursive = return . PrecEnc.isRecursive
                                            mulRecForbidden = return $ not (allowMulRecP p)
                                            ps = return $ allowPsP p
                                            precRestrictedP _ (Var _)    = top

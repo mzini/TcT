@@ -31,6 +31,7 @@ module Tct.Processor.Args.Instances
        , EnumOf (..)
        , Nat (..)
        , nat
+       , natToInt
        -- * Constructors for Arguments
        , naturalArg
        , boolArg
@@ -64,6 +65,9 @@ newtype Nat = Nat Int deriving (Typeable, Eq, Ord, Show, Num, Enum)
 nat :: Int -> Nat
 nat i | i < 0 = error "nat received negative integer"
       | otherwise = Nat i
+
+natToInt :: Nat -> Int
+natToInt (Nat i) = i
 
 instance Argument Nat where
     type Domain Nat = Nat

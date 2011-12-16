@@ -223,6 +223,7 @@ module Tct.Methods
       -- ** Arguments
     , ArgInstances.Nat (..)
     , ArgInstances.nat
+    , ArgInstances.natToInt
     , Size (..)
     , ArgInstances.EnumOf
     , ArgInstances.Processor

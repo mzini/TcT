@@ -38,6 +38,7 @@ import Control.Monad (liftM)
 import Data.Set (Set, (\\))
 import Data.Maybe (isJust)
 import qualified Data.Set as Set
+import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
@@ -62,6 +63,7 @@ import qualified Termlib.ArgumentFiltering as AF
 import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
+import Termlib.Trs.PrettyPrint (pprintTrs)
 
 import Tct.Certificate (poly, expo, certified, unknown)
 import qualified Tct.Processor.Standard as S
@@ -96,10 +98,14 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
                              , popUsableSymbols     :: [Symbol]}
 
 instance ComplexityProof PopStarOrder where
-  pprintProof order _ = (text "The input was oriented with the instance of" <+> text (S.instanceName inst) <+> text "as induced by the precedence")
-                        $++$ pparam (popPrecedence order)
-                        $++$ text "and safe mapping"
-                        $++$ pparam (popSafeMapping order) <+> text "."
+  pprintProof order _ = text "The input was oriented with the instance of" 
+                        $+$ (text (S.instanceName inst) <+> text "as induced by the safe mapping")
+                        $++$ pparam (popSafeMapping order)
+                        $++$ text "and precedence"
+                        $++$ (pparam prec <+> text ".")
+                        $++$ text "Following symbols are considered recursive:"
+                        $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- Set.toList rs])
+                        $++$ (text "The recursion depth is" <+> text (show recdepth) <+> text ".")
                         $+$ (case maf of 
                                Nothing -> PP.empty
                                Just af -> text "" 
@@ -107,17 +113,32 @@ instance ComplexityProof PopStarOrder where
                                          $++$ pparam af
                                          $++$ text "Usable defined function symbols are a subset of:"
                                          $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us]))
-                        $++$ text "For your convenience, here is the oriented problem in predicative notation:"
+                        $++$ text "For your convenience, here are the oriented rules in predicative" 
+                        $+$  text "notation (possibly applying argument filtering):"
                         $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
-            pparam = nest 1 . pprint
+            pparam   = nest 1 . pprint
+            recdepth = maximum (0 : Map.elems (Prec.recursionDepth rs prec))
+            (PrecEnc.RS rs) = popRecursives order
+            prec            = popPrecedence order
             inst = popInstance order
-            ppProblem = ppTrs     "Strict DPs"   strictDPs prob
-                        $+$ ppTrs "Weak DPs  "   weakDPs   prob
-                        $+$ ppTrs "Strict Trs"   (restrictUsables . strictTrs) prob
-                        $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)   prob
+            ppProblem = ppTrs     "Strict DPs"   strictDPs
+                        $+$ ppTrs "Weak DPs  "   weakDPs
+                        $+$ ppTrs "Strict Trs"   (restrictUsables . strictTrs)
+                        $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)
 
-            ppTrs n f p = block n $ pprint (f p, sig, vars,sm)
+            ppTrs n sel = block n $ pprintTrs (\ rl -> fsep [pp (lhs rl), text "->", pp (rhs rl)]) (rules $ sel prob)
+              where pp (Var x) = pprint (x,vars)
+                    pp (Fun f ts) = 
+                      case AF.filtering f af of 
+                        AF.Projection i -> pp (ts!!(i-1))
+                        AF.Filtering is -> pprint (f,sig) <> parens ( ppa normals <> sc <> ppa safes )
+                          where (safes,normals) = IntSet.partition (SMEnc.isSafe sm f) is
+                                ppa poss        = sep $ punctuate (text ",") [pp ti | (i,ti) <- zip [1..] ts
+                                                                                    , i `IntSet.member` poss]
+                                sc | IntSet.null safes = text ";"
+                                   | otherwise         = text "; "
+                    af = maybe (AF.empty sig) id maf
             prob           = popInputProblem order
             sig            = Prob.signature prob
             vars           = Prob.variables prob
@@ -138,13 +159,13 @@ instance ComplexityProof PopStarOrder where
                            | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
             _ :+: wsc :+: _ = S.processorArgs inst
-            ub              = maximum (minUb : Map.elems (Prec.recursionDepth rs prec))
+            ub              = modifyUB $ maximum (0 : Map.elems (Prec.recursionDepth rs prec))
             (PrecEnc.RS rs) = popRecursives order
             prec            = popPrecedence order
-            minUb           = 
-              case popArgumentFiltering order of 
-                Just af -> if hasProjection af then 1 else 0
-                Nothing -> 0
+            modifyUB        = 
+              case popArgumentFiltering order of --TODO verify DP setting
+                Just af -> if hasProjection af then (+) 1 else id
+                Nothing -> id
             sig = Prob.signature $ popInputProblem order
             hasProjection af = AF.fold (\ sym filtering -> (||) (f sym filtering)) af False
               where f sym (AF.Projection _) | isMarked sig sym = True
@@ -280,16 +301,14 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                                     
     where knd = kind $ S.processor inst
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
-          allowAF   = (isDP && knd /= LMPO)
+          allowAF   = (isDP && knd /= LMPO && Trs.isEmpty (Prob.strictTrs prob))
           allowMR   = knd == LMPO 
           forcePROD = knd == ProdPOP          
-          isDP      = Prob.isDPProblem prob && Trs.isEmpty (Prob.strictTrs prob)
+          isDP      = Prob.isDPProblem prob
+          
           quasiConstrs = quasiConstructorsFor prob
           quasiDefineds = Trs.definedSymbols allrules \\ quasiConstrs
-          strs     = Prob.strictTrs prob
-          wtrs     = Prob.weakTrs prob
-          sdps     = Prob.strictDPs prob
-          wdps     = Prob.weakDPs prob
+          
           stricts  = Prob.strictComponents prob
           weaks    = Prob.weakComponents prob
           allrules = Prob.allComponents prob
@@ -330,17 +349,15 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                  return $ makeResult `liftM` r
           
           form = fm maybeOrientable 
-                 && bigAnd [atom (strictlyOriented r) | r <- rules $ sdps]
-                 && bigAnd [atom (weaklyOriented r)   | r <- rules $ wdps]                 
-                 && bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ strs]
-                 && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ wtrs]
+                 && bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
+                 && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ weaks]
                  && validPrecedence
                  && (fm allowAF --> validArgumentFiltering)
-                 && (fm isDP --> validUsableRules)
+                 && validUsableRules
                  && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD stricts weaks quasiDefineds
 
-          usable r = return $ UREnc.usable r
-          maybeOrientable = allowMR || isDP || (all maybeOrientableRule $ rules allrules)
+          usable = return . UREnc.usable prob
+          maybeOrientable = allowMR || allowAF || isDP || (all maybeOrientableRule $ rules allrules)
             where maybeOrientableRule r = 
                       case rtl of 
                         Left  _   -> False 

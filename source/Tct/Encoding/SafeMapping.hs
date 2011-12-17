@@ -63,10 +63,11 @@ empty :: Signature -> Set.Set Symbol -> SafeMapping
 empty sig constructors = SM (sig, Map.fromList $ [ (c, IntSet.fromList (argumentPositions sig c))
                                                    | c <- Set.toList constructors] )
 
-isSafe :: Symbol -> Int -> SafeMapping -> Bool
-isSafe sym i (SM (_,m)) = case Map.lookup sym m of 
-                            Just safePositions -> IntSet.member i safePositions
-                            Nothing ->  False
+isSafe :: SafeMapping -> Symbol -> Int -> Bool
+isSafe (SM (_,m)) sym i  = 
+  case Map.lookup sym m of 
+    Just safePositions -> IntSet.member i safePositions
+    Nothing ->  False
 
 safeArgumentPositions :: Symbol -> SafeMapping -> [Int]
 safeArgumentPositions sym (SM (_,m)) = case Map.lookup sym m of 

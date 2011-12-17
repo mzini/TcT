@@ -49,29 +49,34 @@ data UsableAtom = UsableAtom Symbol
                      
 instance PropAtom UsableAtom 
 
-usable :: (Eq l, Ord l) => Rule.Rule -> PropFormula l
-usable r = case root (Rule.lhs r) of 
-  Right f -> propAtom $ UsableAtom f
-  Left _  -> top 
-
+usable :: (Eq l, Ord l) => Problem -> Rule.Rule -> PropFormula l
+usable prob | not (Prob.isDPProblem prob) = const top                      
+            | otherwise                 = \ r -> usable' (root (Rule.lhs r))
+  where usable' (Right f) | f `Set.member` ds = top
+                          | otherwise         = propAtom $ UsableAtom f
+        usable' _         = top
+        ds = case Prob.startTerms prob of 
+               st@Prob.BasicTerms {} -> Prob.defineds st
+               _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
+                  
 initialUsables :: [Symbol]
 initialUsables = []
 
 validUsableRulesEncoding :: (Eq l, Ord l, Monad s, Solver s l) => Problem -> (Symbol -> Int -> PropFormula l) -> Memo Term s l (PropFormula l)
-validUsableRulesEncoding prob unfiltered = bigAnd [ omega rhs | rhs <- rhss dps]
-                                           && bigAnd [ usableM r --> omega (Rule.rhs r) | r <- Trs.rules trss ]
+validUsableRulesEncoding prob unfiltered 
+  | Prob.isDPProblem prob = bigAnd [ usableM r --> omega (Rule.rhs r) | r <- Trs.rules allRules ]
+  | otherwise             = top
      where omega = memoized $ \ t -> 
              case t of 
                Var _    -> top
-               Fun f ts -> bigAnd [ usableM rl | rl <- Trs.rules $ Trs.definingSymbol trss f]
+               Fun f ts -> bigAnd [ usableM rl | rl <- Trs.rules $ Trs.definingSymbol allRules f]
                           && bigAnd [ unfilteredM f i --> omega ti | (i,ti) <- zip [1..] ts]
            
-           usableM = return . usable
+           usableM = return . usable prob
            unfilteredM f i = return $ unfiltered f i
-           trss = Prob.trsComponents prob
-           dps  = Prob.dpComponents prob
-           rhss trs = nubs $ [Rule.rhs r | r <- Trs.rules trs]
-             where nubs = Set.toList . Set.fromList
+           allRules = Prob.allComponents prob
+           -- rhss trs = nubs $ [Rule.rhs r | r <- Trs.rules trs]
+           --   where nubs = Set.toList . Set.fromList
                          
 
 instance Decoder [Symbol] UsableAtom where 

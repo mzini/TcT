@@ -94,7 +94,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
 
     description ComposeRCProc = [ unwords [ ] ]
     arguments ComposeRCProc   = opt { A.name         = "split" 
-                                    , A.defaultValue = selFirstStrictCongruence
+                                    , A.defaultValue = defaultSelect
                                     , A.description  = ""}
                                 :+: opt { A.name = "subprocessor A"
                                         , A.defaultValue = Nothing

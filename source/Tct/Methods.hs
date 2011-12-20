@@ -213,6 +213,9 @@ module Tct.Methods
       -- @t2@ is applied.
 
     -- ** Custom Processors
+    , (P.<|>)
+      -- | this operator is used to add processors to the processor list of tct
+      
     , Custom.named
       -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
     , Custom.processorFromInstance

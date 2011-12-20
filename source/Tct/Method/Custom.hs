@@ -26,11 +26,14 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.Custom 
     ( Description (..)
+    , IsDescription(..)
     , CustomProcessor
     , processor
     , strategy
     , processorFromInstance
-    , customInstance)
+    , customInstance
+    , named
+    )
 where
 
 import qualified Tct.Processor.Standard as S
@@ -39,9 +42,9 @@ import qualified Tct.Processor.Args as A
 import Control.Monad (liftM)
 import Termlib.Problem (Problem)
 
-data Description arg = Description { as    :: String
-                                   , descr :: [String]
-                                   , args  :: arg}
+data Description arg = Description { as    :: String -- ^ the name under which the processor is accesible
+                                   , descr :: [String] -- ^ optional short description, displayed with 'tct -l'
+                                   , args  :: arg} -- ^ the arguments of the processor. 
 
 data CP arg res = CP { description :: Description arg
                      , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res} 
@@ -89,3 +92,7 @@ processorFromInstance mkInst  d = processor (P.solve . mkInst) d
 customInstance :: P.ComplexityProof res => String -> (forall m. P.SolverM m => Problem -> m res) -> P.InstanceOf (CustomProcessor A.Unit res)
 customInstance name f = processor (const f) d `S.withArgs` ()
   where d = Description { as = name, descr = [], args = A.unit }
+
+
+named :: forall proc. P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf (CustomProcessor A.Unit (P.ProofOf proc))
+named n proc = customInstance n (P.solve proc)

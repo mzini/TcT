@@ -29,6 +29,7 @@ import Control.Monad
 import qualified Data.Map as M
 import Data.Typeable
 import Data.Maybe (fromMaybe)
+import qualified Data.Foldable as Fold
 
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import qualified Termlib.Problem as Prob
@@ -40,7 +41,7 @@ import Termlib.Signature (runSignature, getSignature)
 import Termlib.Term (Term(..))
 import Termlib.Utils (PrettyPrintable(..),Enumerateable(..))
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (Trs)
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -138,14 +139,14 @@ applicativeArity asig (Fun _ [a,_]) = applicativeArity asig a - 1
 applicativeArity _    _             = error "Uncurry.applicativeArity: non-applicative term given"
 
 isLeftHeadVariableFree :: Trs -> Bool
-isLeftHeadVariableFree = Trs.allrules (lhvfree . R.lhs)
+isLeftHeadVariableFree = Fold.all (lhvfree . R.lhs)
     where lhvfree (Var _)             = True
           lhvfree (Fun _ ((Var _):_)) = False
           lhvfree (Fun _ ts)          = all lhvfree ts
 
 
 applicativeSignature :: Signature -> Trs -> Maybe AppSignature
-applicativeSignature sig trs = case Trs.foldlRules f (Just (Nothing, M.empty)) trs of
+applicativeSignature sig trs = case Fold.foldl f (Just (Nothing, M.empty)) trs of
                                  Just (Just appsym, asig) -> Just $ AppSignature (appsym, attribs) asig
                                      where Just attribs = F.lookup appsym sig
                                  Nothing         -> Nothing
@@ -205,7 +206,7 @@ mkUncurrySystem asig = Trs.Trs `liftM` foldM mk [] (M.toList $ consts asig)
                               cvars = [cvar j | j <- [1..]]
 
 mkUncurryTrs :: AppSignature -> Trs -> SignatureMonad Trs
-mkUncurryTrs asig trs = Trs `liftM` mapM mkRule (rules trs)
+mkUncurryTrs asig trs = Trs.fromRules `liftM` mapM mkRule (Trs.toRules trs)
     where mkRule (R.Rule lhs rhs) = do lhs' <- mk lhs
                                        rhs' <- mk rhs
                                        return $ R.Rule lhs' rhs'

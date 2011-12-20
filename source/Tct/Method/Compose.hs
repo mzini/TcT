@@ -37,7 +37,7 @@ import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils (PrettyPrintable (..))
-import Termlib.Trs (Trs(..), union, (\\))
+import Termlib.Trs (RuleList(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))

@@ -30,7 +30,7 @@ import qualified Termlib.Term as Term
 import qualified Termlib.Rule as R
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (Trs, RuleList(..))
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils hiding (block)
 import Termlib.Utils as Utils

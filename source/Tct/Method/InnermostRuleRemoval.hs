@@ -40,7 +40,7 @@ import Tct.Processor.Args as A
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import Termlib.Rule (Rule, rewrite)
 import Termlib.Term (immediateSubterms)
-import Termlib.Trs ((\\), Trs(..), unions, fromRules)
+import Termlib.Trs ((\\), RuleList(..), unions, fromRules)
 import Termlib.Utils (PrettyPrintable(..))
 
 import qualified Termlib.Problem as Prob

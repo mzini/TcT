@@ -2,6 +2,10 @@
 module Tct.Tcti 
     (
      load
+    , loadRC
+    , loadIRC
+    , loadDC
+    , loadIDC      
     , apply 
     , state
     , history
@@ -22,23 +26,39 @@ module Tct.Tcti
     , help
     , pprint
     , runTct
+    , wdgs      
+    , cwdgs
+    , uargs
+    , addRule
+    , deleteRule
+    , ruleFromString
+    , termFromString
     )
 where
 
 import Prelude hiding (fail, uncurry)
 import Termlib.Problem as Prob
 import Termlib.Trs as Trs
+import Termlib.Term (root,Term)
+import Termlib.Rule (Rule(..))
 import Termlib.Problem.Parser as ProbParse
 import Termlib.Problem.ParseErrors ()
 import qualified Termlib.Utils as U
+import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Repl as TRepl
+import qualified Termlib.Term.Parser as TParser
 
 import Tct.Processor.PPrint
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Tct.Method.DP.DependencyGraph as DG
+import qualified Tct.Encoding.UsablePositions as UA
 
 import Data.Maybe (fromMaybe)
 import Data.List
+import Control.Concurrent (forkIO)
+import System.Directory (getCurrentDirectory)
 import System.IO.Unsafe
 import Data.IORef
 import Control.Monad
@@ -111,20 +131,35 @@ undo = do STATE _ hst mprob <- readIORef stateRef
             (h:hs) -> writeIORef stateRef (STATE h hs mprob) >> printState
                       
 
-load :: FilePath -> IO ()
-load file = do r <- ProbParse.problemFromFile file
-               case r of 
+load' :: FilePath -> IO ()
+load' file = do r <- ProbParse.problemFromFile file
+                case r of 
                  Left err -> do putStrLn ("Unable to load '" ++ file ++ "'. Reason is:")
                                 pprint err
                                 return ()
                  Right (prob,warns) -> do ppwarns warns
                                           writeIORef stateRef (STATE (ST [prob] []) [] (Just prob))
-                                          printState
                                           return ()
   where ppwarns [] = return ()
         ppwarns ws = do putStrLn "Warnings:"
                         pprint `mapM_` ws
                         return ()
+                        
+load :: FilePath -> IO ()
+load file = load' file >> state
+
+loadRC :: FilePath -> IO ()
+loadRC n = load n >> setRC >> state
+
+loadIRC :: FilePath -> IO ()
+loadIRC n = load n >> setIRC >> state
+
+loadDC :: FilePath -> IO ()
+loadDC n = load n >> setDC >> state
+
+loadIDC :: FilePath -> IO ()
+loadIDC n = load n >> setIDC >> state
+                        
 --        pprob prob = hang (text "Following problem loaded:") 2 (U.pprint prob) 
 
 
@@ -201,8 +236,37 @@ runTct = P.runSolver (P.SolverState $ P.MiniSat "minisat2")
 
 
 modify :: (Problem -> Problem) -> IO ()
-modify f = modifyState (\ st -> st { selected = f `map` selected st})
+modify f = do modifyState (\ st -> st { selected = f `map` selected st})
+              state
 
+addRule :: String -> IO ()
+addRule str = modify $ add . TRepl.parseFromString TParser.rule str
+  where add ((True, rl), prob)  | isDP rl prob = prob { strictDPs = strictDPs prob `Trs.union` Trs.singleton rl }
+                                | otherwise    = prob { strictTrs = strictTrs prob `Trs.union` Trs.singleton rl }
+        add ((False, rl), prob) | isDP rl prob = prob { weakDPs = weakDPs prob `Trs.union` Trs.singleton rl }
+                                | otherwise    = prob { weakTrs = weakTrs prob `Trs.union` Trs.singleton rl }
+        isDP rl prob' = 
+          case root (lhs rl) of 
+           Left  _  -> False
+           Right f -> F.isMarked (signature prob') f
+           
+termFromString :: String -> Problem -> IO (Term, Problem)
+termFromString str prob = do pprint term
+                             return r
+  where r@(term,_) = TRepl.parseFromString TParser.term str prob
+
+ruleFromString :: String -> Problem -> IO (Rule, Problem)
+ruleFromString str prob = do pprint rl
+                             return (rl,prob')
+  where ((_,rl),prob') = TRepl.parseFromString TParser.rule str prob
+        
+deleteRule :: String -> IO ()
+deleteRule str = modify $ del . TRepl.parseFromString TParser.rule str
+  where del ((True, rl), prob)  = prob { strictTrs = strictTrs prob Trs.\\ Trs.singleton rl 
+                                       , strictDPs = strictDPs prob Trs.\\ Trs.singleton rl }
+        del ((False, rl), prob) = prob { weakTrs = weakTrs prob Trs.\\ Trs.singleton rl 
+                                       , weakDPs = weakDPs prob Trs.\\ Trs.singleton rl }
+                                  
 setStrategy :: Strategy -> IO ()
 setStrategy strat = modify (\ prob -> prob { strategy = strat})
 
@@ -213,9 +277,15 @@ setRC = modify f
                 ds = definedSymbols rs
                 cs = constructors rs
 
+setIRC :: IO ()
+setIRC = setRC >> setStrategy Innermost
+
 setDC :: IO ()
 setDC = modify f
   where f prob = prob { startTerms = TermAlgebra}
+
+setIDC :: IO ()
+setIDC = setDC >> setStrategy Full
 
 state :: IO ()
 state = printState 
@@ -313,3 +383,28 @@ instance P.Processor p => Apply (P.InstanceOf p) where
 instance Apply (Problem -> Problem) where 
    apply = modify
                 
+-- inspection
+wdgs :: IO [DG.DG]   
+wdgs = do probs <- get
+          let dgs = [ (DG.estimatedDependencyGraph DG.Edg prob
+                       , Prob.signature prob 
+                       , Prob.variables prob) 
+                    | prob <- probs ]
+          fn <- getCurrentDirectory          
+          forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
+          mapM_ pprint dgs
+          putStrLn $ "\nsee also '" ++ fn ++ "/dg.svg'.\n"
+          return [dg | (dg,_,_) <- dgs]
+
+cwdgs :: IO [DG.CDG]
+cwdgs = get >>= mapM f                            
+  where f prob = do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob
+                    pprint (dg,Prob.signature prob,Prob.variables prob)
+                    return dg
+
+uargs :: IO [UA.UsablePositions]
+uargs = get >>= mapM f
+    where f prob = pprint (ua, sig) >> return ua
+              where ua = UA.usableArgs (Prob.strategy prob) Trs.empty (Prob.allComponents prob)
+                    sig = Prob.signature prob
+

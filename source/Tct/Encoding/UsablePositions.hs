@@ -42,7 +42,7 @@ where
 import Termlib.Rule (Rule(..))
 import Termlib.Substitution (isRenamedUnifiable)
 import Termlib.Term
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (Trs)
 import Termlib.Problem hiding (variables)
 import qualified Termlib.Trs as Trs
 
@@ -137,7 +137,7 @@ usableReplacementMap trs up = unions [ snd $ uArgs l r | Rule l r <- Trs.rules t
                              , unions $ new : [ uargs | (_,_,uargs) <- uArgs'] )
               where uArgs' = [ let (usable,uargs) = uArgs l ti in (i,usable,uargs)  | (i, ti) <- zip [1 :: Int ..] ts]
                     subtermUsable = any (\ (_,usable,_) -> usable) uArgs'
-                    hasRedex = any (\ rule -> isRenamedUnifiable t $ lhs rule) $ rules trs
+                    hasRedex = any (\ rule -> isRenamedUnifiable t $ lhs rule) $ Trs.rules trs
                     new = singleton f [i | (i, usable, _) <- uArgs', usable]
           isBlockedProperSubtermOf s t = any (isBlockedProperSubtermOf s . snd) uSubs || any (isSubtermOf s . snd) nonSubs
               where (uSubs, nonSubs) = partition (\ (i, _) -> isUsable f i up ) $ zip [1 :: Int ..] $ immediateSubterms t

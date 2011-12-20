@@ -21,7 +21,6 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs(..))
 import qualified Termlib.Variable as V
 import Termlib.Utils
 
@@ -85,7 +84,7 @@ instance T.Transformer PathAnalysis where
               progressed = case paths of 
                              [pth] -> length spath < length sprob
                                  where spath = [ r | (StrictDP, r) <- allRulesFromNodes cedg (thePath pth) ]
-                                       Trs sprob = Prob.strictDPs prob
+                                       sprob = Trs.toRules $ Prob.strictDPs prob
                              _     -> True
 
 printPathName :: CDG -> F.Signature -> V.Variables -> Path -> Doc

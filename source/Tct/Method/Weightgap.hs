@@ -35,7 +35,7 @@ import Qlogic.Semiring
 
 import Termlib.Problem (Problem(..), StartTerms(..), strictComponents)
 import Termlib.Rule (Rule(..))
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (Trs)
 import Termlib.Utils hiding (enum)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob

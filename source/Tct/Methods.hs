@@ -213,10 +213,24 @@ module Tct.Methods
       -- @t2@ is applied.
 
     -- ** Custom Processors
+    , Custom.named
+      -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
     , Custom.processorFromInstance
-    , Custom.processor 
+      -- | 'processorFromInstance mkproc d' yields a new processor with name and arguments according to description 'd'. 
+      -- Here 'd' is usually of type @'Custom.Description' args@, where 'args' is an
+      -- instance of 'Args.ParsableArguments'.
+      -- See "Tct.Methods#argdescr" for a list of built-in arguments. 
+      -- More complex arguments can be build using 'arg' and 'optional', tupling is performed using 'Args.:+:', 
+      -- the empty argument list is constructed with 'Args.Unit'.
+      -- The processor applies the instance 'mkproc as' to the input problem, where 'as' are the parsed arguments. 
+      
     , Custom.strategy      
+      -- | this function acts like 'Custom.processorFromInstance', except that the resulting proof 
+      -- is wraped into a 'P.SomeProof'
+    , Custom.processor 
     , Custom.customInstance
+      
+    , Custom.IsDescription(..)      
     , Custom.CustomProcessor
     , Custom.Description(..)
     
@@ -295,15 +309,18 @@ module Tct.Methods
       -- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
     , Poly.constant
       -- | returns a new monomial without variables.
-      
-    -- *** Argument Description Combinators
+
+      -- ** Argument Description Combinators
     , Args.Arg (..)
     , Args.Unit (..)
     , (Args.:+:)(..)
-    , Args.arg
-    , Args.optional
-      
-    -- *** Argument Description Constructors  
+    , arg 
+      -- | constructs an 'Arg' that is used for parsing at the command line.
+    , optional 
+      -- | Translates an 'Arg' to an optional argument, by supplying a name 
+      -- and a default value
+    
+      -- ** Built-in Drgument Descriptions  #argdescr#
     , ArgInstances.assocArg 
     , ArgInstances.boolArg
     , ArgInstances.enumArg
@@ -480,6 +497,15 @@ instance P.Processor p => EQuantified (P.InstanceOf p) where
 
 mixed :: EQuantified a => a -> EQuantifiedOf a
 mixed = equantify
+
+
+-- * Arguments
+
+arg :: Args.ParsableArgument a => Args.Arg a
+arg = Args.arg
+
+optional :: Args.ParsableArgument a => Args.Arg a -> String -> Args.Domain a -> Args.Arg a
+optional = Args.optional
 
 
 -- * Competition Strategy 

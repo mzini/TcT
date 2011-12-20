@@ -47,7 +47,7 @@ import Prelude hiding (and, or, not)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import Data.Typeable
 import Termlib.Term
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (RuleList(..), Trs)
 import qualified Termlib.Trs as Trs
 import Termlib.FunctionSymbol (Symbol, arity, Signature)
 import Termlib.Utils (PrettyPrintable(..))

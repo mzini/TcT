@@ -31,7 +31,7 @@ import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs(..))
+import Termlib.Trs (RuleList(..))
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
 
@@ -45,7 +45,6 @@ import Tct.Processor.Args
 import Tct.Processor.PPrint
 import Tct.Method.DP.Utils 
 import Tct.Method.DP.DependencyGraph
-import Tct.Method.DP.DependencyPairs
 import qualified Data.Graph.Inductive.Graph as Graph
 
 
@@ -192,9 +191,9 @@ instance T.Transformer SimpRHS where
                       where rs' = [ ri | (i,ri) <- zip [1..] rs
                                   , any (\ (_,_, j) -> i == j) succs ]
                             succs = lsuccessors wdg n
-          prob' = withFreshCompounds prob { Prob.strictDPs = toTrs stricts
-                                          , Prob.weakDPs   = toTrs weaks
-                                          , Prob.signature = sig }
+          prob' = Prob.withFreshCompounds prob { Prob.strictDPs = toTrs stricts
+                                               , Prob.weakDPs   = toTrs weaks
+                                               , Prob.signature = sig }
               where (stricts, weaks) = partition (\ (_, s, _, _) -> s == StrictDP) elims
                     toTrs l = Trs.fromRules [ fromMaybe r mr | (_,_,r,mr) <- l ]
 

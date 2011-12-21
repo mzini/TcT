@@ -141,6 +141,10 @@ isProgressResult :: Result r -> Bool
 isProgressResult (Progress {})   = True
 isProgressResult (NoProgress {}) = False
 
+subProblemsFromResult :: Result r -> Enumeration Problem
+subProblemsFromResult (Progress _ ps) = ps
+subProblemsFromResult (NoProgress _)  = []
+
 mapResult :: (ProofOf t1 -> ProofOf t2) -> Result t1 -> Result t2
 mapResult f (NoProgress p)  = NoProgress (f p)
 mapResult f (Progress p ps) = Progress (f p) ps
@@ -151,9 +155,7 @@ transformationProof tproof = case transformationResult tproof of
                                Progress p _ -> p
                                
 subProblems :: Proof t sub -> Enumeration Problem
-subProblems tproof = case transformationResult tproof of 
-                       Progress _ ps -> ps
-                       NoProgress _  -> []
+subProblems tproof = subProblemsFromResult $ transformationResult tproof 
 
 findProof :: (Numbering a) => a -> Proof t sub -> Maybe (P.Proof sub)
 findProof e p = find e (subProofs p)

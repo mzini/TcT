@@ -220,9 +220,13 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                                       | otherwise     = text "We did not obtain a certificate for Problem" <+> text n
                                                         $+$ text "We abort."
 
-    answer proof = case (lb,ub) of 
-                     (Cert.Unknown, Cert.Unknown) -> P.MaybeAnswer
-                     _                            -> P.answerFromCertificate $ Cert.certified (Cert.Unknown, ub)
+    answer proof = 
+      case tproof of 
+        ComposeRCInapplicable{} -> P.MaybeAnswer
+        _ -> 
+          case (lb,ub) of 
+            (Cert.Unknown, Cert.Unknown) -> P.MaybeAnswer
+            _                            -> P.answerFromCertificate $ Cert.certified (Cert.Unknown, ub)
         where tproof = T.transformationProof proof
               subproofs = T.subProofs proof
               ub = Cert.upperBound cert1 `Cert.mult` Cert.upperBound cert2

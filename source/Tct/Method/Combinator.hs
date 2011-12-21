@@ -128,6 +128,29 @@ empty :: P.InstanceOf (S.StdProcessor EmptyRules)
 empty = S.StdProcessor EmptyRules `S.withArgs` ()
 
 
+-- open
+
+data OpenProof = OpenProof
+instance P.ComplexityProof OpenProof
+  where answer _ = P.MaybeAnswer
+        pprintProof _ _ = text "The problem remains open"
+        
+data OpenProcessor = OpenProcessor
+instance S.Processor OpenProcessor where
+  type S.ProofOf OpenProcessor = OpenProof
+  type S.ArgumentsOf OpenProcessor = A.Unit
+  
+  name _ = "Open"
+  arguments _ = A.Unit
+  solve _ _ = return OpenProof
+
+
+openProcessor :: S.StdProcessor OpenProcessor
+openProcessor = S.StdProcessor OpenProcessor
+
+open :: P.InstanceOf (S.StdProcessor OpenProcessor)
+open = openProcessor `S.withArgs` ()
+
 
 -- if-then-else
 

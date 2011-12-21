@@ -26,11 +26,14 @@ module Tct.Methods
     -- * Techniques
     -- ** Direct Techniques
     Combinators.success
-    -- | this processor returns Yes(?,?)
+    -- | this processor returns 'Yes(?,?)'
     , Combinators.fail
-    -- | this processor returns No
+    -- | this processor returns 'No'
     , Combinators.empty
-    -- | this processor returns Yes(1,1) if the strict component is empty      
+    -- | this processor returns 'Yes(O(1),(1))' if the strict component is empty      
+    , Combinators.open
+    -- | this processor returns 'Maybe'
+      
     , arctic
     -- | this processor implements arctic interpretations
     , matrix

@@ -301,27 +301,33 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
         $+$ if not contd 
              then PP.empty 
              else text ""
-                  $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problems:")
-                  $+$ vcat [ ppOverview i prob_i | (i, prob_i) <- subprobs]
+                  $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problem(s):")
+                  $+$ text ""
+                  $+$ ppOverviews 
                 where contd = continue t1 || (case r1 of {Progress {} -> True; _ -> False})
                       subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
+                      ppOverviews = 
+                        case subprobs of 
+                          [(i,prob_i)] -> indent (ppOverview i prob_i)
+                          _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
+                                              | (i, prob_i) <- subprobs]
                       ppOverview (SN i) prob_i = 
-                          block' n [ text "We consider the problem"
-                                    $+$ text ""
-                                    $+$ Util.pprint prob_i
-                                    $+$ text ""
-                                    $+$ case find i r2s of 
-                                          Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
-                                          Just r2_i@(Progress _ ps) -> 
-                                              pprintTProof t2 prob (proofFromResult r2_i)
-                                              $+$ if null ps 
-                                                   then PP.empty
-                                                   else text ""
-                                                        $+$ text "The consider problem is replaced by"
-                                                        $+$ enum ps
-                                          Just r2_i@(NoProgress _) -> 
-                                              pprintTProof t2 prob (proofFromResult r2_i) ]
-                              where n = show $ text "Sub-problem" <+> Util.pprint (SN i)
+                        text "We consider the problem"
+                        $+$ text ""
+                        $+$ Util.pprint prob_i
+                        $+$ text ""
+                        $+$ case find i r2s of 
+                               Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
+                               Just r2_i@(Progress _ ps) -> 
+                                 pprintTProof t2 prob (proofFromResult r2_i)
+                                 $+$ if null ps 
+                                     then PP.empty
+                                     else text ""
+                                          $+$ text "The consider problem is replaced by"
+                                          $+$ text ""
+                                          $+$ enum ps
+                               Just r2_i@(NoProgress _) -> 
+                                 pprintTProof t2 prob (proofFromResult r2_i)
 
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
 someProof sub t prob res subproofs = Proof { transformationResult = res
@@ -660,6 +666,7 @@ instance P.Processor proc => P.Processor (Subsumed proc) where
    data P.InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
    type P.ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
    name (Subsumed proc) = P.name proc
+   instanceToProcessor (SSI inst) = Subsumed $ P.instanceToProcessor inst
    instanceName (SSI inst) = P.instanceName inst
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob

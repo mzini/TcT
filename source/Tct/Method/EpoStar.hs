@@ -179,7 +179,7 @@ instance ComplexityProof EpoProof where
 data EpoStar = EpoStar deriving (Show, Eq, Typeable)
 
 instance S.Processor EpoStar where
-    name _ = "epo*"
+    name _ = "epostar"
     description _ = [ unlines [ "This processor implements orientation of the input problem using 'exponential path orders',"
                               , "a technique applicable for innermost runtime-complexity analysis."
                               , "Exponential path orders are a miniaturisation of 'lexicographic path orders',"

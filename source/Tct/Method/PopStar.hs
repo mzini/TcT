@@ -178,8 +178,8 @@ instance ComplexityProof PopStarOrder where
 instance S.Processor PopStar where
     name p = case kind p of 
                LMPO    -> "lmpo"
-               POP     -> "pop*"
-               ProdPOP -> "ppop*"
+               POP     -> "popstar"
+               ProdPOP -> "popstarSmall"
 
     description p = case kind p of 
                       LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"

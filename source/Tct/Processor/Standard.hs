@@ -65,6 +65,7 @@ instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProce
     type P.ProofOf (StdProcessor proc)      = ProofOf proc
     data P.InstanceOf (StdProcessor proc)   = TP (TheProcessor proc)
     name (StdProcessor proc)                = name proc
+    instanceToProcessor (TP tp)             = StdProcessor $ processor tp
     instanceName (TP theproc)               = instanceName theproc
     solve_ (TP theproc) prob                = solve theproc prob
     solvePartial_ (TP theproc) stricts prob = solvePartial theproc stricts prob

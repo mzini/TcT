@@ -24,7 +24,7 @@ module Tct.Methods
     (  
 
     -- * Techniques
-    -- ** Direct Techniques
+    -- ** Direct Techniques #MethodsProcs#
     Combinators.success
     -- | this processor returns 'Yes(?,?)'
     , Combinators.fail
@@ -125,7 +125,7 @@ module Tct.Methods
     , Predicates.problemPredicate
             
       
-    -- * Transformations
+    -- * Transformations #MethodsTrans#
       -- | This section list all instances of 'Transformation'. A transformation 't' 
       -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
     , T.idtrans
@@ -539,7 +539,7 @@ te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTrans)
 te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor
-dc2011 = mixed $ ite (isDuplicating Strict) Combinators.fail strategy
+dc2011 = mixed $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
       where matrices simple c | simple = empty `before` fastest [matrix P.defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
                               | otherwise = empty `before` fastest [ matrix P.defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
             bound       = 6
@@ -559,7 +559,7 @@ dc2011 = mixed $ ite (isDuplicating Strict) Combinators.fail strategy
                                `orFaster` matchbounds)
 
 rc2011 :: P.InstanceOf P.SomeProcessor
-rc2011 = mixed $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
+rc2011 = mixed $ Custom.named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
     where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `orFaster` matchbounds `orFaster` dp mkdp
           matricesForDegree deg = [ matrix P.defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
           

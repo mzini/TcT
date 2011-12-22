@@ -31,12 +31,15 @@ import Tct.Processor.Parse
 import Text.Parsec.Prim
 import Text.Parsec.Combinator
 import Text.Parsec.Char
+--import qualified Control.Exception as Ex
 import qualified Data.Map as Map
 import Data.List (partition, intersperse)
 import Data.Typeable (cast, Typeable)
 import Control.Monad (liftM)
+import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
-
+import Text.PrettyPrint.HughesPJ
+import qualified Termlib.Utils as U
 -- single argument
 data Phantom k = Phantom
 
@@ -47,7 +50,13 @@ class Argument a where
 
 class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
-
+    parseArgInteractive :: Phantom a -> P.AnyProcessor -> IO (Maybe (Domain a))
+    parseArgInteractive pa procs = pse `liftM` getLine
+      where pse str = 
+              case fromString (parseArg pa) procs "argument" str of
+                Right a -> Just a
+                Left _ -> Nothing
+        
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
 instance Show SomeDomainElt where show (SomeDomainElt e) = show e
 type ParsedOptionals = Map.Map String SomeDomainElt
@@ -60,6 +69,7 @@ class Arguments a => ParsableArguments a where
     descriptions :: a -> [P.ArgDescr]
     parseArgs :: a -> ParsedOptionals -> P.ProcessorParser (Domains a)
     optionalParsers :: a -> [OptionalParser]
+    parseInteractive :: a -> P.AnyProcessor -> IO (Domains a)
 
 
 data Unit = Unit deriving (Typeable, Show)
@@ -86,6 +96,7 @@ instance ParsableArguments Unit where
     parseArgs Unit _ = return ()
     optionalParsers Unit = []
     descriptions Unit = []
+    parseInteractive _ _ = return ()
 
 instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
@@ -108,6 +119,42 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                      else Nothing
                                  , P.adDescr      = description a
                                  , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
+
+    parseInteractive a procs = 
+        do putStrLn $ show (text "* Argument" <+> text (name a) <+> moptional
+                            $+$ nest 2 (descr $+$ text "" $+$ syn $+$ text ""))
+           ask
+      where optionalDescr | isOptional_ a = 
+              U.paragraph ("This argument is optional. The default value is '"
+                           ++ showArg phantom (defaultValue a) 
+                           ++"'. Leave input blank to use this default value.")
+                          | otherwise = empty
+            syn = text "Synopsis:" <+> text (domainName phantom)
+            descr = text "Description:" <+> (U.paragraph (description a) 
+                                             $+$ optionalDescr)
+            moptional | isOptional_ a = text "(optional)"
+                      | otherwise     = empty
+            ask | isOptional_ a = 
+              do putStrLn $ show $ nest 2 $ U.paragraph ( "This argument is optional. Use the default value"
+                                                         ++ showArg phantom (defaultValue a) 
+                                                         ++"'? Enter 'yes' or 'no', default is 'yes':")
+                 putStr "  > "
+                 str <- getLine
+                 if map toLower str == "no" 
+                  then ask'
+                  else return (defaultValue a)
+                 | otherwise = ask'
+            ask' = 
+              do putStr "  > "
+                 mres <- parseArgInteractive phantom procs
+                 case mres of 
+                   Nothing -> 
+                       do putStrLn $ "Error parsing argument, expecting '" ++ (domainName phantom) ++ "'"
+                          putStrLn "repeat input, or abort with Ctrl-c"
+                          ask'
+                   Just v -> return v
+
+            phantom = Phantom :: Phantom a
                      
 instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: b) where
     parseArgs (a :+: b) opts = do e_a <- parseArgs a opts
@@ -119,6 +166,12 @@ instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: 
 
     descriptions (a :+: b) = descriptions a ++ descriptions b
 
+    parseInteractive (a :+: b) procs = 
+     do pa <- parseInteractive a procs
+        putStrLn ""
+        pb <- parseInteractive b procs
+        return (pa :+: pb)
+        
 -- operations on arguments
 
 parseArguments :: ParsableArguments a => String -> a -> P.ProcessorParser (Domains a)
@@ -158,4 +211,7 @@ optional tpe nm def = tpe { name = nm
 
 unit :: Unit
 unit = Unit
+
+
+-- processor argument
 

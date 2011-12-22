@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -32,19 +33,20 @@ module Tct.Processor.Standard
 where
 
 import Text.ParserCombinators.Parsec
+--import qualified Control.Exception as Ex
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
+import Tct.Processor.Args.Instances ()
 import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
 import Termlib.Rule (Rule)
-
 import Tct.Processor.Parse
 
 data TheProcessor a = TheProcessor { processor     :: a
                                    , processorArgs :: Domains (ArgumentsOf a) }
 
-class P.ComplexityProof (ProofOf proc) => Processor proc where
+class (P.ComplexityProof (ProofOf proc)) => Processor proc where
     type ArgumentsOf proc
     type ProofOf proc
     name         :: proc -> String
@@ -58,7 +60,7 @@ class P.ComplexityProof (ProofOf proc) => Processor proc where
     solvePartial _ _ prob = return $ P.PartialInapplicable prob
 
 
-data StdProcessor a = StdProcessor a deriving Show
+data StdProcessor a = StdProcessor a  deriving (Show)
 
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
@@ -81,7 +83,9 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
     parseProcessor_ (StdProcessor a) = do args <- mkParseProcessor (name a) (arguments a)
                                           return $ TP $ TheProcessor { processor = a
                                                                      , processorArgs = args}
-
+    parseFromArgsInteractive (StdProcessor a) procs =
+      do as <- A.parseInteractive (arguments a) procs 
+         return $ TP (TheProcessor a as)
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
 mkParseProcessor nm args = do _ <- string nm

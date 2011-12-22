@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 --------------------------------------------------------------------------------
 -- | 
@@ -184,6 +186,10 @@ import qualified Termlib.Term.Parser as TParser
 import Tct.Processor.PPrint
 import Tct.Main.Version (version)
 import qualified Tct.Processor as P
+import qualified Tct.Processor.Args as A
+import Tct.Processor.Args.Instances ()
+import Tct.Processors (builtInProcessors)
+import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Transformations as T
 import Tct.Method.Combinator (open, OpenProof (..), sequentially, OneOf(..), OneOfProof (..))
 import Text.PrettyPrint.HughesPJ
@@ -587,7 +593,19 @@ instance P.Processor p => Apply (P.InstanceOf p) where
          Just rs -> return $ \ (SN sn) prob -> mkNode prob `fmap` (find sn rs)
       where mkNode prob res = Closed prob pinst res
             pinst = P.someInstance p
-  
+                
+
+processor :: (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => p -> IO (P.InstanceOf (S.StdProcessor p))
+processor proc = mkInst `liftM` A.parseInteractive (S.arguments proc) builtInProcessors
+  where mkInst args = 
+          S.TP S.TheProcessor { S.processor = proc
+                              , S.processorArgs = args }
+          
+instance (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => Apply (S.StdProcessor p) where
+  apply' (S.StdProcessor proc) selected = 
+    do inst <- processor proc
+       apply' inst selected
+    
 --------------------------------------------------------------------------------
 --- UI
            
@@ -740,3 +758,4 @@ ruleFromString str prob = do pprint rl
                              return (rl,prob')
   where ((_,rl),prob') = TRepl.parseFromString TParser.rule str prob
         
+

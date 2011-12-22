@@ -52,6 +52,7 @@ module Tct.Processor
     , SomeProcessor (..)
     , SomeProof (..)
     , SomeInstance (..)
+    , liftOOI
     , someProof
     , someProcessorProof
     , someProofNode
@@ -138,7 +139,7 @@ class ComplexityProof proof where
     pprintProof :: proof -> PPMode -> Doc
     
 
-class ComplexityProof (ProofOf proc) => Processor proc where
+class (ComplexityProof (ProofOf proc)) => Processor proc where
     name            :: proc -> String
     instanceName    :: (InstanceOf proc) -> String
     type ProofOf proc                  
@@ -205,6 +206,12 @@ class Processor a => ParsableProcessor a where
     posArgs         :: a -> [(Int, ArgDescr)]
     optArgs         :: a -> [ArgDescr]
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
+    parseFromArgsInteractive :: a -> AnyProcessor -> IO (InstanceOf a)
+    -- parseInteractive a procs = pse `liftM` getLine
+    --   where pse str = 
+    --           case Parse.fromString (parseProcessor a) procs "argument" str of
+    --             Right inst -> Just inst
+    --             Left _ -> Nothing
 
 mrSynopsis :: ParsableProcessor a => a -> String
 mrSynopsis p = unwords $ map f (synString p)
@@ -327,6 +334,9 @@ instance ComplexityProof SomeProof where
     pprintProof (SomeProof p) = pprintProof p
     answer (SomeProof p)      = answer p
 
+instance Typeable (SomeProcessor) where 
+    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.SomeProcessor") [mkTyConApp (mkTyCon "SomeProcessor") []]
+
 instance Typeable (InstanceOf SomeProcessor) where 
     typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]
 
@@ -346,7 +356,9 @@ instance ParsableProcessor SomeProcessor where
     posArgs         (SomeProcessor proc) = posArgs proc
     optArgs         (SomeProcessor proc) = optArgs proc
     parseProcessor_ (SomeProcessor proc) = (SPI . SomeInstance) `liftM` parseProcessor_ proc
-
+    parseFromArgsInteractive (SomeProcessor proc) procs = 
+      do prs <- parseFromArgsInteractive proc procs
+         return $ SPI $ SomeInstance $ prs
 
 
 instance PrettyPrintable SomeProcessor where
@@ -391,12 +403,11 @@ prob `solveBy` proc = SomeProof `liftM` solve proc prob
 
 -- * Any Processor
 -- AnyProcessor a implements a choice of Processors of type a
-data AnyOf a = OO String [a]
-type AnyProcessor = AnyOf SomeProcessor
+data AnyProcessor = OO String [SomeProcessor]
 
-instance Processor a => Processor (AnyOf a) where
-    type ProofOf (AnyOf a)    = SomeProof
-    data InstanceOf (AnyOf a) = OOI (InstanceOf a)
+instance Processor AnyProcessor where
+    type ProofOf AnyProcessor    = SomeProof
+    data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor)
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
@@ -404,10 +415,13 @@ instance Processor a => Processor (AnyOf a) where
                                                 return $ modify pp
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
-instance Typeable (InstanceOf (AnyOf a)) where 
-    typeOf (OOI _) = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
+instance Typeable AnyProcessor where 
+    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.AnyProcessor") [mkTyConApp (mkTyCon "OO") []]
 
-instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
+instance Typeable (InstanceOf AnyProcessor) where 
+    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
+
+instance ParsableProcessor AnyProcessor where
     description _             = []
     synString _               = []
     optArgs _                 = []
@@ -417,11 +431,12 @@ instance ParsableProcessor a => ParsableProcessor (AnyOf a) where
     --                                    return $ OOI inst
     parseProcessor_ (OO _ ps) = do inst <- choice [ Parsec.try $ parseProcessor p' | p' <- ps]
                                    return $ OOI inst
+    parseFromArgsInteractive _ _ = error "AnyOf.parseFromArgsInteractive should not be used"
 
-instance Show (AnyOf p) where
-    show _ = "AnyOf"
-instance Show (InstanceOf (AnyOf p)) where
-    show _ = "InstanceOf AnyOf"
+instance Show AnyProcessor where
+    show _ = "AnyProcessor"
+instance Show (InstanceOf AnyProcessor) where
+    show _ = "InstanceOf AnyProcessor"
 
 infixr 5 <|>
 (<|>) :: (ComplexityProof (ProofOf p), ParsableProcessor p) => p -> AnyProcessor -> AnyProcessor
@@ -431,11 +446,14 @@ infixr 6 <++>
 (<++>) :: AnyProcessor -> AnyProcessor -> AnyProcessor
 OO s l1 <++> OO _ l2 = OO s $ l1 ++ l2
 
-none :: AnyOf a
+none :: AnyProcessor
 none = OO "any processor" []
 
-toProcessorList :: AnyOf p -> [p]
+toProcessorList :: AnyProcessor -> [SomeProcessor]
 toProcessorList (OO _ l) = l
+
+liftOOI :: InstanceOf SomeProcessor -> InstanceOf AnyProcessor
+liftOOI = OOI
 
 parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = getState >>= parseProcessor

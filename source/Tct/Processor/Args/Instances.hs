@@ -43,11 +43,13 @@ module Tct.Processor.Args.Instances
        where
 
 import Data.Typeable
+import Data.Maybe (fromJust)
+import qualified Control.Exception as Ex
 import Data.Char (toLower)
-import Control.Monad (liftM)
+import Control.Monad (liftM, mplus)
 import Text.Parsec.Combinator (choice)
 import Text.Parsec.Char (string)
-import Data.List (intersperse)
+import Data.List (intersperse, sortBy)
 import Text.Parsec.Prim (many, try, (<|>))
 import Tct.Processor.Parse hiding (natural, bool)
 import qualified Tct.Processor.Parse as Parse
@@ -83,24 +85,14 @@ instance ParsableArgument Nat where
 
 instance Argument Bool where
     type Domain Bool = Bool
-    domainName Phantom = "<bool>"
+    domainName Phantom = "<On|Off>"
     showArg _ True = "On"
     showArg _ False = "Off"
 
 instance ParsableArgument Bool where
     parseArg Phantom = Parse.bool
 
-data Proc a = Proc a
-
-instance (P.Processor a) => Argument (Proc a) where
-    type Domain (Proc a) = P.InstanceOf a
-    domainName _ = "<processor>"
-    showArg _ a    = "<processor " ++ P.instanceName a ++ ">"
-
-instance ParsableArgument (Proc P.AnyProcessor) where
-    parseArg Phantom = P.parseAnyProcessor
-
--- * Compound
+ -- * Compound
 
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
@@ -158,6 +150,59 @@ instance (Show a, AssocArgument a) => Argument (Assoc a) where
 
 instance (Show a, AssocArgument a) => ParsableArgument (Assoc a) where
     parseArg _ = parseArgAssoc $ assoc (Phantom :: Phantom a)
+
+
+data Proc a = Proc a
+
+instance (P.Processor a) => Argument (Proc a) where
+    type Domain (Proc a) = P.InstanceOf a
+    domainName _ = "<processor>"
+    showArg _ a    = "<processor " ++ P.instanceName a ++ ">"
+
+instance ParsableArgument (Proc P.AnyProcessor) where
+    parseArg _ = P.parseAnyProcessor
+    parseArgInteractive _ procs = parse
+      where parse = 
+              do mi <- readIndex `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+                 case mi of 
+                   Nothing -> return Nothing
+                   Just i -> (Just `liftM` parseIth i) `Ex.catch`  (\ (_ :: Ex.SomeException) -> parse) 
+            procLst = zip [(1::Int)..] (sortBy compareName $ P.toProcessorList procs)
+              where compareName p1 p2 = P.name p1 `compare` P.name p2            
+            
+            findProc i = fromJust (lookup i procLst)
+            
+            showProcList = 
+              do let putProc (i, p) = putStrLn $ "  " ++ (show i) ++ ") " ++ P.name p 
+                 putStrLn "Available Processors:"
+                 mapM_ putProc procLst
+            
+            parseIth i = 
+              do parsed <- P.parseFromArgsInteractive (findProc i) procs
+                 return $ P.liftOOI parsed
+            
+            
+            readIndex :: IO (Maybe Int)
+            readIndex = 
+              do putStrLn "Enter processor number, processor name '?' for list of processors or 'a' to abort:"
+                 putStr "  > "
+                 r <- getLine
+                 case r of 
+                   "?" -> showProcList >> readIndex 
+                   "a" -> return Nothing 
+                   _   -> do mi1 <- readInt r `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+                             let mi2 = fst `liftM` (L.find (\ (_,p) -> P.name p == r) procLst) 
+                             case mi1 `mplus` mi2 of
+                               Nothing -> 
+                                 do putStrLn $ "Processor '" ++ r ++ "' not found"
+                                    readIndex
+                               mi -> return mi
+                             
+            readInt r = do let res = read r
+                           if 0 < res && res <= length procLst
+                             then return $ Just res
+                             else return $ Nothing
+
 
 -- argument types
 

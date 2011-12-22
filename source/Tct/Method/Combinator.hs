@@ -15,7 +15,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -41,8 +41,6 @@ where
 import Prelude hiding (fail)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Control.Concurrent.PFold (pfoldA, Return (..))
-import Text.Parsec.Prim hiding (Empty)
-import Text.Parsec.Char
 import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
 
@@ -55,7 +53,6 @@ import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
-import Tct.Processor.Parse
 
 -- failure and success
 
@@ -173,65 +170,40 @@ instance ( P.ComplexityProof (P.ProofOf g)
                                              Left pb  -> P.pprintProof pb mde
                                              Right pb -> P.pprintProof pb mde
 
-
--- instance ( P.Verifiable (P.ProofOf g)
---          , P.Verifiable (P.ProofOf t)
---          , P.Verifiable (P.ProofOf e) )
---     => P.Verifiable (IteProof g t e) where 
---         verify prob proof = P.verify prob  (guardProof proof) `P.andVerify` vfy (branchProof proof)
---             where vfy (Left p)  = P.verify prob p
---                   vfy (Right p) = P.verify prob p
-
 instance ( P.Processor g
          , P.Processor t
          , P.Processor e) 
-    => P.Processor (Ite g t e) where
-        type P.ProofOf (Ite g t e)    = IteProof g t e 
-        data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
+    => S.Processor (Ite g t e) where
+        type S.ProofOf (Ite g t e)    = IteProof g t e 
+        type S.ArgumentsOf (Ite g t e) = Arg (Proc g) :+: Arg (Proc t) :+: Arg (Proc e)
         name Ite = "ite"
-        instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
-        solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
-                                             if P.succeeded gproof 
-                                              then do bproof <- P.solve t prob
-                                                      return $ IteProof { guardProof  = gproof
-                                                                        , branchProof = Left bproof }
-                                              else do bproof <- P.solve e prob
-                                                      return $ IteProof { guardProof  = gproof
-                                                                        , branchProof = Right bproof }
+        instanceName inst = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
+          where g :+: _ :+: _ = S.processorArgs inst
+        description _ = ["This processor implements conditional branching"]
+        arguments _ = arg { A.name = "guard"
+                          , A.description = "The guard processor. It succeeds if it returns 'Yes(*,*)'" }
+                      :+: 
+                      arg { A.name = "then"
+                          , A.description = "The processor that is applied if guard succeeds." }
+                      :+: 
+                      arg { A.name = "else"
+                          , A.description = "The processor that is applied if guard fails." }
+        solve inst prob = 
+          do gproof <- P.solve g prob
+             if P.succeeded gproof 
+               then do bproof <- P.solve t prob
+                       return $ IteProof { guardProof  = gproof
+                                         , branchProof = Left bproof }
+               else do bproof <- P.solve e prob
+                       return $ IteProof { guardProof  = gproof
+                                         , branchProof = Right bproof }
+            where g :+: t :+: e = S.processorArgs inst
 
-instance P.ParsableProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor) where
-    description     Ite = ["This processor implements conditional branching."]
-    synString       Ite = [ P.Token "if", P.PosArg 1, P.Token "then", P.PosArg 2, P.Token "else", P.PosArg 3]
-    optArgs         Ite = []
-    posArgs         Ite = [ (1, P.ArgDescr { P.adIsOptional = False
-                                           , P.adName       = "guard-processor"
-                                           , P.adDefault    = Nothing
-                                           , P.adDescr      = "The guard of the condition"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))})            
-                          , (2, P.ArgDescr { P.adIsOptional = False
-                                           , P.adName       = "then-processor"
-                                           , P.adDefault    = Nothing
-                                           , P.adDescr      = "The processor that is executed when the guard succeeds"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))})             
-                          , (3, P.ArgDescr { P.adIsOptional = False
-                                           , P.adName       = "else-processor"
-                                           , P.adDefault    = Nothing
-                                           , P.adDescr      = "The processor that is executed when the guard fails"
-                                           , P.adSynopsis   = domainName (Phantom :: Phantom (Proc P.AnyProcessor))}) ]
-    parseProcessor_ Ite = do let pb s = try (string s) >> whiteSpace >> P.parseAnyProcessor
-                             ginst <- pb "if"
-                             whiteSpace
-                             tinst <- pb "then"
-                             whiteSpace
-                             einst <- pb "else"
-                             return $ IteInstance ginst tinst einst
-    
+ite :: (P.Processor g, P.Processor t, P.Processor e) => P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (S.StdProcessor (Ite g t e))
+ite g t e = S.StdProcessor Ite `S.withArgs` (g :+: t :+: e)
 
-ite :: P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (Ite g t e)
-ite = IteInstance
-
-iteProcessor :: Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor
-iteProcessor = Ite
+iteProcessor :: S.StdProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor)
+iteProcessor = S.StdProcessor Ite
 
 
 -- parallel combinators

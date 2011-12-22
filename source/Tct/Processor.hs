@@ -143,7 +143,6 @@ class ComplexityProof (ProofOf proc) => Processor proc where
     instanceName    :: (InstanceOf proc) -> String
     type ProofOf proc                  
     data InstanceOf proc
-    instanceToProcessor :: InstanceOf proc -> proc
     solve_          :: SolverM m => InstanceOf proc -> Problem -> m (ProofOf proc)
     solvePartial_   :: SolverM m => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
     solvePartial_   _ _ prob = return $ PartialInapplicable prob
@@ -324,26 +323,6 @@ data SomeProcessor = forall p. (ParsableProcessor p) => SomeProcessor p
 data SomeProof     = forall p. (ComplexityProof p) => SomeProof p
 data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 
-data SomeUnParsableProcessor = forall p. (Processor p) => SomeUnParsableProcessor p 
-
-instance Processor SomeUnParsableProcessor where
-    type ProofOf    SomeUnParsableProcessor = SomeProof
-    data InstanceOf SomeUnParsableProcessor = SUPI SomeInstance
-    name (SomeUnParsableProcessor proc)            = name proc
-    instanceName (SUPI (SomeInstance inst))        = instanceName inst
-    instanceToProcessor (SUPI (SomeInstance inst)) = SomeUnParsableProcessor $ instanceToProcessor inst
-    solve_ (SUPI (SomeInstance inst)) prob         = SomeProof `liftM` solve_ inst prob
-    solvePartial_ (SUPI (SomeInstance inst)) stricts prob = do pp <- solvePartial_ inst stricts prob
-                                                               return $ modify pp
-        where modify pp = pp { ppResult = SomeProof $ ppResult pp}
-
-instance ParsableProcessor SomeUnParsableProcessor where
-    description     (SomeUnParsableProcessor _)    = []
-    synString       (SomeUnParsableProcessor _) = []
-    posArgs         (SomeUnParsableProcessor _) = []
-    optArgs         (SomeUnParsableProcessor _) = []
-    parseProcessor_ (SomeUnParsableProcessor _) = error "SomeUnParsableProcessor: this processor does not parse"
-
 instance ComplexityProof SomeProof where 
     pprintProof (SomeProof p) = pprintProof p
     answer (SomeProof p)      = answer p
@@ -356,7 +335,6 @@ instance Processor SomeProcessor where
     data InstanceOf SomeProcessor = SPI SomeInstance
     name (SomeProcessor proc)                    = name proc
     instanceName (SPI (SomeInstance inst))       = instanceName inst
-    instanceToProcessor (SPI (SomeInstance inst)) = SomeProcessor $ SomeUnParsableProcessor $ instanceToProcessor inst
     solve_ (SPI (SomeInstance inst)) prob        = SomeProof `liftM` solve_ inst prob
     solvePartial_ (SPI (SomeInstance inst)) stricts prob = do pp <- solvePartial_ inst stricts prob
                                                               return $ modify pp
@@ -421,7 +399,6 @@ instance Processor a => Processor (AnyOf a) where
     data InstanceOf (AnyOf a) = OOI (InstanceOf a)
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
-    instanceToProcessor (OOI a) = OO "any" $ [instanceToProcessor a]
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
     solvePartial_ (OOI inst) stricts prob  = do pp <- solvePartial_ inst stricts prob
                                                 return $ modify pp
@@ -462,45 +439,6 @@ toProcessorList (OO _ l) = l
 
 parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = getState >>= parseProcessor
-
-
---- * Quasi-verification
--- data VerificationStatus = NotChecked | VerificationOK | VerificationFail SomeProof Doc
-
--- instance PrettyPrintable VerificationStatus where
---   pprint NotChecked = text "Proof not Checked"
---   pprint VerificationOK = text "Proof checked"
---   pprint (VerificationFail p r) = text ",VERIFICATION' FAILED:"
---                                   $+$ r
---                                   $+$ pprint p
-
--- verifyOK :: VerificationStatus
--- verifyOK = VerificationOK
-
--- verifyUnchecked :: VerificationStatus
--- verifyUnchecked = NotChecked
-
--- verifyFail :: ComplexityProof p => p -> Doc -> VerificationStatus
--- verifyFail p = VerificationFail (SomeProof p)
-
--- class Verifiable proof where 
---     verify :: Problem -> proof -> VerificationStatus
---     verify _ _ = NotChecked
-
-
--- andVerify :: VerificationStatus -> VerificationStatus -> VerificationStatus
--- s@(VerificationFail _ _) `andVerify` _                        = s
--- _                        `andVerify` t@(VerificationFail _ _) = t
--- s@NotChecked             `andVerify` _                        = s
--- _                        `andVerify` t@NotChecked             = t
--- VerificationOK           `andVerify` VerificationOK           = VerificationOK
-
--- allVerify :: [VerificationStatus] -> VerificationStatus
--- allVerify = foldr andVerify VerificationOK
-
--- isFail :: VerificationStatus -> Bool
--- isFail (VerificationFail _ _) = True
--- isFail _                      = False
 
 
 -- * Construct instances from defaultValues

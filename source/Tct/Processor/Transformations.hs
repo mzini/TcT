@@ -666,7 +666,6 @@ instance P.Processor proc => P.Processor (Subsumed proc) where
    data P.InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
    type P.ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
    name (Subsumed proc) = P.name proc
-   instanceToProcessor (SSI inst) = Subsumed $ P.instanceToProcessor inst
    instanceName (SSI inst) = P.instanceName inst
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob

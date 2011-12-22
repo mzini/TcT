@@ -189,7 +189,6 @@ instance ( P.Processor g
         type P.ProofOf (Ite g t e)    = IteProof g t e 
         data P.InstanceOf (Ite g t e) = IteInstance (P.InstanceOf g) (P.InstanceOf t) (P.InstanceOf e)
         name Ite = "ite"
-        instanceToProcessor _ = Ite
         instanceName (IteInstance g _ _) = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
         solve_ (IteInstance g t e) prob = do gproof <- P.solve g prob
                                              if P.succeeded gproof 

@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tct.Tcti
@@ -510,34 +511,17 @@ select = unselect . SelectInv
 
 --------------------------------------------------------------------------------
 --- Actions 
-class Describe a where
-  getLocation :: a -> IO (Maybe String)
-  
-instance T.Transformer t => Describe (T.TheTransformer t) where
-  getLocation t = haddockMethod n
-    where n = T.name $ T.transformation t
 
-instance P.Processor p => Describe (P.InstanceOf p) where
-  getLocation t = haddockMethod n
-    where n = P.name $ P.instanceToProcessor t
-
--- instance P.Processor p => Describe p where
---   getLocation t = haddockMethod n
---     where n = P.name t
-
-describe :: Describe a => a -> IO ()
-describe a = openUrl `Ex.catch` handler
-  where openUrl =
-          do mloc <- getLocation a
-             case mloc of 
-               Just loc -> 
-                 do _ <- forkIO (readProcess "gnome-open" [loc] [] >> return ())
-                    return ()
-               Nothing -> return ()
-        handler (e :: Ex.SomeException) = pprint msg
-         where msg = text "Unable to open documentation:"
-                     $+$ text (show e)
-
+describe :: P.ParsableProcessor p => p -> IO ()
+describe p = 
+  do mlnk <- haddockMethod (P.name p) 
+            `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+     pprint (P.someProcessor p)
+     pprint $ maybe empty showLnk mlnk
+    where showLnk lnk = text "For documentation concerning creation of instances, consult:"
+                        $+$ indent (text lnk)
+                        
+                        
 class Apply a where
   apply' :: a -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
   
@@ -603,28 +587,6 @@ instance P.Processor p => Apply (P.InstanceOf p) where
          Just rs -> return $ \ (SN sn) prob -> mkNode prob `fmap` (find sn rs)
       where mkNode prob res = Closed prob pinst res
             pinst = P.someInstance p
---   apply p = do (ST sel unsel) <- getState
---                let probs = zip (SN `map` [(1::Int)..]) sel
---                
---                  
---                         where Just pps = zipSafe probs rs
---                               printPrfs = pprint $ block "Proofs" [ (SN i, pp prob_i proof_i) | (SN i, (prob_i, proof_i)) <- pps ]
---                                 where pp prob_i proof_i = block' "Considered Problem" [prob_i]
---                                                           $+$ text ""
---                                                           $+$ block' "Processor Output" [P.pprintProof proof_i P.StrategyOutput]
-
---                               printOverview = pprint $ block "Processor Overview" l
---                                   where l | all (P.failed . snd . snd) pps = enumeration' [text "No Progress :("]
---                                           | otherwise                      = [ (SN i, pp i p_i) | (SN i, (_, p_i )) <- pps ]
---                                         pp _ prf | P.succeeded prf = text "Problem removed." <+> parens (U.pprint $ P.answer prf)
---                                                  | otherwise     = text "Problem unchanged."
-
---                               setResults = putState (ST newsel unsel)
---                               newsel = concatMap f (toList pps)
---                                   where f (prob_i, proof_i) | P.succeeded proof_i = []
---                                                             | otherwise           = [prob_i]
-                                      
-
   
 --------------------------------------------------------------------------------
 --- UI
@@ -669,12 +631,12 @@ help = do haddock <- haddockPath ("tct-" ++ version)
                 (\ p -> text "Documentation of the term rewriting library can be found at:"
                        $+$ indent (text ("file://" ++ p ++ "/Termlib-Repl.html")))
                 tlhaddock
-          pprint (text "Welcome to TcT-i"
+          pprint (text ("Welcome to the Tyrolean Complexity Tool, Version " ++ version)
                   $+$ text "----------------"
                   $+$ text ""
                   $+$ text "To start, use 'load \"<filename>\"' in order to to load a problem."
                   $+$ text "Use 'apply t' to simplify the loaded problem using technique 't'."
-                  $+$ text "Use 'describe t' to get documentation for 't'."
+                  $+$ text "Use 'describe processor' to get documentation for processor 'p'."
                   $+$ text ""
                   $+$ tctidoc)
 

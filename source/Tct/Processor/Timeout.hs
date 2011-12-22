@@ -58,7 +58,6 @@ instance Processor p => Processor (Timeout p) where
     type ProofOf (Timeout p)         = TOProof p
     data InstanceOf (Timeout p)      = TOInstance !Int (InstanceOf p)
     name  Timeout                    = "timeout"
-    instanceToProcessor _            = Timeout
     instanceName (TOInstance i inst) = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
     solve_ (TOInstance t inst) prob  = 
         do io <- mkIO $ apply inst prob 

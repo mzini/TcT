@@ -93,6 +93,7 @@ builtInProcessors = Timeout.timeoutProcessor
                     P.<|> IRR.irrProcessor
                     P.<|> Combinators.bestProcessor
                     P.<|> Combinators.fastestProcessor
+                    P.<|> Combinators.openProcessor                    
                     P.<|> Combinators.sequentiallyProcessor
                     P.<|> PopStar.lmpoProcessor
                     P.<|> PopStar.popstarProcessor

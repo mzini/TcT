@@ -58,6 +58,7 @@ import System.FilePath ((</>))
 import System.IO
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
+import System.Process (runCommand, waitForProcess)
 import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
 import System.Posix.Files (ownerReadMode, ownerWriteMode, ownerExecuteMode, unionFileModes, setFileMode)
 import qualified Config.Dyre as Dyre
@@ -155,7 +156,7 @@ data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> Erroneous
                      , logFile           :: Maybe FilePath
                      , showHelp          :: Bool
                      , showVersion       :: Bool
-                     , performChecks     :: Bool }
+                     , interactive       :: Bool }
 
 
 
@@ -179,7 +180,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , logFile         = Nothing
                        , showHelp        = False
                        , showVersion     = False
-                       , performChecks   = False}
+                       , interactive     = False}
 
   where defaultProcessor prob _ = return $ case Prob.startTerms prob of 
           Prob.TermAlgebra -> someInstance Methods.dc2011
@@ -301,10 +302,10 @@ options =
     , help    = [ "No recompilation of the binaries."]
     }
   , Option
-    { long    = "check"
-    , short    = "c"
-    , meaning = (\_ f -> f{ performChecks = True }) <$> argNone
-    , help    = [ "Perform checks on the computed proof."]
+    { long    = "interactive"
+    , short    = "i"
+    , meaning = (\_ f -> f{ interactive = True }) <$> argNone
+    , help    = [ "Start TcT in interactive mode."]
     }
   ]
 
@@ -334,10 +335,27 @@ putPretty :: (MonadIO m) => Doc -> m ()
 putPretty a = liftIO $ putStrLn $ show a
 
 runTct :: Config -> ErroneousIO [TCTWarning]
-runTct cfg = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
-  where (TCT m) | showVersion cfg             = do vs <- fromConfig version
-                                                   putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
-                | showHelp cfg                = putPretty $ text $ unlines (makeHelpMessage options)
+runTct cfg 
+  | interactive cfg =
+    do cfgdir <- configDir cfg
+       cwd <- liftIO $ 
+             (setCurrentDirectory cfgdir >> return True)
+             `C.catch` (\ (_:: C.SomeException) -> return False)
+       unless cwd (throwError $ strMsg $ 
+                   "Changing working directory to " 
+                   ++ cfgdir 
+                   ++ "failed. We abort.")
+       liftIO $ 
+         do h <- runCommand "ghci"
+            _ <- waitForProcess h
+            putStrLn "Bye, have a nice day!"
+            return []
+  | otherwise = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
+  where (TCT m) | showVersion cfg = 
+                    do vs <- fromConfig version
+                       putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
+                | showHelp cfg = 
+                    putPretty $ text $ unlines (makeHelpMessage options)
                 | isJust $ listStrategies cfg = 
                     do Just mreg <- fromConfig listStrategies
                        let procs = case mreg of 

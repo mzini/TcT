@@ -1,10 +1,10 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 --------------------------------------------------------------------------------
 -- | 
--- Module      :  Tct.Tcti
--- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, Georg Moser <georg.moser@uibk.ac.at>, 
+-- Module      :  Tcti
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
 -- License     :  LGPL (see COPYING)
 --
 -- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
@@ -33,9 +33,11 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Tct.Tcti 
+module Tcti 
     (      
       -- * Loading Problems
       load
@@ -518,15 +520,6 @@ select = unselect . SelectInv
 --------------------------------------------------------------------------------
 --- Actions 
 
-describe :: P.ParsableProcessor p => p -> IO ()
-describe p = 
-  do mlnk <- haddockMethod (P.name p) 
-            `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
-     pprint (P.someProcessor p)
-     pprint $ maybe empty showLnk mlnk
-    where showLnk lnk = text "For documentation concerning creation of instances, consult:"
-                        $+$ indent (text lnk)
-                        
                         
 class Apply a where
   apply' :: a -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
@@ -594,18 +587,44 @@ instance P.Processor p => Apply (P.InstanceOf p) where
       where mkNode prob res = Closed prob pinst res
             pinst = P.someInstance p
                 
+--------------------------------------------------------------------------------
+--- Description            
+            
+class Describe p where
+  describe :: p -> IO ()
+  
+instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.StdProcessor p) where
+  describe p = 
+    do mlnk <- haddockMethod (P.name p) 
+              `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+       pprint (P.someProcessor p)
+       pprint $ maybe empty showLnk mlnk
+    where showLnk lnk = text "For documentation concerning creation of instances, consult:"
+                        $+$ indent (text lnk)
+                        
+instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
+  describe = describe . S.StdProcessor
+
+transformation :: (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => t -> IO (T.TheTransformer t)
+transformation trans = mkInst `liftM` A.parseInteractive (T.arguments trans) builtInProcessors
+  where mkInst args = (T.Transformation trans) `T.withArgs` args
 
 processor :: (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => p -> IO (P.InstanceOf (S.StdProcessor p))
 processor proc = mkInst `liftM` A.parseInteractive (S.arguments proc) builtInProcessors
-  where mkInst args = 
-          S.TP S.TheProcessor { S.processor = proc
-                              , S.processorArgs = args }
+  where mkInst args = (S.StdProcessor proc) `S.withArgs` args
           
 instance (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => Apply (S.StdProcessor p) where
   apply' (S.StdProcessor proc) selected = 
     do inst <- processor proc
        apply' inst selected
     
+instance (A.ParsableArguments (T.ArgumentsOf t), T.Transformer t) => Apply (T.Transformation t sub) where
+  apply' (T.Transformation t) selected = 
+    do inst <- transformation t
+       apply' inst selected
+
+
+
 --------------------------------------------------------------------------------
 --- UI
            
@@ -649,8 +668,7 @@ help = do haddock <- haddockPath ("tct-" ++ version)
                 (\ p -> text "Documentation of the term rewriting library can be found at:"
                        $+$ indent (text ("file://" ++ p ++ "/Termlib-Repl.html")))
                 tlhaddock
-          pprint (text ("Welcome to the Tyrolean Complexity Tool, Version " ++ version)
-                  $+$ text "----------------"
+          pprint (U.underline (text ("Welcome to the Tyrolean Complexity Tool, Version " ++ version))
                   $+$ text ""
                   $+$ text "To start, use 'load \"<filename>\"' in order to to load a problem."
                   $+$ text "Use 'apply t' to simplify the loaded problem using technique 't'."

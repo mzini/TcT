@@ -171,7 +171,6 @@ module Tcti
     , getConfig
     , setConfig
     , modifyConfig
-    , quit
     )
 where
 
@@ -726,7 +725,7 @@ help = do cfgdir <- configDirectory
                                 , U.paragraph ( "Type 'proof' to output the proof constructed so far.")                                  
                                 , U.paragraph ( "Modify the configuration file '" ++ cfgdir ++ "/tct.hs' "
                                                 ++ " which is automatically loaded on startup.")
-                                , U.paragraph ( "Type 'quit' to exit Tct. ")
+                                , U.paragraph ( "Type ':quit' to exit Tct. ")
                                 ])
                     $+$ text ""
                     $+$ text "Further Help:"
@@ -806,9 +805,6 @@ loadDC n = load' n >> setDC
 loadIDC :: FilePath -> IO ()
 loadIDC n = load' n >> setIDC
 
-quit :: IO ()
-quit = exitWith ExitSuccess
-  
 addRuleFromString :: String -> IO ()
 addRuleFromString str = addRuleFromString' str >> printState
 

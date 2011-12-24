@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+--------------------------------------------------------------------------------   
+
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -45,6 +59,7 @@ import System.IO
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
 import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
+import System.Posix.Files (ownerReadMode, ownerWriteMode, ownerExecuteMode, unionFileModes, setFileMode)
 import qualified Config.Dyre as Dyre
 import qualified Control.Exception as C
 
@@ -399,17 +414,24 @@ exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
 tct :: Config -> IO ()
-tct conf = do ecfg <- runErrorT (configDir conf) 
+tct conf = do ecfg <- runErrorT 
+                     $ do cfgDir <- configDir conf
+                          liftIO $ maybeCreateConfigDir cfgDir
+                          liftIO $ hFlush stdout
+                          return cfgDir
               case ecfg of 
                 Left e -> putErrorMsg e
-                Right dir -> flip Dyre.wrapMain conf Dyre.defaultParams { Dyre.projectName = "tct"
-                                                                       , Dyre.configCheck = recompile conf
-                                                                       , Dyre.realMain    = realMain
-                                                                       , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
-                                                                       , Dyre.configDir   = Just $ return dir
-                                                                       , Dyre.cacheDir    = Just $ return dir
-                                                                       , Dyre.statusOut   = hPutStrLn stderr
-                                                                       , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
+                Right dir -> 
+                  flip Dyre.wrapMain conf 
+                  Dyre.defaultParams { Dyre.projectName = "tct"
+                                     , Dyre.configCheck = recompile conf
+                                     , Dyre.realMain    = realMain
+                                     , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                     , Dyre.configDir   = Just $ return dir
+                                     , Dyre.cacheDir    = Just $ return dir
+                                     , Dyre.statusOut   = hPutStrLn stderr
+                                     , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
+                  --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
         realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg cfg) >> exitWith exitFail
@@ -425,9 +447,72 @@ tct conf = do ecfg <- runErrorT (configDir conf)
                                                          pid <- forkOS $ child
                                                          e <- main pid `C.catch` handler pid
                                                          exitWith e
-        tctProcess = do r <- runErroneous $ do warns <- parseArguments conf >>= runTct
-                                               liftIO $ putWarnings warns
-                                               return ExitSuccess
-                        case r of 
-                          Left err  -> putErrorMsg err >> return exitFail
-                          _         -> return ExitSuccess
+        tctProcess = 
+          do 
+             r <- runErroneous $
+                 do warns <- parseArguments conf >>= runTct
+                    liftIO $ putWarnings warns
+                    return ()
+             case r of 
+               Left err  -> putErrorMsg err >> return exitFail
+               _         -> return ExitSuccess             
+
+initialGhciFile :: IO String
+initialGhciFile = return $ content
+  where content = unlines 
+                  [ ":set -package tct"
+                  , ":set prompt \"TcT-i> \""
+                  , ":module +Tcti"
+                  , "help" ]
+  
+initialConfigFile :: IO String
+initialConfigFile = 
+  do mrh <- liftIO $ findExecutable "runhaskell"
+     return $ maybe content (\ rh -> "#!" ++ rh ++ "\n\n" ++ content) mrh
+  
+    where content = unlines $ imports ++ ["\n"] ++ main
+          imports = [ "import " ++ m 
+                    | m <- [ "Prelude hiding (fail, uncurry)"
+                          , "Tct"
+                          , "Tcti"
+                          , "Tct.Methods"
+                          , "Tct.Processors"
+                          , "Termlib.Repl hiding (strategy)"]]
+          main = [ "main :: IO ()"
+                 , "main = tct defaultConfig " ]
+  
+maybeCreateConfigDir :: FilePath -> IO ()
+maybeCreateConfigDir cfgdir = 
+  do let cfgfile = cfgdir </> "tct.hs"
+         ghcifile = cfgdir </> ".ghci"
+     maybeCreateDirectory cfgdir
+     maybeCreateFile cfgfile True initialConfigFile
+     maybeCreateFile ghcifile False initialGhciFile
+     
+  where maybeCreateDirectory dir = 
+          do exists <- catchExceptions False $ doesDirectoryExist dir
+             unless exists $ 
+               do create ("directory " ++ dir) $ createDirectoryIfMissing True dir
+                  setOwnership dir True
+                    
+        maybeCreateFile file exe mkContent = 
+          do exists <- catchExceptions False $ doesFileExist file
+             unless exists $ 
+               do content <- mkContent
+                  let nme | exe       = "executable file " ++ file
+                          | otherwise = "file " ++ file
+                  create nme $ writeFile file content
+                  setOwnership file exe
+
+        setOwnership file exe = catchExceptions () (setFileMode file mde)
+          where mde | exe       = rw `unionFileModes` ownerExecuteMode
+                    | otherwise = rw
+                rw = ownerReadMode `unionFileModes` ownerWriteMode 
+        
+        create nme m = 
+          do putStr $ "Creating " ++ nme ++ " ... "
+             success <- catchExceptions False (m >> return True)
+             putStrLn $ if success then "Done." else "Fail."
+
+        catchExceptions d m = 
+          m `C.catch` (\ (_ :: C.SomeException) -> return d)

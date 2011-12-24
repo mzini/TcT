@@ -453,6 +453,9 @@ none = OO "any processor" []
 toProcessorList :: AnyProcessor -> [SomeProcessor]
 toProcessorList (OO _ l) = l
 
+fromProcessorList :: [SomeProcessor] -> AnyProcessor
+fromProcessorList l = OO "any processor" l
+
 liftOOI :: InstanceOf SomeProcessor -> InstanceOf AnyProcessor
 liftOOI = OOI
 

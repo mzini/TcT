@@ -180,7 +180,7 @@ data EpoStar = EpoStar deriving (Show, Eq, Typeable)
 
 instance S.Processor EpoStar where
     name _ = "epostar"
-    description _ = [ unlines [ "This processor implements orientation of the input problem using 'exponential path orders',"
+    description _ = [ unwords [ "This processor implements orientation of the input problem using 'exponential path orders',"
                               , "a technique applicable for innermost runtime-complexity analysis."
                               , "Exponential path orders are a miniaturisation of 'lexicographic path orders',"
                               , "restricted so that compatibility assesses exponential runtime complexity."]]
@@ -191,22 +191,24 @@ instance S.Processor EpoStar where
 
     arguments _ = opt { A.name = "ecomp"
                       , A.description = unlines [ "If this flag is enabled, then the slightly more liberal composition scheme f(x;y) = h(g(;x);k(x;y)) is permitted."
-                                                , "Currently it is not known whether this extension is sound"]
+                                                , "Currently it is not known whether this extension is sound."]
                       , A.defaultValue = False }
 
     type S.ProofOf EpoStar = OrientationProof EpoProof
 
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.allComponents prob) of 
-                        ((BasicTerms ds cs), Innermost, trs) | Trs.isConstructor trs -> do r <- orientTrs sign ec trs
-                                                                                           case r of 
-                                                                                            Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
-                                                                                            Nothing               -> return Incompatible
-                                                                           where sign = Sig { defSyms = ds
-                                                                                            , constrSyms = cs
-                                                                                            , sig = Prob.signature prob
-                                                                                            , vars = Prob.variables prob}
-                                                                                 ec   = S.processorArgs inst
-                        _                                                            -> return (Inapplicable "EPO* only applicable for innermost runtime complexity analysis of constructor TRSs")
+                        ((BasicTerms ds cs), Innermost, trs) 
+                          | Trs.isConstructor trs -> 
+                            do r <- orientTrs sign ec trs
+                               case r of 
+                                 Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
+                                 Nothing               -> return Incompatible
+                              where sign = Sig { defSyms = ds
+                                               , constrSyms = cs
+                                               , sig = Prob.signature prob
+                                               , vars = Prob.variables prob}
+                                    ec   = S.processorArgs inst
+                        _   -> return (Inapplicable "EPO* only applicable for innermost runtime complexity analysis of constructor TRSs")
 
 epostarProcessor :: S.StdProcessor EpoStar
 epostarProcessor = S.StdProcessor EpoStar

@@ -480,7 +480,9 @@ initialGhciFile = return $ content
   where content = unlines 
                   [ ":set -package tct"
                   , ":set prompt \"TcT-i> \""
+                  , ":load tct.hs"
                   , ":module +Tcti"
+                  , "setConfig config"
                   , "help" ]
   
 initialConfigFile :: IO String
@@ -488,16 +490,23 @@ initialConfigFile =
   do mrh <- liftIO $ findExecutable "runhaskell"
      return $ maybe content (\ rh -> "#!" ++ rh ++ "\n\n" ++ content) mrh
   
-    where content = unlines $ imports ++ ["\n"] ++ main
-          imports = [ "import " ++ m 
-                    | m <- [ "Prelude hiding (fail, uncurry)"
-                          , "Tct"
-                          , "Tcti"
-                          , "Tct.Methods"
-                          , "Tct.Processors"
-                          , "Termlib.Repl hiding (strategy)"]]
-          main = [ "main :: IO ()"
-                 , "main = tct defaultConfig " ]
+    where content = unlines $ imports ++ funs
+          imports = [ "import " ++ maybe m (\ nme -> "qualified " ++ m ++ " as " ++ nme) n
+                    | (m,n) <- [ ("Prelude hiding (fail, uncurry)", Nothing)
+                              , ("Tct"                           , Nothing)
+                              , ("Tcti"                          , Nothing)
+                              , ("Tct.Methods"                   , Just "Method")
+                              , ("Tct.Processors"                , Just "Processor")
+                              , ("Termlib.Repl hiding (strategy)", Nothing) 
+                              ]
+                    ]
+          funs = concat $ 
+                 [[ nm ++ " :: " ++ tpe
+                  , nm ++ " = " ++ bdy
+                  , ""]
+                 | (nm,tpe,bdy) <- 
+                     [ ("config", "Config", "defaultConfig")
+                     , ("main", "IO ()", "tct config") ]]
   
 maybeCreateConfigDir :: FilePath -> IO ()
 maybeCreateConfigDir cfgdir = 

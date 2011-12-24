@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- | 
--- Module      :  Tct.Methods
+-- Module      :  Tct.Instance
 -- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
 --                Georg Moser <georg.moser@uibk.ac.at>, 
 --                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
@@ -34,7 +34,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Tct.Methods 
+module Tct.Instances
     (  
 
     -- * Techniques

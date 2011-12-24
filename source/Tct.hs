@@ -76,7 +76,7 @@ import Tct.Processor
 import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
-import qualified Tct.Methods as Methods
+import qualified Tct.Instances as Instances
 import qualified Tct.Processors as Processors
 import qualified Tct.Processor.Timeout as Timeout
 
@@ -183,8 +183,8 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , interactive     = False}
 
   where defaultProcessor prob _ = return $ case Prob.startTerms prob of 
-          Prob.TermAlgebra -> someInstance Methods.dc2011
-          _                -> someInstance Methods.rc2011
+          Prob.TermAlgebra -> someInstance Instances.dc2011
+          _                -> someInstance Instances.rc2011
         getDefaultSolver = findSatSolver MiniSat "minisat" `catchError` (const $ findSatSolver MiniSat "minisat2")
 
 
@@ -432,7 +432,7 @@ exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
 tct :: Config -> IO ()
-tct conf = do ecfg <- runErrorT 
+tct conf = do ecfg <- runErroneous
                      $ do cfgDir <- configDir conf
                           liftIO $ maybeCreateConfigDir cfgDir
                           liftIO $ hFlush stdout
@@ -479,9 +479,8 @@ initialGhciFile :: IO String
 initialGhciFile = return $ content
   where content = unlines 
                   [ ":set -package tct"
-                  , ":set prompt \"TcT-i> \""
+                  , ":set prompt \"TcT> \""
                   , ":load tct.hs"
-                  , ":module +Tcti"
                   , "setConfig config"
                   , "help" ]
   
@@ -495,9 +494,10 @@ initialConfigFile =
                     | (m,n) <- [ ("Prelude hiding (fail, uncurry)", Nothing)
                               , ("Tct"                           , Nothing)
                               , ("Tcti"                          , Nothing)
-                              , ("Tct.Methods"                   , Just "Method")
+                              , ("Tct.Instances"                 , Just "Instance")
                               , ("Tct.Processors"                , Just "Processor")
                               , ("Termlib.Repl hiding (strategy)", Nothing) 
+                              , ("Termlib.Repl"                  , Just "TR")                                 
                               ]
                     ]
           funs = concat $ 

@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tcti
@@ -32,7 +31,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -83,10 +82,10 @@ module Tcti
     , apply 
       -- | the call 'apply m' applies method 'm' to the list of selected open problems, 
       -- replacing the selected problems with the outcome of applying 'm'. 
-      -- For instance, if 'm' is an instance of a processor (see "Tct.Methods#MethodsProcs" for 
+      -- For instance, if 'm' is an instance of a processor (see "Tct.Instances#MethodsProcs" for 
       -- a list of processor instances) an the processor succeeds on a 
       -- selected open problem, then this problem is closed.
-      -- If 'm' is an instance of a transformation (see "Tct.Methods#MethodsTrans")
+      -- If 'm' is an instance of a transformation (see "Tct.Instances#MethodsTrans")
       -- that succeeds on an selected open problem, then the this 
       -- problem is replaced by the transformation result.
       -- See also 'describe' for documentation on particular techniques.
@@ -172,6 +171,7 @@ module Tcti
     , getConfig
     , setConfig
     , modifyConfig
+    , quit
     )
 where
 
@@ -195,7 +195,6 @@ import Tct.Main.Version (version)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
-import Tct.Processors (builtInProcessors)
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Transformations as T
 import Tct.Method.Combinator (open, OpenProof (..), sequentially, OneOf(..), OneOfProof (..))
@@ -209,6 +208,7 @@ import Data.List (partition)
 import Control.Concurrent (forkIO)
 import System.Directory (getCurrentDirectory)
 import System.IO.Unsafe
+import System.Exit (exitWith, ExitCode(..))
 import System.Process (readProcess)
 import qualified Control.Exception as Ex
 import Data.IORef
@@ -366,6 +366,14 @@ setConfig = writeIORef configRef
 getConfig :: IO Config
 getConfig = readIORef configRef
 
+configDirectory :: IO FilePath
+configDirectory = 
+  do cfg <- getConfig
+     efp <- Tct.runErroneous $ Tct.configDir cfg
+     return $ case efp of 
+       Left _ -> "~/.tct/"
+       Right fp -> fp
+     
 modifyConfig :: (Config -> Config) -> IO ()
 modifyConfig f = do c <- getConfig
                     setConfig $ f c
@@ -614,7 +622,7 @@ class Describe p where
   
 instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.StdProcessor p) where
   describe p = 
-    do mlnk <- haddockMethod (P.name p) 
+    do mlnk <- haddockInstances (P.name p) 
               `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
        pprint (P.someProcessor p)
        pprint $ maybe empty showLnk mlnk
@@ -664,20 +672,76 @@ haddockPath name = fromghcpkg `Ex.catch` (\ (_ :: Ex.SomeException) -> return No
           | otherwise           = Nothing
         doc _ = Nothing
 
-haddockMethod :: String -> IO (Maybe String)
-haddockMethod name = do mpt <- haddockPath ("tct-" ++ version) 
-                        case mpt of 
-                          Nothing -> 
-                            do pprint (text "Could not find documentation installed on your system."
-                                       $+$ text ""
-                                       $+$ nb "Use 'cabal haddock && cabal install' in the source-director of tct to install documentation.")
-                               return Nothing
-                          Just pt -> 
-                            return $ Just $ "file://" ++ pt ++ "/Tct-Methods.html#v:" ++ name
+haddockInstances :: String -> IO (Maybe String)
+haddockInstances name = 
+  do mpt <- haddockPath ("tct-" ++ version) 
+     case mpt of 
+       Nothing -> 
+         do pprint (text "Could not find documentation installed on your system."
+                    $+$ text ""
+                    $+$ nb "Use 'cabal haddock && cabal install' in the source-director of tct to install documentation.")
+            return Nothing
+       Just pt -> 
+         return $ Just $ "file://" ++ pt ++ "/Tct-Instances.html#v:" ++ name
 
 help :: IO ()
-help = do haddock <- haddockPath ("tct-" ++ version) 
-          tlhaddock <- haddockPath ("termlib")
+help = do cfgdir <- configDirectory
+          localdoc <- haddockPath ("tct-" ++ version) 
+          tllocaldoc <- haddockPath ("termlib")
+          let remoteurl = "http://cl-informatik.uibk.ac.at/software/tct/projects/tct/docs"
+              tlremoteurl = "http://cl-informatik.uibk.ac.at/software/tct/projects/termlib/docs"
+              docurl = fromMaybe remoteurl localdoc
+              tldocurl = fromMaybe tlremoteurl tllocaldoc              
+              lst s ls = vcat [text s <+> l | l <- ls]
+              msg = U.underline (text ("Welcome to the TcT"))
+                    $+$ text ""
+                    $+$ U.paragraph ("This is version " 
+                                     ++ version 
+                                     ++ " of the Tyrolean Complexity Tool.")
+                    $+$ text ""                    
+                    $+$ text "(c)" <+> ( text "Martin Avanzini <martin.avanzini@uibk.ac.at>,"
+                                        $+$ text "Georg Moser <georg.moser@uibk.ac.at>, and"
+                                        $+$ text "Andreas Schnabl <andreas.schnabl@uibk.ac.at>.")
+                    $+$ text ""
+                    $+$ U.paragraph ("This software is licensed under the GNU Lesser "
+                                     ++ "General Pulic License, see <http://www.gnu.org/licenses/>.")
+                    $+$ text ""
+                    $+$ text "This message is available by typing 'help'."
+                    $+$ text ""
+                    $+$ text "Getting Started:"
+                    $+$ indent (lst "*" 
+                                [ text "Use 'load \"<filename>\" to load a problem."
+                                , U.paragraph ("Use 'apply <technique>' to simplify the loaded problem. "
+                                               ++ "Here <technique> can be one of the following")
+                                  $+$ indent (lst "-"
+                                              [ U.paragraph ("A processor as collected in module 'Processor'. In this case, "
+                                                             ++ "TcT will prompt for any needed arguments.")
+                                              , U.paragraph ("An instance of a processor obtained by one of "
+                                                             ++ "the constructors from module 'Instance'.")
+                                              ])
+                                , U.paragraph ( "Use 'describe <processor>' to obtain documentation for "
+                                                ++ "the processor <processor>, c.f. module 'Processor' for a list "
+                                                ++ "of available processors.")
+                                , U.paragraph ( "Type 'state' to output the current proof state.")
+                                , U.paragraph ( "Type 'proof' to output the proof constructed so far.")                                  
+                                , U.paragraph ( "Modify the configuration file '" ++ cfgdir ++ "/tct.hs' "
+                                                ++ " which is automatically loaded on startup.")
+                                , U.paragraph ( "Type 'quit' to exit Tct. ")
+                                ])
+                    $+$ text ""
+                    $+$ text "Further Help:"
+                    $+$ indent (text "Consult the following pages concering"
+                                $+$ indent (lst "*"
+                                            [ text "interactive interface:"
+                                              $+$ indent (text (docurl ++ "/Tcti.html"))
+                                            , text "general help on TcT:"
+                                              $+$ indent (text (docurl ++ "/index.html"))
+                                            , text "the rewriting library:"
+                                              $+$ indent (text (tldocurl ++ "/index.html")) ]))
+          pprint msg
+          
+              
+{-                  
           let tctidoc = 
                 maybe (text "Use 'cabal haddock && cabal install' in the source-directory"
                        $+$ text "of tct to install documentation.")
@@ -702,7 +766,7 @@ help = do haddock <- haddockPath ("tct-" ++ version)
                   $+$ text "Use 'describe processor' to get documentation for processor 'p'."
                   $+$ text ""
                   $+$ tctidoc)
-
+-}
 state :: IO ()
 state = printState             
 
@@ -742,6 +806,9 @@ loadDC n = load' n >> setDC
 loadIDC :: FilePath -> IO ()
 loadIDC n = load' n >> setIDC
 
+quit :: IO ()
+quit = exitWith ExitSuccess
+  
 addRuleFromString :: String -> IO ()
 addRuleFromString str = addRuleFromString' str >> printState
 

@@ -78,7 +78,7 @@ Library
                     Tct.Method.DP.Utils
                     Tct.Method.Custom
                     Tct.Method.Predicates
-                    Tct.Methods
+                    Tct.Instances
                     Tct.Processors
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, graphviz, text, process == 1.0.1.*

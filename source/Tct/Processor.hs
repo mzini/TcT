@@ -67,6 +67,7 @@ module Tct.Processor
     , (<|>)
     , (<++>)
     , toProcessorList
+    , fromProcessorList
     , parseAnyProcessor
     -- * Machine Readable Description of Processors
     , SynElt (..)

@@ -275,5 +275,5 @@ nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Rule -> MatrixInter a 
 nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficients $ interpretTerm mi $ R.lhs r) (Map.elems $ coefficients $ interpretTerm mi $ R.rhs r)
   where coeffConstraint lm rm = row 1 lm .>=. row 1 rm
 
-weightgapProcessor :: T.TransformationProcessor WeightGap P.AnyProcessor
-weightgapProcessor = T.transformationProcessor WeightGap
+weightgapProcessor :: T.Transformation WeightGap P.AnyProcessor
+weightgapProcessor = T.Transformation WeightGap

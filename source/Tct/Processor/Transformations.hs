@@ -183,89 +183,6 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
 
 
 --------------------------------------------------------------------------------
---- Transformation Processor
-
-subsumes :: Problem -> Problem -> Bool
-p1 `subsumes` p2 = check strictTrs 
-                   && check strictDPs 
-                   && check trsComponents
-                   && check dpComponents 
-  where -- checkStr f = toSet (f p2) `Set.isProperSubsetOf` toSet (f p1)
-        check f = toSet (f p2) `Set.isSubsetOf` toSet (f p1)
-        toSet = Set.fromList . Trs.rules
-        
-
-data TransProc t sub = TransProc t
-
-instance ( Transformer t 
-         , P.Processor sub) 
-         => S.Processor (TransProc t sub) where
-    type S.ProofOf (TransProc t sub) = Proof t (Subsumed sub)
-    type S.ArgumentsOf (TransProc t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
-    name (TransProc t)      = name t
-    instanceName inst       = instanceName tinst
-        where _ :+: _ :+: _ :+: as :+: _ = S.processorArgs inst
-              TransProc t          = S.processor inst
-              tinst = TheTransformer t as
-
-    description (TransProc t) = description t
-    arguments (TransProc t) = opt { A.name = "strict"
-                              , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
-                                                        , "Otherwise, it applies the subprocessor on the untransformed input."] 
-                              , A.defaultValue = False }
-                          :+: opt { A.name = "parallel"
-                                  , A.description = "Decides whether the given subprocessor should be applied in parallel"
-                                  , A.defaultValue = False }
-                          :+: opt { A.name = "checkSubsumed"
-                                  , A.description = unlines [ "This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one."
-                                                            , "A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'."
-                                                            , "Currently we only take subset-inclusions of the different components into account" ]
-                                                    
-                                  , A.defaultValue = False }
-                          :+: arguments t 
-                          :+: arg { A.name = "subprocessor"
-                                  , A.description = "The processor that is applied on the transformed problem(s)" }
-    solve inst prob = do res <- transform tinst prob
-                         case res of 
-                           NoProgress _  -> if continue tinst || not str
-                                             then do sp <- P.apply sub prob
-                                                     return $ mkProof res (enumeration' [liftMS Nothing sp])
-                                             else return $ mkProof res []
-                           Progress _ ps -> do let (subsumed, unsubsumed) | checkSubsume = splitSubsumed ps
-                                                                          | otherwise    = ([], ps)
-                                               esubproofs <- P.evalList par (P.succeeded . snd) 
-                                                           [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- unsubsumed]
-                                               return $ case mkSubproofs esubproofs ps of 
-                                                           Just sps -> mkProof res $ unsubsumedProofs ++ subsumedProofs
-                                                              where unsubsumedProofs = mapEnum (liftMS Nothing) sps
-                                                                    subsumedProofs = catMaybes [ do proof_i <- find e_i sps
-                                                                                                    return $ (SN e_j, liftMS (Just p_i) proof_i)
-                                                                                               | (SN e_i, p_i, SN e_j) <- subsumed ]
-
-                                                           Nothing  -> mkProof res []
-        where (TransProc t) = S.processor inst
-              tinst         = TheTransformer t args
-              str :+: par :+: checkSubsume :+: args :+: sub = S.processorArgs inst
-              splitSubsumed [] = ([],[])
-              splitSubsumed ((e_i, p_i):ps) = ([ (e_i, p_i, e_j) | (e_j, _) <- subs_i ] ++ subs', unsubs')
-                where (subs_i, unsubs_i) = partition (\ (_, p_j) -> p_i `subsumes` p_j) ps
-                      (subs', unsubs') = splitSubsumed unsubs_i
-              mkSubproofs (Right subproofs) ps = sequence [(,) (SN e) `liftM` find e subproofs | (SN e,_) <- ps]
-              mkSubproofs (Left  (fld,ss))  _  = Just (fld : ss)
-              mkProof res subproofs = Proof { transformationResult = res
-                                            , inputProblem         = prob
-                                            , appliedSubprocessor  = (SSI sub)
-                                            , appliedTransformer   = tinst
-                                            , subProofs            = subproofs}
-
-
-instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) where 
-  pprintProof proof mde = pprintProof proof mde
-  answer proof = answer proof
-
-type TransformationProcessor t sub = S.StdProcessor (TransProc t sub)
-
---------------------------------------------------------------------------------
 --- Transformation Combinators
 
 data t1 :>>>: t2 = TheTransformer t1 :>>>: TheTransformer t2
@@ -336,7 +253,7 @@ someProof sub t prob res subproofs = Proof { transformationResult = res
                                            , appliedSubprocessor  = P.someInstance sub
                                            , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subproofs }
 
-mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (TransProc (Try t2) sub))
+mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (Transformation (Try t2) sub))
 mkComposeProof sub t1 t2 input r1 r2s subproofs =
     Proof { transformationResult = r1
           , inputProblem        = input
@@ -577,48 +494,134 @@ instance Transformer SomeTrans where
 
 
 
+--------------------------------------------------------------------------------
+--- Transformation Processor
+
+subsumes :: Problem -> Problem -> Bool
+p1 `subsumes` p2 = check strictTrs 
+                   && check strictDPs 
+                   && check trsComponents
+                   && check dpComponents 
+  where -- checkStr f = toSet (f p2) `Set.isProperSubsetOf` toSet (f p1)
+        check f = toSet (f p2) `Set.isSubsetOf` toSet (f p1)
+        toSet = Set.fromList . Trs.rules
+        
+
+data Transformation t sub = Transformation t
+
+instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub) where
+    type S.ProofOf (Transformation t sub)     = Proof t (Subsumed sub)
+    type S.ArgumentsOf (Transformation t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
+    
+    name (Transformation t)        = name t
+    instanceName inst              = instanceName tinst
+        where _ :+: _ :+: _ :+: as :+: _ = S.processorArgs inst
+              Transformation t           = S.processor inst
+              tinst                      = TheTransformer t as
+    description (Transformation t) = description t
+    arguments (Transformation t)   = opt { A.name = "strict"
+                                         , A.description = unlines [ "If this flag is set and the transformation fails, this processor aborts."
+                                                                   , "Otherwise, it applies the subprocessor on the untransformed input."] 
+                                         , A.defaultValue = False }
+                                     :+: 
+                                     opt { A.name = "parallel"
+                                         , A.description = "Decides whether the given subprocessor should be applied in parallel"
+                                         , A.defaultValue = False }
+                                     :+: 
+                                     opt { A.name = "checkSubsumed"
+                                         , A.description = unlines [ "This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one."
+                                                                   , "A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'."
+                                                                   , "Currently we only take subset-inclusions of the different components into account" ]
+                                                    
+                                         , A.defaultValue = False }
+                                     :+: 
+                                     arguments t 
+                                     :+: 
+                                     arg { A.name = "subprocessor"
+                                         , A.description = "The processor that is applied on the transformed problem(s)" }
+    solve inst prob = do res <- transform tinst prob
+                         case res of 
+                           NoProgress _  -> 
+                             if continue tinst || not str
+                             then do sp <- P.apply sub prob
+                                     return $ mkProof res (enumeration' [liftMS Nothing sp])
+                             else return $ mkProof res []
+                           Progress _ ps -> 
+                             do let (subsumed, unsubsumed) | checkSubsume = splitSubsumed ps
+                                                           | otherwise    = ([], ps)
+                                esubproofs <- P.evalList par (P.succeeded . snd) 
+                                             [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- unsubsumed]
+                                return $ case mkSubproofs esubproofs ps of 
+                                  Just sps -> mkProof res $ unsubsumedProofs ++ subsumedProofs
+                                    where unsubsumedProofs = mapEnum (liftMS Nothing) sps
+                                          subsumedProofs = catMaybes [ do proof_i <- find e_i sps
+                                                                          return $ (SN e_j, liftMS (Just p_i) proof_i)
+                                                                     | (SN e_i, p_i, SN e_j) <- subsumed ]
+
+                                  Nothing  -> mkProof res []
+        where (Transformation t) = S.processor inst
+              tinst         = TheTransformer t args
+              str :+: par :+: checkSubsume :+: args :+: sub = S.processorArgs inst
+              splitSubsumed [] = ([],[])
+              splitSubsumed ((e_i, p_i):ps) = ([ (e_i, p_i, e_j) | (e_j, _) <- subs_i ] ++ subs', unsubs')
+                where (subs_i, unsubs_i) = partition (\ (_, p_j) -> p_i `subsumes` p_j) ps
+                      (subs', unsubs') = splitSubsumed unsubs_i
+              mkSubproofs (Right subproofs) ps = sequence [(,) (SN e) `liftM` find e subproofs | (SN e,_) <- ps]
+              mkSubproofs (Left  (fld,ss))  _  = Just (fld : ss)
+              mkProof res subproofs = Proof { transformationResult = res
+                                            , inputProblem         = prob
+                                            , appliedSubprocessor  = (SSI sub)
+                                            , appliedTransformer   = tinst
+                                            , subProofs            = subproofs}
+
+
+instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) where 
+  pprintProof proof mde = pprintProof proof mde
+  answer proof = answer proof
+
+
+withArgs :: (Transformer t) => (Transformation t sub) -> (Domains (ArgumentsOf t)) -> TheTransformer t
+(Transformation t) `withArgs` as = TheTransformer t as 
+
+transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Transformation t sub)
+transformationProcessor t = S.StdProcessor (Transformation t)
 
 
 -------------------------------------------------------------------------------- 
 --- utility functions for constructing and modifying transformations
 
-calledWith :: (Transformer t) => t -> (Domains (ArgumentsOf t)) -> TheTransformer t
-t `calledWith` as = TheTransformer t as 
 
-someTransformation :: (Transformer t) => TheTransformer t -> TheTransformer SomeTrans
+someTransformation :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
 someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
                                , transformationArgs = ()}
 
 
 
 infixr 2 `thenApply`
-thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApply ti@(TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (not (continue ti) :+: False :+: False :+: args :+: sub)
+thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+thenApply ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t) `S.withArgs` (not (continue ti) :+: False :+: False :+: args :+: sub)
 
 infixr 2 >>|
-(>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
+(>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 (>>|) = thenApply
 
 
 infixr 2 `thenApplyPar`
-thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
-thenApplyPar ti@(TheTransformer t args) sub = (S.StdProcessor $ TransProc t) `S.withArgs` (not (continue ti) :+: True :+: False :+: args :+: sub)
+thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+thenApplyPar ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t) `S.withArgs` (not (continue ti) :+: True :+: False :+: args :+: sub)
 
 
 infixr 2 >>||
-(>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (TransProc t sub))
+(>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 (>>||) = thenApplyPar
 
 
-transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> TransformationProcessor t sub
-transformationProcessor t = S.StdProcessor (TransProc t)
-
-parallelSubgoals :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+parallelSubgoals :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
 
 --- utility functions for constructing and modifying transformations
 
-checkSubsumed :: (P.Processor p, Transformer t) => P.InstanceOf (TransformationProcessor t p) -> P.InstanceOf (TransformationProcessor t p)
+checkSubsumed :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
 
 
@@ -641,7 +644,7 @@ exhaustively t = t >>> exhaustively t
 
 
 idtrans :: TheTransformer Id
-idtrans = Id `calledWith` ()
+idtrans = Transformation Id `withArgs` ()
 
 -------------------------------------------------------------------------------- 
 --- subsumed processor
@@ -670,23 +673,4 @@ instance P.Processor proc => P.Processor (Subsumed proc) where
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob
         where mk pp = pp { P.ppResult = MaybeSubsumed Nothing $ P.ppResult pp}
-
-
--- data Custom res = Custom { as :: String 
---                          , code :: forall m. (P.SolverM m) => Problem -> m (res, Maybe [Problem]) }
-
--- instance Transformer (Custom res) where
---     name = as
---     description c = [as c]
-    
---     type ArgumentsOf (Custom res) = Unit
---     type ProofOf (Custom res) = res
---     transform (TheTransformer (Custom _ code) _) prob = do (res, mprobs) <- code prob
---                                                            case mprobs of 
---                                                              Just probs -> Progress res (enumeration' prob)
---                                                              Nothing    -> NoProgress res
-
--- custom :: String -> (forall m. (P.SolverM m) => Problem -> m res) -> TheTransformer (Custom res)
--- custom n m = TheTransformer (Custom n m) ()
-
 

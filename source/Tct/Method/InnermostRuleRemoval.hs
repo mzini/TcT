@@ -97,10 +97,10 @@ instance T.Transformer InnermostRuleRemoval where
                                , removals     = allRemovals }
 
 
-irrProcessor :: T.TransformationProcessor InnermostRuleRemoval P.AnyProcessor
-irrProcessor = T.transformationProcessor InnermostRuleRemoval
+irrProcessor :: T.Transformation InnermostRuleRemoval P.AnyProcessor
+irrProcessor = T.Transformation InnermostRuleRemoval
 
 
 -- irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
 irr :: T.TheTransformer InnermostRuleRemoval
-irr = InnermostRuleRemoval `T.calledWith` ()
+irr = irrProcessor `T.withArgs` ()

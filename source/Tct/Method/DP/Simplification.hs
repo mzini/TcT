@@ -131,11 +131,11 @@ instance T.Transformer RemoveTail where
                            , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ Trs ls }
                 
 
-removeTailProcessor :: T.TransformationProcessor RemoveTail P.AnyProcessor
-removeTailProcessor = T.transformationProcessor RemoveTail
+removeTailProcessor :: T.Transformation RemoveTail P.AnyProcessor
+removeTailProcessor = T.Transformation RemoveTail
 
 removeTails :: T.TheTransformer RemoveTail
-removeTails = RemoveTail `T.calledWith` ()
+removeTails = T.Transformation RemoveTail `T.withArgs` ()
 
 
 
@@ -197,11 +197,11 @@ instance T.Transformer SimpRHS where
               where (stricts, weaks) = partition (\ (_, s, _, _) -> s == StrictDP) elims
                     toTrs l = Trs.fromRules [ fromMaybe r mr | (_,_,r,mr) <- l ]
 
-simpDPRHSProcessor :: T.TransformationProcessor SimpRHS P.AnyProcessor
-simpDPRHSProcessor = T.transformationProcessor SimpRHS
+simpDPRHSProcessor :: T.Transformation SimpRHS P.AnyProcessor
+simpDPRHSProcessor = T.Transformation SimpRHS
 
 simpDPRHS :: T.TheTransformer SimpRHS
-simpDPRHS = SimpRHS `T.calledWith` ()
+simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 
 
 --------------------------------------------------------------------------------
@@ -269,8 +269,8 @@ instance T.Transformer SimpKP where
 
          
 
-simpKPProcessor :: T.TransformationProcessor SimpKP P.AnyProcessor
-simpKPProcessor = T.transformationProcessor SimpKP
+simpKPProcessor :: T.Transformation SimpKP P.AnyProcessor
+simpKPProcessor = T.Transformation SimpKP
 
 simpKP :: T.TheTransformer SimpKP
-simpKP = SimpKP `T.calledWith` ()
+simpKP = T.Transformation SimpKP `T.withArgs` ()

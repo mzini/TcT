@@ -256,12 +256,12 @@ defaultSelect = selFromWDG "below first cut in WDG" fn
                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
 
 
-composeRCProcessor :: T.TransformationProcessor (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
-composeRCProcessor = T.transformationProcessor ComposeRCProc
+composeRCProcessor :: T.Transformation (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
+composeRCProcessor = T.Transformation ComposeRCProc
 
 
 composeRC :: RuleSelector () -> T.TheTransformer (ComposeRCProc P.SomeProcessor P.SomeProcessor)
-composeRC s = ComposeRCProc `T.calledWith` (s :+: Nothing :+: Nothing)
+composeRC s = T.Transformation ComposeRCProc `T.withArgs` (s :+: Nothing :+: Nothing)
 
 solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRCProc p p2))
 solveAWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRCProc (s :+: Just p :+: p2)

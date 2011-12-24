@@ -21,6 +21,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 module Tct.Processor
     ( SatSolver (..)
@@ -362,15 +363,15 @@ instance ParsableProcessor SomeProcessor where
 
 
 instance PrettyPrintable SomeProcessor where
-    pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppsyn $++$ ppdescr $++$ ppargdescr)
+    pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppdescr $++$ ppsyn $++$ ppargdescr)
         where ppheading = (text "Processor" <+> doubleQuotes (text sname) <> text ":")
               underline = text (take (length $ show ppheading) $ repeat '-')
               ppdescr   | null descr = empty 
-                        | otherwise  = block "Description" $ vcat [paragraph s | s <- descr]
+                        | otherwise  = vcat [paragraph s | s <- descr]
               ppsyn     = block "Usage" $ text (synopsis proc)
               ppargdescr | length l == 0 = empty
                          | otherwise     = block "Arguments" $ vcat l
-                  where l = [hang (text (adName d) <> text ":") 10 (paragraph (adDescr d ++ mshow (adDefault d))) $+$ text "" | d <- optArgs proc]
+                  where l = punctuate (text "" $+$ text "") [hang (text (adName d) <> text ":") 10 (paragraph (adDescr d ++ mshow (adDefault d))) | d <- optArgs proc]
                         mshow Nothing    = "" 
                         mshow (Just def) = " The default is set to '" ++ def ++ "'."
               sname = name proc 

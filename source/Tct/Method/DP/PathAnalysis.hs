@@ -160,8 +160,8 @@ instance T.TransformationProof PathAnalysis where
 
 
 
-pathAnalysisProcessor :: T.TransformationProcessor PathAnalysis P.AnyProcessor
-pathAnalysisProcessor = T.transformationProcessor PathAnalysis
+pathAnalysisProcessor :: T.Transformation PathAnalysis P.AnyProcessor
+pathAnalysisProcessor = T.Transformation PathAnalysis
 
 pathAnalysis :: T.TheTransformer PathAnalysis
-pathAnalysis = PathAnalysis `T.calledWith` ()
+pathAnalysis = T.Transformation PathAnalysis `T.withArgs` ()

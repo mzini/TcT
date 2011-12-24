@@ -111,8 +111,8 @@ instance T.Transformer UR where
                            , Prob.weakTrs   = wurs }
 
 
-usableRulesProcessor :: T.TransformationProcessor UR P.AnyProcessor
-usableRulesProcessor = T.transformationProcessor UR
+usableRulesProcessor :: T.Transformation UR P.AnyProcessor
+usableRulesProcessor = T.Transformation UR
 
 usableRules :: T.TheTransformer UR
-usableRules = UR `T.calledWith` ()
+usableRules = T.Transformation UR `T.withArgs` ()

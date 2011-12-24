@@ -92,7 +92,7 @@ instance Argument Bool where
 instance ParsableArgument Bool where
     parseArg Phantom = Parse.bool
 
- -- * Compound
+-- * Compound
 
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]

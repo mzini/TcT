@@ -142,14 +142,14 @@ instance T.Transformer DPs where
                                    , Prob.signature  = sig' }
         where useTuples = T.transformationArgs inst
 
-dependencyPairsProcessor :: T.TransformationProcessor DPs P.AnyProcessor
-dependencyPairsProcessor = T.transformationProcessor DPs
+dependencyPairsProcessor :: T.Transformation DPs P.AnyProcessor
+dependencyPairsProcessor = T.Transformation DPs
 
 dependencyPairs :: T.TheTransformer DPs
-dependencyPairs = DPs `T.calledWith` False
+dependencyPairs = T.Transformation DPs `T.withArgs` False
 
 dependencyTuples :: T.TheTransformer DPs
-dependencyTuples = DPs `T.calledWith` True
+dependencyTuples = T.Transformation DPs `T.withArgs` True
 
 
                                           -- 

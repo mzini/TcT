@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Methods
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+--------------------------------------------------------------------------------   
+
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -216,9 +230,6 @@ module Tct.Methods
       -- @t2@ is applied.
 
     -- ** Custom Processors
-    , (P.<|>)
-      -- | this operator is used to add processors to the processor list of tct
-      
     , Custom.named
       -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
     , Custom.processorFromInstance
@@ -336,8 +347,7 @@ module Tct.Methods
 
       
       -- * Misc
-    , solveBy
-    , withArgs
+    , solveBy -- MA:TODO
 
       -- * Existential Quantification
     , EQuantified (..)
@@ -375,12 +385,12 @@ import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor (solveBy)
-import Tct.Processor.Standard (withArgs)
 import qualified Tct.Processor.Args as Args
 import Tct.Processor.Args ((:+:)(..), Unit(..))
 import qualified Tct.Processor.Args.Instances as ArgInstances
 import Tct.Processor.Args.Instances (nat)
-import Tct.Processor.Transformations as T
+import Tct.Processor.Transformations hiding (withArgs)
+import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor.Timeout as Timeout
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
@@ -444,7 +454,7 @@ arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $
 
 
 weightgap :: MatrixOptions -> T.TheTransformer Weightgap.WeightGap
-weightgap m = Weightgap.WeightGap `calledWith` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+weightgap m = T.Transformation Weightgap.WeightGap `T.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 -- * defaultPoly
 

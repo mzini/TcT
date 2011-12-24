@@ -324,11 +324,11 @@ instance P.Processor p => T.TransformationProof (ComposeProc p) where
                   ppSubproof = either (\p -> P.pprintProof p P.ProofOutput) (\p -> P.pprintProof p P.ProofOutput) esp1
                   ppsplit = text "These rules where chosen" <+> text (show split) <> text "."
 
-composeProcessor :: T.TransformationProcessor (ComposeProc P.AnyProcessor) P.AnyProcessor
-composeProcessor = T.transformationProcessor ComposeProc
+composeProcessor :: T.Transformation (ComposeProc P.AnyProcessor) P.AnyProcessor
+composeProcessor = T.Transformation ComposeProc
 
 compose :: (P.Processor p1) => Partitioning -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
-compose split compfn sub = ComposeProc `T.calledWith` (split :+: compfn :+: sub)
+compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: sub)
 
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
 composeDynamic = compose Dynamic

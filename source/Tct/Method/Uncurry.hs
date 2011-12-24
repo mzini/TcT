@@ -113,11 +113,11 @@ instance T.Transformer Uncurry where
                                                                , signature = newSignature p }
 
 
-uncurryProcessor :: T.TransformationProcessor Uncurry P.AnyProcessor
-uncurryProcessor = T.transformationProcessor Uncurry
+uncurryProcessor :: T.Transformation Uncurry P.AnyProcessor
+uncurryProcessor = T.Transformation Uncurry
 
 uncurry :: T.TheTransformer Uncurry
-uncurry = Uncurry `T.calledWith` ()
+uncurry = T.Transformation Uncurry `T.withArgs` ()
 
 
 data AppSignature = AppSignature {app :: (Symbol,Attributes), consts :: Map Symbol (Attributes,Int)} deriving Show

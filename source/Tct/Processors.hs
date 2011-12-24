@@ -1,3 +1,26 @@
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Processors
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module collects available /processors/ of TCT.
+-- A processor 'p' is the TcT representation of a complexity techniques
+-- that, given a complexity problem, constructs a complete proof for 
+-- the problem. 
+-- Processors are parameterised in some arguments that control the behaviour
+-- of the processor, for instance, the matrix processor is parameterised 
+-- in the dimension of the constructed matrix interpretation. 
+-- Parameterised processors are called /processor instances/. 
+--------------------------------------------------------------------------------      
+
+
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -16,28 +39,27 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 module Tct.Processors
     ( 
-    -- *  Parsable Processors
-    (P.<|>)
-    , (P.<++>)
-    , P.none
-    , P.AnyProcessor
-    , ArcticMI.arcticProcessor
-    , Combinators.bestProcessor
+      -- * Complexity Processors 
+    ArcticMI.arcticProcessor
     , Bounds.boundsProcessor
+    , Combinators.bestProcessor
+    , Combinators.emptyProcessor
     , Combinators.failProcessor
     , Combinators.fastestProcessor
     , Combinators.iteProcessor
-    , Combinators.emptyProcessor
-    , Compose.composeProcessor
-    , EpoStar.epostarProcessor
-    , PopStar.lmpoProcessor
-    , NaturalMI.matrixProcessor
-    , NaturalPI.polyProcessor
-    , PopStar.popstarProcessor
     , Combinators.sequentiallyProcessor
     , Combinators.successProcessor
+    , EpoStar.epostarProcessor
+    , NaturalMI.matrixProcessor
+    , NaturalPI.polyProcessor
+    , PopStar.lmpoProcessor
+    , PopStar.popstarProcessor
     , Timeout.timeoutProcessor
-    -- ** Predicates
+      
+    -- * Predicate Processors #predicates#
+      -- | /Predicates/ are processors that return either 'Yes(?,?)' or 
+      -- 'No'. In particular, these are useful as guards in conjunction 
+      -- with the conditional processor 'iteProcessor'. 
     , Predicates.isCollapsingProcessor
     , Predicates.isConstructorProcessor
     , Predicates.isDuplicatingProcessor
@@ -49,20 +71,41 @@ module Tct.Processors
     , Predicates.isOutermostProcessor
     , Predicates.isContextSensitiveProcessor
       
-      -- ** The Built-In Processor Used by TCT
-    , builtInProcessors
-    , Predicates.predicateProcessors
 
     -- ** Transformations
-    , IRR.irrProcessor    
-    , Uncurry.uncurryProcessor
+    , Compose.composeProcessor
     , DP.dependencyPairsProcessor
-    , PathAnalysis.pathAnalysisProcessor
-    , UR.usableRulesProcessor
-    , Weightgap.weightgapProcessor
     , DPSimp.removeTailProcessor
     , DPSimp.simpDPRHSProcessor
     , DPSimp.simpKPProcessor      
+    , IRR.irrProcessor    
+    , PathAnalysis.pathAnalysisProcessor
+    , UR.usableRulesProcessor
+    , Uncurry.uncurryProcessor
+    , Weightgap.weightgapProcessor
+      -- * Existential Quantification and Processor Collections
+    , P.SomeProcessor
+      -- | This is the existentially quantified type of a 
+      -- processor. 
+    , P.AnyProcessor
+      -- | This type represents a collection of processors, 
+      -- and is used for configuring TcT, c.f. module "Tct". 
+    , (P.<|>)
+      -- | Adds a processor to the processor collection.
+    , (P.<++>)      
+      -- | Append on 'P.AnyProcessor'.
+    , P.toProcessorList
+      -- | Extract the list of processors represented.
+      
+      -- * Processors Implemented in TcT      
+    , builtInProcessors
+      -- | This 'P.AnyProcessor' collects all processors implemented
+      -- in TcT. A list of these processors can be extracted with
+      -- 'P.toProcessorList'.
+    , Predicates.predicateProcessors
+      -- | This 'P.AnyProcessor' collects all predicates implemented
+      -- in TcT, c.f., "Tct.Processors#predicates". A list of these processors can be extracted with
+      -- 'P.toProcessorList'.
     ) where
 
 import qualified Tct.Method.Combinator as Combinators
@@ -83,6 +126,7 @@ import qualified Tct.Method.DP.PathAnalysis as PathAnalysis
 import qualified Tct.Method.Weightgap as Weightgap
 import qualified Tct.Method.InnermostRuleRemoval as IRR
 import qualified Tct.Processor as P
+import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Timeout as Timeout
 
 builtInProcessors :: P.AnyProcessor
@@ -90,7 +134,7 @@ builtInProcessors = Timeout.timeoutProcessor
                     P.<|> Combinators.failProcessor 
                     P.<|> Combinators.successProcessor
                     P.<|> Combinators.iteProcessor
-                    P.<|> IRR.irrProcessor
+                    P.<|> S.StdProcessor IRR.irrProcessor
                     P.<|> Combinators.bestProcessor
                     P.<|> Combinators.fastestProcessor
                     P.<|> Combinators.openProcessor                    
@@ -100,17 +144,18 @@ builtInProcessors = Timeout.timeoutProcessor
                     P.<|> PopStar.ppopstarProcessor
                     P.<|> EpoStar.epostarProcessor
                     P.<|> Bounds.boundsProcessor
-                    P.<|> Uncurry.uncurryProcessor
-                    P.<|> UR.usableRulesProcessor
-                    P.<|> DPSimp.removeTailProcessor
-                    P.<|> DPSimp.simpDPRHSProcessor                 
-                    P.<|> DP.dependencyPairsProcessor
-                    P.<|> PathAnalysis.pathAnalysisProcessor
+                    P.<|> S.StdProcessor Uncurry.uncurryProcessor
+                    P.<|> S.StdProcessor UR.usableRulesProcessor
+                    P.<|> S.StdProcessor DPSimp.removeTailProcessor
+                    P.<|> S.StdProcessor DPSimp.simpDPRHSProcessor                 
+                    P.<|> S.StdProcessor DPSimp.simpKPProcessor                    
+                    P.<|> S.StdProcessor DP.dependencyPairsProcessor
+                    P.<|> S.StdProcessor PathAnalysis.pathAnalysisProcessor
                     P.<|> NaturalMI.matrixProcessor
                     P.<|> NaturalPI.polyProcessor
                     P.<|> ArcticMI.arcticProcessor
-                    P.<|> Weightgap.weightgapProcessor
-                    P.<|> Compose.composeProcessor
-                    P.<|> ComposeRC.composeRCProcessor
+                    P.<|> S.StdProcessor Weightgap.weightgapProcessor
+                    P.<|> S.StdProcessor Compose.composeProcessor
+                    P.<|> S.StdProcessor ComposeRC.composeRCProcessor
                     P.<|> Combinators.emptyProcessor
                     P.<|> foldr (P.<|>) P.none Predicates.predicateProcessors

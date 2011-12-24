@@ -1,8 +1,8 @@
 Name:               tct
 Version:            1.8
-Author:             Martin Avanzini, 
-                    Georg Moser, 
-                    Andreas Schnabl
+Author:             Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+                    Georg Moser <georg.moser@uibk.ac.at>, 
+                    Andreas Schnabl <andreas.schnabl@uibk.ac.at>
 Category:           Math
 Maintainer:         Martin Avanzini <martin.avanzini@uibk.ac.at>
 Stability:          Experimental
@@ -16,18 +16,19 @@ Description:
   of terminating term rewriting systems.
 cabal-version:      >= 1.6
 build-type:         Simple
+
 Executable tct
- main-is:           Main.hs
+ main-is:           Tct/Main.hs
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, ansi-wl-pprint >= 0.6 && < 0.7, graphviz, text
  hs-source-dirs:    source
  ghc-options:       -threaded -O2 -fno-spec-constr-count
 
 Library
  exposed-modules:   Tct
+                    Tcti
                     Tct.StrategyInfo
                     Tct.Certificate
                     Tct.Main.Flags
-                    Tct.Tcti
                     Tct.Main.Debug
                     Tct.Main.Version
                     Tct.Processor

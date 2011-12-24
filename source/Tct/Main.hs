@@ -17,6 +17,7 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 
 module Main where
+
 import Tct
 
 main :: IO ()

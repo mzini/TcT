@@ -169,6 +169,9 @@ module Tcti
     , ruleFromString
       -- | parses a rule from a string, with respect
       -- to the signature and variables from the given problem      
+    , getConfig
+    , setConfig
+    , modifyConfig
     )
 where
 
@@ -185,6 +188,8 @@ import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Repl as TRepl
 import qualified Termlib.Term.Parser as TParser
 
+import Tct (Config, defaultConfig)
+import qualified Tct as Tct
 import Tct.Processor.PPrint
 import Tct.Main.Version (version)
 import qualified Tct.Processor as P
@@ -351,6 +356,20 @@ data STATE = STATE { curState :: ST
                    , hist     :: [ST] 
                    }
                                  
+configRef :: IORef Config
+configRef = unsafePerformIO $ newIORef defaultConfig
+{-# NOINLINE configRef #-}
+
+setConfig :: Config -> IO ()
+setConfig = writeIORef configRef
+
+getConfig :: IO Config
+getConfig = readIORef configRef
+
+modifyConfig :: (Config -> Config) -> IO ()
+modifyConfig f = do c <- getConfig
+                    setConfig $ f c
+                    
 instance U.PrettyPrintable ST where
   pprint st = bordered $ maybe ppEmpty ppTree $ proofTree st
     where ppEmpty = 
@@ -605,12 +624,20 @@ instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.S
 instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
   describe = describe . S.StdProcessor
 
+
+allProcessors :: IO (P.AnyProcessor)
+allProcessors = Tct.processors `liftM` getConfig
+                   
 transformation :: (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => t -> IO (T.TheTransformer t)
-transformation trans = mkInst `liftM` A.parseInteractive (T.arguments trans) builtInProcessors
+transformation trans = 
+  do procs <- allProcessors
+     mkInst `liftM` A.parseInteractive (T.arguments trans) procs
   where mkInst args = (T.Transformation trans) `T.withArgs` args
 
 processor :: (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => p -> IO (P.InstanceOf (S.StdProcessor p))
-processor proc = mkInst `liftM` A.parseInteractive (S.arguments proc) builtInProcessors
+processor proc = 
+    do procs <- allProcessors
+       mkInst `liftM` A.parseInteractive (S.arguments proc) procs
   where mkInst args = (S.StdProcessor proc) `S.withArgs` args
           
 instance (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => Apply (S.StdProcessor p) where

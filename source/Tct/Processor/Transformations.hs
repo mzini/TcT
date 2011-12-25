@@ -1,8 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -21,10 +16,11 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-
-
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 
@@ -455,38 +451,40 @@ instance (Transformer t) => Transformer (Try t) where
 --------------------------------------------------------------------------------
 -- SomeTransformation
 
-data SomeTrans = forall t. (Transformer t) => SomeTrans t (Domains (ArgumentsOf t))
+data SomeTransformation= forall t. (Transformer t) => SomeTransformation t (Domains (ArgumentsOf t))
 data SomeTransProof = forall t. (TransformationProof t) => SomeTransProof (TheTransformer t) (ProofOf t)
 
-instance TransformationProof SomeTrans where
-  answer proof = case transformationProof proof of 
-                    SomeTransProof tinst tproof -> answer proof'  
-                      where proof' = proof { transformationResult = result'
-                                           , appliedTransformer = tinst }
-                            result' = case transformationResult proof of 
-                                        NoProgress _  -> NoProgress tproof
-                                        Progress _ ps -> Progress tproof ps
-  pprintProof proof mde = case transformationProof proof of 
-                            SomeTransProof tinst tproof -> pprintProof proof' mde
-                                       where proof' = proof { transformationResult = result'
-                                                            , appliedTransformer = tinst }
-                                             result' = case transformationResult proof of 
-                                                         NoProgress _  -> NoProgress tproof
-                                                         Progress _ ps -> Progress tproof ps
+instance TransformationProof SomeTransformation where
+  answer proof = 
+    case transformationProof proof of 
+      SomeTransProof tinst tproof -> answer proof'  
+        where proof' = proof { transformationResult = result'
+                             , appliedTransformer = tinst }
+              result' = case transformationResult proof of 
+                NoProgress _  -> NoProgress tproof
+                Progress _ ps -> Progress tproof ps
+  pprintProof proof mde = 
+    case transformationProof proof of 
+      SomeTransProof tinst tproof -> pprintProof proof' mde
+        where proof' = proof { transformationResult = result'
+                             , appliedTransformer = tinst }
+              result' = case transformationResult proof of 
+                NoProgress _  -> NoProgress tproof
+                Progress _ ps -> Progress tproof ps
   pprintTProof _ prob (SomeTransProof t p) = pprintTProof t prob p
   
 
-instance Transformer SomeTrans where
-    name (SomeTrans t _) = name t
-    continue (TheTransformer (SomeTrans t as)  _) = continue (TheTransformer t as)
+instance Transformer SomeTransformation where
+    name (SomeTransformation t _) = name t
+    continue (TheTransformer (SomeTransformation t as)  _) = continue (TheTransformer t as)
     
-    instanceName (TheTransformer (SomeTrans t as)  _) = instanceName (TheTransformer t as)
-    description (SomeTrans t _) = description t
+    instanceName (TheTransformer (SomeTransformation t as)  _) = instanceName (TheTransformer t as)
+    description (SomeTransformation t _) = description t
 
-    type ArgumentsOf SomeTrans = Unit
-    type ProofOf SomeTrans     = SomeTransProof
+    type ArgumentsOf SomeTransformation= Unit
+    type ProofOf SomeTransformation    = SomeTransProof
     arguments _ = Unit
-    transform inst@(TheTransformer (SomeTrans t as) ()) prob = 
+    transform inst@(TheTransformer (SomeTransformation t as) ()) prob = 
         mk `liftM` transform inst{transformation=t, transformationArgs = as} prob
         where mk (NoProgress p) = NoProgress (SomeTransProof tinst p)
               mk (Progress p ts) = Progress (SomeTransProof tinst p) ts
@@ -591,10 +589,9 @@ transformationProcessor t = S.StdProcessor (Transformation t)
 --- utility functions for constructing and modifying transformations
 
 
-someTransformation :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
-someTransformation inst = inst { transformation     = SomeTrans (transformation inst) (transformationArgs inst)
+someTransformation :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
+someTransformation inst = inst { transformation     = SomeTransformation (transformation inst) (transformationArgs inst)
                                , transformationArgs = ()}
-
 
 
 infixr 2 `thenApply`
@@ -629,17 +626,17 @@ try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
 try (TheTransformer t args) = TheTransformer (Try t) args
 
 infixr 6 >>>
-(>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
+(>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 >>> t2 = someTransformation inst 
     where inst = TheTransformer (t1 :>>>: t2) ()
 
 
 infixr 7 <>
-(<>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTrans
+(<>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 <> t2 = someTransformation inst 
     where inst = TheTransformer (t1 :<>: t2) ()
 
-exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTrans
+exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
 exhaustively t = t >>> exhaustively t
 
 

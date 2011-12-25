@@ -207,7 +207,6 @@ import Data.List (partition)
 import Control.Concurrent (forkIO)
 import System.Directory (getCurrentDirectory)
 import System.IO.Unsafe
-import System.Exit (exitWith, ExitCode(..))
 import System.Process (readProcess)
 import qualified Control.Exception as Ex
 import Data.IORef
@@ -232,7 +231,7 @@ bordered d = border $$ text "" $$ d $$ text "" $$ border
 --- Proof Tree
         
 data ProofTree = Closed Problem (P.InstanceOf P.SomeProcessor) (P.ProofOf P.SomeProcessor)
-               | Transformed Bool Problem (T.TheTransformer T.SomeTrans) (T.ProofOf T.SomeTrans) (Enumeration ProofTree)
+               | Transformed Bool Problem (T.TheTransformer T.SomeTransformation) (T.ProofOf T.SomeTransformation) (Enumeration ProofTree)
                | Open Problem
                  
 instance U.PrettyPrintable ProofTree where

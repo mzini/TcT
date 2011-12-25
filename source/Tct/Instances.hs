@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- | 
--- Module      :  Tct.Instance
+-- Module      :  Tct.Instances
 -- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
 --                Georg Moser <georg.moser@uibk.ac.at>, 
 --                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
@@ -422,7 +422,7 @@ before :: (P.Processor a, P.Processor b) =>
 a `before` b = Combinators.sequentially [P.someInstance a, P.someInstance b]
 
 
-dpsimps :: TheTransformer SomeTrans
+dpsimps :: TheTransformer SomeTransformation
 dpsimps   = try DPSimp.removeTails >>> try DPSimp.simpDPRHS >>> UR.usableRules
 
 -- * defaultMatrix
@@ -503,7 +503,7 @@ class EQuantified a where
     equantify :: a -> (EQuantifiedOf a)
 
 instance Transformer t => EQuantified (T.TheTransformer t) where
-    type EQuantifiedOf (T.TheTransformer t) = T.TheTransformer T.SomeTrans
+    type EQuantifiedOf (T.TheTransformer t) = T.TheTransformer SomeTransformation
     equantify t = T.someTransformation t
 
 instance P.Processor p => EQuantified (P.InstanceOf p) where
@@ -545,7 +545,7 @@ quartic = dos { dim = 4, degree = Nothing}
 quintic :: MatrixOptions
 quintic = dos { dim = 5, degree = Nothing}
 
-te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTrans)
+te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTransformation)
 te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor

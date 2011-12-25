@@ -10,7 +10,7 @@
 -- Stability   :  unstable
 -- Portability :  unportable      
 -- 
--- This module collects available /processors/ of TCT.
+-- This module collects available /processors/ of TcT.
 -- A processor 'p' is the TcT representation of a complexity techniques
 -- that, given a complexity problem, constructs a complete proof for 
 -- the problem. 
@@ -39,19 +39,12 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 -}
 
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -w #-}
 module Tct.Processors where
 
 import Prelude hiding (fail, uncurry)
-import qualified Tct.Processor as P
-import qualified Tct.Processor.Standard as S
 #include "_Processors_Imports_.hs"
 
--- * Complexity Processors
+-- * Built-In Processors
 #include "_Processors_Defs_.hs"
-
--- * Complexity Transformations
 #include "_Transformations_Defs_.hs"
-
--- * Built-in Processor
 #include "_BuiltIn_.hs"

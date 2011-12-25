@@ -121,21 +121,13 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                  , P.adSynopsis   = "[" ++ domainName (Phantom :: Phantom a)  ++ "]" }]
 
     parseInteractive a procs = 
-        do putStrLn $ show (text "* Argument" <+> text (name a) <+> moptional
+        do putStrLn $ show (text "* '" <> text (name a) <> text "'"
                             $+$ nest 2 (descr $+$ text "" $+$ syn $+$ text ""))
            ask
-      where optionalDescr | isOptional_ a = 
-              U.paragraph ("This argument is optional. The default value is '"
-                           ++ showArg phantom (defaultValue a) 
-                           ++"'. Leave input blank to use this default value.")
-                          | otherwise = empty
-            syn = text "Synopsis:" <+> text (domainName phantom)
-            descr = text "Description:" <+> (U.paragraph (description a) 
-                                             $+$ optionalDescr)
-            moptional | isOptional_ a = text "(optional)"
-                      | otherwise     = empty
+      where syn = text "Synopsis:" <+> text (domainName phantom)
+            descr = (U.paragraph (description a))
             ask | isOptional_ a = 
-              do putStrLn $ show $ nest 2 $ U.paragraph ( "This argument is optional. Use the default value"
+              do putStrLn $ show $ nest 2 $ U.paragraph ( "Use the default value '"
                                                          ++ showArg phantom (defaultValue a) 
                                                          ++"'? Enter 'yes' or 'no', default is 'yes':")
                  putStr "  > "

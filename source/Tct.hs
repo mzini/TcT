@@ -41,7 +41,8 @@ module Tct
     , defaultConfig
     , runTct
     , runErroneous
-    , tct )
+    , tct 
+    , haddockOptions)
 where 
 
 import Control.Concurrent (killThread, forkOS)
@@ -260,22 +261,22 @@ options =
     , meaning = (\n f -> f{ getSolver = findSatSolver MiniSat n }) <$> argFile
     , help    = [ "Specify the path to the minisat SAT-solver executable."] }
   , Option
-    { long    = "strategy"
+    { long    = "processor"
     , short    = "s"
     , meaning = (\n f -> f{ makeProcessor = const $ processorFromString n }) <$> argString
     , help    = [ "Specifies the strategy. For a list of strategies see '-l'."]
     }
   , Option
-    { long    = "strategyfile"
+    { long    = "processorfile"
     , short    = "S"
     , meaning = (\n f -> f{ makeProcessor = const $ processorFromFile n }) <$> argFile
     , help    = [ "Like '-s', but reads the strategy from the given file."]
     }
   , Option
-    { long    = "strategies"
+    { long    = "list"
     , short   = "l"
     , meaning = (\ n f -> f{ listStrategies = Just n}) <$> argOptString
-    , help    = [ "Prints a full list of strategies."]
+    , help    = [ "Prints a full list of processors."]
     }
   , Option
     { long    = "logfile"
@@ -309,7 +310,26 @@ options =
     }
   ]
 
-
+haddockOptions :: Doc
+haddockOptions = vcat [ ppOpt opt | opt <- options]
+  where ppOpt opt = 
+            itm opt True $+$ itm opt False 
+        itm opt b = 
+          (text "[" <> line <> nme <+> text (escape syn) <> text "]")
+          $+$ paragraph hlp
+          $+$ text ""
+            where line | b = text "--"
+                       | otherwise = text "-"
+                  nme | b = text $ long opt
+                      | otherwise = text $ short opt
+                  syn = unwords $ args (meaning opt)
+                  hlp | b = unlines (help opt)
+                      | otherwise = "Same as '-" ++ long opt ++ "'."
+        escape = concatMap esc
+          where esc c | c `elem` "/'`\"@<[]" = ['\\',c]
+                      | otherwise            = [c]
+          
+        
 ----------------------------------------------------------------------
 -- TCT monad
 

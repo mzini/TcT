@@ -31,6 +31,7 @@ module Tct.Main.Flags
  , Options
  , Option (..)
  , (<$>)
+ , args
  , unit
  , argNum 
  , argAT

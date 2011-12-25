@@ -366,8 +366,7 @@ runTct cfg
                    ++ cfgdir 
                    ++ "failed. We abort.")
        liftIO $ 
-         do h <- runCommand "ghci"
-            _ <- waitForProcess h
+         do (runCommand "ghci" >>= waitForProcess >> return ()) `C.catch` (\ (_:: C.SomeException) -> return ())
             putStrLn "Bye, have a nice day!"
             return []
   | otherwise = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState

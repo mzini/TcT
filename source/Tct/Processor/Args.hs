@@ -115,10 +115,10 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                  , P.adName       = name a
                                  , P.adDefault    = 
                                      if isOptional_ a 
-                                     then Just $ showArg (Phantom :: Phantom a) (defaultValue a) 
+                                     then Just $ showArg (Phantom :: Phantom a) (defaultValue a)
                                      else Nothing
                                  , P.adDescr      = description a
-                                 , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
+                                 , P.adSynopsis   = "[" ++ domainName (Phantom :: Phantom a)  ++ "]" }]
 
     parseInteractive a procs = 
         do putStrLn $ show (text "* Argument" <+> text (name a) <+> moptional

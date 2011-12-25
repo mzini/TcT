@@ -1,5 +1,3 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -23,6 +21,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Tct.Processor.Args.Instances 
        ( Proc (..)
        , Processor
@@ -85,7 +85,7 @@ instance ParsableArgument Nat where
 
 instance Argument Bool where
     type Domain Bool = Bool
-    domainName Phantom = "<On|Off>"
+    domainName Phantom = "On|Off"
     showArg _ True = "On"
     showArg _ False = "Off"
 
@@ -118,8 +118,8 @@ instance ParsableArgument a => ParsableArgument [a] where
 
 newtype EnumOf a = EnumOf a    
 
-domainNameList :: Show e => [e] -> String
-domainNameList l = concat $ intersperse "|" [ show e | e <- l ]
+domainNameList :: [String] -> String
+domainNameList l = concat $ intersperse "|" [ e | e <- l ]
 
 parseArgAssoc :: [(String,e)] -> P.ProcessorParser e
 parseArgAssoc  l = choice [ try $ pa n e | (n,e) <- l]
@@ -128,7 +128,7 @@ parseArgAssoc  l = choice [ try $ pa n e | (n,e) <- l]
 
 instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
     type Domain (EnumOf a) = a
-    domainName Phantom = domainNameList [(minBound :: a) .. maxBound]
+    domainName Phantom = domainNameList [show e | e <- [(minBound :: a) .. maxBound]]
     showArg _ a = show a
 
 instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where

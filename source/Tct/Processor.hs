@@ -74,6 +74,8 @@ module Tct.Processor
     , mrSynopsis
     -- * Default Options
     , IsDefaultOption (..)
+    -- * Misc
+    , haddockComment
     ) 
 where
 
@@ -378,6 +380,26 @@ instance PrettyPrintable SomeProcessor where
               sname = name proc 
               descr = description proc 
               block n d = text n <> text ":" $+$ nest 1 d
+
+haddockComment :: ParsableProcessor p => p -> Doc
+haddockComment proc = 
+  Utils.paragraph (unlines (description proc))
+  $+$ text ""
+  $+$ ppargs
+    where args = map snd (posArgs proc) ++ optArgs proc
+          ppargs | null args = empty
+                 | otherwise = vcat [ pparg a $+$ text "" | a <- args]
+          pparg a = text "["
+                    <> text (adName a) <+> text "::" <+> text (escapedSyn a) 
+                    <+> (if adIsOptional a then text "/(optional)/" else empty)
+                    <> text "]"
+                    <+> text (adDescr a)
+          escapedSyn a = concatMap esc $ adSynopsis a
+            where esc c | c `elem` "/'`\"@<[]" = ['\\',c]
+                        | otherwise            = [c]
+                  
+                  
+  
 
 instance Show (InstanceOf SomeProcessor) where 
     show _ = "InstanceOf SomeProcessor"

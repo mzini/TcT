@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+
 {-
 This file is part of the Tyrolean Complexity Tool (TCT).
 
@@ -60,7 +60,7 @@ class (P.ComplexityProof (ProofOf proc)) => Processor proc where
     solvePartial _ _ prob = return $ P.PartialInapplicable prob
 
 
-data StdProcessor a = StdProcessor a  deriving (Show)
+data StdProcessor a = StdProcessor a
 
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where

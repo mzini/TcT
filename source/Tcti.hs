@@ -1,34 +1,43 @@
---------------------------------------------------------------------------------
--- | 
--- Module      :  Tcti
--- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
---                Georg Moser <georg.moser@uibk.ac.at>, 
---                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
--- License     :  LGPL (see COPYING)
---
--- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
--- Stability   :  unstable
--- Portability :  unportable      
--- 
--- This module describes the interactive interface to TCT.
--- 
---------------------------------------------------------------------------------      
+{- | 
+Module      :  Tcti
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+License     :  LGPL (see COPYING)
 
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+This section describes the /interactive interface/ of TcT (/TcT-i/ for short), 
+for usage information on the /command line interface/, please 
+refer to "Tct". 
+Since TcT-i relies on the Interpreter 'ghci' from the Glasgow 
+Haskell Compiler (<http://www.haskell.org/ghc/>), the interactive
+interface is only available if 'ghci' is present on your system.
+As explained in "Tct.Configuration", 
+TcT can be easily customized. TcT-i makes use of this by loading 
+the configuration file, usually located in '${HOME}/.tct/tct.hs'.
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
+The interactive interface is invoked from the command line as follows:
 
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+>>> tct -i
+GHCi, version 7.0.3: http://www.haskell.org/ghc/  :? for help
+...
+Loading package tct-1.9 ... linking ... done.
+[1 of 1] Compiling Main             ( tct.hs, interpreted )
+Ok, modules loaded: Main.
+  Welcome to the TcT
+  ------------------
+...
+TcT> 
+
+As can be readily seen from the output,  
+this command starts a customized version of 'ghci'. 
+In particular all the functionality of 'ghci' is available, cf.
+<http://www.haskell.org/ghc/docs/latest/html/users_guide/ghci.html>
+on general usage information of 'ghci'
+
 -}
 
 {-# LANGUAGE UndecidableInstances #-}
@@ -39,26 +48,142 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 module Tcti 
     (      
       -- * Loading Problems
+      -- | A complexity problem can be loaded into TcT-i by invoking
+      -- the 'load' action. This action accepts a file path refering  
+      -- to either a file in the old tpdb-format (cf. <http://www.lri.fr/~marche/tpdb/format.html>)
+      -- or in the new xml-based format (cf. <http://dev.aspsimon.org/xtc.xsd>).
+      -- Examples are available in the directory 'examples' in the software distribution, 
+      -- or the current termination problem database 
+      -- (<http://termcomp.uibk.ac.at/status/downloads/tpdb-current-exported.tar.gz>).
       load
-      -- | load a problem from the given file
+      -- | Loads a complexity problem from the given file.
+      -- 
+      -- >>> load "examples/quot.trs" 
+      -- --------------------------------------------------------------------
+      -- Selected Open Problems:
+      -- -----------------------
+      -- Strict Trs:
+      --   {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --    , quot(0(), s(y)) -> 0()
+      --    , minus(s(x), s(y)) -> minus(x, y)
+      --    , minus(x, 0()) -> x}
+      -- StartTerms: basic terms
+      -- Strategy: none
+      ----------------------------------------------------------------------
+      --
+      -- After loading is completed, the /current proof state/ is displayed. 
+      -- In the example, the proof state consists of the problem loaded from
+      -- the file "examples/quot.trs".
+      
+      -- ** Loading Problems with Respect to a Complexity Category
+      -- | For convenience, TcT-i provides the following modifications of 'load', 
+      -- matching the categories of the complexity division of 
+      -- the internation termination competition 
+      -- <http://termination-portal.org/wiki/Complexity>.
+    
     , loadRC
-      -- | same as 'load', overwrites strategy and start-terms 
-      -- in order to match a runtime-complexity problem
+      -- | Same as 'load', but overwrites strategy and start-terms 
+      -- in order to match a runtime-complexity problem.
     , loadIRC
-      -- | same as 'load', overwrites strategy and start-terms 
-      -- in order to match a innermost runtime-complexity problem
+      -- | Same as 'load', but overwrites strategy and start-terms 
+      -- in order to match a innermost runtime-complexity problem.
     , loadDC
-      -- | same as 'load', overwrites strategy and start-terms 
-      -- in order to match a derivational-complexity problem
+      -- | Same as 'load', but overwrites strategy and start-terms 
+      -- in order to match a derivational-complexity problem.
     , loadIDC      
-      -- | same as 'load', overwrites strategy and start-terms 
+      -- | same as 'load', but overwrites strategy and start-terms 
       -- in order to match a innermost derivational-complexity problem
       
-      -- * Inspecting the Current Proof State
+      -- * The Proof State
+      -- | During the interactive session, TcT-i maintains a so called
+      -- /proof state/, which is basically a list of /open complexity problems/
+      -- together with some information on how this state was obtained. 
+      -- In order to prove upper bounds on complexity problem, this 
+      -- proof state needs to be reduced to the empty list. 
+      -- 
+      -- To see the list of open problems, use the action 'state'. 
+      -- To obtain a proof, use the action 'proof'.
+    
     , state
-      -- | this procedure prints the current proof state
+      -- | This action prints the current proof state.
+      --
+      -- >>> state
+      -- ----------------------------------------------------------------------
+      -- Selected Open Problems:
+      -- -----------------------
+      --   Strict DPs:
+      --     {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --      , quot^#(0(), s(y)) -> c_2()
+      --      , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --      , minus^#(x, 0()) -> x}
+      --   Strict Trs:
+      --     {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --      , quot(0(), s(y)) -> 0()
+      --      , minus(s(x), s(y)) -> minus(x, y)
+      --      , minus(x, 0()) -> x}
+      --   StartTerms: basic terms
+      --   Strategy: none
+      -- ----------------------------------------------------------------------
+      --
+      -- The output shows the example from 'load', already simplified using weak dependency pairs.
+
     , proof
-      -- | this procedure prints the current proof tree
+      -- | This action prints the current proof tree.
+      --
+      -- >>> proof
+      --  1) Weak Dependency Pairs [OPEN]:
+      -- ---------------------------------
+      --   We consider the following problem:
+      --     Strict Trs:
+      --       {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --        , quot(0(), s(y)) -> 0()
+      --        , minus(s(x), s(y)) -> minus(x, y)
+      --        , minus(x, 0()) -> x}
+      --     StartTerms: basic terms
+      --     Strategy: none
+      --   We have computed the following dependency pairs
+      --     Strict DPs:
+      --       {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --        , quot^#(0(), s(y)) -> c_2()
+      --        , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --        , minus^#(x, 0()) -> x}
+      --   Generated New Problems:
+      --   -----------------------
+      --     * Problem 1.1)
+      --         Strict DPs:
+      --           {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --            , quot^#(0(), s(y)) -> c_2()
+      --            , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --            , minus^#(x, 0()) -> x}
+      --         Strict Trs:
+      --           {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --            , quot(0(), s(y)) -> 0()
+      --            , minus(s(x), s(y)) -> minus(x, y)
+      --            , minus(x, 0()) -> x}
+      --         StartTerms: basic terms
+      --         Strategy: none
+      --   1.1) Open Problem [OPEN]:
+      --   -------------------------
+      --     We consider the following problem:
+      --       Strict DPs:
+      --         {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --          , quot^#(0(), s(y)) -> c_2()
+      --          , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --          , minus^#(x, 0()) -> x}
+      --       Strict Trs:
+      --         {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --          , quot(0(), s(y)) -> 0()
+      --          , minus(s(x), s(y)) -> minus(x, y)
+      --          , minus(x, 0()) -> x}
+      --       StartTerms: basic terms
+      --       Strategy: none
+      --
+      -- The output shows the example from 'state'. The output reflects
+      -- that the loaded problem has been simplified using the weak dependency
+      -- pairs transformation. Since 'state' contains still open problems, 
+      -- the proof also open subproblems, in this case 
+      -- subproblem 1.1).
+
     , problems
       -- | returns the list of selected open problems
     , wdgs
@@ -630,6 +755,11 @@ instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.S
 instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
   describe = describe . S.StdProcessor
 
+instance (T.Transformer t) => Show (T.Transformation t sub) where
+  show (T.Transformation t) = "<transformation " ++ T.name t ++ ">"
+
+instance (S.Processor p) => Show (S.StdProcessor p) where
+  show (S.StdProcessor p) = "<processor " ++ S.name p ++ ">"
 
 allProcessors :: IO (P.AnyProcessor)
 allProcessors = Tct.processors `liftM` getConfig
@@ -646,6 +776,11 @@ processor proc =
        mkInst `liftM` A.parseInteractive (S.arguments proc) procs
   where mkInst args = (S.StdProcessor proc) `S.withArgs` args
           
+-- instance Apply P.SomeProcessor where
+--   apply' (P.SomeProcessor p) = 
+--     case cast p of 
+--       Just (S.StdProcessor (T.Transformation t)) -> undefined
+    
 instance (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => Apply (S.StdProcessor p) where
   apply' (S.StdProcessor proc) selected = 
     do inst <- processor proc

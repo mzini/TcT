@@ -451,7 +451,7 @@ instance (Transformer t) => Transformer (Try t) where
 --------------------------------------------------------------------------------
 -- SomeTransformation
 
-data SomeTransformation= forall t. (Transformer t) => SomeTransformation t (Domains (ArgumentsOf t))
+data SomeTransformation = forall t. (Transformer t) => SomeTransformation t (Domains (ArgumentsOf t))
 data SomeTransProof = forall t. (TransformationProof t) => SomeTransProof (TheTransformer t) (ProofOf t)
 
 instance TransformationProof SomeTransformation where

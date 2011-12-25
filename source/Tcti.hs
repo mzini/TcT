@@ -91,8 +91,8 @@ module Tcti
       -- | Same as 'load', but overwrites strategy and start-terms 
       -- in order to match a derivational-complexity problem.
     , loadIDC      
-      -- | same as 'load', but overwrites strategy and start-terms 
-      -- in order to match a innermost derivational-complexity problem
+      -- | Same as 'load', but overwrites strategy and start-terms 
+      -- in order to match a innermost derivational-complexity problem.
       
       -- * The Proof State
       -- | During the interactive session, TcT-i maintains a so called
@@ -103,7 +103,134 @@ module Tcti
       -- 
       -- To see the list of open problems, use the action 'state'. 
       -- To obtain a proof, use the action 'proof'.
-    
+      
+      -- ** Modifying the State
+      -- | The proof state is simplified by applying instance of processors.
+      -- A processor is the TcT representation of a complexity technique. 
+      -- Processors are separated for historical reasons into /standard-processors/
+      -- and /transformers/. Predefined processors are available in module "Tct.Processors".
+      -- 
+      -- Processors are usually parameterised by some arguments, for instance the 
+      -- dependency pair processor 'Processors.dependencyPairs' accepts a flag 'usetuples'
+      -- that defines whether dependency tuples should be employed. 
+      -- Processors with instantiated arguments are called /instances of processors/. 
+      -- When applying a processor, TcT-i will prompt the user for any necessary arguments
+      -- so it can construct the corresponding instance.
+      -- 
+      -- Instances can also be constructed directly, using the functionality provided in
+      -- "Tct.Instances". This module defines also a wealth of combinators. 
+    , Apply
+      -- | Instance of the class apply can be used to modify 
+      -- the list of (selected) open problems using the procedure 'apply' defined below.
+    , apply 
+      -- | the call 'apply m' applies method 'm' to the list of selected open problems, 
+      -- replacing the selected problems with the outcome of applying 'm'. 
+      -- 
+      -- The following example demonstrates the application of dependency pairs.
+      -- Note that when a processor from 'Tct.Processors' is applied, 
+      -- TcT-i might ask for further flags.
+      -- 
+      -- >>> apply Processor.dependencyPairs
+      -- Input arguments for dp
+      -- * 'usetuples'
+      --   This argument specifies whether dependency tuples instead of pairs
+      --   should be used.
+      --   Synopsis: On|Off
+      --   Use the default value 'Off'? Enter 'yes' or 'no', default is 'yes':
+      --   > 
+      --   Problem 1:
+      --   ----------
+      --     1) Dependency Pairs [OPEN]:
+      --     ---------------------------
+      --       We consider the following problem:
+      --         Strict Trs:
+      --           {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --            , quot(0(), s(y)) -> 0()
+      --            , minus(s(x), s(y)) -> minus(x, y)
+      --            , minus(x, 0()) -> x}
+      --         StartTerms: basic terms
+      --         Strategy: none
+      --       We have computed the following dependency pairs
+      --         Strict DPs:
+      --           {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --            , quot^#(0(), s(y)) -> c_2()
+      --            , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --            , minus^#(x, 0()) -> x}
+      --       Generated New Problems:
+      --       -----------------------
+      --         * Problem 1.1)
+      --             Strict DPs:
+      --               {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --                , quot^#(0(), s(y)) -> c_2()
+      --                , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --                , minus^#(x, 0()) -> x}
+      --             Strict Trs:
+      --               {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --                , quot(0(), s(y)) -> 0()
+      --                , minus(s(x), s(y)) -> minus(x, y)
+      --                , minus(x, 0()) -> x}
+      --             StartTerms: basic terms
+      --             Strategy: none
+      --       1.1) Open Problem [OPEN]:
+      --       -------------------------
+      --         We consider the following problem:
+      --           Strict DPs:
+      --             {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --              , quot^#(0(), s(y)) -> c_2()
+      --              , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --              , minus^#(x, 0()) -> x}
+      --           Strict Trs:
+      --             {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --              , quot(0(), s(y)) -> 0()
+      --              , minus(s(x), s(y)) -> minus(x, y)
+      --              , minus(x, 0()) -> x}
+      --           StartTerms: basic terms
+      --           Strategy: none
+      -- 
+      --   ----------------------------------------------------------------------
+      --   Selected Open Problems:
+      --   -----------------------
+      --     Strict DPs:
+      --       {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --        , quot^#(0(), s(y)) -> c_2()
+      --        , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --        , minus^#(x, 0()) -> x}
+      --     Strict Trs:
+      --       {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --        , quot(0(), s(y)) -> 0()
+      --        , minus(s(x), s(y)) -> minus(x, y)
+      --        , minus(x, 0()) -> x}
+      --     StartTerms: basic terms
+      --     Strategy: none
+      --   ----------------------------------------------------------------------
+      -- 
+      -- Note that the state was changed by replacing the old problem with
+      -- the new problem generated by dependency pairs.
+      --
+      -- The action 'apply' allows also the application of instances, in 
+      -- combination with the combinators from "Tct.Instances"
+      -- directly.
+      -- 
+      -- >>> apply $ try removeTails >>> try usableRules 
+      -- ...
+      -- ----------------------------------------------------------------------
+      -- Selected Open Problems:
+      -- -----------------------
+      --   Strict DPs:
+      --     {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --      , quot^#(0(), s(y)) -> c_2()
+      --      , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --      , minus^#(x, 0()) -> x}
+      --   Strict Trs:
+      --     {  minus(s(x), s(y)) -> minus(x, y)
+      --      , minus(x, 0()) -> x}
+      --   StartTerms: basic terms
+      --   Strategy: none
+      -- ----------------------------------------------------------------------
+      --
+      
+      
+      -- ** Inspecting the State
     , state
       -- | This action prints the current proof state.
       --
@@ -185,7 +312,7 @@ module Tcti
       -- subproblem 1.1).
 
     , problems
-      -- | returns the list of selected open problems
+      -- | Returns the list of selected open problems.
     , wdgs
       -- | displays the weak dependency graphs of all selected
       -- problems. If 'dot' from the GraphViz project (c.f. <http://www.graphviz.org/>) 
@@ -199,23 +326,6 @@ module Tcti
     , uargs      
       -- | displays the argument positions of the selected problems
 
-      -- * Modifying the Current Proof State
-      -- ** Simplifying and Solving
-    , Apply
-      -- | instance of the class apply can be used to modify 
-      -- the list of (selected) open problems using the procedure 'apply'
-    , apply 
-      -- | the call 'apply m' applies method 'm' to the list of selected open problems, 
-      -- replacing the selected problems with the outcome of applying 'm'. 
-      -- For instance, if 'm' is an instance of a processor (see "Tct.Instances#MethodsProcs" for 
-      -- a list of processor instances) an the processor succeeds on a 
-      -- selected open problem, then this problem is closed.
-      -- If 'm' is an instance of a transformation (see "Tct.Instances#MethodsTrans")
-      -- that succeeds on an selected open problem, then the this 
-      -- problem is replaced by the transformation result.
-      -- See also 'describe' for documentation on particular techniques.
-      -- 
-      -- To change the list of selected problems, see "Tct.Tcti#Select".
       
       -- ** Selecting and Unselecting Problems #Select#      
       -- | Sometimes it is convenient to consider a sublist of the list
@@ -314,6 +424,7 @@ import qualified Termlib.Term.Parser as TParser
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
+import qualified Tct.Processors as Processors
 import Tct.Processor.PPrint
 import Tct.Main.Version (version)
 import qualified Tct.Processor as P
@@ -767,12 +878,14 @@ allProcessors = Tct.processors `liftM` getConfig
 transformation :: (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => t -> IO (T.TheTransformer t)
 transformation trans = 
   do procs <- allProcessors
+     putStrLn $ "Input arguments for " ++ T.name trans
      mkInst `liftM` A.parseInteractive (T.arguments trans) procs
   where mkInst args = (T.Transformation trans) `T.withArgs` args
 
 processor :: (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => p -> IO (P.InstanceOf (S.StdProcessor p))
 processor proc = 
     do procs <- allProcessors
+       putStrLn $ "Input arguments for " ++ S.name proc
        mkInst `liftM` A.parseInteractive (S.arguments proc) procs
   where mkInst args = (S.StdProcessor proc) `S.withArgs` args
           

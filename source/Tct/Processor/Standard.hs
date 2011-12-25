@@ -84,7 +84,8 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
                                           return $ TP $ TheProcessor { processor = a
                                                                      , processorArgs = args}
     parseFromArgsInteractive (StdProcessor a) procs =
-      do as <- A.parseInteractive (arguments a) procs 
+      do putStrLn $ "Input arguments for " ++ name a
+         as <- A.parseInteractive (arguments a) procs 
          return $ TP (TheProcessor a as)
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)

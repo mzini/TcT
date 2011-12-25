@@ -41,6 +41,8 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE CPP #-}
 module Tct.Processors where
 
+-- Use 'tct-utils/scripts/createProcessors.sh <tct-source-dir>' to create included files and update Tct.Processors
+
 import Prelude hiding (fail, uncurry)
 #include "_Processors_Imports_.hs"
 

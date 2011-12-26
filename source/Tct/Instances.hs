@@ -340,7 +340,7 @@ module Tct.Instances
       -- | Translates an 'Arg' to an optional argument, by supplying a name 
       -- and a default value
     
-      -- ** Built-in Drgument Descriptions  #argdescr#
+      -- ** Built-in Argument Descriptions  #argdescr#
     , ArgInstances.assocArg 
     , ArgInstances.boolArg
     , ArgInstances.enumArg

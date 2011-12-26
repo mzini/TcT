@@ -501,7 +501,7 @@ initialGhciFile = return $ content
                   , ":set prompt \"TcT> \""
                   , ":load tct.hs"
                   , "setConfig config"
-                  , "help" ]
+                  , "welcome" ]
   
 initialConfigFile :: IO String
 initialConfigFile = 
@@ -514,6 +514,7 @@ initialConfigFile =
                               , ("Tct"                           , Nothing)
                               , ("Tcti"                          , Nothing)
                               , ("Tct.Instances"                 , Just "Instance")
+                              , ("Tct.Instances"                 , Nothing)                                
                               , ("Tct.Processors"                , Just "Processor")
                               , ("Termlib.Repl hiding (strategy)", Nothing) 
                               , ("Termlib.Repl"                  , Just "TR")                                 

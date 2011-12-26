@@ -98,7 +98,7 @@ instance T.TransformationProof PathAnalysis where
                      T.Progress _ subprobs -> 
                          case mproofs of 
                            Just proofs -> if all P.succeeded proofs
-                                          then P.answerFromCertificate $ certified (unknown, mkUb proofs)
+                                          then P.CertAnswer $ certified (unknown, mkUb proofs)
                                           else P.MaybeAnswer
                            Nothing  -> P.NoAnswer
                          where mproofs = sequence [ T.findProof e proof | (SN e,_) <- subprobs]

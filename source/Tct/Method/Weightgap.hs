@@ -1,3 +1,17 @@
+{- | 
+Module      :  Tct.Method.Weightgap
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
+
+Maintainer  :  Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
+
+This module defines the weight gap processor.
+-}
+
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}

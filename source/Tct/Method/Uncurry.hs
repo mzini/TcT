@@ -64,7 +64,7 @@ data UncurryProof = UncurryProof { inputProblem    :: Problem
 instance T.TransformationProof Uncurry where
     answer proof = case (T.transformationProof proof, T.subProofs proof) of 
                      (NotUncurryable _, _             ) -> P.MaybeAnswer
-                     (EmptyStrictRules, _             ) -> P.answerFromCertificate $ certified (constant, constant)
+                     (EmptyStrictRules, _             ) -> P.CertAnswer $ certified (constant, constant)
                      (_               , [(_,subproof)]) -> P.answer subproof
                      (_               , _             ) -> P.MaybeAnswer
     pprintTProof _ _ proof =

@@ -1,18 +1,16 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Encoding.Natring
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements safe mapping, together with a a SAT encoding.
+By convention, n-ary function symbols admit argument positions '[1..n]'.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -21,15 +19,30 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Encoding.SafeMapping
-  ( SafeMapping
-  , SafePosition
-  , isSafe
-  , isSafeP
-  , setSafe
-  , setSafes
-  , safeArgumentPositions
+  ( 
+    -- * Safe Mappings
+    SafeMapping
   , empty
+    -- | The empty safe argument filtering.
+  , isSafe
+    -- | Predicate that checks wether the given argument position
+    -- of the given symbol is safe.
+    
+  , setSafe
+    -- | Set ith argument position of given symbol safe.
+    
+  , setSafes
+    -- | List version of 'setSafe'.
+    
+  , safeArgumentPositions
+    -- | Returns the list of safe argument positions.
+    
+    -- * Sat Encoding
   , validSafeMapping
+    -- | Add this constraint for a valid SAT encoding.          
+  , isSafeP
+    -- | The Formula 'isSafeP f i' reflects
+    -- that the ith argument position of 'f' is safe.
   )
 where
 

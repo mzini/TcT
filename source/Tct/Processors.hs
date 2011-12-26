@@ -22,7 +22,8 @@
 {-# LANGUAGE CPP #-}
 module Tct.Processors where
 
--- Use 'tct-utils/scripts/createProcessors.sh <tct-source-dir>' to create included files and update Tct.Processors
+-- Use 'tct-utils/scripts/createProcessors.sh <tct-source-dir>' to create
+-- list of processors
 
 import Prelude hiding (fail, uncurry)
 

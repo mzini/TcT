@@ -1,18 +1,16 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Encoding.ArgumentFiltering
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module provides a SAT encoding of argument filterings.
+By convention, n-ary function symbols admit argument positions '[1..n]'.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -20,11 +18,17 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Encoding.ArgumentFiltering 
-    ( isCollapsing
+    ( validSafeArgumentFiltering
+      -- | Add this constraint for a valid SAT encoding.      
+    , isCollapsing
+      -- | This formula holds if the argument filtering collapses 
+      -- on the symbol.
     , isInFilter
+      -- | The formula @isInFilter f i@ holds if the ith argument 
+      -- filtering is in the filtering.
     , initial
-    , insert
-    , validSafeArgumentFiltering)
+    -- | Initial argument filtering.
+    )
 where
 
 import qualified Data.IntSet as IntSet

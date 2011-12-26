@@ -1,36 +1,66 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Certificate
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module defines the 'Certificate' and 'Complexity' datatype, 
+together with accessors.
 -}
 
 module Tct.Certificate
-    ( Complexity (..)
-    , Certificate 
-    , lowerBound
-    , upperBound
-    , certified
-    , uncertified
-    , add
-    , mult
-    , compose
-    , iter
+    ( 
+      -- * Complexity 
+      
+      Complexity (..)
+      -- | The datatype 'Complexity' is TcTs representation
+      -- of a bounding function, in big-O notation
+      
+      -- ** Constructors
     , constant
+      -- | Constructor for constant bounding function.
     , poly
+      -- | Constructor for polynomial bounding function, with optional degree.
     , expo
+      -- | Constructor for elementary (k-exponential) bounding function.
+    , supexp
+      -- | Constructor for super exponential bounding function.
     , primrec
-    , unknown
+      -- | Constructor for primitive recursive bounding function.      
+    , unknown      
+      
+      -- ** Combinations
+    , add
+      -- | Addition of bounds modulo big-O notation, i.e., @f ``add`` g@ so 
+      -- constructs an element of 'Complexity' that majorises @O(f(n)) + O(g(n))@.
+    , mult
+      -- | Multiplication of bounds modulo big-O notation, i.e., @f ``mult`` g@ so 
+      -- constructs an element of 'Complexity' that majorises @O(f(n)) + O(g(n))@.
+    , compose
+      -- | Composition of bounds modulo big-O notation, i.e., @f ``compose`` g@ so 
+      -- constructs an element of 'Complexity' that majorises @O(f(g(n)))@.
+    , iter
+      -- | Iteration of bounds modulo big-O notation, i.e., @f ``iter`` g@ so 
+      -- constructs an element of 'Complexity' that majorises @O(f(..f(n)..))@ 
+      -- with @O(m)@ occurences of @f@.
+      
+      -- * Complexity Certificate
+    , Certificate 
+      -- | A certificate consists of a lower and an upper bound. 
+    , lowerBound
+      -- | Extract the lower bound from a 'Certificate'.
+    , upperBound
+      -- | Extract the upper bound from a 'Certificate'.
+    , certified
+      -- | The call @certificate (l,u)@ constructs a 'Certificate' 
+      -- with lower bound @l@ and upper bound @u@.
+    , uncertified
+      -- | Constructs a 'Certificate' where both lower and upper bounds are unknown.
     )
 where 
 import Termlib.Utils (PrettyPrintable(..), Parsable(..))
@@ -39,13 +69,19 @@ import Text.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Char
 import Text.PrettyPrint.HughesPJ hiding (char)
 
-data Complexity = Poly (Maybe Int)
-                | Exp (Maybe Int)
-                | Supexp
-                | Primrec
-                | Multrec
-                | Rec 
-                | Unknown deriving (Eq, Show)
+data Complexity = Poly (Maybe Int) -- ^ Polynomial. If argument is @Just k@, then 
+                                   -- @k@ gives the degree of the polynomial
+                | Exp (Maybe Int) -- ^ Exponential. If argument is @Nothing@, then 
+                                  -- represented bounding function is elementary. If argument 
+                                  -- is @Just k@, then bounding function is k-exponential. 
+                                  -- Hence @Exp (Just 1)@ represents an exponential bounding 
+                                  -- function. 
+                | Supexp -- ^ Super exponential.
+                | Primrec -- ^ Primitive recursive.
+                | Multrec -- ^ Multiple recursive.
+                | Rec -- ^ Recursive.
+                | Unknown -- ^ Unknown.
+                deriving (Eq, Show)
 
 rank :: Complexity -> (Int, Int)
 rank (Poly (Just r)) = (42,r)
@@ -123,6 +159,9 @@ constant = Poly (Just 0)
 
 expo :: Maybe Int -> Complexity
 expo = Exp
+
+supexp :: Complexity
+supexp = Supexp
 
 primrec :: Complexity
 primrec = Primrec

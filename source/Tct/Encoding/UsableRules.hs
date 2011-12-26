@@ -1,29 +1,33 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Encoding.UsableRules
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements a SAT encoding of usable rules
+with respect to the argument filtering encoding, 
+cf. module "Tct.Encoding.ArgumentFiltering".
 -}
+
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Tct.Encoding.UsableRules 
        (
          validUsableRulesEncoding
+         -- | Add this constraint for a valid SAT encoding.
        , usable 
+         -- | Propositional formula that holds if the given rule is 
+         -- usable.
        , initialUsables
+         -- | Initial left-hand side roots symbols of usable rules.
        )
        where
 

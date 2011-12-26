@@ -75,7 +75,7 @@ instance S.Processor Predicate where
                               Union  -> p $ strictTrs prob `Trs.union` weakTrs prob
                               Both   -> p (strictTrs prob) &&  p (weakTrs prob)
                         ProblemPredicate _ p -> p prob                              
-              ans | holds     = P.YesAnswer
+              ans | holds     = P.yesAnswer
                   | otherwise = P.NoAnswer
     arguments _ = opt { A.name = "on"
                       , A.description = unlines [ "Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs)."]

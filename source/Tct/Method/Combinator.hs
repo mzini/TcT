@@ -61,9 +61,9 @@ data TrivialProof = Succeeded
                   | Empty Bool
 
 instance P.ComplexityProof TrivialProof where 
-    answer Succeeded     = P.YesAnswer
+    answer Succeeded     = P.yesAnswer
     answer Failed        = P.NoAnswer
-    answer (Empty True)  = P.answerFromCertificate $ certified (constant,constant)
+    answer (Empty True)  = P.CertAnswer $ certified (constant,constant)
     answer (Empty False) = P.NoAnswer
     pprintProof Succeeded     _ = text "Success"
     pprintProof Failed        _ = text "Fail"

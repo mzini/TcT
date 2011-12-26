@@ -289,7 +289,7 @@ module Tct.Instances
     , Compose.selInverse
     , ComposeRC.defaultSelect
     -- *** Default Options
-    , P.defaultOptions 
+    , IsDefaultOption (..)
     , MatrixOptions (..)
     , PolyOptions (..)
     -- **** Specific Polynomials 
@@ -428,6 +428,9 @@ a `before` b = Combinators.sequentially [P.someInstance a, P.someInstance b]
 dpsimps :: TheTransformer SomeTransformation
 dpsimps   = try DPSimp.removeTails >>> try DPSimp.simpDPRHS >>> UR.usableRules
 
+class IsDefaultOption a where
+    defaultOptions :: a
+
 -- * defaultMatrix
 
 data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind -- ^ defines how the induced certificate is computed.
@@ -439,7 +442,7 @@ data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind -- ^ define
                                    , useUsableArgs :: Bool -- ^ Defines whether monotonicity-constraints are weakened by taking usable argument positions into account. The default is @True@ 
                                    }
 
-instance P.IsDefaultOption MatrixOptions where 
+instance IsDefaultOption MatrixOptions where 
     defaultOptions = MatrixOptions { cert   = NaturalMI.Algebraic
                                    , dim    = 2
                                    , degree = Nothing
@@ -466,29 +469,29 @@ data PolyOptions = PolyOptions { pkind :: Poly.PolyShape
                                , pcbits :: Maybe Int
                                , puseUsableArgs :: Bool }
 
-instance P.IsDefaultOption PolyOptions where
+instance IsDefaultOption PolyOptions where
   defaultOptions = PolyOptions { pkind          = Poly.SimpleShape Poly.Simple
                                , pbits          = 2
                                , pcbits         = Just 3
                                , puseUsableArgs = True }
 
 simplePolynomial :: PolyOptions
-simplePolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Simple }
+simplePolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Simple }
 
 linearPolynomial :: PolyOptions
-linearPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Linear }
+linearPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Linear }
 
 stronglyLinearPolynomial :: PolyOptions
-stronglyLinearPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.StronglyLinear }
+stronglyLinearPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.StronglyLinear }
 
 simpleMixedPolynomial :: PolyOptions
-simpleMixedPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.SimpleMixed }
+simpleMixedPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.SimpleMixed }
 
 quadraticPolynomial :: PolyOptions
-quadraticPolynomial = P.defaultOptions { pkind = Poly.SimpleShape Poly.Quadratic } 
+quadraticPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Quadratic } 
 
 customPolynomial :: ([Variable] -> [Poly.SimpleMonomial]) -> PolyOptions
-customPolynomial mk = P.defaultOptions { pkind = Poly.CustomShape mk}
+customPolynomial mk = defaultOptions { pkind = Poly.CustomShape mk}
 
 poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
 poly p = S.StdProcessor NaturalPI.NaturalPI `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
@@ -531,7 +534,7 @@ optional = Args.optional
 
 
 dos :: MatrixOptions
-dos   = P.defaultOptions { cbits = Just 4, bits = 3}
+dos   = defaultOptions { cbits = Just 4, bits = 3}
 
 lin :: MatrixOptions
 lin   = dos { dim = 1, degree = Just 1}
@@ -553,8 +556,8 @@ te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor
 dc2011 = mixed $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
-      where matrices simple c | simple = empty `before` fastest [matrix P.defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
-                              | otherwise = empty `before` fastest [ matrix P.defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
+      where matrices simple c | simple = empty `before` fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
+                              | otherwise = empty `before` fastest [ matrix defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
             bound       = 6
             direct      = matrices False NaturalMI.Algebraic
             insidewg    = matrices False NaturalMI.Algebraic
@@ -574,7 +577,7 @@ dc2011 = mixed $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.
 rc2011 :: P.InstanceOf P.SomeProcessor
 rc2011 = mixed $ Custom.named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
     where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `orFaster` matchbounds `orFaster` dp mkdp
-          matricesForDegree deg = [ matrix P.defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
+          matricesForDegree deg = [ matrix defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
           
           matricesBlockOf l = fastest [ sequentially $ concatMap (\ j -> matricesForDegree (i + (j * l))) [0..] | i <- [1..max 1 l]] 
           -- fastest [ sequentially (matricesForDegree 1 ++ matricesForDegree (1 + l) ++ matricesForDegree (1 + 2l) ...  ] 

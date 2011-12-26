@@ -1,30 +1,36 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Encoding.Relative
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements a SAT encoding for relative rewriting, 
+where not all rules are strictly oriented.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Encoding.Relative 
-    ( strictlyOriented
+    ( 
+    Orientation
+    , strictlyOriented
+      -- | Use 'strictlyOriented' as atom to denote 
+      -- that the given rule is strictly oriented.
     , weaklyOriented
+      -- | Use 'weaklyOriented' as atom to denote 
+      -- that the given rule is weakly oriented.
     , initialStrictRules
-    , Orientation
-    , StrictRules
-    , trs)
+      -- | Initial value for 'StrictRules'
+      
+    , StrictRules (..)
+      -- | The encoding decodes to a set of strict rules.
+    ) 
 where
 
 import Data.Typeable

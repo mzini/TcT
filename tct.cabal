@@ -43,7 +43,7 @@ Executable tct
   dyre == 0.8.*,
   unix == 2.4.*,
   time == 1.2.*,
-  directory == 1.1.*, 
+  directory >= 1.0 && < 1.2, 
   process == 1.0.1.*,
   system-uuid == 2.1.*,
   satchmo == 1.9.*,

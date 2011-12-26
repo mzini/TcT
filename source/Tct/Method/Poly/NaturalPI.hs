@@ -196,28 +196,28 @@ cbits (_ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
 isUargsOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
 isUargsOn (_ :+: _ :+: _ :+: _ :+: ua) = ua
 
-usableArgsWhereApplicable :: PolyDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> Trs.Trs -> UsablePositions
-usableArgsWhereApplicable PWithDP sig _                     ua strat r s = (if ua then restrictToSignature compSig (usableArgs strat r s) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
+usableArgsWhereApplicable :: PolyDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> UsablePositions
+usableArgsWhereApplicable PWithDP sig _                     ua strat r = (if ua then restrictToSignature compSig (usableArgs strat r) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra      _  _     _ _ = fullWithSignature sig
-usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r s = if ua then usableArgs strat r s else fullWithSignature sig
+usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra      _  _     _ = fullWithSignature sig
+usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r = if ua then usableArgs strat r else fullWithSignature sig
 
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orientRelative strat st strict weak sig mp = orientPoly relativeConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
 
 orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orientDp strat st strict weak sig mp = orientPoly dpConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
 
 orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orientPartialRelative oblrules strat st strict weak sig mp = orientPoly (partialConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
 
 orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orientPartialDp oblrules strat st strict weak sig mp = orientPoly (partialDpConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat Trs.empty (strict `Trs.union` weak)
+  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
 
 orientPoly :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula MiniSatLiteral DioVar Int)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)

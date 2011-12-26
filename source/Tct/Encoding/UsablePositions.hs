@@ -1,20 +1,19 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Encoding.UsablePositions
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements usable argument positions.
+By convention, n-ary function symbols admit argument positions '[1..n]'.
 -}
 
+{-# OPTIONS_HADDOCK prune #-}
 {-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -22,20 +21,27 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Tct.Encoding.UsablePositions
-  ( UsablePositions
+  ( 
+    -- * Usable Argument Positions
+    UsablePositions
+    -- ** Construction
   , empty
   , singleton
-  , emptyWithSignature
-  , fullWithSignature
+  , usableArgs    
+    -- ** Modification
   , setUsable
   , setUsables
-  , usablePositions
   , union
   , unions
-  , restrictToSignature
+    -- ** Querying
   , isUsable
+  , usablePositions
   , usableSubtermsOf
-  , usableArgs
+    
+    -- Unexported
+  , emptyWithSignature
+  , fullWithSignature
+  , restrictToSignature
   )
 where
 
@@ -61,29 +67,38 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 newtype UsablePositions = UP (IntMap IntSet) deriving (Eq, Show)
 
 
+-- | Empty usable positions.
 empty :: UsablePositions
 empty = UP IntMap.empty
 
+-- | Constructs usable argument for a single function symbol.
 singleton :: Symbol -> [Int] -> UsablePositions
 singleton sym is = UP $ IntMap.singleton (enum sym) (IntSet.fromList is)
 
+
+-- | Returns the list of usable argument positions.
 usablePositions :: Symbol -> UsablePositions -> [Int]
 usablePositions sym (UP m) = case IntMap.lookup (enum sym) m of 
                                Just poss -> sort $ IntSet.toList $ poss
                                Nothing -> []
 
+
+-- | Sets the ith argument position of given symbol usable.
 setUsable :: Symbol -> Int -> UsablePositions -> UsablePositions
 setUsable sym i (UP m) = UP $ IntMap.alter alter (enum sym) m
   where alter (Just s) = Just $ IntSet.insert i s
         alter Nothing = Just $ IntSet.singleton i
 
+-- | List version of 'setUsable'.
 setUsables :: Symbol -> [Int] -> UsablePositions -> UsablePositions
 setUsables sym is sm = foldl (\ sm' i -> setUsable sym i sm') sm is
 
 
+-- | Union on usable argument positions.
 union :: UsablePositions -> UsablePositions -> UsablePositions
 (UP u1) `union` (UP u2) = UP $ IntMap.unionWith IntSet.union u1 u2
 
+-- | List version of 'union'.
 unions :: [UsablePositions] -> UsablePositions
 unions = foldl union empty
 
@@ -96,12 +111,13 @@ fullWithSignature sig = unions $ map (\ f -> singleton f $ argumentPositions sig
 restrictToSignature :: Signature -> UsablePositions -> UsablePositions
 restrictToSignature sig (UP ua) = UP $ IntMap.filterWithKey (\f _ -> invEnum f `lookup` sig /= Nothing) ua
 
+-- | Predicate that returns true iff the ith argument position is usable.
 isUsable :: Symbol -> Int -> UsablePositions -> Bool
 isUsable sym i (UP m) = case IntMap.lookup (enum sym) m of 
                           Just poss -> IntSet.member i poss
                           Nothing ->  False
 
-
+-- | Returns the list of subterms under usable positions of a given term.
 usableSubtermsOf :: UsablePositions -> Term -> [Term]
 usableSubtermsOf _   v@(Var _)   = [v]
 usableSubtermsOf up t@(Fun f ts) = t : usables ++ concatMap (usableSubtermsOf up) usables
@@ -120,12 +136,14 @@ instance Show UArgStrategy where
   show UArgByFun = "byFunctions"
   show UArgByCap = "byCap"
 
-usableArgs :: Strategy -> Trs -> Trs -> UsablePositions
+-- | Constructs the usable argument positions of a given TRS, 
+-- with respect to a given strategy.
+usableArgs :: Strategy -> Trs -> UsablePositions
 usableArgs = usableArgsCap
 
-usableArgsCap :: Strategy -> Trs -> Trs -> UsablePositions
-usableArgsCap Innermost r s = usableReplacementMap (r `Trs.union` s) empty
-usableArgsCap _ r s         = fix (usableReplacementMap $ r `Trs.union` s) empty
+usableArgsCap :: Strategy -> Trs -> UsablePositions
+usableArgsCap Innermost r = usableReplacementMap r empty
+usableArgsCap _ r         = fix (usableReplacementMap  r) empty
     where fix f up | res == up = up
                    | otherwise = fix f res
             where res = f up

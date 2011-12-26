@@ -1354,7 +1354,7 @@ cwdgs = (zip [1..] `liftM` problems') >>= mapM f
 uargs :: IO [UA.UsablePositions]
 uargs = (zip [1..] `liftM` problems') >>= mapM f
     where f (i,prob) = pprintIth "Usable Arguments with Repect to Problem" (i, (ua, sig)) >> return ua
-            where ua = UA.usableArgs (Prob.strategy prob) Trs.empty (Prob.allComponents prob)
+            where ua = UA.usableArgs (Prob.strategy prob) (Prob.allComponents prob)
                   sig = Prob.signature prob
 
 termFromString :: String -> Problem -> IO (Term, Problem)

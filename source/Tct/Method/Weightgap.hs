@@ -201,7 +201,7 @@ instance T.Transformer WeightGap where
                                        let (sr, wr) = (Prob.strictComponents prob, Prob.weakComponents prob)
                                        let uarg' = case startTerms prob of
                                                      TermAlgebra    -> fullWithSignature (signature prob)
-                                                     BasicTerms _ _ -> if wgUargs then usableArgs (strategy prob) sr wr else fullWithSignature (signature prob)
+                                                     BasicTerms _ _ -> if wgUargs then usableArgs (strategy prob) (sr `Trs.union` wr) else fullWithSignature (signature prob)
                                        p <- orientMatrix (weightGapConstraints wgon (strictTrs prob)) uarg' (st' wgon) sr wr (signature prob) (wgKind' wgon wgKind :+: wgDeg' wgon wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                                        return $ mkProof wgon p
                                          where st' wgon | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = startTerms prob

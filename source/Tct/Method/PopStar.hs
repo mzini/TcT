@@ -164,7 +164,7 @@ instance ComplexityProof PopStarOrder where
             prec            = popPrecedence order
             modifyUB        = 
               case popArgumentFiltering order of --TODO verify DP setting
-                Just af -> if hasProjection af then (+) 1 else id
+                Just af -> if hasProjection af then (\ b -> max 1 (b * 2))  else id
                 Nothing -> id
             sig = Prob.signature $ popInputProblem order
             hasProjection af = AF.fold (\ sym filtering -> (||) (f sym filtering)) af False

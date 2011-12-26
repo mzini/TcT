@@ -333,3 +333,6 @@ compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: 
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
 composeDynamic = compose Dynamic
 
+composeStatic :: (P.Processor p1) => (RuleSelector ComposeBound) -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (ComposeProc p1)
+composeStatic rs = compose (Static rs)
+

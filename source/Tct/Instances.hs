@@ -175,6 +175,8 @@ module Tct.Instances
       -- is obtained by composition.
     , Compose.composeDynamic
       -- | @composeDynamic = compose Dynamic@
+    , Compose.composeStatic
+      -- | @composeStatic rs = compose (Static rs)@
       
       -- *** DP Transformations      
     , DP.dependencyPairs

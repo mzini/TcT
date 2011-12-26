@@ -12,7 +12,7 @@ Portability :  unportable
 
 This section covers usage information of the /command line interface/
 of TcT, for usage information on the /interactive interface/, please 
-refer to "Tcti". As explained in "Tct.Configuration", TcT can be easily 
+refer to "Tct.Interactive". As explained in "Tct.Configuration", TcT can be easily 
 customized.
 TcT is invoked from the command line as follows:
 

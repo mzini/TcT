@@ -17,9 +17,9 @@ Description:
 
   TcT offers both a /command line interface/ and an /interactive mode/.
   For general usage information on the command line interface, 
-  refer to "Tct.Main", usage of the interactive mode is described
-  in "Tcti". 
-  
+  refer to "Tct.CommandLine", usage of the interactive mode is described
+  in "Tct.Interactive". 
+
 cabal-version:      >= 1.6
 build-type:         Simple
 
@@ -31,7 +31,6 @@ Executable tct
 
 Library
  exposed-modules:   Tct
-                    Tcti
                     Tct.StrategyInfo
                     Tct.Certificate
                     Tct.Main.Flags
@@ -88,6 +87,8 @@ Library
                     Tct.Processors
                     Tct.Configuration
                     Tct.CommandLine
+                    Tct.Interactive
+
 
  build-depends:     base>=4.0, haskell98, containers, HaXml, mtl, qlogic==0.8, termlib==0.8, parsec, pretty, parfold, dyre, unix, filepath, directory, regex-compat, satchmo>=1.7, satchmo-backends>=1.7, array, fgl, system-uuid, time, xhtml, graphviz, text, process == 1.0.1.*
  hs-source-dirs:    source

@@ -508,16 +508,15 @@ initialConfigFile =
   do mrh <- liftIO $ findExecutable "runhaskell"
      return $ maybe content (\ rh -> "#!" ++ rh ++ "\n\n" ++ content) mrh
   
-    where content = unlines $ imports ++ funs
+    where content = unlines $ imports ++ ["\n"] ++ funs
           imports = [ "import " ++ maybe m (\ nme -> "qualified " ++ m ++ " as " ++ nme) n
-                    | (m,n) <- [ ("Prelude hiding (fail, uncurry)", Nothing)
-                              , ("Tct"                           , Nothing)
-                              , ("Tcti"                          , Nothing)
-                              , ("Tct.Instances"                 , Just "Instance")
-                              , ("Tct.Instances"                 , Nothing)                                
-                              , ("Tct.Processors"                , Just "Processor")
-                              , ("Termlib.Repl hiding (strategy)", Nothing) 
-                              , ("Termlib.Repl"                  , Just "TR")                                 
+                    | (m,n) <- [ ("Prelude hiding (fail, uncurry)"       , Nothing)
+                              , ("Tct (Config(..), defaultConfig, tct)" , Nothing)
+                              , ("Tct.Interactive"                      , Nothing)
+                              , ("Tct.Instances"                        , Nothing)                                
+                              , ("Tct.Instances"                        , Just "Instance")
+                              , ("Tct.Processors"                       , Just "Processor")
+                              , ("Termlib.Repl"                         , Just "TR")                                 
                               ]
                     ]
           funs = concat $ 

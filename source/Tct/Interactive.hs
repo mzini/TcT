@@ -1,5 +1,5 @@
 {- | 
-Module      :  Tcti
+Module      :  Tct.Interactive
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
                Georg Moser <georg.moser@uibk.ac.at>, 
                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
@@ -17,7 +17,7 @@ Haskell Compiler (<http://www.haskell.org/ghc/>), the interactive
 interface is only available if 'ghci' is present on your system.
 As explained in "Tct.Configuration", 
 TcT can be easily customized. TcT-i makes use of this by loading 
-the configuration file, usually located in '${HOME}/.tct/tct.hs'.
+the configuration file, usually located in '${HOME}\/.tct\/tct.hs'.
 
 The interactive interface is invoked from the command line as follows:
 
@@ -27,9 +27,20 @@ GHCi, version 7.0.3: http://www.haskell.org/ghc/  :? for help
 Loading package tct-1.9 ... linking ... done.
 [1 of 1] Compiling Main             ( tct.hs, interpreted )
 Ok, modules loaded: Main.
+.
   Welcome to the TcT
   ------------------
-...
+.  
+  This is version 1.8 of the Tyrolean Complexity Tool.
+.  
+  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>,
+      Georg Moser <georg.moser@uibk.ac.at>, and
+      Andreas Schnabl <andreas.schnabl@uibk.ac.at>.
+.  
+  This software is licensed under the GNU Lesser General Public
+  License, see <http://www.gnu.org/licenses/>.
+.  
+  Don't know how to start? Type 'help'.
 TcT> 
 
 As can be readily seen from the output,  
@@ -45,7 +56,7 @@ on general usage information of 'ghci'
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Tcti 
+module Tct.Interactive
     (      
       -- * Loading Problems
       -- | A complexity problem can be loaded into TcT-i by invoking
@@ -102,10 +113,11 @@ module Tcti
       -- proof state needs to be reduced to the empty list. 
       -- 
       -- To see the list of open problems, use the action 'state'. 
-      -- To obtain a proof, use the action 'proof'.
+      -- To obtain a proof, use the action 'proof'. To simplify the state
+      -- use the action 'apply' as described below.
       
-      -- ** Modifying the State
-      -- | The proof state is simplified by applying instance of processors.
+      -- ** Applying Complexity Techniques
+      -- | The proof state is modified by applying instance of processors.
       -- A processor is the TcT representation of a complexity technique. 
       -- Processors are separated for historical reasons into /standard-processors/
       -- and /transformers/. Predefined processors are available in module "Tct.Processors".
@@ -117,17 +129,17 @@ module Tcti
       -- When applying a processor, TcT-i will prompt the user for any necessary arguments
       -- so it can construct the corresponding instance.
       -- 
-      -- Instances can also be constructed directly, using the functionality provided in
+      -- Instances can be constructed also directly, using the functionality provided in
       -- "Tct.Instances". This module defines also a wealth of combinators. 
-    , Apply
-      -- | Instance of the class apply can be used to modify 
-      -- the list of (selected) open problems using the procedure 'apply' defined below.
     , apply 
-      -- | the call 'apply m' applies method 'm' to the list of selected open problems, 
-      -- replacing the selected problems with the outcome of applying 'm'. 
+      -- | Type @'apply' m@ for some technique @m@ to simplify the list of selected open problems 
+      -- using @m@. 
+      -- The proof state is updated by replacing each open problem with the result of applying @m@.
+      -- TcT-i displays the proof fragment resulting from applying @m@ to each selected open problem,
+      -- and finally redisplays the new proof state.
       -- 
       -- The following example demonstrates the application of dependency pairs.
-      -- Note that when a processor from 'Tct.Processors' is applied, 
+      -- Note that when a processor from "Tct.Processors" is applied, 
       -- TcT-i might ask for further flags.
       -- 
       -- >>> apply Processor.dependencyPairs
@@ -140,37 +152,43 @@ module Tcti
       --   > 
       --   Problem 1:
       --   ----------
-      --     1) Dependency Pairs [OPEN]:
-      --     ---------------------------
-      --       We consider the following problem:
-      --         Strict Trs:
-      --           {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
-      --            , quot(0(), s(y)) -> 0()
-      --            , minus(s(x), s(y)) -> minus(x, y)
-      --            , minus(x, 0()) -> x}
-      --         StartTerms: basic terms
-      --         Strategy: none
-      --       We have computed the following dependency pairs
-      --         Strict DPs:
-      --           {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
-      --            , quot^#(0(), s(y)) -> c_2()
-      --            , minus^#(s(x), s(y)) -> minus^#(x, y)
-      --            , minus^#(x, 0()) -> x}
-      --       Generated New Problems:
-      --       -----------------------
-      --         * Problem 1.1)
-      --             Strict DPs:
-      --               {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
-      --                , quot^#(0(), s(y)) -> c_2()
-      --                , minus^#(s(x), s(y)) -> minus^#(x, y)
-      --                , minus^#(x, 0()) -> x}
-      --             Strict Trs:
-      --               {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
-      --                , quot(0(), s(y)) -> 0()
-      --                , minus(s(x), s(y)) -> minus(x, y)
-      --                , minus(x, 0()) -> x}
-      --             StartTerms: basic terms
-      --             Strategy: none
+      -- 1) Dependency Pairs [OPEN]:
+      --   ---------------------------
+      -- .  
+      --     We consider the following problem:
+      --       Strict Trs:
+      --         {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --          , quot(0(), s(y)) -> 0()
+      --          , minus(s(x), s(y)) -> minus(x, y)
+      --          , minus(x, 0()) -> x}
+      --       StartTerms: basic terms
+      --       Strategy: none
+      -- .
+      --     We have computed the following dependency pairs
+      -- .
+      --       Strict DPs:
+      --         {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --          , quot^#(0(), s(y)) -> c_2()
+      --          , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --          , minus^#(x, 0()) -> x}
+      -- .
+      --     Generated New Problems:
+      --     -----------------------
+      -- .
+      --       * Problem 1.1)
+      --           Strict DPs:
+      --             {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --              , quot^#(0(), s(y)) -> c_2()
+      --              , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --              , minus^#(x, 0()) -> x}
+      --           Strict Trs:
+      --             {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --              , quot(0(), s(y)) -> 0()
+      --              , minus(s(x), s(y)) -> minus(x, y)
+      --              , minus(x, 0()) -> x}
+      --           StartTerms: basic terms
+      --           Strategy: none
+      -- .      
       --       1.1) Open Problem [OPEN]:
       --       -------------------------
       --         We consider the following problem:
@@ -186,7 +204,7 @@ module Tcti
       --              , minus(x, 0()) -> x}
       --           StartTerms: basic terms
       --           Strategy: none
-      -- 
+      -- .
       --   ----------------------------------------------------------------------
       --   Selected Open Problems:
       --   -----------------------
@@ -204,13 +222,10 @@ module Tcti
       --     Strategy: none
       --   ----------------------------------------------------------------------
       -- 
-      -- Note that the state was changed by replacing the old problem with
-      -- the new problem generated by dependency pairs.
-      --
-      -- The action 'apply' allows also the application of instances, in 
-      -- combination with the combinators from "Tct.Instances"
-      -- directly.
+      -- The next example shows the application of instances, in 
+      -- combination with the combinators from "Tct.Instances".
       -- 
+      -- >>> :module +Tct.Instances
       -- >>> apply $ try removeTails >>> try usableRules 
       -- ...
       -- ----------------------------------------------------------------------
@@ -228,9 +243,21 @@ module Tcti
       --   Strategy: none
       -- ----------------------------------------------------------------------
       --
+    , Apply
+      -- | Instance of the class apply can be used to modify 
+      -- the list of (selected) open problems using the action 'apply'.
+      -- 
+      -- Values of type @'StdProcessor' p@ and @'Transformation' t sub@
+      -- can be found in module "Tct.Processors".
+      -- Values of type @'P.InstanceOf' p@ and @'TheTransformer' t@ for 
+      -- (standard) processors @p@ and transformations @t@, i.e., 
+      -- instances of processors, are collected in "Tct.Instances".
       
       
       -- ** Inspecting the State
+      -- | As explained above, TcT-i retains a list of open problems 
+      -- and proof information. These are accessible anytime using the 
+      -- actions 'state' and 'proof'. 
     , state
       -- | This action prints the current proof state.
       --
@@ -244,39 +271,60 @@ module Tcti
       --      , minus^#(s(x), s(y)) -> minus^#(x, y)
       --      , minus^#(x, 0()) -> x}
       --   Strict Trs:
-      --     {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
-      --      , quot(0(), s(y)) -> 0()
-      --      , minus(s(x), s(y)) -> minus(x, y)
+      --     {  minus(s(x), s(y)) -> minus(x, y)
       --      , minus(x, 0()) -> x}
       --   StartTerms: basic terms
       --   Strategy: none
       -- ----------------------------------------------------------------------
       --
-      -- The output shows the example from 'load', already simplified using weak dependency pairs.
+      -- The output shows the example from 'load', already simplified using weak dependency pairs, 
+      -- and further processed by @'T.try' 'Instances.removeTails' 'Instances.>>>' 'Instances.try' 'Instances.usableRules'@
 
     , proof
       -- | This action prints the current proof tree.
       --
       -- >>> proof
-      --  1) Weak Dependency Pairs [OPEN]:
-      -- ---------------------------------
-      --   We consider the following problem:
-      --     Strict Trs:
-      --       {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
-      --        , quot(0(), s(y)) -> 0()
-      --        , minus(s(x), s(y)) -> minus(x, y)
-      --        , minus(x, 0()) -> x}
-      --     StartTerms: basic terms
-      --     Strategy: none
-      --   We have computed the following dependency pairs
-      --     Strict DPs:
-      --       {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
-      --        , quot^#(0(), s(y)) -> c_2()
-      --        , minus^#(s(x), s(y)) -> minus^#(x, y)
-      --        , minus^#(x, 0()) -> x}
-      --   Generated New Problems:
-      --   -----------------------
-      --     * Problem 1.1)
+      -- 1) Dependency Pairs [OPEN]:
+      --   ---------------------------
+      -- .  
+      --     We consider the following problem:
+      --       Strict Trs:
+      --         {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --          , quot(0(), s(y)) -> 0()
+      --          , minus(s(x), s(y)) -> minus(x, y)
+      --          , minus(x, 0()) -> x}
+      --       StartTerms: basic terms
+      --       Strategy: none
+      -- .
+      --     We have computed the following dependency pairs
+      -- .
+      --       Strict DPs:
+      --         {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --          , quot^#(0(), s(y)) -> c_2()
+      --          , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --          , minus^#(x, 0()) -> x}
+      -- .
+      --     Generated New Problems:
+      --     -----------------------
+      -- .
+      --       * Problem 1.1)
+      --           Strict DPs:
+      --             {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --              , quot^#(0(), s(y)) -> c_2()
+      --              , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --              , minus^#(x, 0()) -> x}
+      --           Strict Trs:
+      --             {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --              , quot(0(), s(y)) -> 0()
+      --              , minus(s(x), s(y)) -> minus(x, y)
+      --              , minus(x, 0()) -> x}
+      --           StartTerms: basic terms
+      --           Strategy: none
+      -- .
+      --     1.1) removetails >>> ... [OPEN]:
+      --     --------------------------------
+      -- .
+      --       We consider the following problem:
       --         Strict DPs:
       --           {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
       --            , quot^#(0(), s(y)) -> c_2()
@@ -289,42 +337,133 @@ module Tcti
       --            , minus(x, 0()) -> x}
       --         StartTerms: basic terms
       --         Strategy: none
-      --   1.1) Open Problem [OPEN]:
-      --   -------------------------
-      --     We consider the following problem:
-      --       Strict DPs:
-      --         {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
-      --          , quot^#(0(), s(y)) -> c_2()
-      --          , minus^#(s(x), s(y)) -> minus^#(x, y)
-      --          , minus^#(x, 0()) -> x}
-      --       Strict Trs:
-      --         {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
-      --          , quot(0(), s(y)) -> 0()
-      --          , minus(s(x), s(y)) -> minus(x, y)
-      --          , minus(x, 0()) -> x}
-      --       StartTerms: basic terms
-      --       Strategy: none
+      -- .
+      --       The processor is inapplicable since the strict component of the
+      --       input problem is not empty
+      -- .
+      --       We apply the transformation 'usablerules' on the resulting sub-problem(s):
+      -- .
+      --         We consider the problem
+      -- .
+      --         Strict DPs:
+      --           {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --            , quot^#(0(), s(y)) -> c_2()
+      --            , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --            , minus^#(x, 0()) -> x}
+      --         Strict Trs:
+      --           {  quot(s(x), s(y)) -> s(quot(minus(x, y), s(y)))
+      --            , quot(0(), s(y)) -> 0()
+      --            , minus(s(x), s(y)) -> minus(x, y)
+      --            , minus(x, 0()) -> x}
+      --         StartTerms: basic terms
+      --         Strategy: none
+      -- .
+      --         We replace strict/weak-rules by the corresponding usable rules:
+      -- .
+      --           Strict Usable Rules:
+      --             {  minus(s(x), s(y)) -> minus(x, y)
+      --              , minus(x, 0()) -> x}
+      -- .
+      --         The consider problem is replaced by
+      -- .
+      --         1) Strict DPs:
+      --              {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --               , quot^#(0(), s(y)) -> c_2()
+      --               , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --               , minus^#(x, 0()) -> x}
+      --            Strict Trs:
+      --              {  minus(s(x), s(y)) -> minus(x, y)
+      --               , minus(x, 0()) -> x}
+      --            StartTerms: basic terms
+      --            Strategy: none
+      -- . 
+      --       Generated New Problems:
+      --       -----------------------
+      -- .
+      --         * Problem 1.1.1)
+      --             Strict DPs:
+      --               {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --                , quot^#(0(), s(y)) -> c_2()
+      --                , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --                , minus^#(x, 0()) -> x}
+      --             Strict Trs:
+      --               {  minus(s(x), s(y)) -> minus(x, y)
+      --                , minus(x, 0()) -> x}
+      --             StartTerms: basic terms
+      --             Strategy: none
+      -- .
+      --       1.1.1) Open Problem [OPEN]:
+      --       ---------------------------
+      -- .
+      --         We consider the following problem:
+      --           Strict DPs:
+      --             {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --              , quot^#(0(), s(y)) -> c_2()
+      --              , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --              , minus^#(x, 0()) -> x}
+      --           Strict Trs:
+      --             {  minus(s(x), s(y)) -> minus(x, y)
+      --              , minus(x, 0()) -> x}
+      --           StartTerms: basic terms
+      --           Strategy: none
       --
-      -- The output shows the example from 'state'. The output reflects
-      -- that the loaded problem has been simplified using the weak dependency
-      -- pairs transformation. Since 'state' contains still open problems, 
+      -- The output precisely reflects how the current proof state was 
+      -- obtained from the initial state. Since 'state' contains still open problems, 
       -- the proof also open subproblems, in this case 
-      -- subproblem 1.1).
+      -- subproblem 1.1.1).
+      -- From the output we can also see that 'Instances.removeTails' is inapplicable. 
+      -- The reason is that 'Instances.removeTails' is unsound if the strict trs
+      -- from the problem is not empty. TcT will never apply processors in an unsound
+      -- setting!
 
+      -- ** Extracting the State
+      -- | Beside showing the current state and the proof constructed so far, 
+      -- TcT-i also defines actions for extractions.
     , problems
-      -- | Returns the list of selected open problems.
+      -- | Displays and returns the list of selected open problems.
+      -- 
+      -- >>> problems
+      -- Problem 1:
+      -- . 
+      --   Strict DPs:
+      --   {  quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))
+      --   , quot^#(0(), s(y)) -> c_2()
+      --   , minus^#(s(x), s(y)) -> minus^#(x, y)
+      --    , minus^#(x, 0()) -> x}
+      -- Strict Trs:
+      --   {  minus(s(x), s(y)) -> minus(x, y)
+      --    , minus(x, 0()) -> x}
+      -- StartTerms: basic terms
+      -- Strategy: none
+      -- .
+      -- [Problem { startTerms = ...
+      --          , strategy   = ...
+      --          , variables  = ...
+      --          , signature  = ...
+      --          , strictDPs  = Trs {rules = ...} 
+      --          , strictTrs  = Trs {rules = ...} 
+      --          , weakDPs    = Trs {rules = ...} 
+      --          , weakTrs    = Trs {rules = ...}}
+      -- ]
+      -- 
+      -- Problems are defined in the accompanying /term rewriting library/
+      -- (cf. <http://cl-informatik.uibk.ac.at/software/tct/projects/termlib/>).
+      -- The module 'Termlib.Repl', collecting most of the functionality of  
+      -- the term rewriting library, is imported qualified as module 'TR'. Cf.
+      -- <http://cl-informatik.uibk.ac.at/software/tct/projects/termlib/docs/Termlib-Repl.html>
+      -- for documentation of the module 'Termlib.Repl'.
     , wdgs
-      -- | displays the weak dependency graphs of all selected
+      -- | This action displays the weak dependency graphs of all selected
       -- problems. If 'dot' from the GraphViz project (c.f. <http://www.graphviz.org/>) 
       -- is installed, then a SVG-picture is rendered in 'dg.svg' of
-      -- the current working directory
+      -- the current working directory.
     , cwdgs
-      -- | displays the weak congruence dependency graphs of all 
+      -- | This action displays the weak congruence dependency graphs of all 
       -- selected problems. To produce an SVG-picture, use the procedure
       -- 'wdgs' that draws weak dependency graphs, but also shows
       -- congruence classes.
     , uargs      
-      -- | displays the argument positions of the selected problems
+      -- | This action displays the argument positions of the selected problems.
 
       
       -- ** Selecting and Unselecting Problems #Select#      
@@ -334,16 +473,92 @@ module Tcti
       -- in combination with a 'Selector'. 
     , Selector 
       -- | Instances of this class can be used in combination with 
-      -- select. Note that Selector 'Int' selects according to the 
+      -- select. Note that Selector @['Int']@  selects according to the 
       -- problem number as recorded in the state (c.f. procedure 'state').
     , select
-      -- | select unsolved problems according to the given 'Selector'
+      -- | Select problems from the proof state according to the given 'Selector'.
+      -- 
+      -- Consider the following state that is obtained from the running example, 
+      -- after applying 'Instances.pathAnalysis'.
+      --
+      -- >>> state
+      -- --------------------------------------------------------------------
+      -- Selected Open Problems:
+      -- -----------------------
+      --   1) Strict DPs: {minus^#(s(x), s(y)) -> minus^#(x, y)}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      --   2) Strict DPs: {minus^#(x, 0()) -> x}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      Weak DPs: {minus^#(s(x), s(y)) -> minus^#(x, y)}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      --   3) Strict DPs: {quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      --   4) Strict DPs: {quot^#(0(), s(y)) -> c_2()}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      Weak DPs: {quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      -- >>> select [1,3]
+      -- --------------------------------------------------------------------
+      -- Unselected Open Problems:
+      -- -------------------------
+      --   2) Strict DPs: {minus^#(x, 0()) -> x}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      Weak DPs: {minus^#(s(x), s(y)) -> minus^#(x, y)}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      --   4) Strict DPs: {quot^#(0(), s(y)) -> c_2()}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      Weak DPs: {quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      -- Selected Open Problems:
+      -- -----------------------
+      --   1) Strict DPs: {minus^#(s(x), s(y)) -> minus^#(x, y)}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- .
+      --   3) Strict DPs: {quot^#(s(x), s(y)) -> quot^#(minus(x, y), s(y))}
+      --      Strict Trs:
+      --        {  minus(s(x), s(y)) -> minus(x, y)
+      --         , minus(x, 0()) -> x}
+      --      StartTerms: basic terms
+      --      Strategy: none
+      -- 
+      --
     , unselect
-      -- | unselect unsolved problems according to the given 'Selector'        
+      -- | Inverse of 'select'. The example of 'select' can also be obtained by typing
+      -- >>> unselect [2,4]
     , SelectAll
-      -- | special selector to select all open problems
+      -- | Special selector to select all open problems.
     , SelectInv
-      -- | special selector to inverse a selection
+      -- | Special selector to inverse a selection.
       
       -- ** Changing the Initial Problem
       -- | The following procedures change the initial problem. 
@@ -351,20 +566,20 @@ module Tcti
       -- will undone. However the procedure 'undo' allows to revert 
       -- a change to the initial problem.
     , setRC
-      -- | overwrites strategy and start-terms 
-      -- in order to match a runtime-complexity problem
+      -- | This action overwrites strategy and start-terms 
+      -- in order to match a runtime-complexity problem.
     , setIRC
-      -- | overwrites strategy and start-terms 
-      -- in order to match a innermost runtime-complexity problem
+      -- | This action overwrites strategy and start-terms 
+      -- in order to match a innermost runtime-complexity problem.
     , setDC
-      -- | overwrites strategy and start-terms 
-      -- in order to match a derivational-complexity problem
+      -- | This action overwrites strategy and start-terms 
+      -- in order to match a derivational-complexity problem.
     , setIDC      
-      -- | overwrites strategy and start-terms 
-      -- in order to match a innermost derivational-complexity problem
+      -- | This action overwrites strategy and start-terms 
+      -- in order to match a innermost derivational-complexity problem.
       
     , addRuleFromString
-      -- | adds the given rule to the input problem. 
+      -- | This action adds the given rule to the input problem. 
       -- Terms are parsed using the simple grammar
       --
       -- - @RULE -> TERM SEP TERM@
@@ -379,33 +594,86 @@ module Tcti
       -- are stripped off by the parser).
       -- The special symbol @COM@ is replaced by a fresh compound symbol.
     , deleteRuleFromString
-      -- | deletes the given rule from the input problem. See 'addRuleFromString'
-      -- for grammar
+      -- | This action deletes the given rule from the input problem. See 'addRuleFromString'
+      -- for grammar.
       
-      -- ** History Functionality
     , modifyInitialWith      
-      -- | modifies the initial problem with using the given function
-    , reset
-      -- | this procedure resets the proof state to the initially loaded system      
-    , undo
-      -- | undos the last modification of the proof state
+      -- | This action modifies the initial problem according to given function.
       
-      -- * Miscellaneous Functionality
+      -- * History Functionality
+      -- | TcT provides basic history functionality, in order to undo previous actions. 
+      -- This functionality covers all actions that modify the state.
+      
+    , reset
+      -- | This action resets the proof state to the initially loaded system.
+    , undo
+      -- | Undos the last modification of the proof state
+      
+      -- * Help and Documentation
     , help
-      -- | displays a help message
+      -- | Displays a help message.
+    , welcome
+      -- | Displays a help message.
     , describe
-      -- | opens documentation for the given technique
+      -- | Prints a description of the given technique. In particular, 
+      -- 'describe' accepts processors as defined in 'Tct.Processors'.
+      -- 
+      -- >>>describe Processor.lmpo
+      -- .
+      -- Processor "lmpo":
+      -- -----------------
+      --   This processor implements orientation of the input problem using
+      --   'light multiset path orders',
+      --   a technique applicable for innermost runtime-complexity analysis.
+      --   Light multiset path orders are a miniaturisation of 'multiset path
+      --   orders', restricted so that compatibility assesses polytime computability 
+      --   of the functions defined.
+      --   Further, it induces exponentially bounded innermost runtime-complexity.
+      -- .   
+      --   Usage:
+      --    lmpo [:ps [On|Off]] [:wsc [On|Off]]
+      -- .      
+      --   Arguments:
+      --    ps:
+      --              If enabled then the scheme of parameter substitution is admitted,
+      --              cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf
+      --              how this is done for polynomial path orders.
+      --              The default is set to 'On'.
+      -- . 
+      --    wsc:
+      --              If enabled then composition is restricted to weak safe composition.
+      -- .
+      -- For documentation concerning creation of instances, consult:
+      --   http://cl-informatik.uibk.ac.at/software/tct/projects/tct/docs/Tct-Instances.html#v:lmpo
+      -- 
+    , Describe 
+      -- | Instances of this class can be handled by the action 'describe'.
+      
+      -- * Miscellaneous Utilities
     , pprint
-      -- | pretty-print objects
+      -- | pretty-print objects.
     , termFromString
-      -- | parses a term from a string, with respect
-      -- to the signature and variables from the given problem
+      -- | Parses a term from a string, with respect
+      -- to the signature and variables from the given problem.
+      -- See 'addRuleFromString' for grammar.      
     , ruleFromString
-      -- | parses a rule from a string, with respect
-      -- to the signature and variables from the given problem      
+      -- | Parses a rule from a string, with respect
+      -- to the signature and variables from the given problem.
+      -- See 'addRuleFromString' for grammar.            
+      
+      -- * Accessing to the Configuration
+      -- | The TcT configuration file, usually residing in @${HOME}\/.tct\/tct.hs@ contains
+      -- a definition @config :: 'Config'@. 
+      -- In particular, TcT-i employs the field @processors@ when it requires the list
+      -- of available processors, for instance when parsing arguments.
+      -- The configuration is accessible throught the following actions.
+      -- Note that the configuration can be modified while running TcT-i.
     , getConfig
+      -- | Returns the current configuration.      
     , setConfig
+      -- | Set the configuration.      
     , modifyConfig
+      -- | Modify the configuration according to the given function.      
     )
 where
 
@@ -424,7 +692,8 @@ import qualified Termlib.Term.Parser as TParser
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
-import qualified Tct.Processors as Processors
+import qualified Tct.Processors as Processors ()
+import qualified Tct.Instances as Instances ()
 import Tct.Processor.PPrint
 import Tct.Main.Version (version)
 import qualified Tct.Processor as P
@@ -586,9 +855,10 @@ data ST = ST { unselected :: ![SomeNumbering]
              , proofTree  :: Maybe ProofTree}
          
 
-data STATE = STATE { curState :: ST 
-                   , hist     :: [ST] 
-                   }
+data STATE = STATE ST [ST] 
+
+curState :: STATE -> ST
+curState (STATE st _) = st
                                  
 configRef :: IORef Config
 configRef = unsafePerformIO $ newIORef defaultConfig
@@ -740,12 +1010,8 @@ deleteRuleFromString' str = resetInitialWith' $ del . TRepl.parseFromString TPar
 class Selector i where
   selct :: [(Int, Problem)] -> i -> [Int]
 
-instance Selector Int where  
-  selct ep i | any (\ (j,_) -> j == i) ep = [i]
-             | otherwise                = []
-
-instance Selector [Int] where  
-  selct ep is = concatMap (selct ep) is
+instance (Integral n) => Selector [n] where  
+  selct ep is = [j | (j,_) <- ep, j `elem` [fromInteger $ toInteger i | i <- is]]
 
 data SelectAll = SelectAll
 
@@ -775,17 +1041,17 @@ unselect sel = modifyState select' >> printState
                     opens = enumOpenFromTree pt
 
 select :: Selector sel => sel -> IO ()
-select = unselect . SelectInv
+select sel = unselect $ SelectInv sel
 
 
 --------------------------------------------------------------------------------
 --- Actions 
 
                         
-class Apply a where
-  apply' :: a -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
+class Apply p where
+  apply' :: p -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
   
-apply :: Apply a => a -> IO ()
+apply :: Apply p => p -> IO ()
 apply a = 
   do st <- getState  
      case proofTree st of 
@@ -930,6 +1196,24 @@ haddockInstances name =
        Just pt -> 
          return $ Just $ "file://" ++ pt ++ "/Tct-Instances.html#v:" ++ name
 
+
+welcome :: IO ()
+welcome = pprint $ 
+  U.underline (text ("Welcome to the TcT"))
+  $+$ text ""
+  $+$ U.paragraph ("This is version " 
+                   ++ version 
+                   ++ " of the Tyrolean Complexity Tool.")
+  $+$ text ""                    
+  $+$ text "(c)" <+> ( text "Martin Avanzini <martin.avanzini@uibk.ac.at>,"
+                       $+$ text "Georg Moser <georg.moser@uibk.ac.at>, and"
+                       $+$ text "Andreas Schnabl <andreas.schnabl@uibk.ac.at>.")
+  $+$ text ""
+  $+$ U.paragraph ("This software is licensed under the GNU Lesser "
+                   ++ "General Public License, see <http://www.gnu.org/licenses/>.")
+  $+$ text ""
+  $+$ text "Don't know how to start? Type 'help'."
+
 help :: IO ()
 help = do cfgdir <- configDirectory
           localdoc <- haddockPath ("tct-" ++ version) 
@@ -939,22 +1223,12 @@ help = do cfgdir <- configDirectory
               docurl = fromMaybe remoteurl localdoc
               tldocurl = fromMaybe tlremoteurl tllocaldoc              
               lst s ls = vcat [text s <+> l | l <- ls]
-              msg = U.underline (text ("Welcome to the TcT"))
+              msg = U.paragraph ("This is version " 
+                                 ++ version 
+                                 ++ " of the Tyrolean Complexity Tool.")
                     $+$ text ""
-                    $+$ U.paragraph ("This is version " 
-                                     ++ version 
-                                     ++ " of the Tyrolean Complexity Tool.")
-                    $+$ text ""                    
-                    $+$ text "(c)" <+> ( text "Martin Avanzini <martin.avanzini@uibk.ac.at>,"
-                                        $+$ text "Georg Moser <georg.moser@uibk.ac.at>, and"
-                                        $+$ text "Andreas Schnabl <andreas.schnabl@uibk.ac.at>.")
+                    $+$ U.underline (text "Getting Started:")
                     $+$ text ""
-                    $+$ U.paragraph ("This software is licensed under the GNU Lesser "
-                                     ++ "General Pulic License, see <http://www.gnu.org/licenses/>.")
-                    $+$ text ""
-                    $+$ text "This message is available by typing 'help'."
-                    $+$ text ""
-                    $+$ text "Getting Started:"
                     $+$ indent (lst "*" 
                                 [ text "Use 'load \"<filename>\" to load a problem."
                                 , U.paragraph ("Use 'apply <technique>' to simplify the loaded problem. "
@@ -975,11 +1249,14 @@ help = do cfgdir <- configDirectory
                                 , U.paragraph ( "Type ':quit' to exit Tct. ")
                                 ])
                     $+$ text ""
-                    $+$ text "Further Help:"
+                    $+$ text "This message is available by typing 'help'."
+                    $+$ text ""
+                    $+$ U.underline (text "Further Help:")
+                    $+$ text ""
                     $+$ indent (text "Consult the following pages concering"
                                 $+$ indent (lst "*"
                                             [ text "interactive interface:"
-                                              $+$ indent (text (docurl ++ "/Tcti.html"))
+                                              $+$ indent (text (docurl ++ "/Tct-Interactive.html"))
                                             , text "general help on TcT:"
                                               $+$ indent (text (docurl ++ "/index.html"))
                                             , text "the rewriting library:"
@@ -987,32 +1264,6 @@ help = do cfgdir <- configDirectory
           pprint msg
           
               
-{-                  
-          let tctidoc = 
-                maybe (text "Use 'cabal haddock && cabal install' in the source-directory"
-                       $+$ text "of tct to install documentation.")
-                (\ p -> text "A list of techniques, and combinators, can be found under:"
-                       $+$ indent (text ("file://" ++ p ++ "/Tct-Methods.html"))
-                       $+$ text ""
-                       $+$ text "Help concerning the interactive mode is available here:"
-                       $+$ indent (text ("file://" ++ p ++ "/Tct-Tcti.html"))
-                       $+$ text ""
-                       $+$ termlibdoc)
-                haddock
-              termlibdoc = 
-                maybe (text "Use 'cabal haddock && cabal install' in the source-directory"
-                       $+$ text "of termlib to install documentation of the term rewriting library.")
-                (\ p -> text "Documentation of the term rewriting library can be found at:"
-                       $+$ indent (text ("file://" ++ p ++ "/Termlib-Repl.html")))
-                tlhaddock
-          pprint (U.underline (text ("Welcome to the Tyrolean Complexity Tool, Version " ++ version))
-                  $+$ text ""
-                  $+$ text "To start, use 'load \"<filename>\"' in order to to load a problem."
-                  $+$ text "Use 'apply t' to simplify the loaded problem using technique 't'."
-                  $+$ text "Use 'describe processor' to get documentation for processor 'p'."
-                  $+$ text ""
-                  $+$ tctidoc)
--}
 state :: IO ()
 state = printState             
 
@@ -1070,11 +1321,14 @@ proof = do st <- getState
           $+$ nb "Use 'load <filename>' to load a new problem."
         ppTree pt = pprint pt
 
+pprintIth :: U.PrettyPrintable p => String -> (Int,p) -> IO ()
+pprintIth nm (i,p) = pprint (text nm <+> text (show i) <> text ":"
+                             $+$ indent (U.pprint p))
 
 problems :: IO [Problem]
 problems = 
   do ps <- problems'
-     mapM_ pprint ps
+     mapM_ (pprintIth "Problem")  $zip [1..] ps
      return ps
      
 
@@ -1086,20 +1340,20 @@ wdgs = do probs <- problems'
                     | prob <- probs ]
           fn <- getCurrentDirectory          
           _ <- forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
-          mapM_ pprint dgs
+          mapM_ (pprintIth "Weak Dependency Graph of Problem") $ zip [1..] dgs
           putStrLn $ "\nsee also '" ++ fn ++ "/dg.svg'.\n"
           return [dg | (dg,_,_) <- dgs]
 
 cwdgs :: IO [DG.CDG]
-cwdgs = problems' >>= mapM f                            
-  where f prob = 
+cwdgs = (zip [1..] `liftM` problems') >>= mapM f                            
+  where f (i,prob) = 
           do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob
-             pprint (dg,Prob.signature prob,Prob.variables prob)
+             pprintIth "Congruence Graph of Problem" (i,(dg,Prob.signature prob,Prob.variables prob))
              return dg
 
 uargs :: IO [UA.UsablePositions]
-uargs = problems' >>= mapM f
-    where f prob = pprint (ua, sig) >> return ua
+uargs = (zip [1..] `liftM` problems') >>= mapM f
+    where f (i,prob) = pprintIth "Usable Arguments with Repect to Problem" (i, (ua, sig)) >> return ua
             where ua = UA.usableArgs (Prob.strategy prob) Trs.empty (Prob.allComponents prob)
                   sig = Prob.signature prob
 

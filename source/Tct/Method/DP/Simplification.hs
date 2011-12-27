@@ -94,7 +94,10 @@ nonSelfCyclic wdg sn = case theSCC sn of
 
 instance T.Transformer RemoveTail where
   name RemoveTail        = "removetails"
-  description RemoveTail = ["Recursively removes all nodes that are either leafs in the dependency-graph or from the given problem"]
+  description RemoveTail = [unwords [ "Recursively removes all nodes that are either"
+                                    , "leafs in the dependency-graph or from the given problem."
+                                    , "Only applicable if the strict component is empty."]
+                           ]
   
   type T.ArgumentsOf RemoveTail = Unit
   type T.ProofOf RemoveTail = RemoveTailProof
@@ -170,6 +173,11 @@ instance T.Transformer SimpRHS where
   type T.ArgumentsOf SimpRHS = Unit
   type T.ProofOf SimpRHS     = SimpRHSProof
   arguments _ = Unit
+  description _ = [unwords [ "Simplify right hand sides of dependency pairs by removing marked subterms "
+                           , "whose root symbols are undefined."
+                           , "Only applicable if the strict component is empty."
+                           ]
+                  ]
   transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SRHSError ContainsStrictRule
                    | progr            = return $ T.Progress proof (enumeration' [prob'])
                    | otherwise        = return $ T.NoProgress proof
@@ -247,6 +255,11 @@ instance T.Transformer SimpKP where
   type T.ArgumentsOf SimpKP = Unit
   type T.ProofOf SimpKP     = SimpKPProof
   arguments _ = Unit
+  description SimpKP = [unwords [ "Moves a strict dependency into the weak component"
+                                , "if all predecessors in the dependency graph are strict" 
+                                , "and there is no edge from the rule to itself."
+                                , "Only applicable if the strict component is empty."]
+                       ]
   transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
                    | isJust mres          = return $ T.Progress proof (enumeration' [prob'])
                    | otherwise            = return $ T.NoProgress proof

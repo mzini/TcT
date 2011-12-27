@@ -92,7 +92,7 @@ instance S.Processor Success where
     name Success               = "success"
     instanceName _             = "success"
     solve _ _                  = return Succeeded
-    description Success        = ["Processor 'success' always returns the answer 'Yes'."]
+    description Success        = ["Processor 'success' always returns the answer 'Yes(?,?)'."]
     arguments   Success        = Unit
 
 data EmptyRules = EmptyRules deriving (Show)
@@ -181,7 +181,7 @@ instance ( P.Processor g
           where g :+: _ :+: _ = S.processorArgs inst
         description _ = ["This processor implements conditional branching"]
         arguments _ = arg { A.name = "guard"
-                          , A.description = "The guard processor. It succeeds if it returns 'Yes(*,*)'" }
+                          , A.description = "The guard processor. It succeeds if it returns 'Yes(*,*)'." }
                       :+: 
                       arg { A.name = "then"
                           , A.description = "The processor that is applied if guard succeeds." }

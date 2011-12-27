@@ -1,18 +1,15 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Method.PopStar
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module defines the POP* and LMPO processors.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -22,16 +19,34 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeOperators #-}
 
 module Tct.Method.PopStar 
-    ( popstarProcessor
-    , ppopstarProcessor
-    , lmpoProcessor
+    ( 
+      -- * Proof Object
+      PopStarOrder (..)      
+      
+      -- * Instance Constructors
     , popstar
-    , lmpo
+      -- | Constructor for polynomial path orders.
     , popstarPS
+      -- | Constructor for polynomial path orders with parameter substitution.
     , popstarSmall
+      -- | Constructor for small polynomial path orders that are capable of 
+      -- proving polynomially bounded innermost runtime complexity of a specific degree.
     , popstarSmallPS
-    , PopStarOrder (..)
-    , PopStar)
+      -- | Constructor for small polynomial path orders with parameter substitution.
+    , lmpo
+      -- | Constructor for lightweight multiset path orders.      
+      
+      -- * Processors
+    , PopStar      
+      -- | The processor object.
+    , popstarProcessor
+      -- | Popstar processor.
+    , ppopstarProcessor
+      -- | Popstar processor with product extension. Set argument @wsc@
+      -- to get small polynomial path orders
+    , lmpoProcessor
+      -- | Lightweight multiset path order processor.      
+    )
 where
 
 import Control.Monad (liftM)
@@ -89,13 +104,14 @@ data OrdType = POP | ProdPOP | LMPO deriving (Typeable, Show, Eq)
 data PopStar = PopStar { kind :: OrdType } deriving (Typeable, Show)
 
 
-data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping
-                             , popPrecedence        :: Prec.Precedence
-                             , popRecursives        :: PrecEnc.RecursiveSymbols
-                             , popArgumentFiltering :: Maybe AF.ArgumentFiltering
-                             , popInputProblem      :: Problem
-                             , popInstance          :: S.TheProcessor PopStar
-                             , popUsableSymbols     :: [Symbol]}
+data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping -- ^ The safe mapping.
+                             , popPrecedence        :: Prec.Precedence -- ^ The precedence.
+                             , popRecursives        :: PrecEnc.RecursiveSymbols -- ^ Recursive symbols.
+                             , popArgumentFiltering :: Maybe AF.ArgumentFiltering -- ^ Employed argument filtering.
+                             , popInputProblem      :: Problem -- ^ The input problem.
+                             , popInstance          :: S.TheProcessor PopStar -- ^ The specific instance employed.
+                             , popUsableSymbols     :: [Symbol] -- ^ Defined symbols of usable rules.
+                             }
 
 instance ComplexityProof PopStarOrder where
   pprintProof order _ = text "The input was oriented with the instance of" 
@@ -185,19 +201,15 @@ instance S.Processor PopStar where
                       LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
                                        , "a technique applicable for innermost runtime-complexity analysis."
                                        , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
-                                       , "restricted so that compatibility assesses polytime computability of the functions defined, "
-                                       , "cf. http://www.loria.fr/~marionjy/Papers/icc99.ps ."
+                                       , "restricted so that compatibility assesses polytime computability of the functions defined."
                                        , "Further, it induces exponentially bounded innermost runtime-complexity."]]
                       POP   -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
                                         , "a technique applicable for innermost runtime-complexity analysis."
                                         , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
-                                        , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity, "
-                                        , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/FLOPS08.pdf ."]
-                              , unlines [ "The implementation for the WDP-setting follows closely"
-                                        , "http://cl-informatik.uibk.ac.at/~zini/publications/RTA09.pdf ,"
-                                        , "where addionally argument filterings are employed." ]]
+                                        , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity." ]
+                              , unlines [ "The implementation for DP problems additionally employs argument filterings."]]
                       ProdPOP -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders'"
-                                          , "with product extension, c.f. processor 'pop*'"]]
+                                          , "with product extension, c.f. processor 'popstar'."]]
 
 
     type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool :+: Arg (Maybe Nat)
@@ -216,16 +228,15 @@ instance S.Processor PopStar where
 
     arguments _ = ps :+: wsc :+: bnd
         where ps = opt { A.name = "ps"
-                       , A.description = unlines [ "If enabled then the scheme of parameter substitution is admitted,"
-                                                 , "cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders." ]
+                       , A.description = "Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order."
                        , A.defaultValue = True } 
               wsc = opt { A.name = "wsc"
-                        , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
-                                                  , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
+                        , A.description = "Weak Safe Composition: If enabled then composition is restricted to weak safe composition."
                         , A.defaultValue = False }
-              bnd = opt { A.name = "ub"
-                        , A.description = unlines [ "If enabled then composition is restricted to weak safe composition,"
-                                                  , "compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf." ]
+              bnd = opt { A.name = "deg"
+                        , A.description = unwords [ "Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven." 
+                                                  , "This flag only works in combination with product extension and weak safe composition, "
+                                                  , "cf. 'popstarSmall'."]
                         , A.defaultValue = Nothing }
                   
 

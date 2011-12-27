@@ -50,7 +50,7 @@ data PathAnalysis = PathAnalysis
 
 instance T.Transformer PathAnalysis where
     name PathAnalysis        = "pathanalysis"
-    description PathAnalysis = ["Pathanalysis"]
+    description PathAnalysis = ["This processor implements path-analysis as described in the dependency pair paper."]
     type T.ArgumentsOf PathAnalysis = Unit
     type T.ProofOf PathAnalysis = PathProof
     arguments PathAnalysis = Unit

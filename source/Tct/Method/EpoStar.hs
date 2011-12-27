@@ -1,18 +1,15 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Method.EpoStar
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module defines the EPO* processor.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -26,10 +23,20 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE ParallelListComp #-}
 
 module Tct.Method.EpoStar 
-    ( epostar
+    ( 
+      -- * Proof Object      
+      EpoStarOrder (..)      
+    , ArgumentPermutation (..)
+      -- | Epostar processor uses argument permutations to increase the applicability.
+      
+      -- * Instance Constructor
+    , epostar
+      -- | Constructor for exponential path orders.            
+      -- * Processor      
+    , EpoStar     
+      -- | The processor object.      
     , epostarProcessor
-    , EpoProof (..)
-    , EpoStar
+      -- | Exponential path order processor.
     )
 where
 
@@ -161,10 +168,15 @@ instance PrettyPrintable (ArgumentPermutation,Sig) where
                    <+> (brackets . fsep . punctuate (text ",") $ [ text $ show i | i <- find sym m])
 
 
-data EpoProof = EpoProof Trs SM.SafeMapping Prec.Precedence ArgumentPermutation Sig
+data EpoStarOrder = EpoStarOrder { epoInputTrs       :: Trs -- ^ The oriented input TRS.
+                                 , epoSafeMapping    :: SM.SafeMapping -- ^ The safe mapping. 
+                                 , epoPrecedence     :: Prec.Precedence -- ^ The precedence. 
+                                 , epoArgPermutation :: ArgumentPermutation -- ^ Employed argument permutation.
+                                 , epoSig            :: Sig -- ^ Signature underlying 'epoInputTrs'
+                                 }
 
-instance ComplexityProof EpoProof where
-    pprintProof (EpoProof trs sm prec perm sign) _ = ppstrict $$ ppsm $$ ppperm $$ ppprec 
+instance ComplexityProof EpoStarOrder where
+    pprintProof (EpoStarOrder trs sm prec perm sign) _ = ppstrict $$ ppsm $$ ppperm $$ ppprec 
       where ppsm           = text "Safe Mapping:" $$ (nest 1 $ pprint $ sm)
             ppprec         = text "Precedence:" $$ (nest 1 $ pprint $ prec)
             ppperm         = text "Argument Permutation:" $$ (nest 1 $ pprint (perm,sign))
@@ -190,18 +202,19 @@ instance S.Processor EpoStar where
                         ++ case S.processorArgs inst of {True -> "(extended composition)"; False -> ""}
 
     arguments _ = opt { A.name = "ecomp"
-                      , A.description = unlines [ "If this flag is enabled, then the slightly more liberal composition scheme f(x;y) = h(g(;x);k(x;y)) is permitted."
+                      , A.description = unwords [ "Extended Composition: If this flag is enabled, then the slightly more ."
+                                                , "liberal composition scheme 'f(x;y) = h(g(;x);k(x;y))' is permitted."
                                                 , "Currently it is not known whether this extension is sound."]
                       , A.defaultValue = False }
 
-    type S.ProofOf EpoStar = OrientationProof EpoProof
+    type S.ProofOf EpoStar = OrientationProof EpoStarOrder
 
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.allComponents prob) of 
                         ((BasicTerms ds cs), Innermost, trs) 
                           | Trs.isConstructor trs -> 
                             do r <- orientTrs sign ec trs
                                case r of 
-                                 Just (sm, (prec, mu)) -> return $ Order $ EpoProof trs sm prec mu sign
+                                 Just (sm, (prec, mu)) -> return $ Order $ EpoStarOrder trs sm prec mu sign
                                  Nothing               -> return Incompatible
                               where sign = Sig { defSyms = ds
                                                , constrSyms = cs

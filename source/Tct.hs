@@ -12,23 +12,6 @@
 -- 
 --------------------------------------------------------------------------------   
 
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -139,25 +122,73 @@ instance PrettyPrintable [TCTWarning] where
 data OutputMode = OnlyAnswer 
                 | WithProof PPMode
 
-data Config = Config { makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
-                     , processors        :: AnyProcessor
-                     , problemFile       :: String
-                     , getSolver         :: ErroneousIO SatSolver
-                     , outputMode        :: OutputMode
-                     , putProof          :: Proof SomeProcessor -> PPMode -> IO ()
-                     , putError          :: TCTError -> IO ()
-                     , putWarning        :: TCTWarning -> IO ()
-                     , configDir         :: ErroneousIO FilePath
-                     , errorMsg          :: [String]
-                     , version           :: String
-                     , recompile         :: Bool
-                     , timeoutAfter      :: Maybe Int
-                     , answerType        :: Maybe AnswerType
-                     , listStrategies    :: Maybe (Maybe String)
-                     , logFile           :: Maybe FilePath
-                     , showHelp          :: Bool
-                     , showVersion       :: Bool
-                     , interactive       :: Bool }
+data Config = Config { 
+  -- | New processors can be added to tct by extending this field.
+  processors        :: AnyProcessor  
+  
+  -- | This field can be used to govern how a processor is 
+  -- determined for the loaded problem if no processor is 
+  -- supplied at the command line. The second parameter 
+  -- refers to the list of available processors. 
+  , makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
+
+  -- | This flag determines if the configuration file should 
+  -- be dynamically reloaded
+  , recompile         :: Bool    
+    
+  -- | This field specifies the configuration dir. It defaults 
+  -- to '${HOME}\/.tct'
+  , configDir         :: ErroneousIO FilePath
+    
+  -- | This field specifies the output mode under which proofs are 
+  -- displayed. It defaults to proof output.
+  , outputMode        :: OutputMode    
+    
+  -- | This field may be used to specify a log-file, showing extended
+  -- output concerning applications of processors.
+  , logFile           :: Maybe FilePath
+    
+  -- | This field can be used to specify an alternative SAT solver.
+  -- Per default, TcT searches for executables 'minisat' or 'minisat2'
+  -- in '${PATH}'.
+  , getSolver         :: ErroneousIO SatSolver
+    
+  -- | This field can be used to modify the version.    
+  , version           :: String    
+
+    
+  -- | This field can be overwritten in order to govern how 
+  -- a proof is displayed.
+  , putProof          :: Proof SomeProcessor -> PPMode -> IO ()
+  
+  -- | This field can be overwritten in order to govern how 
+  -- an error message is displayed.
+  , putError          :: TCTError -> IO ()
+  
+  -- | This field can be overwritten in order to govern how 
+  -- a warning is displayed.
+  , putWarning        :: TCTWarning -> IO ()
+    
+  -- | This field can be used to set an optional timeout, 
+  -- in seconds.
+  , timeoutAfter      :: Maybe Int
+    
+  -- | This field holds the file name of the input problem.  
+  , problemFile       :: FilePath
+  
+  -- | Modified by command line option '--list', cf. "Tct.CommandLine".
+  , listStrategies    :: Maybe (Maybe String)
+  -- | Modified by command line option '--answer', cf. "Tct.CommandLine".
+  , answerType        :: Maybe AnswerType
+  -- | Modified by command line option '--help', cf. "Tct.CommandLine".     
+  , showHelp          :: Bool
+  -- | Modified by command line option '--version', cf. "Tct.CommandLine".
+  , showVersion       :: Bool
+  -- | Modified by command line option '--interactive', cf. "Tct.CommandLine".    
+  , interactive       :: Bool 
+  -- | This field holds error messages from dynamic recompilation.
+  , errorMsg          :: [String]
+  }
 
 
 
@@ -511,9 +542,10 @@ initialConfigFile =
     where content = unlines $ imports ++ ["\n"] ++ funs
           imports = [ "import " ++ maybe m (\ nme -> "qualified " ++ m ++ " as " ++ nme) n
                     | (m,n) <- [ ("Prelude hiding (fail, uncurry)"       , Nothing)
-                              , ("Tct (Config(..), defaultConfig, tct)" , Nothing)
+                              , ("Tct (tct)"                            , Nothing)
+                              , ("Tct.Configuration"                    , Nothing)                                
                               , ("Tct.Interactive"                      , Nothing)
-                              , ("Tct.Instances"                        , Nothing)                                
+                              , ("Tct.Instances"                        , Nothing)
                               , ("Tct.Instances"                        , Just "Instance")
                               , ("Tct.Processors"                       , Just "Processor")
                               , ("Termlib.Repl"                         , Just "TR")                                 

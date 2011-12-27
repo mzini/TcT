@@ -10,94 +10,93 @@
 -- Stability   :  unstable
 -- Portability :  unportable      
 -- 
+-- This module reexports direct constructors for /processor instances/
+-- of TcT. For description of the corresponding processor, please see module 
+-- "Tct.Processors".
+-- In addition, this module also exports a wealth of combinators.
+--
+-- Instances are separated into instances of /standard processors/
+-- and instances of /transformations/ for historical reasons. The instance type of a standard processor @p@ is
+-- @'P.InstanceOf' ('S.StdProcessor' p)@, for thransformation @t@ the instance 
+-- type is @'T.TheTransformer' t@. 
 --------------------------------------------------------------------------------   
-
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-
+{-# OPTIONS_HADDOCK not-home #-}
 module Tct.Instances
     (  
 
-    -- * Techniques
-    -- ** Direct Techniques #MethodsProcs#
+    -- * Standard Processors
+    -- | This section collects combinators concerning standard processors, toghether with combinators
+    -- on standard processors.
     Combinators.success
-    -- | this processor returns 'Yes(?,?)'
+    -- | This processor returns 'Yes(?,?)'.
     , Combinators.fail
-    -- | this processor returns 'No'
+    -- | This processor returns 'No'.
     , Combinators.empty
-    -- | this processor returns 'Yes(O(1),(1))' if the strict component is empty      
+    -- | This processor returns 'Yes(O(1),(1))' if the strict component is empty.
     , Combinators.open
-    -- | this processor returns 'Maybe'
-      
+    -- | This processor returns 'Maybe'
     , arctic
-    -- | this processor implements arctic interpretations
+    -- | This processor implements arctic interpretations.
     , matrix
-    -- | this processor implements matrix interpretations      
+    -- | This processor implements matrix interpretations.     
     , poly
-    -- | this processor implements polynomial path orders
+    -- | This processor implements polynomial path orders.
     , Bounds.bounds
-    -- | this processor implements the bounds technique      
+    -- | This processor implements the bounds technique.
     , EpoStar.epostar
-    -- | this processor implements exponential path orders      
+    -- | This processor implements exponential path orders.
     , PopStar.popstar
-    -- | this processor implements polynomial path orders            
+    -- | This processor implements polynomial path orders.
     , PopStar.popstarPS
-    -- | this processor implements polynomial path orders with parameter substitution      
+    -- | This processor implements polynomial path orders with parameter substitution.
     , PopStar.lmpo     
-    -- | this processor implements lightweight multiset path orders 
+    -- | This processor implements lightweight multiset path orders.
     , PopStar.popstarSmall
-    -- | this processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
-    --   which allow to determine the degree of the obtained polynomial certificate
+    -- | This processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
+    --   which allow to determine the degree of the obtained polynomial certificate.
     , PopStar.popstarSmallPS
-    -- | this processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
-    --   with parameter substitution which allow to determine the degree of the obtained polynomial certificate
+    -- | This processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
+    --   with parameter substitution which allow to determine the degree of the obtained polynomial certificate.
     , rc2011
-    -- | this processor reflects the runtime complexity strategy employed in the competition 2011
+    -- | This processor reflects the runtime complexity strategy employed in the competition 2011.
     , dc2011
-    -- | this processor reflects the derivational complexity strategy employed in the competition 2011
-    -- ** Combinators
+    -- | This processor reflects the derivational complexity strategy employed in the competition 2011.
+    
+     -- ** Combinators
     , Combinators.ite
-      -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied
+      -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied.
     , Timeout.timeout
       -- | @timeout sec t@ 
-      -- aborts processor @t@ after @sec@ seconds
+      -- aborts processor @t@ after @sec@ seconds.
     , before 
-      -- | @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@      
+      -- | @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@.
     , orBetter
       -- | @p1 `orBetter` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
-      --   proof that gives the better certificate
+      --   proof that gives the better certificate.
     , orFaster
       -- | @p1 `orFaster` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
-      --   proof of that processor that finishes fastest
+      --   proof of that processor that finishes fastest.
     , Combinators.sequentially
-      -- | list version of "before"
+      -- | list version of 'before'. 
+      -- Note that the type of all given processors need to agree. To mix processors
+      -- of different type, use 'some' on the individual arguments. 
     , Combinators.best
-      -- | list version of "orBetter"      
+      -- | list version of 'orBetter'.
+      -- Note that the type of all given processors need to agree. To mix processors
+      -- of different type, use 'some' on the individual arguments. 
     , Combinators.fastest
-      -- | list version of "orFaster"            
+      -- | list version of 'orFaster'.
+      -- Note that the type of all given processors need to agree. To mix processors
+      -- of different type, use 'some' on the individual arguments. 
     , withProblem
-    -- | @withProblem mkproc@ allows the creation of a processor 
-    -- depending on the problem it should handle.
+    -- | The instance @withProblem mkproc@ allows the creation of a processor 
+      -- depending on the problem it should handle.
     , step
       -- | @
       -- step [l..u] trans proc
@@ -119,10 +118,10 @@ module Tct.Instances
       -- upto mkproc (b :+: l :+: u) == f [ mkproc i | i <- [l..u]] 
       -- @ 
       -- where 
-      -- @f == fastest@ if @b == True@ and @f == sequentially@ otherwise
+      -- @f == fastest@ if @b == True@ and @f == sequentially@ otherwise.
     
     -- ** Predicates
-    -- | The following predicates return either Yes(?,?) or No
+    -- | The following predicates return either Yes(?,?) or No.
     , Predicates.isCollapsing
     , Predicates.isConstructor
     , Predicates.isDuplicating
@@ -135,10 +134,8 @@ module Tct.Instances
     , Predicates.isRCProblem      
     , Predicates.isDCProblem      
     , Predicates.isContextSensitive
-    -- *** Lifting Haskell functions      
     , Predicates.trsPredicate
     , Predicates.problemPredicate
-            
       
     -- * Transformations #MethodsTrans#
       -- | This section list all instances of 'Transformation'. A transformation 't' 
@@ -152,33 +149,19 @@ module Tct.Instances
     , weightgap      
       -- | This processor implements the weightgap principle.   
     , Compose.compose
-      -- | The 'Transformer' @compose part bound p@ splits the input problem according to 
-      -- the 'Partitioning' @part@ into a pair of 'Problem's @(prob1,prob2)@,
-      -- constructed according to the second argument @bound@. 
-      -- The given 'Processor' @p@ is applied on the first problem @prob1@.
-      -- If @p@ succeeds on @prob1@, the input problem is transformed into @prob2@.
-      -- 
-      -- Let @prob@ denote the input problem, and let 
-      -- @w == weakTrs prob@.
-      -- Let @(s_1,s_2)@ be the partitioning of @strictTrs prob@ according to the 
-      -- 'Partitioning' @part@.
-      -- If @bound==Add@, @prob1==prob{strictTrs=s1, weakTrs=s2 `Trs.union` w}$ and 
-      -- @prob2==prob{strictTrs=s2, weakTrs=s1 `Trs.union` w}$. The bound on the input problem @prob@
-      -- is obtained from the bounds on @prob1@ and @prob2@ by addition. 
-      --
-      -- If @bound==Mult@, then @prob1@ is as above, 
-      -- but @prob2==prob{strictTrs=s2}@. The bound induced on the input problem @prob@
-      -- is obtained by multiplication. For @bound==Mult@ this 'Transformer' only
-      -- applies to non size-increasing Problems.
-      -- If @bound==Compose@, the 'Transformer' behaves as if @bound==Mult@ but 
-      -- the non size-increasing restriction is lifted. In this case the bound on the input problem
-      -- is obtained by composition.
+      -- | This transformation implements techniques for splitting the complexity problem
+      -- into two complexity problems (A) and (B) so that the complexity of the input problem
+      -- can be estimated by the complexity of the transformed problem. 
+      -- The processor closely follows the ideas presented in
+      -- /Complexity Bounds From Relative Termination Proofs/
+      -- (<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>).
     , Compose.composeDynamic
-      -- | @composeDynamic = compose Dynamic@
+      -- | @composeDynamic = compose Dynamic@.
     , Compose.composeStatic
-      -- | @composeStatic rs = compose (Static rs)@
+      -- | @composeStatic rs = compose (Static rs)@.
       
       -- *** DP Transformations      
+      -- | The following transformations operate only on (weak) dependency pair problems.
     , DP.dependencyPairs
       -- | Implements dependency pair transformation. Only applicable on runtime-complexity problems.
     , DP.dependencyTuples
@@ -246,7 +229,7 @@ module Tct.Instances
       
     , Custom.strategy      
       -- | this function acts like 'Custom.processorFromInstance', except that the resulting proof 
-      -- is wraped into a 'P.SomeProof'
+      -- is wraped into a 'P.SomeProof'.
     , Custom.processor 
     , Custom.customInstance
       
@@ -255,12 +238,7 @@ module Tct.Instances
     , Custom.Description(..)
     
       -- ** Arguments
-    , ArgInstances.Nat (..)
-    , ArgInstances.nat
-    , ArgInstances.natToInt
     , Size (..)
-    , ArgInstances.EnumOf
-    , ArgInstances.Processor
     , NaturalMI.NaturalMIKind (..)
     , Weightgap.WgOn (..)
     , Compose.ComposeBound (..)
@@ -268,8 +246,6 @@ module Tct.Instances
     , DG.Approximation(..)
     , Bounds.Enrichment (..)
     , Bounds.InitialAutomaton (..)
-    , ArgInstances.AssocArgument (..)      
-    , ArgInstances.Assoc 
     , Predicates.WhichTrs(..)
     -- *** RuleSelector
     -- | A @RuleSelector@ is used to select 
@@ -329,35 +305,16 @@ module Tct.Instances
       -- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
     , Poly.constant
       -- | returns a new monomial without variables.
-
-      -- ** Argument Description Combinators
-    , Args.Arg (..)
-    , Args.Unit (..)
-    , (Args.:+:)(..)
-    , arg 
-      -- | constructs an 'Arg' that is used for parsing at the command line.
-    , optional 
-      -- | Translates an 'Arg' to an optional argument, by supplying a name 
-      -- and a default value
-    
-      -- ** Built-in Argument Descriptions  #argdescr#
-    , ArgInstances.assocArg 
-    , ArgInstances.boolArg
-    , ArgInstances.enumArg
-    , ArgInstances.maybeArg
-    , ArgInstances.naturalArg
-    , ArgInstances.processorArg
-
       
       -- * Misc
     , solveBy -- MA:TODO
 
       -- * Existential Quantification
+    , some 
+    -- | Wrap an object by existential quantification.
     , EQuantified (..)
     -- | This class establishes a mapping between types and their existential 
     -- quantified counterparts
-    , mixed
-    -- | Wrap an object by existential quantification
     )
 where
 import Control.Monad (liftM)
@@ -388,9 +345,7 @@ import Qlogic.NatSat (Size (..))
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import Tct.Processor (solveBy)
-import qualified Tct.Processor.Args as Args
 import Tct.Processor.Args ((:+:)(..), Unit(..))
-import qualified Tct.Processor.Args.Instances as ArgInstances
 import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations hiding (withArgs)
 import qualified Tct.Processor.Transformations as T
@@ -402,8 +357,8 @@ import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
 
 step :: (Transformer t1, P.Processor a) =>
        [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
-step []     _ _ = mixed Combinators.empty
-step (i:is) t p = mixed $ p i `before` (t i >>| step is t p)
+step []     _ _ = some Combinators.empty
+step (i:is) t p = some $ p i `before` (t i >>| step is t p)
 
 upto :: (Enum n, Ord n, P.ComplexityProof (P.ProofOf p), P.Processor p) =>
         (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (Combinators.OneOf p))
@@ -517,17 +472,8 @@ instance P.Processor p => EQuantified (P.InstanceOf p) where
     equantify p = P.someInstance p
 
 
-mixed :: EQuantified a => a -> EQuantifiedOf a
-mixed = equantify
-
-
--- * Arguments
-
-arg :: Args.ParsableArgument a => Args.Arg a
-arg = Args.arg
-
-optional :: Args.ParsableArgument a => Args.Arg a -> String -> Args.Domain a -> Args.Arg a
-optional = Args.optional
+some :: EQuantified a => a -> EQuantifiedOf a
+some = equantify
 
 
 -- * Competition Strategy 
@@ -555,7 +501,7 @@ te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTransformatio
 te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor
-dc2011 = mixed $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
+dc2011 = some $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
       where matrices simple c | simple = empty `before` fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
                               | otherwise = empty `before` fastest [ matrix defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
             bound       = 6
@@ -575,7 +521,7 @@ dc2011 = mixed $ Custom.named "dc2011" $ ite (isDuplicating Strict) Combinators.
                                `orFaster` matchbounds)
 
 rc2011 :: P.InstanceOf P.SomeProcessor
-rc2011 = mixed $ Custom.named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
+rc2011 = some $ Custom.named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
     where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `orFaster` matchbounds `orFaster` dp mkdp
           matricesForDegree deg = [ matrix defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
           

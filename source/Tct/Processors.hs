@@ -3,7 +3,7 @@
 -- Module      :  Tct.Processors
 -- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
 --                Georg Moser <georg.moser@uibk.ac.at>, 
---                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
 -- License     :  LGPL (see COPYING)
 --
 -- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
@@ -17,7 +17,8 @@
 -- Processors are parameterised in some arguments that control the behaviour
 -- of the processor, for instance, the matrix processor is parameterised 
 -- in the dimension of the constructed matrix interpretation. 
--- Parameterised processors are called /processor instances/. 
+-- Parameterised processors are called /processor instances/, and 
+-- can be obtained using the constructors in "Tct.Instances".
 --------------------------------------------------------------------------------   
 {-# LANGUAGE CPP #-}
 module Tct.Processors where
@@ -49,9 +50,8 @@ import Tct.Method.Uncurry hiding (uncurry)
 import Tct.Method.Weightgap 
 import Tct.Processor.Timeout hiding (timeout)
 
--- * Built-In Processors
 
--- generated: Sun Dec 25 21:18:43 JST 2011
+-- generated: Tue Dec 27 14:31:00 JST 2011
 {- |
 The processor either returns the result of the given processor
 or, if the timeout elapses, aborts the computation and returns
@@ -67,29 +67,20 @@ timeout = timeoutProcessor
 
 {- |
 This processor implements orientation of the input problem using
-'polynomial path orders',
+\'polynomial path orders\',
 a technique applicable for innermost runtime-complexity analysis.
-Polynomial path orders are a miniaturisation of 'multiset path
-orders',
+Polynomial path orders are a miniaturisation of \'multiset path
+orders\',
 restricted so that compatibility assesses a polynomial bound on the
-innermost runtime-complexity,
-cf. http://cl-informatik.uibk.ac.at/~zini/publications/FLOPS08.pdf
-.
-The implementation for the WDP-setting follows closely
-http://cl-informatik.uibk.ac.at/~zini/publications/RTA09.pdf ,
-where addionally argument filterings are employed.
+innermost runtime-complexity.
+The implementation for DP problems additionally employs argument
+filterings.
 
-[ps :: \[On|Off\] /(optional)/] If enabled then the scheme of parameter substitution is admitted,
-cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders.
+[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
+[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[wsc :: \[On|Off\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
-
-[ub :: \[\<nat>|none\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
+[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 popstar :: S.StdProcessor PopStar
@@ -97,20 +88,14 @@ popstar = popstarProcessor
 
 {- |
 This processor implements orientation of the input problem using
-'polynomial path orders'
-with product extension, c.f. processor 'pop*'
+\'polynomial path orders\'
+with product extension, c.f. processor \'popstar\'.
 
-[ps :: \[On|Off\] /(optional)/] If enabled then the scheme of parameter substitution is admitted,
-cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders.
+[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
+[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[wsc :: \[On|Off\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
-
-[ub :: \[\<nat>|none\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
+[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 ppopstar :: S.StdProcessor PopStar
@@ -118,27 +103,20 @@ ppopstar = ppopstarProcessor
 
 {- |
 This processor implements orientation of the input problem using
-'light multiset path orders',
+\'light multiset path orders\',
 a technique applicable for innermost runtime-complexity analysis.
-Light multiset path orders are a miniaturisation of 'multiset path
-orders',
+Light multiset path orders are a miniaturisation of \'multiset path
+orders\',
 restricted so that compatibility assesses polytime computability of
-the functions defined,
-cf. http://www.loria.fr/~marionjy/Papers/icc99.ps .
+the functions defined.
 Further, it induces exponentially bounded innermost
 runtime-complexity.
 
-[ps :: \[On|Off\] /(optional)/] If enabled then the scheme of parameter substitution is admitted,
-cf. http://cl-informatik.uibk.ac.at/~zini/publications/WST09.pdf how this is done for polynomial path orders.
+[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
+[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[wsc :: \[On|Off\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
-
-[ub :: \[\<nat>|none\] /(optional)/] If enabled then composition is restricted to weak safe composition,
-compare http://cl-informatik.uibk.ac.at/~zini/publications/WST10.pdf.
-
+[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 lmpo :: S.StdProcessor PopStar
@@ -165,22 +143,22 @@ bounds :: S.StdProcessor Bounds
 bounds = boundsProcessor
 
 {- |
-Processor 'fail' always returns the answer 'No'.
+Processor \'fail\' always returns the answer \'No\'.
 
 -}
 fail :: S.StdProcessor Fail
 fail = failProcessor
 
 {- |
-Processor 'success' always returns the answer 'Yes'.
+Processor \'success\' always returns the answer \'Yes(?,?)\'.
 
 -}
 success :: S.StdProcessor Success
 success = successProcessor
 
 {- |
-Processor 'empty' returns 'Yes(O(1),O(1))' if the strict component
-of the problem is empty.
+Processor \'empty\' returns \'Yes(O(1),O(1))\' if the strict
+component of the problem is empty.
 
 -}
 empty :: S.StdProcessor EmptyRules
@@ -195,7 +173,7 @@ open = openProcessor
 {- |
 This processor implements conditional branching
 
-[guard :: \[\<processor>\]] The guard processor. It succeeds if it returns 'Yes(*,*)'
+[guard :: \[\<processor>\]] The guard processor. It succeeds if it returns 'Yes(*,*)'.
 
 [then :: \[\<processor>\]] The processor that is applied if guard succeeds.
 
@@ -206,30 +184,30 @@ ite :: S.StdProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor)
 ite = iteProcessor
 
 {- |
-Processor 'Best' applies the given list of processors in parallel
+Processor \'Best\' applies the given list of processors in parallel
 and returns the proof admitting the lowest complexity certificate.
 
-[subprocessors :: \[\[\<processor>...\]\]] a list of subprocessors
+[subprocessors :: \[\<processor>...\]] a list of subprocessors
 
 -}
 best :: S.StdProcessor (OneOf P.AnyProcessor)
 best = bestProcessor
 
 {- |
-Processor 'Fastest' applies the given list of processors in
+Processor \'Fastest\' applies the given list of processors in
 parallel and returns the first successful proof.
 
-[subprocessors :: \[\[\<processor>...\]\]] a list of subprocessors
+[subprocessors :: \[\<processor>...\]] a list of subprocessors
 
 -}
 fastest :: S.StdProcessor (OneOf P.AnyProcessor)
 fastest = fastestProcessor
 
 {- |
-Processor 'Sequentially' applies the given list of processors
+Processor \'Sequentially\' applies the given list of processors
 sequentially and returns the first successful proof.
 
-[subprocessors :: \[\[\<processor>...\]\]] a list of subprocessors
+[subprocessors :: \[\<processor>...\]] a list of subprocessors
 
 -}
 sequentially :: S.StdProcessor (OneOf P.AnyProcessor)
@@ -237,14 +215,12 @@ sequentially = sequentiallyProcessor
 
 {- |
 This processor implements orientation of the input problem using
-'exponential path orders', a technique applicable for innermost
+\'exponential path orders\', a technique applicable for innermost
 runtime-complexity analysis. Exponential path orders are a
-miniaturisation of 'lexicographic path orders', restricted so that
-compatibility assesses exponential runtime complexity.
+miniaturisation of \'lexicographic path orders\', restricted so
+that compatibility assesses exponential runtime complexity.
 
-[ecomp :: \[On|Off\] /(optional)/] If this flag is enabled, then the slightly more liberal composition scheme f(x;y) = h(g(;x);k(x;y)) is permitted.
-Currently it is not known whether this extension is sound.
-
+[ecomp :: \[On|Off\] /(optional)/] Extended Composition: If this flag is enabled, then the slightly more . liberal composition scheme 'f(x;y) = h(g(;x);k(x;y))' is permitted. Currently it is not known whether this extension is sound.
 
 -}
 epostar :: S.StdProcessor EpoStar
@@ -366,8 +342,8 @@ poly :: S.StdProcessor NaturalPI
 poly = polyProcessor
 
 {- |
-This processor removes rules 'f(l_1,...,l_n) -> r' for which l_i (1
-<= i <=n) is not a normal form.
+This processor removes rules \'f(l_1,...,l_n) -> r\' for which l_i
+(1 \<= i \<=n) is not a normal form.
 The processor applies only to innermost problems.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
@@ -376,11 +352,11 @@ The processor applies only to innermost problems.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -388,6 +364,18 @@ irr :: T.Transformation InnermostRuleRemoval P.AnyProcessor
 irr = irrProcessor
 
 {- |
+This processor implements processor \'compose\' specifically for
+the (weak) dependency pair setting. It tries to estimate the
+complexity of the input problem based on the complexity of
+dependency pairs of upper congruence classes (with respect to the
+congruence graph) relative to the dependency pairs in the remaining
+lower congruence classes. The overall upper bound for the
+complexity of the input problem is estimated by multiplication of
+upper bounds of the sub problems.
+Note that the processor allows the optional specification of
+processors that are applied on the two individual subproblems. The
+transformation results into the systems which could not be oriented
+by those processors.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -395,18 +383,18 @@ irr = irrProcessor
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
-[split :: \[\] /(optional)/] 
+[split :: \[\] /(optional)/] This problem determines the strict rules of the selected upper congruence rules.
 
-[subprocessor A :: \[\<processor>|none\] /(optional)/] 
+[sub-processor-A :: \[\<processor>|none\] /(optional)/] If given, applied on the problem reflecting the upper congruence classes.
 
-[subprocessor B :: \[\<processor>|none\] /(optional)/] 
+[sub-processor-B :: \[\<processor>|none\] /(optional)/] If given, applied on the problem reflecting the lower congruence classes.
 
 -}
 composeRC :: T.Transformation (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
@@ -422,11 +410,11 @@ weak part of the problem.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 [on :: \[trs|any\] /(optional)/] This flag determine which rules have to be strictly oriented by the the matrix interpretation for
@@ -482,8 +470,16 @@ weightgap :: T.Transformation WeightGap P.AnyProcessor
 weightgap = weightgapProcessor
 
 {- |
+This transformation implements techniques for splitting the
+complexity problem into two complexity problems (A) and (B) so that
+the complexity of the input problem can be estimated by the
+complexity of the transformed problem. The processor closely
+follows the ideas presented in \/Complexity Bounds From Relative
+Termination Proofs\/
+(\<http:\/\/www.imn.htwk-leipzig.de\/~waldmann\/talk\/06\/rpt\/rel\/main.pdf>)
 
-[subprocessor :: \[\<processor>\]] 
+[subprocessor :: \[\<processor>\]] The processor applied on subproblem (A).
+
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -491,23 +487,23 @@ weightgap = weightgapProcessor
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
-[split :: \[dynamic\] /(optional)/] 
+[split :: \[dynamic\] /(optional)/] This argument of type 'Compose.Partitioning' determines strict rules of problem (A). Usually, this should be set to 'Dynamic', in which case the given processor determines selection of rules dynamically.
 
-[allow :: \[Add|Mult|Compose\] /(optional)/] 
+[allow :: \[Add|Mult|Compose\] /(optional)/] This argument type 'Compose.ComposeBound' determines how the complexity certificate should be obtained from subproblems (A) and (B). Consequently, this argument also determines the shape of (B). The third argument defines a processor that is applied on problem (A). If this processor succeeds, the input problem is transformed into (B). Note that for compose bound 'Mult' the transformation only succeeds if applied to non size-increasing Problems.
 
 -}
 compose :: T.Transformation (ComposeProc P.AnyProcessor) P.AnyProcessor
 compose = composeProcessor
 
 {- |
-Applies the Depencency Pair Transformation
+Applies the (weak) depencency pair transformation.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -515,11 +511,11 @@ Applies the Depencency Pair Transformation
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 [usetuples :: \[On|Off\] /(optional)/] This argument specifies whether dependency tuples instead of pairs should be used.
@@ -531,7 +527,8 @@ dependencyPairs = dependencyPairsProcessor
 
 {- |
 Recursively removes all nodes that are either leafs in the
-dependency-graph or from the given problem
+dependency-graph or from the given problem. Only applicable if the
+strict component is empty.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -539,11 +536,11 @@ dependency-graph or from the given problem
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -551,6 +548,9 @@ removeTail :: T.Transformation RemoveTail P.AnyProcessor
 removeTail = removeTailProcessor
 
 {- |
+Simplify right hand sides of dependency pairs by removing marked
+subterms whose root symbols are undefined. Only applicable if the
+strict component is empty.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -558,11 +558,11 @@ removeTail = removeTailProcessor
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -570,6 +570,10 @@ simpDPRHS :: T.Transformation SimpRHS P.AnyProcessor
 simpDPRHS = simpDPRHSProcessor
 
 {- |
+Moves a strict dependency into the weak component if all
+predecessors in the dependency graph are strict and there is no
+edge from the rule to itself. Only applicable if the strict
+component is empty.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -577,11 +581,11 @@ simpDPRHS = simpDPRHSProcessor
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -599,11 +603,11 @@ respect to the dependency pairs.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -611,7 +615,8 @@ usableRules :: T.Transformation UR P.AnyProcessor
 usableRules = usableRulesProcessor
 
 {- |
-Pathanalysis
+This processor implements path-analysis as described in the
+dependency pair paper.
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -619,11 +624,11 @@ Pathanalysis
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
@@ -631,8 +636,8 @@ pathAnalysis :: T.Transformation PathAnalysis P.AnyProcessor
 pathAnalysis = pathAnalysisProcessor
 
 {- |
-This processor implements 'Uncurrying' for left-head-variable-free
-ATRSs
+This processor implements \'Uncurrying\' for
+left-head-variable-free ATRSs
 
 [subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
 
@@ -640,19 +645,20 @@ ATRSs
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel
+[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
 [checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
-A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'.
-Currently we only take subset-inclusions of the different components into account
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
 
 
 -}
 uncurry :: T.Transformation Uncurry P.AnyProcessor
 uncurry = uncurryProcessor
 
-
--- generated: Sun Dec 25 21:19:03 JST 2011
+-- generated: Tue Dec 27 14:31:20 JST 2011
+-- | This processor collects all built in processors, 
+-- see "Tct.Configuration" for usage information.
 builtInProcessors :: P.AnyProcessor 
 builtInProcessors = 
     timeout

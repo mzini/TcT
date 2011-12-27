@@ -96,7 +96,7 @@ instance ParsableArgument Bool where
 
 instance Argument a => Argument [a] where 
     type Domain [a] = [Domain a]
-    domainName Phantom =  "[" ++ domainName (Phantom :: Phantom a) ++ "...]"
+    domainName Phantom =  domainName (Phantom :: Phantom a) ++ "..."
     showArg _ as = show "[" ++ concat (L.intersperse ", " [showArg (Phantom :: Phantom a) a | a <- as])
 
 instance Argument a => Argument (Maybe a) where 

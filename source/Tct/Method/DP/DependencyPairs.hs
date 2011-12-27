@@ -108,7 +108,7 @@ instance T.Transformer DPs where
     instanceName inst | tups = "Weak Dependency Tuples"
                       | otherwise = "Dependency Pairs"
        where tups = T.transformationArgs inst
-    description DPs = ["Applies the Depencency Pair Transformation"]
+    description DPs = ["Applies the (weak) depencency pair transformation."]
 
     type T.ArgumentsOf DPs = Arg Bool
     type T.ProofOf DPs = DPProof

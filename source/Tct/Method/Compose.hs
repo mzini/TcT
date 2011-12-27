@@ -48,10 +48,15 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 -- import Termlib.Term (..)
 -- static partitioning
 
-data ComposeBound = Add | Mult | Compose  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
+data ComposeBound = Add  -- ^ obtain bound by addition
+                  | Mult -- ^ obtain bound by multiplication
+                  | Compose  -- ^ obtain bound by composition
+  deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 
-data RuleSelector a = RS { rsName :: String
-                         , rsSelect :: a -> Problem -> Prob.Ruleset } deriving Typeable
+data RuleSelector a = RS { rsName :: String -- ^ name of the rule selector
+                         , rsSelect :: a -> Problem -> Prob.Ruleset -- ^ given state 'a' and problem, select a 'Prob.Ruleset' from the problem
+                                                                 -- ^ whose TRSs should be subsets of the TRSs from the input problem.
+                         } deriving Typeable
 
 instance Show (RuleSelector a) where show = rsName
 
@@ -153,7 +158,9 @@ selBfs nm f = selFromCWDG nm fn
 --                              , const $ \ prob -> ( filter p $ Trs.rules $ Prob.strictDPs prob
 --                                                 , filter p $ Trs.rules $ Prob.strictTrs prob))
 
-data Partitioning = Static (RuleSelector ComposeBound) | Dynamic deriving (Typeable)
+data Partitioning = Static (RuleSelector ComposeBound) -- ^ Select rules statically according to a 'RuleSelector'
+                  | Dynamic  -- ^ Selection of the rules is determined by the applied processor.
+ deriving (Typeable)
 
 instance Show Partitioning where
     show Dynamic         = "dynamic"
@@ -191,37 +198,31 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
                            Mult -> text "multiplication"
                            Compose -> text "composition"
 
-    description ComposeProc = [ unwords [ -- "Given a TRS R, 'compose p1 p2' partitions R into a pair of TRSs (R_1,R_2)" 
-                                    -- , "and applies processor 'p1' on the (relative) problem R_1 modulo R_2."
-                                    -- , "Depending on the flag 'relative' the second processor 'p2' is either applied"
-                                    -- , "on the relative problem R_2 modulo R_1 or the TRS R_2."
-                                    -- , "In the former case the asymptotic upper-bound for the complexity of R is the worst upper-bound of R_1 modulo R_2 and R_2 modulo R_1.\n"
-                                    -- , "In the latter case the complexity of R is computed based on the complexity"
-                                    -- , "of R_1 modulo R_2 and the TRS R_2 as follows.\n"
-                                    -- , "  1) if R_1 and R_2 are non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R_1/R_2) * dc(n, ->_R_2))\n"
-                                    -- , "  2) if R_2 is non-size-increasing then dc(n, ->_R) = O(dc(n, ->_R/S) * dc(n + dc(n,->_R_1/R_2), ->_R_2))\n"
-                                    -- , "  3) otherwise dc(n, ->_R) = O(dc(n, ->_R/S) * f(n)) where f(n) denotes m-times iteration of the function \\n. dc(n,->_R_2) where m :=  dc(n,->_R_1/R_2) + 1.\n\n"
-                                    -- , "Note that criteria 1--3 are only applied for derivational complexity analysis.\n\n"
-                                    -- , "The processor is also applicable in the dependency pair setting and on relative input problems (without criteria 1--3)."
-                                    ]
-                          ]
+    description ComposeProc = [ unwords [ "This transformation implements techniques for splitting the complexity problem"
+                                        , "into two complexity problems (A) and (B) so that the complexity of the input problem" 
+                                        , "can be estimated by the complexity of the transformed problem."
+                                        , "The processor closely follows the ideas presented in"
+                                        , "/Complexity Bounds From Relative Termination Proofs/"
+                                        , "(<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>)" ]
+                              ]
     arguments ComposeProc   = opt { A.name         = "split" 
                                   , A.defaultValue = Dynamic
-                                  , A.description  = unwords [
-                                                 -- "If this argument is set then the input TRS R is partitioned into TRSs (R_1,R_2) according to the supplied argument."
-                                                 --        , "If 'Random' is supplied, the strict TRSs R are splitted equally in size."
-                                                 --        , "If 'SplitDP' is supplied, the first processor processes is applied to the subproblem where DPs are strict and the remaining strict rules are weak,"
-                                                 --        , "and the second processor is applied to the inverse problem."
-                                                        ]}
+                                  , A.description  = unwords [ "This argument of type 'Compose.Partitioning' determines strict rules of"
+                                                             , "problem (A). Usually, this should be set to 'Dynamic', in which case"
+                                                             , "the given processor determines selection of rules dynamically."
+                                                             ]}
                           :+: opt { A.name = "allow"
                                   , A.defaultValue = Add
-                                  , A.description = unwords [ 
-                                                    --  "This flag specifies how the second component R_2 is handled by the second given processor 'p2'."
-                                                    -- , "If this flag is set, and one of the above criteria 1--3 applies, processor 'p2' is used to estimate the complexity of R_2."
-                                                    -- , "Otherwise, the processor 'p2' is applied on the subproblem R_2 modulo R_1."
-                                                    ] }
+                                  , A.description = unwords [ "This argument type 'Compose.ComposeBound' determines"
+                                                            , "how the complexity certificate should be obtained from subproblems (A) and (B)."
+                                                            , "Consequently, this argument also determines the shape of (B)."
+                                                            , "The third argument defines a processor that is applied on problem (A)."
+                                                            , "If this processor succeeds, the input problem is transformed into (B)."
+                                                            , "Note that for compose bound 'Mult' the transformation only succeeds"
+                                                            , "if applied to non size-increasing Problems."
+                                                            ] }
                           :+: arg { A.name = "subprocessor"
-                                  , A.description = unlines []}
+                                  , A.description = unlines [ "The processor applied on subproblem (A)."]}
 
     transform inst prob = 
         case split of 

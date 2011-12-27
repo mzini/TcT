@@ -450,18 +450,18 @@ instance PrettyPrintable SomeProcessor where
 
 haddockComment :: ParsableProcessor p => p -> Doc
 haddockComment proc = 
-  Utils.paragraph (unlines (description proc))
+  Utils.paragraph (escaped $ unlines (description proc))
   $+$ text ""
   $+$ ppargs
     where args = map snd (posArgs proc) ++ optArgs proc
           ppargs | null args = empty
                  | otherwise = vcat [ pparg a $+$ text "" | a <- args]
           pparg a = text "["
-                    <> text (adName a) <+> text "::" <+> text (escapedSyn a) 
+                    <> text (adName a) <+> text "::" <+> text (escaped $ adSynopsis  a) 
                     <+> (if adIsOptional a then text "/(optional)/" else empty)
                     <> text "]"
                     <+> text (adDescr a)
-          escapedSyn a = concatMap esc $ adSynopsis a
+          escaped a = concatMap esc $ a
             where esc c | c `elem` "/'`\"@<[]" = ['\\',c]
                         | otherwise            = [c]
                   
@@ -475,7 +475,7 @@ instance Show (InstanceOf SomeProcessor) where
 someProof :: (ComplexityProof p) => p -> SomeProof
 someProof = SomeProof
 
--- | Constructor for a proof node of 'Some Processor'
+-- | Constructor for a proof node of 'SomeProcessor'
 someProofNode :: Processor p => InstanceOf p -> Problem -> ProofOf p -> Proof SomeProcessor
 someProofNode proc prob proof = Proof { appliedProcessor = someInstance proc 
                                       , inputProblem = prob
@@ -548,7 +548,7 @@ infixr 6 <++>
 (<++>) :: AnyProcessor -> AnyProcessor -> AnyProcessor
 OO s l1 <++> OO _ l2 = OO s $ l1 ++ l2
 
--- | The empty 'AnyProcessor'
+-- | The empty 'AnyProcessor'.
 none :: AnyProcessor
 none = OO "any processor" []
 
@@ -556,7 +556,7 @@ none = OO "any processor" []
 toProcessorList :: AnyProcessor -> [SomeProcessor]
 toProcessorList (OO _ l) = l
 
--- | Construct an 'AnyProcessor' from a list of processors
+-- | Construct an 'AnyProcessor' from a list of processors.
 fromProcessorList :: [SomeProcessor] -> AnyProcessor
 fromProcessorList l = OO "any processor" l
 

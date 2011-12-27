@@ -523,13 +523,13 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
                                          , A.defaultValue = False }
                                      :+: 
                                      opt { A.name = "parallel"
-                                         , A.description = "Decides whether the given subprocessor should be applied in parallel"
+                                         , A.description = "Decides whether the given subprocessor should be applied in parallel."
                                          , A.defaultValue = False }
                                      :+: 
                                      opt { A.name = "checkSubsumed"
                                          , A.description = unlines [ "This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one."
-                                                                   , "A problem 'p1' is subsumed by problem 'p2' if the complexity of 'p1' is bounded from above by the complexity of 'p2'."
-                                                                   , "Currently we only take subset-inclusions of the different components into account" ]
+                                                                   , "A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B)."
+                                                                   , "Currently we only take subset-inclusions of the different components into account." ]
                                                     
                                          , A.defaultValue = False }
                                      :+: 

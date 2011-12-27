@@ -92,16 +92,28 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
         where split :+: _ = T.transformationArgs inst
               ppsplit = text $ show split 
 
-    description ComposeRCProc = [ unwords [ ] ]
+    description ComposeRCProc = [ unwords [ "This processor implements processor 'compose' specifically for the" 
+                                          , "(weak) dependency pair setting."
+                                          , "It tries to estimate the complexity of the input problem"
+                                          , "based on the complexity of dependency pairs of upper congruence classes"
+                                          , "(with respect to the congruence graph)"
+                                          , "relative to the dependency pairs in the remaining lower congruence classes."
+                                          , "The overall upper bound for the complexity of the input problem" 
+                                          , "is estimated by multiplication of upper bounds of the sub problems."] 
+                                , unwords [ "Note that the processor allows the optional specification of processors" 
+                                          , "that are applied on the two individual subproblems."
+                                          , "The transformation results into the systems which could not be oriented"
+                                          , "by those processors." ]
+                                ]
     arguments ComposeRCProc   = opt { A.name         = "split" 
                                     , A.defaultValue = defaultSelect
-                                    , A.description  = ""}
-                                :+: opt { A.name = "subprocessor A"
+                                    , A.description  = "This problem determines the strict rules of the selected upper congruence rules."}
+                                :+: opt { A.name = "sub-processor-A"
                                         , A.defaultValue = Nothing
-                                        , A.description = ""}
-                                :+: opt { A.name = "subprocessor B"
+                                        , A.description = "If given, applied on the problem reflecting the upper congruence classes."}
+                                :+: opt { A.name = "sub-processor-B"
                                         , A.defaultValue = Nothing
-                                        , A.description = ""}
+                                        , A.description = "If given, applied on the problem reflecting the lower congruence classes."}
 
     transform inst prob | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
                         | otherwise                 = do mProofA <- mapply mProcA probA

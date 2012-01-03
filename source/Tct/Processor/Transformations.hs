@@ -232,7 +232,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                         $+$ case find i r2s of 
                                Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
                                Just r2_i@(Progress _ ps) -> 
-                                 pprintTProof t2 prob (proofFromResult r2_i)
+                                 pprintTProof t2 prob_i (proofFromResult r2_i)
                                  $+$ if null ps 
                                      then PP.empty
                                      else text ""
@@ -240,7 +240,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                                           $+$ text ""
                                           $+$ enum ps
                                Just r2_i@(NoProgress _) -> 
-                                 pprintTProof t2 prob (proofFromResult r2_i)
+                                 pprintTProof t2 prob_i (proofFromResult r2_i)
 
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
 someProof sub t prob res subproofs = Proof { transformationResult = res
@@ -299,7 +299,7 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
       r1 <- transform t1 prob
       case r1 of 
         NoProgress _   -> if continue t1
-                         then transform2 r1 (enumeration' [prob]) -- == [(1,prob)]
+                         then transform2 r1 (enumeration' [prob])
                          else return $ NoProgress $ ComposeProof r1 Nothing
         Progress _ ps -> transform2 r1 ps -- [(a,prob1), (b,prob2), (c,prob3)...]
 
@@ -436,7 +436,7 @@ instance TransformationProof t => TransformationProof (Try t) where
 instance (Transformer t) => Transformer (Try t) where
     name (Try t) = name t
     continue _ = True
-    instanceName inst = instanceName $ fromTry inst
+    instanceName inst = "try " ++ instanceName (fromTry inst)
     description (Try t) = description t
     type ArgumentsOf  (Try t) = ArgumentsOf t
     type ProofOf (Try t) = TryProof t

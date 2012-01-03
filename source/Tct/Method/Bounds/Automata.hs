@@ -1,25 +1,24 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+
+{- | 
+Module      :  Tct.Method.Bounds.Automata
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
+
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
+
+This module implements automata functionality as employed by 
+the bounds processor.
+-}
 
 module Tct.Method.Bounds.Automata where
 
@@ -41,7 +40,12 @@ import Termlib.Trs.PrettyPrint (pprintTrs)
 
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-data Enrichment = Match | Roof | Top deriving (Typeable, Enum, Bounded, Eq)
+-- | This datatype represents the /enrichment/ employed.
+data Enrichment = 
+  Match -- ^ Matchbounds.
+  | Roof -- ^ Roofbounds.
+  | Top -- ^ Topbounds.
+  deriving (Typeable, Enum, Bounded, Eq)
 
 instance Show Enrichment where
     show Match   = "match"

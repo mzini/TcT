@@ -1,20 +1,3 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -22,24 +5,64 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.Combinator
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module defines various processor combinators.
+--------------------------------------------------------------------------------   
+
 module Tct.Method.Combinator 
-    -- ( bestStrategy
-    -- , fastestStrategy
-    -- , sequentiallyStrategy
-    -- , iteStrategy
-    -- , failStrategy
-    -- , succStrategy
-    -- , best
-    -- , fastest
-    -- , sequentially
-    -- , (.>>)
-    -- , ite
-    -- , fail
-    -- , success
-    -- )
+       (
+         -- * Trivial Processors
+         success
+       , fail
+       , empty
+       , open
+         -- ** Proof Object
+       , TrivialProof (..)
+       , OpenProof (..)
+         -- ** Processor Definition
+       , Success
+       , successProcessor
+       , Fail
+       , failProcessor
+       , EmptyRules
+       , emptyProcessor
+       , Open
+       , openProcessor
+         -- * Parallel / Sequential Proof Search
+       , before
+       , orFaster
+       , orBetter
+       , sequentially
+       , fastest
+       , best       
+         -- ** Proof Object         
+       , OneOfProof (..)
+         -- ** Processor Definition         
+       , OneOf (..)
+       , sequentiallyProcessor
+       , fastestProcessor
+       , bestProcessor
+
+         -- * Conditional
+       , ite
+       , IteProof (..)
+       , Ite
+       , iteProcessor
+       )
 where
 import Prelude hiding (fail)
-import Text.PrettyPrint.HughesPJ hiding (parens)
+import Text.PrettyPrint.HughesPJ hiding (parens, empty)
 import Control.Concurrent.PFold (pfoldA, Return (..))
 import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
@@ -115,12 +138,15 @@ successProcessor = S.StdProcessor Success
 emptyProcessor :: S.StdProcessor EmptyRules
 emptyProcessor = S.StdProcessor EmptyRules
 
+-- | This processor always returns the answer @No@.
 fail :: P.InstanceOf (S.StdProcessor Fail)
 fail = S.StdProcessor Fail `S.withArgs` ()
 
+-- | This processor always returns the answer @Yes(?,?)@.
 success :: P.InstanceOf (S.StdProcessor Success)
 success = S.StdProcessor Success `S.withArgs` ()
 
+-- | This processor returns the answer @Yes(O(1),(1))@ if the strict component is empty.
 empty :: P.InstanceOf (S.StdProcessor EmptyRules)
 empty = S.StdProcessor EmptyRules `S.withArgs` ()
 
@@ -132,20 +158,21 @@ instance P.ComplexityProof OpenProof
   where answer _ = P.MaybeAnswer
         pprintProof _ _ = text "The problem remains open"
         
-data OpenProcessor = OpenProcessor
-instance S.Processor OpenProcessor where
-  type S.ProofOf OpenProcessor = OpenProof
-  type S.ArgumentsOf OpenProcessor = A.Unit
+data Open = Open
+instance S.Processor Open where
+  type S.ProofOf Open = OpenProof
+  type S.ArgumentsOf Open = A.Unit
   
   name _ = "Open"
   arguments _ = A.Unit
   solve _ _ = return OpenProof
 
 
-openProcessor :: S.StdProcessor OpenProcessor
-openProcessor = S.StdProcessor OpenProcessor
+openProcessor :: S.StdProcessor Open
+openProcessor = S.StdProcessor Open
 
-open :: P.InstanceOf (S.StdProcessor OpenProcessor)
+-- | This processor always returns the answer @Maybe@.
+open :: P.InstanceOf (S.StdProcessor Open)
 open = openProcessor `S.withArgs` ()
 
 
@@ -199,6 +226,7 @@ instance ( P.Processor g
                                          , branchProof = Right bproof }
             where g :+: t :+: e = S.processorArgs inst
 
+-- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied.
 ite :: (P.Processor g, P.Processor t, P.Processor e) => P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (S.StdProcessor (Ite g t e))
 ite g t e = S.StdProcessor Ite `S.withArgs` (g :+: t :+: e)
 
@@ -291,9 +319,6 @@ instance (P.Processor p) => S.Processor (OneOf p) where
                                             r <- liftIO $ pfoldA sel (Left []) actions
                                             return $ ofResult proc r
 
-
-
-
 bestProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 bestProcessor = S.StdProcessor Best
 
@@ -303,11 +328,35 @@ fastestProcessor = S.StdProcessor Fastest
 sequentiallyProcessor :: S.StdProcessor (OneOf P.AnyProcessor)
 sequentiallyProcessor = S.StdProcessor Sequentially
 
+-- | The processor @p1 `orFaster` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
+--   proof of that processor that finishes fastest.
+orFaster :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `orFaster` b = fastest [P.someInstance a, P.someInstance b]
+
+-- | The processor @p1 `orBetter` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
+--   proof that gives the better certificate.
+orBetter :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `orBetter` b = best [P.someInstance a, P.someInstance b]
+
+-- | The processor @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@.
+before :: (P.Processor a, P.Processor b) => 
+           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+a `before` b = sequentially [P.someInstance a, P.someInstance b]
+
+-- | List version of 'orBetter'.
+-- Note that the type of all given processors need to agree. To mix processors
+-- of different type, use 'some' on the individual arguments. 
 best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 best ps = S.StdProcessor Best `S.withArgs` ps
 
+-- | List version of 'orFaster'.
+-- Note that the type of all given processors need to agree. To mix processors
+-- of different type, use 'some' on the individual arguments. 
 fastest :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 fastest ps = S.StdProcessor Fastest `S.withArgs` ps
 
+-- | List version of 'before'. 
 sequentially :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
 sequentially ps = S.StdProcessor Sequentially `S.withArgs` ps

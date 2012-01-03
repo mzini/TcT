@@ -1,22 +1,30 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Method.DP.DependencyPairs
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements the /weak dependency pair/ transformation.
 -}
-module Tct.Method.DP.DependencyPairs where
+
+module Tct.Method.DP.DependencyPairs 
+       (
+         dependencyPairs
+         , dependencyTuples
+         -- * Proof Object
+         , DPProof (..)
+         -- * Processor
+         , dependencyPairsProcessor
+         , DPs
+       )
+       where
 import Control.Monad (liftM)
 -- import Control.Monad.Trans (liftIO)
 import qualified Data.Set as Set
@@ -148,9 +156,11 @@ instance T.Transformer DPs where
 dependencyPairsProcessor :: T.Transformation DPs P.AnyProcessor
 dependencyPairsProcessor = T.Transformation DPs
 
+-- | Implements dependency pair transformation. Only applicable on runtime-complexity problems.
 dependencyPairs :: T.TheTransformer DPs
 dependencyPairs = T.Transformation DPs `T.withArgs` False
 
+-- | Implements dependency tuples transformation. Only applicable on innermost runtime-complexity problems.
 dependencyTuples :: T.TheTransformer DPs
 dependencyTuples = T.Transformation DPs `T.withArgs` True
 

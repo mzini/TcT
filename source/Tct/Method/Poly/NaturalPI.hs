@@ -1,3 +1,11 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_HADDOCK prune #-}
 {- | 
 Module      :  Tct.Method.Poly.NaturalPI
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -13,15 +21,14 @@ This module defines the processor for polynomial interpretations
 with natural coefficients.
 -}
 
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
-module Tct.Method.Poly.NaturalPI where
+module Tct.Method.Poly.NaturalPI 
+       (
+         PolynomialOrder (..)
+       , NaturalPI
+       , polyProcessor
+       ) 
+       where
 
 import Prelude hiding ((&&),not)
 

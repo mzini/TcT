@@ -25,16 +25,10 @@ module Tct.Method.PopStar
       
       -- * Instance Constructors
     , popstar
-      -- | Constructor for polynomial path orders.
     , popstarPS
-      -- | Constructor for polynomial path orders with parameter substitution.
     , popstarSmall
-      -- | Constructor for small polynomial path orders that are capable of 
-      -- proving polynomially bounded innermost runtime complexity of a specific degree.
     , popstarSmallPS
-      -- | Constructor for small polynomial path orders with parameter substitution.
     , lmpo
-      -- | Constructor for lightweight multiset path orders.      
       
       -- * Processors
     , PopStar      
@@ -256,18 +250,24 @@ ppopstarProcessor = S.StdProcessor (PopStar ProdPOP)
 lmpoProcessor :: S.StdProcessor PopStar
 lmpoProcessor = S.StdProcessor (PopStar LMPO)
 
+-- | This processor implements polynomial path orders.
 popstar :: P.InstanceOf (S.StdProcessor PopStar)
 popstar = popstarProcessor `S.withArgs` (False :+: False :+: Nothing)
 
+-- | This processor implements lightweight multiset path orders.
 lmpo :: P.InstanceOf (S.StdProcessor PopStar)
 lmpo = lmpoProcessor `S.withArgs` (False :+: False :+: Nothing)
 
+-- | This processor implements polynomial path orders with parameter substitution.
 popstarPS :: P.InstanceOf (S.StdProcessor PopStar)
 popstarPS = popstarProcessor `S.withArgs` (True :+: False :+: Nothing)
 
+-- | This processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
+      --   which allow to determine the degree of the obtained polynomial certificate.
 popstarSmall :: Maybe Int -> P.InstanceOf (S.StdProcessor PopStar)
 popstarSmall mi = ppopstarProcessor `S.withArgs` (False :+: True :+: (nat `liftM` mi))
 
+-- | This processor is like 'popstarSmall' but incorporates parameter substitution addidionally.
 popstarSmallPS :: Maybe Int -> P.InstanceOf (S.StdProcessor PopStar)
 popstarSmallPS mi = ppopstarProcessor `S.withArgs` (True :+: True :+: (nat `liftM` mi))
 

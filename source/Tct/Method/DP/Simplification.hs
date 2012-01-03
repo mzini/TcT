@@ -1,24 +1,43 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.DP.Simplification
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module provides various fast transformations that simplify 
+-- dependency pair problems.
+--------------------------------------------------------------------------------   
 
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Tct.Method.DP.Simplification where
+module Tct.Method.DP.Simplification 
+       (
+         -- * Remove Tails
+         removeTails
+       , RemoveTailProof (..)
+       , removeTailProcessor
+       , RemoveTail
+         
+         -- * Simplify Dependency Pair Right-Hand-Sides
+       , simpDPRHS
+       , SimpRHSProof (..)
+       , simpDPRHSProcessor
+       , SimpRHS
+         
+         -- * Knowledge Propagation
+       , simpKP
+       , SimpKPProof (..)         
+       , simpKPProcessor
+       , SimpKP
+       )
+where
 
 import qualified Data.Set as Set
 import Data.List (partition)
@@ -49,9 +68,9 @@ import qualified Data.Graph.Inductive.Graph as Graph
 
 
 data RemoveTail = RemoveTail
-data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] 
-                               , cgraph     :: CDG
-                               , graph      :: DG
+data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
+                               , cgraph     :: CDG -- ^ Employed congruence graph.
+                               , graph      :: DG -- ^ Employed weak dependency graph.
                                , signature  :: F.Signature
                                , variables  :: V.Variables}
                      | Error DPError
@@ -137,6 +156,12 @@ instance T.Transformer RemoveTail where
 removeTailProcessor :: T.Transformation RemoveTail P.AnyProcessor
 removeTailProcessor = T.Transformation RemoveTail
 
+-- | Removes trailing weak paths and and dangling rules. 
+-- A dependency pair is on a trailing weak path if it is from the weak components and all sucessors in the dependency graph 
+-- are on trailing weak paths. A rule is dangling if it has no successors in the dependency graph.
+--  
+-- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
+-- not applicable when @strictTrs prob \= Trs.empty@.
 removeTails :: T.TheTransformer RemoveTail
 removeTails = T.Transformation RemoveTail `T.withArgs` ()
 
@@ -146,8 +171,8 @@ removeTails = T.Transformation RemoveTail `T.withArgs` ()
 --- Simplify DP-RHSs
 
 data SimpRHS = SimpRHS
-data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] 
-                              , srhsDG            :: DG
+data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] -- ^ Rules that could be simplified.
+                              , srhsDG            :: DG -- ^ Employed dependency graph.
                               , srhsSig           :: F.Signature
                               , srhsVars          :: V.Variables}                                
                   | SRHSError DPError
@@ -208,6 +233,12 @@ instance T.Transformer SimpRHS where
 simpDPRHSProcessor :: T.Transformation SimpRHS P.AnyProcessor
 simpDPRHSProcessor = T.Transformation SimpRHS
 
+-- | Simplifies right-hand sides of dependency pairs. 
+-- Removes r_i from right-hand side @c_n(r_1,...,r_n)@ if no instance of 
+-- r_i can be rewritten.
+--  
+-- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
+-- not applicable when @strictTrs prob \= Trs.empty@.
 simpDPRHS :: T.TheTransformer SimpRHS
 simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 
@@ -216,9 +247,9 @@ simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 --- Simplify DP-RHSs
 
 data SimpKP = SimpKP
-data SimpKPProof = SimpKPProof { skpDG            :: DG
-                               , skpRule          :: Maybe (Int,Rule)
-                               , skpPres          :: [Rule]
+data SimpKPProof = SimpKPProof { skpDG            :: DG -- ^ Employed DependencyGraph
+                               , skpRule          :: Maybe (NodeId,Rule) -- ^ Rule that can be moved into the weak component.
+                               , skpPres          :: [Rule]  -- ^ All predecessors of rule which can be moved into weak component.
                                , skpSig           :: F.Signature
                                , skpVars          :: V.Variables}                                
                  | SimpKPErr DPError
@@ -285,5 +316,11 @@ instance T.Transformer SimpKP where
 simpKPProcessor :: T.Transformation SimpKP P.AnyProcessor
 simpKPProcessor = T.Transformation SimpKP
 
+-- | Moves a strict dependency into the weak component
+-- if all predecessors in the dependency graph are strict 
+-- and there is no edge from the rule to itself.
+-- Only applicable if the strict component is empty.
+-- This processor is inspired by Knowledge Propagation used in AProVE, 
+-- therefor its name.
 simpKP :: T.TheTransformer SimpKP
 simpKP = T.Transformation SimpKP `T.withArgs` ()

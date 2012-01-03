@@ -47,6 +47,7 @@ whichTrs :: Arg (EnumOf WhichTrs)
 whichTrs = arg
 
 
+
 data Predicate = TrsPredicate String (Trs -> Bool)
                | ProblemPredicate String (Problem -> Bool)
 data PredicateProof = PredicateProof Predicate P.Answer

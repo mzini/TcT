@@ -1,28 +1,38 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Tct.Method.ComposeRC where
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.ComposeRC
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module provides the /compose-RC/ transformation.
+--------------------------------------------------------------------------------   
+
+module Tct.Method.ComposeRC 
+       (
+         composeRC
+       , solveAWith
+       , solveBWith         
+       , composeRCselect
+         -- * Proof Object
+       , ComposeRCProof (..)
+         -- * Processor
+       , composeRCProcessor
+       , ComposeRC
+       )
+where
 
 import Control.Monad (liftM, mplus)
 import Text.PrettyPrint.HughesPJ
@@ -56,7 +66,7 @@ import Data.Graph.Inductive.Query.TransClos (trc)
 import Data.Typeable ()
 import Data.Either (partitionEithers)
 
-data ComposeRCProc p1 p2 = ComposeRCProc
+data ComposeRC p1 p2 = ComposeRC
 data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: RuleSelector ()
                                            , cpUnselected   :: Trs.Trs
                                            , cpSelected     :: Trs.Trs 
@@ -83,44 +93,53 @@ instance AssocArgument (RuleSelector ()) where
     assoc _ = [] -- TODO extend
 
 
-instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2) where
-    type T.ArgumentsOf (ComposeRCProc p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
-    type T.ProofOf (ComposeRCProc p1 p2)     = ComposeRCProof p1 p2
+instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
+    type T.ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
+    type T.ProofOf (ComposeRC p1 p2)     = ComposeRCProof p1 p2
 
-    name ComposeRCProc        = "compose-rc"
-    instanceName inst   = show $ text "compose-rc" <+> parens (ppsplit)
+    name _ = "compose-rc"
+    instanceName inst = show $ text "compose-rc" <+> parens (ppsplit)
         where split :+: _ = T.transformationArgs inst
               ppsplit = text $ show split 
 
-    description ComposeRCProc = [ unwords [ "This processor implements processor 'compose' specifically for the" 
-                                          , "(weak) dependency pair setting."
-                                          , "It tries to estimate the complexity of the input problem"
-                                          , "based on the complexity of dependency pairs of upper congruence classes"
-                                          , "(with respect to the congruence graph)"
-                                          , "relative to the dependency pairs in the remaining lower congruence classes."
-                                          , "The overall upper bound for the complexity of the input problem" 
-                                          , "is estimated by multiplication of upper bounds of the sub problems."] 
-                                , unwords [ "Note that the processor allows the optional specification of processors" 
-                                          , "that are applied on the two individual subproblems."
-                                          , "The transformation results into the systems which could not be oriented"
-                                          , "by those processors." ]
-                                ]
-    arguments ComposeRCProc   = opt { A.name         = "split" 
-                                    , A.defaultValue = defaultSelect
-                                    , A.description  = "This problem determines the strict rules of the selected upper congruence rules."}
-                                :+: opt { A.name = "sub-processor-A"
-                                        , A.defaultValue = Nothing
-                                        , A.description = "If given, applied on the problem reflecting the upper congruence classes."}
-                                :+: opt { A.name = "sub-processor-B"
-                                        , A.defaultValue = Nothing
-                                        , A.description = "If given, applied on the problem reflecting the lower congruence classes."}
-
-    transform inst prob | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
-                        | otherwise                 = do mProofA <- mapply mProcA probA
-                                                         mProofB <- case maybe True P.succeeded mProofA of 
-                                                                     True  -> mapply mProcB probB
-                                                                     False -> return Nothing
-                                                         return $ mkProof mProofA mProofB
+    description _ = 
+      [ unwords 
+        [ "This processor implements processor 'compose' specifically for the" 
+        , "(weak) dependency pair setting."
+        , "It tries to estimate the complexity of the input problem"
+        , "based on the complexity of dependency pairs of upper congruence classes"
+        , "(with respect to the congruence graph)"
+        , "relative to the dependency pairs in the remaining lower congruence classes."
+        , "The overall upper bound for the complexity of the input problem" 
+        , "is estimated by multiplication of upper bounds of the sub problems."] 
+      , unwords [ "Note that the processor allows the optional specification of processors" 
+                , "that are applied on the two individual subproblems."
+                , "The transformation results into the systems which could not be oriented"
+                , "by those processors." ]
+      ]
+    arguments _ = 
+      opt { A.name         = "split" 
+          , A.defaultValue = composeRCselect
+          , A.description  = "This problem determines the strict rules of the selected upper congruence rules."}
+      :+: 
+      opt { A.name = "sub-processor-A"
+          , A.defaultValue = Nothing
+          , A.description = "If given, applied on the problem reflecting the upper congruence classes."
+          }
+      :+: 
+      opt { A.name = "sub-processor-B"
+          , A.defaultValue = Nothing
+          , A.description = "If given, applied on the problem reflecting the lower congruence classes."
+          }
+    
+    transform inst prob 
+         | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
+         | otherwise = 
+             do mProofA <- mapply mProcA probA
+                mProofB <- case maybe True P.succeeded mProofA of 
+                             True  -> mapply mProcB probB
+                             False -> return Nothing
+                return $ mkProof mProofA mProofB
 
         where s :+: mProcA :+: mProcB = T.transformationArgs inst 
               wdg = estimatedDependencyGraph Edg prob
@@ -202,7 +221,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRCProc p1 p2)
               mapply Nothing      _     = return Nothing
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
-instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCProc p1 p2) where
+instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
     pprintTProof _ _ (ComposeRCInapplicable reason) = text "Compose RC is inapplicable since" <+> text reason
     pprintTProof _ prob tproof = text "We measure the number of applications of following selected rules relative to the remaining rules"
                                 $+$ text ""
@@ -250,8 +269,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRCPro
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
 
-defaultSelect :: RuleSelector a
-defaultSelect = selFromWDG "below first cut in WDG" fn
+composeRCselect :: RuleSelector a
+composeRCselect = selFromWDG "below first cut in WDG" fn
     where fn _ dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
                                       , Prob.wdp = Trs.fromRules [r | (DG.WeakDP,r) <- selectedRules ] }
               where dgclosure = trc dg
@@ -268,15 +287,30 @@ defaultSelect = selFromWDG "below first cut in WDG" fn
                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
 
 
-composeRCProcessor :: T.Transformation (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
-composeRCProcessor = T.Transformation ComposeRCProc
+composeRCProcessor :: T.Transformation (ComposeRC P.AnyProcessor P.AnyProcessor) P.AnyProcessor
+composeRCProcessor = T.Transformation ComposeRC
 
+-- | This processor implements processor \'compose\' specifically for
+-- the (weak) dependency pair setting. It tries to estimate the
+-- complexity of the input problem based on the complexity of
+-- dependency pairs of upper congruence classes (with respect to the
+-- congruence graph) relative to the dependency pairs in the remaining
+-- lower congruence classes. The overall upper bound for the
+-- complexity of the input problem is estimated by multiplication of
+-- upper bounds of the sub problems.
+-- Note that the processor allows the optional specification of
+-- processors that are applied on the two individual subproblems. The
+-- transformation results into the systems which could not be oriented
+-- by those processors.
+composeRC :: (P.Processor p1, P.Processor p2) => RuleSelector () -> T.TheTransformer (ComposeRC p1 p2)
+composeRC s = T.Transformation ComposeRC `T.withArgs` (s :+: Nothing :+: Nothing)
 
-composeRC :: RuleSelector () -> T.TheTransformer (ComposeRCProc P.SomeProcessor P.SomeProcessor)
-composeRC s = T.Transformation ComposeRCProc `T.withArgs` (s :+: Nothing :+: Nothing)
+-- | Specify a processor to solve Problem A immediately. 
+-- The Transformation aborts if the problem cannot be handled.
+solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p p2))
+solveAWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRC (s :+: Just p :+: p2)
 
-solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRCProc p p2))
-solveAWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRCProc (s :+: Just p :+: p2)
-
-solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRCProc p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRCProc p1 p))
-solveBWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRCProc (s :+: p1 :+: Just p)
+-- | Specify a processor to solve Problem B immediately. 
+-- The Transformation aborts if the problem cannot be handled.
+solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p1 p))
+solveBWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRC (s :+: p1 :+: Just p)

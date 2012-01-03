@@ -122,8 +122,9 @@ instance PrettyPrintable [TCTWarning] where
 data OutputMode = OnlyAnswer 
                 | WithProof PPMode
 
+-- | Configuration of TcT. 
 data Config = Config { 
-  -- | New processors can be added to tct by extending this field.
+  -- | New processors can be added to TcT by extending this field.
   processors        :: AnyProcessor  
   
   -- | This field can be used to govern how a processor is 
@@ -191,7 +192,7 @@ data Config = Config {
   }
 
 
-
+-- | This is the default configuration of TcT.
 defaultConfig :: Config
 defaultConfig = Config { makeProcessor   = defaultProcessor
                        , processors      = Processors.builtInProcessors
@@ -481,6 +482,8 @@ parseArguments defaults =
 exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
+-- | This runs TcT with the given configuration. 
+-- Use 'defaultConfig' for running TcT with the default configuration.
 tct :: Config -> IO ()
 tct conf = do ecfg <- runErroneous
                      $ do cfgDir <- configDir conf

@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_HADDOCK prune #-}
+
 {- | 
 Module      :  Tct.Method.Poly.PolynomialInterpretation
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -12,11 +17,26 @@ Portability :  unportable
 This module defines polynomial interpretations.
 -}
 
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
-module Tct.Method.Poly.PolynomialInterpretation where
+module Tct.Method.Poly.PolynomialInterpretation 
+       (
+         -- * Shapes 
+       PolyShape (..)
+       , SimplePolyShape (..)
+         -- ** Constructors for Custom Shapes
+       , SimpleMonomial
+       , (^^^)
+       , mono
+       , constant
+       , boolCoefficient
+         
+         -- hidden
+       , PIKind (..)
+       , PIVar (..)
+       , PolyInter (..)
+       , abstractInterpretation
+       ) 
+       where
 
 import Data.Typeable
 import qualified Data.List as List
@@ -48,15 +68,21 @@ data PIVar = PIVar { restrict :: Bool
 type VPolynomial a = Polynomial V.Variable a
 type VMonomial a = Monomial V.Variable a
 
+-- | A 'SimpleMonomial' denotes a monomial with variables in 'Variable', 
+-- and can be build using '^^^', 'constant' and 'mono'.
 data SimpleMonomial = SimpleMonomial {smPowers :: [Power V.Variable]}
                     | CoefficientMonomial {smPowers :: [Power V.Variable]}
 
+-- | This datatype reflects standard shapes for polynomial 
+-- interpretations, as found in the literature.
 data SimplePolyShape = StronglyLinear
                      | Linear
                      | Simple
                      | SimpleMixed
                      | Quadratic
                deriving (Typeable)
+
+-- | The shape of polynomial interpretations.
 
 data PolyShape = SimpleShape SimplePolyShape                      
                | CustomShape ([V.Variable] -> [SimpleMonomial])
@@ -133,16 +159,26 @@ instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variab
                                  | otherwise = p
   interpretVar _ v     = varToPoly v
 
-
+-- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@.
 (^^^) :: a -> Int -> Power a
 a ^^^ i = Pow a i
 
+-- | Teturns a new monomial without variables.
 constant :: SimpleMonomial
 constant = mono []
 
+-- | @
+-- mono [v1^^^k1,...,vn^^^kn]
+-- @ 
+-- constructs the 'Poly.SimpleMonomial'
+-- @
+-- c * v1^k1 * ... * v1^kn
+-- @
+-- where @c@ is unique for the constructed monomial
 mono :: [Power V.Variable] -> SimpleMonomial
 mono = CoefficientMonomial
 
+-- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
 boolCoefficient :: SimpleMonomial -> SimpleMonomial
 boolCoefficient (CoefficientMonomial ps) = SimpleMonomial ps
 boolCoefficient sm                       = sm

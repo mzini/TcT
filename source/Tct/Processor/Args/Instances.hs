@@ -1,28 +1,26 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Processor.Args.Instances
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module defines various instances of processor arguments.
+--------------------------------------------------------------------------------   
+
 module Tct.Processor.Args.Instances 
        ( Proc (..)
        , Processor
@@ -37,8 +35,8 @@ module Tct.Processor.Args.Instances
        , boolArg
        , maybeArg
        , processorArg
-       , enumArg
-       , assocArg
+       , EnumArg
+       , AssocArg
        ) 
        where
 
@@ -137,8 +135,11 @@ instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) 
               lwer (c:cs) = toLower c : cs
 
 
-
+-- | Instances of this class can be parsed by means of the
+-- defined method 'assoc'. 
 class AssocArgument a where 
+    -- | The resulting list associates names to elements, and should be finite.
+    -- An element is parsed by parsing its name.
     assoc :: Phantom a -> [(String, a)]
 
 newtype Assoc a = Assoc a
@@ -159,7 +160,9 @@ instance (P.Processor a) => Argument (Proc a) where
     domainName _ = "<processor>"
     showArg _ a    = "<processor " ++ P.instanceName a ++ ">"
 
-instance ParsableArgument (Proc P.AnyProcessor) where
+type Processor = Proc P.AnyProcessor
+
+instance ParsableArgument Processor where
     parseArg _ = P.parseAnyProcessor
     parseArgInteractive _ procs = parse
       where parse = 
@@ -215,13 +218,27 @@ boolArg = arg
 maybeArg :: Arg a -> Arg (Maybe a)
 maybeArg a = a {defaultValue = Just $ defaultValue a}
 
-assocArg :: (Show a, AssocArgument a) => Arg (Assoc a)
-assocArg = arg
+-- | Construct an argument from an associated list, by declaring 
+-- a datatype an instance of 'AssocArgument'. 
+-- Use as follows:
+--
+-- >>> arg :: AssocArg MyType
+--
+-- The type 'MyType' needs to be instance of 'AssocArgument'. 
 
-type Processor = Proc P.AnyProcessor
+type AssocArg a = Arg (Assoc a)
 
 processorArg :: Arg Processor
 processorArg = arg
 
-enumArg :: Arg (EnumOf a)
-enumArg = arg
+-- | This can be used to lift instances of 'Typeable', 'Show', 'Enum' and 'Bounded' to arguments.
+-- Suppose you have a datatype like the following.
+-- 
+-- >>> data MyType = A | B | C deriving (Typeable, Show, Enum, Bounded)
+-- 
+-- An argument description for an element of type @MyType@ is then given by 
+--
+-- >>> arg :: EnumArg MyType
+-- 
+type EnumArg a = Arg (EnumOf a)
+

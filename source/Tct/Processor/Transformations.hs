@@ -1,20 +1,3 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -23,27 +6,77 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Processor.Transformations
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module gives the infrastructure for /transformation processors/.
+-- Transformation processors transform an input problem into zero or more
+-- subproblems, reflecting the complexity of the input problem.
+--------------------------------------------------------------------------------   
 
 module Tct.Processor.Transformations 
-    -- ( TProof (..)
-    -- , subProofs
-    -- , findProof
-    -- , Result (..)
-    -- , TheTransformer (..)
-    -- , Transformer(..)
-    -- , Verifiable (..)
-    -- , TransformationProcessor
-    -- , transformationProcessor
-    -- , answerTProof
-    -- , prettyPrintTProof
-    -- , calledWith
-    -- , enumeration
-    -- , enumeration'
-    -- , strict
-    -- , nonstrict
-    -- , sequentialSubgoals
-    -- , parallelSubgoals      
-    -- ) 
+       (
+         Transformer (..)
+       , TransformationProof (..)         
+       , TheTransformer (..)
+       , Transformation (..)
+       , withArgs
+         -- * Transformation Result
+       , Result (..)
+       , proofFromResult
+       , subProblemsFromResult
+       , isProgressResult
+       , mapResult
+         
+         -- * Transformation Proof
+       , Proof (..)
+       , subProblems
+       , findProof
+       , transformationProof
+       , answerFromSubProof
+         
+         -- * Combinators
+         -- ** Try 
+       , try
+       , Try
+       , TryProof (..)
+         -- ** Composition
+       , (>>>)
+       , (:>>>:)
+       , ComposeProof (..)
+         -- ** Choice
+       , (<>)
+       , (:<>:)
+       , ChoiceProof (..)
+         -- ** Exhaustively
+       , exhaustively
+         -- ** Identity transformation
+       , idtrans
+       , Id
+         -- * Lifting to Processors       
+       , (>>|)
+       , (>>||)         
+         
+         -- * Existential Quantification
+       , SomeTransformation (..)
+       , SomeTransProof (..)
+       , someTransformation
+       , someProof
+         
+         -- * Subsumed Processor
+         -- | The following utilities are used only internally.
+       , liftMS
+       , mkSubsumed
+       )
 where
 
 import Control.Monad (liftM)
@@ -70,9 +103,14 @@ import Tct.Processor.Args hiding (name, description, synopsis)
 --------------------------------------------------------------------------------
 --- Transformation Proofs
 
+-- | Every transformer needs to implement this class.
+-- Minimal definition: 'answer' and 'pprintTProof'.
 class TransformationProof t where
+  -- | Construct an 'P.Answer' from the 'Proof'.
   answer :: P.Processor sub => Proof t sub -> P.Answer
+  -- | Pretty print the transformation proof.
   pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> Doc
+  -- | Pretty printer of the 'Proof'. A default implementation is given.
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
   pprintProof proof mde = 
       pprintTProof t input tproof
@@ -107,22 +145,25 @@ class TransformationProof t where
                            else text "remains open")
                      PP.<> text ".")
 
-data Result t = NoProgress (ProofOf t)
-              | Progress (ProofOf t) (Enumeration Problem)
+-- | Result type for a transformation.
+data Result t = NoProgress (ProofOf t)  -- ^ The transformation did not simplify the problem.
+              | Progress (ProofOf t) (Enumeration Problem) -- ^ The transformation reselted in the given subproblems.
 
 
 
 data MaybeSubsumed proof = MaybeSubsumed (Maybe Problem) proof
 
-  
-data Proof t sub = Proof { transformationResult :: Result t
-                         , inputProblem         :: Problem
-                         , appliedTransformer   :: TheTransformer t
-                         , appliedSubprocessor  :: P.InstanceOf sub
-                         , subProofs            :: Enumeration (P.Proof sub) }
+-- | This is the proof of a transformation lifted to a processor.  
+data Proof t sub = Proof { transformationResult :: Result t -- ^ The 'Result' generated by the transformation
+                         , inputProblem         :: Problem -- ^ The input problem
+                         , appliedTransformer   :: TheTransformer t -- ^ The instance of the applied transformation
+                         , appliedSubprocessor  :: P.InstanceOf sub -- ^ The instance of the applied subprocessor
+                         , subProofs            :: Enumeration (P.Proof sub) -- ^ An enumeration of the subproofs 
+                         }
 
 
-
+-- | If the proof contains exactly one subproblem, return the 
+-- computed certificate of this problem. Otherwise, return 'P.MaybeAnswer'.
 answerFromSubProof :: (P.Processor sub) => Proof t sub -> P.Answer
 answerFromSubProof proof = case subProofs proof of 
                               [(_, subproof)] -> P.answer subproof
@@ -159,21 +200,38 @@ findProof e p = find e (subProofs p)
 --------------------------------------------------------------------------------
 --- Transformation Class
 
-data TheTransformer t = TheTransformer { transformation :: t
-                                       , transformationArgs :: Domains (ArgumentsOf t)}
+-- | This datatype defines a specific instance of a transformation.
+data TheTransformer t = TheTransformer { transformation :: t -- ^ The Transformation.
+                                       , transformationArgs :: Domains (ArgumentsOf t) -- ^ Arguments of the transformation.
+                                       }
 
 
+-- | The main class a transformation implements.
 class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
-    name         :: t -> String
-    description  :: t -> [String]
+    -- | Unique name.
+    name         :: t -> String 
+    -- | Description of the transformation.
+    description  :: t -> [String] 
     description  = const []
 
+    -- | Arguments of the transformation.
     type ArgumentsOf t
+    -- | Proof type of the transformation.    
     type ProofOf t
+    
+    -- | Description of the arguments, cf. module "Tct.Processor.Args".
     arguments    :: t -> (ArgumentsOf t)
+    
+    -- | Optional name specific to instances. Defaults to the transformation name.
     instanceName :: TheTransformer t -> String
     instanceName = name . transformation
+    -- | This is the main method of a transformation. Given a concrete
+    -- instance, it translates a complexity problem into a 'Result'.
     transform    :: P.SolverM m => TheTransformer t -> Problem -> m (Result t)
+    
+    -- | If 'True', then the processor will pretend that
+    -- the input problem was simplified, independent on the result of 'transform'.
+    -- This is used for implementing transformation 'Try', and should not be defined.
     continue :: TheTransformer t -> Bool
     continue _ = False
 
@@ -505,6 +563,7 @@ p1 `subsumes` p2 = check strictTrs
         toSet = Set.fromList . Trs.rules
         
 
+-- | Provides a lifting from 'Transformer' to 'S.Processor'.
 data Transformation t sub = Transformation t
 
 instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub) where
@@ -588,7 +647,6 @@ transformationProcessor t = S.StdProcessor (Transformation t)
 -------------------------------------------------------------------------------- 
 --- utility functions for constructing and modifying transformations
 
-
 someTransformation :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
 someTransformation inst = inst { transformation     = SomeTransformation (transformation inst) (transformationArgs inst)
                                , transformationArgs = ()}
@@ -599,6 +657,8 @@ thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceO
 thenApply ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t) `S.withArgs` (not (continue ti) :+: False :+: False :+: args :+: sub)
 
 infixr 2 >>|
+-- | The processor @t '>>|' p@ first applies the transformation @t@. If this succeeds, the processor @p@
+-- is applied on the resulting subproblems. Otherwise @t '>>|' p@ fails.
 (>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 (>>|) = thenApply
 
@@ -609,37 +669,43 @@ thenApplyPar ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t
 
 
 infixr 2 >>||
+-- | Like '>>|' but resulting subproblems are solved in parallel by the given processor.
 (>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
 (>>||) = thenApplyPar
 
-
-parallelSubgoals :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
-parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
+-- parallelSubgoals :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+-- parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
 
 --- utility functions for constructing and modifying transformations
 
-checkSubsumed :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
-checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
+-- checkSubsumed :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+-- checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
 
-
+-- | The transformer @try t@ behaves like @t@ but succeeds even if @t@ fails. When @t@ fails
+-- the input problem is returned.
 try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
 try (TheTransformer t args) = TheTransformer (Try t) args
 
+-- | The transformer @t1 >>> t2@ first transforms using @t1@, resulting subproblems are 
+-- transformed using @t2@. It succeeds if either @t1@ or @t2@ succeeds.
 infixr 6 >>>
 (>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 >>> t2 = someTransformation inst 
     where inst = TheTransformer (t1 :>>>: t2) ()
 
-
+-- | The transformer @t1 \<\> t2@ transforms the input using @t1@ if successfull, otherwise
+-- @t2@ is applied.
 infixr 7 <>
 (<>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 <> t2 = someTransformation inst 
     where inst = TheTransformer (t1 :<>: t2) ()
 
+-- | The transformer @exhaustively t@ applies @t@ repeatedly until @t@ fails.
+-- @exhaustively t == t '>>>' exhaustively t@.
 exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
 exhaustively t = t >>> exhaustively t
 
-
+-- | Identity transformation.
 idtrans :: TheTransformer Id
 idtrans = Transformation Id `withArgs` ()
 
@@ -671,3 +737,5 @@ instance P.Processor proc => P.Processor (Subsumed proc) where
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob
         where mk pp = pp { P.ppResult = MaybeSubsumed Nothing $ P.ppResult pp}
 
+mkSubsumed :: P.InstanceOf proc -> P.InstanceOf (Subsumed proc)
+mkSubsumed = SSI

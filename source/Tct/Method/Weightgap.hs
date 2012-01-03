@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+
 {- | 
 Module      :  Tct.Method.Weightgap
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -12,27 +17,7 @@ Portability :  unportable
 This module defines the weight gap processor.
 -}
 
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
 
 module Tct.Method.Weightgap where
 
@@ -74,8 +59,8 @@ import qualified Tct.Processor.Transformations as T
 
 data WeightGap = WeightGap
 
-data WgOn = WgOnTrs -- ^ orient at least all non-DP rules
-          | WgOnAny -- ^ orient some rule
+data WgOn = WgOnTrs -- ^ Orient at least all non-DP rules.
+          | WgOnAny -- ^ Orient some rule.
             deriving (Eq, Typeable, Bounded, Enum)
 
 instance Show WgOn where
@@ -246,11 +231,6 @@ instance T.Transformer WeightGap where
                                                                                             , wgRemovableDps = []
                                                                                             , wgRemovableTrs = []
                                                                                             , wgConstGrowth  = Nothing }
-
--- applyWeightGap :: P.SolverM m => Bool -> Trs.Trs -> UsablePositions -> Trs.Trs -> Prob.StartTerms -> F.Signature -> NaturalMIKind -> Maybe Nat -> Nat -> N.Size -> Maybe Nat -> Bool
---                -> m (OrientationProof MatrixOrder)
--- applyWeightGap greedy nondup uarg trs st sig mk deg d b bnd cb ua = orientMatrix (weightGapConstraints greedy nondup) uarg' st trs Trs.empty sig (mk :+: deg :+: d :+: (Nat $ N.bound b) :+: Nothing :+: cb :+: ua)
---   where uarg' = if ua then uarg else fullWithSignature sig
 
 weightGapConstraints :: Eq l => WgOn -> Trs.Trs -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 weightGapConstraints wgon nondup uarg st strict weak sig mp = strictWGConstraints strict absmi && wgonConstraints wgon && weakTrsConstraints absmi weak && otherConstraints

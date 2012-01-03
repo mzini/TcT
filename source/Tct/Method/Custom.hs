@@ -1,60 +1,58 @@
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.Custom
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module defines lifting of instances and actions to processors.
+--------------------------------------------------------------------------------   
+
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE Rank2Types #-}
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PolymorphicComponents #-}
 
 module Tct.Method.Custom 
-    ( Description (..)
-    , IsDescription(..)
-    , CustomProcessor
-    , processor
-    , strategy
-    , processorFromInstance
-    , customInstance
-    , named
+    ( 
+      Custom
+    , Description (..)      
+      -- * Constructors
+    , fromInstance
+    , fromAction
     )
 where
 
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-import Control.Monad (liftM)
 import Termlib.Problem (Problem)
 
-data Description arg = Description { as    :: String -- ^ the name under which the processor is accesible
-                                   , descr :: [String] -- ^ optional short description, displayed with 'tct -l'
-                                   , args  :: arg} -- ^ the arguments of the processor. 
+-- | This type covers all information necessary for parsing.
+data Description args = Description { as    :: String -- ^ The name under which the processor is made accessible.
+                                    , descr :: [String] -- ^ optional short description.
+                                    , args  :: args -- ^ A description of the arguments the processor should understand.
+                                    }
 
-data CP arg res = CP { description :: Description arg
-                     , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res} 
+-- | This processor allows lifting of actions and instances back to processors.
+data Custom arg res = Custom { description :: Description arg
+                             , code :: forall m. P.SolverM m => A.Domains arg -> Problem -> m res} 
 
 --------------------------------------------------------------------------------
 -- processor instance
 
-instance (P.ComplexityProof res) => S.Processor (CP arg res) where
-  type S.ProofOf (CP arg res)     = res
-  type S.ArgumentsOf (CP arg res) = arg
+instance (P.ComplexityProof res) => S.Processor (Custom arg res) where
+  type S.ProofOf (Custom arg res)     = res
+  type S.ArgumentsOf (Custom arg res) = arg
   name        = as . description
   description = descr . description
   arguments   = args . description
@@ -62,37 +60,20 @@ instance (P.ComplexityProof res) => S.Processor (CP arg res) where
       where p = S.processor inst
             ags = S.processorArgs inst
 
-type CustomProcessor arg p = S.StdProcessor (CP arg p)
+-- | This function is similar to 'fromInstance', except that it 
+-- expects a 'P.SolverM' action that directly constructs from a  
+-- complexity problem a proof object 'res'.
+fromAction :: P.ComplexityProof res => Description args -> (forall m. P.SolverM m => A.Domains args -> Problem -> m res) -> S.StdProcessor (Custom args res)
+fromAction d f = S.StdProcessor $ Custom {description = d, code = f }
 
-class IsDescription d arg | d -> arg where
-  toDescription :: d -> Description arg
-  
-instance IsDescription String A.Unit where
-  toDescription name = Description { as = name, args = A.Unit, descr = [] }
-  
-
-instance IsDescription (Description arg) arg where
-  toDescription = id
-
-
-processor :: IsDescription d arg => 
-                   (forall m. P.SolverM m => A.Domains arg -> Problem -> m res) -> d -> (CustomProcessor arg res)
-processor f d = S.StdProcessor CP {description = toDescription d, code = f }
+-- | This function is used for lifting instance of processors, 
+-- parameterised in some arguments, back to a processor.  
+-- The arguments are according to the supplied 'Description'.
+fromInstance :: (P.Processor proc) => 
+             Description args -> (A.Domains args -> P.InstanceOf proc) -> S.StdProcessor (Custom args (P.ProofOf proc))
+fromInstance d mkinst = fromAction d (P.solve . mkinst) 
 
 
-strategy :: (P.Processor proc, IsDescription d arg) =>
-           (A.Domains arg -> P.InstanceOf proc) -> d -> CustomProcessor arg P.SomeProof
-strategy mkinst d = processor (\ sargs prob -> P.SomeProof `liftM` (P.solve (mkinst sargs) prob)) d 
-
-processorFromInstance :: (IsDescription d arg, P.Processor proc) => 
-             (A.Domains arg -> P.InstanceOf proc) -> d -> (CustomProcessor arg (P.ProofOf proc))
-processorFromInstance mkInst  d = processor (P.solve . mkInst) d 
 
 
-customInstance :: P.ComplexityProof res => String -> (forall m. P.SolverM m => Problem -> m res) -> P.InstanceOf (CustomProcessor A.Unit res)
-customInstance name f = processor (const f) d `S.withArgs` ()
-  where d = Description { as = name, descr = [], args = A.unit }
 
-
-named :: forall proc. P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf (CustomProcessor A.Unit (P.ProofOf proc))
-named n proc = customInstance n (P.solve proc)

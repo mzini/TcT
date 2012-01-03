@@ -1,3 +1,11 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeOperators #-}
+
 {- | 
 Module      :  Tct.Method.Poly.NaturalPI
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -11,14 +19,6 @@ Portability :  unportable
 
 This module defines the processor for matrix.
 -}
-
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE TypeOperators #-}
 module Tct.Method.Matrix.NaturalMI where
 
 import Control.Monad (liftM)
@@ -52,7 +52,7 @@ import Tct.Encoding.Matrix hiding (maxMatrix)
 import Tct.Encoding.Natring ()
 import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Matrix.MatrixInterpretation
-import Tct.Processor.Args hiding (unit)
+import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
@@ -62,9 +62,11 @@ import qualified Tct.Processor as P
 import Tct.Processor (Answer(..), ComplexityProof(..))
 import qualified Tct.Processor.Standard as S
 
-data NaturalMIKind = Algebraic -- ^ count number of ones in diagonal to compute induced complexity function
-                   | Automaton -- ^ use automaton-techniques to compute induced complexity function
-                   | Unrestricted -- ^ put no further restrictions on the interpretation
+-- | This parameter defines the shape of the matrix interpretations, 
+-- and how the induced complexity is computed.
+data NaturalMIKind = Algebraic -- ^ Count number of ones in diagonal to compute induced complexity function.
+                   | Automaton -- ^ Use automaton-techniques to compute induced complexity function.
+                   | Unrestricted -- ^ Put no further restrictions on the interpretation.
                      deriving (Typeable, Bounded, Enum)
 
 instance Show NaturalMIKind where 

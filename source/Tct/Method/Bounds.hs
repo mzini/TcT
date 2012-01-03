@@ -1,20 +1,3 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -23,12 +6,32 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
+{- | 
+Module      :  Tct.Method.Bounds
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
+
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>,
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
+
+This module implements the bounds processor.
+-}
+
 module Tct.Method.Bounds 
  ( bounds
- , boundsProcessor
  , InitialAutomaton (..)
  , Enrichment (..)
- , Bounds)
+   -- * Processor
+ , Bounds
+ , boundsProcessor
+   -- * Proof Object
+ , BoundsProof (..)
+ , BoundsCertificate (..)
+ )
 where
 
 import Data.Typeable
@@ -53,7 +56,14 @@ import Tct.Processor.Args
 import Tct.Method.Bounds.Automata
 import Tct.Method.Bounds.Violations
 
-data InitialAutomaton = Minimal | PerSymbol deriving (Typeable, Enum, Bounded, Eq)
+-- | This datatype represents the initial automaton
+-- employed.
+data InitialAutomaton = Minimal -- ^ Employ a minimal set of states,
+                                -- separating constructors from defined symbols
+                                -- in the case of runtime complexity analysis.
+                      | PerSymbol -- ^ Employ a state per function symbol.
+                                  -- Slower, but more precise compared to 'Minimal'.
+  deriving (Typeable, Enum, Bounded, Eq)
 
 instance Show InitialAutomaton where 
     show Minimal          = "minimal"
@@ -122,6 +132,7 @@ instance S.Processor Bounds where
                     PerSymbol -> perSymInitialAutomaton strict weak st sign
                     Minimal   -> minimalInitialAutomaton strict weak st sign
 
+-- | This processor implements the bounds technique.
 bounds :: InitialAutomaton -> Enrichment -> P.InstanceOf (S.StdProcessor Bounds)
 bounds initialAutomaton enrichment = S.StdProcessor Bounds `S.withArgs` (initialAutomaton :+: enrichment)
 

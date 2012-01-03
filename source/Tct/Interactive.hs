@@ -17,7 +17,7 @@ Haskell Compiler (<http://www.haskell.org/ghc/>), the interactive
 interface is only available if 'ghci' is present on your system.
 As explained in "Tct.Configuration", 
 TcT can be easily customized. TcT-i makes use of this by loading 
-the configuration file, usually located in '${HOME}\/.tct\/tct.hs'.
+the configuration file, usually located in @${HOME}\/.tct\/tct.hs@.
 
 The interactive interface is invoked from the command line as follows:
 
@@ -47,7 +47,7 @@ As can be readily seen from the output,
 this command starts a customized version of 'ghci'. 
 In particular all the functionality of 'ghci' is available, cf.
 <http://www.haskell.org/ghc/docs/latest/html/users_guide/ghci.html>
-on general usage information of 'ghci'
+on general usage information of 'ghci'.
 
 -}
 
@@ -120,7 +120,7 @@ module Tct.Interactive
       -- | The proof state is modified by applying instance of processors.
       -- A processor is the TcT representation of a complexity technique. 
       -- Processors are separated for historical reasons into /standard-processors/
-      -- and /transformers/. Predefined processors are available in module "Tct.Processors".
+      -- and /transformers/. 
       -- 
       -- Processors are usually parameterised by some arguments, for instance the 
       -- dependency pair processor 'Processors.dependencyPairs' accepts a flag 'usetuples'
@@ -129,8 +129,10 @@ module Tct.Interactive
       -- When applying a processor, TcT-i will prompt the user for any necessary arguments
       -- so it can construct the corresponding instance.
       -- 
+      -- Predefined processors are available in module "Tct.Processors".      
       -- Instances can be constructed also directly, using the functionality provided in
-      -- "Tct.Instances". This module defines also a wealth of combinators. 
+      -- "Tct.Instances". This module defines also a wealth of combinators and is considered
+      -- the preferred way for dealing with processors.
     , apply 
       -- | Type @'apply' m@ for some technique @m@ to simplify the list of selected open problems 
       -- using @m@. 
@@ -554,7 +556,9 @@ module Tct.Interactive
       --
     , unselect
       -- | Inverse of 'select'. The example of 'select' can also be obtained by typing
+      --
       -- >>> unselect [2,4]
+      -- 
     , SelectAll
       -- | Special selector to select all open problems.
     , SelectInv
@@ -692,7 +696,7 @@ import qualified Termlib.Term.Parser as TParser
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
-import qualified Tct.Processors as Processors ()
+import qualified Tct.Processors as Processors
 import qualified Tct.Instances as Instances ()
 import Tct.Processor.PPrint
 import Tct.Main.Version (version)
@@ -833,7 +837,7 @@ proofFromTree (Transformed progressed prob tinst tres subs) =
                                } 
           where seqProof | P.failed p = OneOfFailed Sequentially [p]
                          | otherwise   = OneOfSucceeded Sequentially p
-        proc = tinst `T.thenApply` seqProc                                         
+        proc = tinst T.>>| seqProc                                         
         tproof = 
           T.Proof { T.transformationResult = 
                        case progressed of 
@@ -841,7 +845,7 @@ proofFromTree (Transformed progressed prob tinst tres subs) =
                          False -> T.NoProgress tres
                   , T.inputProblem        = prob
                   , T.appliedTransformer  = tinst
-                  , T.appliedSubprocessor = T.SSI seqProc
+                  , T.appliedSubprocessor = T.mkSubsumed seqProc
                   , T.subProofs           = toSeqProof `mapEnum` subproofs }
         
 

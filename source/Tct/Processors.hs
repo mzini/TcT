@@ -167,7 +167,7 @@ empty = emptyProcessor
 {- |
 
 -}
-open :: S.StdProcessor OpenProcessor
+open :: S.StdProcessor Open
 open = openProcessor
 
 {- |
@@ -397,7 +397,7 @@ Currently we only take subset-inclusions of the different components into accoun
 [sub-processor-B :: \[\<processor>|none\] /(optional)/] If given, applied on the problem reflecting the lower congruence classes.
 
 -}
-composeRC :: T.Transformation (ComposeRCProc P.AnyProcessor P.AnyProcessor) P.AnyProcessor
+composeRC :: T.Transformation (ComposeRC P.AnyProcessor P.AnyProcessor) P.AnyProcessor
 composeRC = composeRCProcessor
 
 {- |
@@ -499,7 +499,7 @@ Currently we only take subset-inclusions of the different components into accoun
 [allow :: \[Add|Mult|Compose\] /(optional)/] This argument type 'Compose.ComposeBound' determines how the complexity certificate should be obtained from subproblems (A) and (B). Consequently, this argument also determines the shape of (B). The third argument defines a processor that is applied on problem (A). If this processor succeeds, the input problem is transformed into (B). Note that for compose bound 'Mult' the transformation only succeeds if applied to non size-increasing Problems.
 
 -}
-compose :: T.Transformation (ComposeProc P.AnyProcessor) P.AnyProcessor
+compose :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
 compose = composeProcessor
 
 {- |

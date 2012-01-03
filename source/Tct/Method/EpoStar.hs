@@ -31,12 +31,9 @@ module Tct.Method.EpoStar
       
       -- * Instance Constructor
     , epostar
-      -- | Constructor for exponential path orders.            
       -- * Processor      
     , EpoStar     
-      -- | The processor object.      
     , epostarProcessor
-      -- | Exponential path order processor.
     )
 where
 
@@ -226,6 +223,7 @@ instance S.Processor EpoStar where
 epostarProcessor :: S.StdProcessor EpoStar
 epostarProcessor = S.StdProcessor EpoStar
 
+-- | This processor implements exponential path orders.
 epostar :: Bool -> P.InstanceOf (S.StdProcessor EpoStar)
 epostar ec = S.StdProcessor EpoStar `S.withArgs` ec
 

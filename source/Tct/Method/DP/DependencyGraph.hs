@@ -1,24 +1,24 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.DP.DependencyGraph
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+
+-- This module provides dependency graphs.
+--------------------------------------------------------------------------------   
+
 
 module Tct.Method.DP.DependencyGraph 
     (
@@ -80,7 +80,6 @@ module Tct.Method.DP.DependencyGraph
     , DGNode
     -- | Nodes of the DG are labeled by rules and their strictness-annotation.
     , Approximation (..)
-    -- | Implemented approximations for DGs
 
     -- ** Operations
     , estimatedDependencyGraph
@@ -238,7 +237,9 @@ subGraph g ns = Graph.delNodes (nodes g List.\\ ns) g
 -- Estimated Dependency Graph
 --------------------------------------------------------------------------------
 
-data Approximation = Edg | Trivial deriving (Bounded, Ord, Eq, Typeable, Enum) 
+data Approximation = Edg -- ^ EDG*** approximation
+                   | Trivial -- ^ Fully connected graph
+                   deriving (Bounded, Ord, Eq, Typeable, Enum) 
 instance Show Approximation where 
     show Edg     = "edg"
     show Trivial = "trivial"

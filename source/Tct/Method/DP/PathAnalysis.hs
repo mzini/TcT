@@ -1,3 +1,18 @@
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.DP.PathAnalysis
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module provides the path analysis with respect to dependency
+-- graphs.
+--------------------------------------------------------------------------------   
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,7 +22,16 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Tct.Method.DP.PathAnalysis where
+module Tct.Method.DP.PathAnalysis 
+       (
+         pathAnalysis
+         -- * Proof Object
+       , PathProof
+         -- * Processor
+       , pathAnalysisProcessor
+       , PathAnalysis
+       )
+where
 
 import qualified Data.List as List
 import Control.Monad (liftM)
@@ -163,5 +187,6 @@ instance T.TransformationProof PathAnalysis where
 pathAnalysisProcessor :: T.Transformation PathAnalysis P.AnyProcessor
 pathAnalysisProcessor = T.Transformation PathAnalysis
 
+-- | Implements path analysis.
 pathAnalysis :: T.TheTransformer PathAnalysis
 pathAnalysis = T.Transformation PathAnalysis `T.withArgs` ()

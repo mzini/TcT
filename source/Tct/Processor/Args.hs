@@ -1,19 +1,17 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Processor.Args
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module implements processor arguments.
+--------------------------------------------------------------------------------   
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -23,13 +21,33 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_HADDOCK prune #-}
 
-module Tct.Processor.Args where
+module Tct.Processor.Args 
+       (
+         Argument (..)
+       , ParsableArgument (..)
+         
+       -- * Argument Descriptions
+       , Arg (..)
+       , arg  
+       , opt
+       , optional
+         
+       , Unit (..)
+       , (:+:)(..)
+       -- hidden         
+       , Arguments (..)
+       , ParsableArguments (..)
+       , Phantom (..)
+       , parseArguments
+       , synopsis
+       ) where
 
 import qualified Tct.Processor as P
 import Tct.Processor.Parse
 import Text.Parsec.Prim
-import Text.Parsec.Combinator
+import Text.Parsec.Combinator hiding (optional)
 import Text.Parsec.Char
 --import qualified Control.Exception as Ex
 import qualified Data.Map as Map
@@ -43,11 +61,19 @@ import qualified Termlib.Utils as U
 -- single argument
 data Phantom k = Phantom
 
+-- | Instances of this class can be used as processor arguments.
+-- Parsers are specified separately in the class 'ParsableArgument'.
+-- The associated type 'Domain a' reflects the type of the Haskell values. 
+-- This type does not necessarily need to coincide with 'a', but for simple
+-- instances like 'Bool' it does, i.e. 'Domain Bool == Bool'.
 class Argument a where
-    type Domain a
-    domainName :: Phantom a -> String
+    type Domain a 
+    -- | Short string describing the argument type.    
+    domainName :: Phantom a -> String 
+    -- | Pretty printer of arguments.    
     showArg :: Phantom a -> Domain a -> String
 
+-- | Instances of this class additionally provide parsers for arguments.
 class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
     parseArgInteractive :: Phantom a -> P.AnyProcessor -> IO (Maybe (Domain a))
@@ -72,15 +98,20 @@ class Arguments a => ParsableArguments a where
     parseInteractive :: a -> P.AnyProcessor -> IO (Domains a)
 
 
+-- | Unit represents the empty argument list.
 data Unit = Unit deriving (Typeable, Show)
 
-data Arg k = Arg { name         :: String
-                 , description  :: String
-                 , defaultValue :: Domain k
-                 , isOptional_  :: Bool}
+-- | This datatype captures the description of a single argument. 
+data Arg t = Arg { name         :: String -- ^ The name of the argument.
+                 , description  :: String -- ^ Optional description for the argument.
+                 , defaultValue :: Domain t -- ^ A possible default value, if the argument is optional.
+                 , isOptional_  :: Bool -- ^ Indicates wether the argument is optional.
+                 }
              deriving Typeable 
 
 infixr 5 :+:
+
+-- | This operator constructs /tuples/ of arguments.
 data a :+: b = a :+: b deriving (Typeable, Show)
 
 instance Arguments Unit where 
@@ -118,7 +149,7 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                      then Just $ showArg (Phantom :: Phantom a) (defaultValue a)
                                      else Nothing
                                  , P.adDescr      = description a
-                                 , P.adSynopsis   = "[" ++ domainName (Phantom :: Phantom a)  ++ "]" }]
+                                 , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
 
     parseInteractive a procs = 
         do putStrLn $ show (text "* '" <> text (name a) <> text "'"
@@ -186,24 +217,30 @@ synopsis a = ofList oSyn `app` ofList nSyn
 
 -- constructors and helpers
 
-arg :: Arg a
-arg = Arg { name         = "unspecified"
-          , description  = []
-          , defaultValue = error "no default argument given"
-          , isOptional_  = False}
+-- | Constructor for description of arguments of type @t@.
+arg :: Arg t
+arg = 
+  Arg { name         = "unspecified"
+      , description  = []
+      , defaultValue = error "no default argument given"
+      , isOptional_  = False}
 
-opt :: Arg a
-opt = arg { isOptional_ = True }
-
-optional :: Arg t -> String -> Domain t -> Arg t
-optional tpe nm def = tpe { name = nm
-                          , defaultValue = def
-                          , isOptional_ = True}
-
-
-unit :: Unit
-unit = Unit
+opt :: Arg t
+opt = 
+  Arg { name         = "unspecified"
+      , description  = []
+      , defaultValue = error "no default argument given"
+      , isOptional_  = True}
 
 
--- processor argument
-
+-- | Constructor for description of optional arguments of type @t@.
+-- The following describes an optional argument /dimension/ with default
+-- value /2/.
+--
+-- >>> optional naturalArg "dimension" 2
+--
+optional :: String -> Domain t -> Arg t -> Arg t
+optional nm def tpe = 
+  tpe { name = nm
+      , defaultValue = def
+      , isOptional_ = True}

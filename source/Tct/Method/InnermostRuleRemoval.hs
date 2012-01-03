@@ -1,18 +1,15 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
+{- | 
+Module      :  Tct.Method.InnermostRuleRemoval
+Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+               Georg Moser <georg.moser@uibk.ac.at>, 
+               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+License     :  LGPL (see COPYING)
 
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+Stability   :  unstable
+Portability :  unportable      
 
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
+This module implements the /innermost rule removal/ transformation.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -22,10 +19,12 @@ along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licens
 
 module Tct.Method.InnermostRuleRemoval
     ( irr
-    , irrProcessor
-    , InnermostRuleRemoval
+      -- * Proof Object
     , IRRProof (..)
     , RuleRemoval (..)
+      -- * Processor
+    , irrProcessor
+    , InnermostRuleRemoval
     ) 
 where
 
@@ -100,7 +99,6 @@ instance T.Transformer InnermostRuleRemoval where
 irrProcessor :: T.Transformation InnermostRuleRemoval P.AnyProcessor
 irrProcessor = T.Transformation InnermostRuleRemoval
 
-
--- irr :: P.Processor sub => P.InstanceOf sub -> P.InstanceOf (T.TransformationProcessor InnermostRuleRemoval sub)
+-- | On innermost problems, this processor removes inapplicable rules by looking at non-root overlaps.
 irr :: T.TheTransformer InnermostRuleRemoval
 irr = irrProcessor `T.withArgs` ()

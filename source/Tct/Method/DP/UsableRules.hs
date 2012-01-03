@@ -1,24 +1,33 @@
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Tct.Method.DP.UsableRules where
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Method.DP.UsableRules
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module provides the usable rules transformation.
+--------------------------------------------------------------------------------   
+
+module Tct.Method.DP.UsableRules 
+       (
+         usableRules 
+         -- * Proof Object
+       , URProof (..)
+         -- * Processor
+       , usableRulesProcessor
+       , UR
+         -- * Utilities 
+       , mkUsableRules
+       )
+       where
 
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ hiding (empty)
@@ -41,6 +50,8 @@ import Tct.Processor.Args as A
 import Tct.Processor.PPrint
 import Tct.Method.DP.Utils 
 
+-- | The Trs 'mkUsableRules prob trs' contains
+-- all rules of 'trs' which are usable by 'prob'.
 mkUsableRules :: Prob.Problem -> Trs -> Trs
 mkUsableRules prob trs = trs `restrictTo` Set.unions [decendants f | f <- ds
                                                                    , Rule _ r <- Trs.rules $ Prob.dpComponents prob
@@ -62,11 +73,12 @@ mkUsableRules prob trs = trs `restrictTo` Set.unions [decendants f | f <- ds
 
 data UR = UR
 
-data URProof = URProof { usableStrict :: Trs
-                       , usableWeak   :: Trs
+data URProof = URProof { usableStrict :: Trs -- ^ Usable strict rules
+                       , usableWeak   :: Trs -- ^ Usable weak rules
                        , signature    :: F.Signature
                        , variables    :: V.Variables
-                       , progressed   :: Bool}
+                       , progressed   :: Bool -- ^ This flag is 'True' iff some rules are not usable
+                       }
                | Error DPError
 
 instance PrettyPrintable URProof where 

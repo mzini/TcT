@@ -250,7 +250,7 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
 
               (forcedDps, forcedTrs) = case compfn of 
                                          Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
-                                             where fsi f = [ rule | rule <- Trs.rules (f prob), Rule.isSizeIncreasing rule]
+                                             where fsi f = [ rule | rule <- Trs.rules (f prob), not (Rule.isNonSizeIncreasing rule)]
                                          _       -> ([],[])
 
               mkResult esp1 (rDPs, sDPs) (rTrs, sTrs)
@@ -264,14 +264,14 @@ instance (P.Processor p) => T.Transformer (ComposeProc p) where
                               | otherwise            = prob { startTerms = TermAlgebra
                                                             , strictTrs  = sTrs
                                                             , strictDPs  = sDPs }
-              mreason | Trs.isSizeIncreasing weaks 
+              mreason |  not (Trs.isNonSizeIncreasing weaks)
                         && compfn /= Add = Just "some weak rule is size increasing"
                       | otherwise = case compfn of 
                                      Add              -> Nothing
                                      Mult | sizeinc   -> Just "some strict rule is size increasing"
                                           | otherwise -> Nothing
                                      Compose          -> Nothing
-                where sizeinc = Trs.isSizeIncreasing $ Prob.strictComponents prob
+                where sizeinc = not $ Trs.isNonSizeIncreasing $ Prob.strictComponents prob
                                  
 
 instance P.Processor p => T.TransformationProof (ComposeProc p) where

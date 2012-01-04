@@ -233,12 +233,13 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Method.InnermostRuleRemoval as IRR
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
+import qualified Tct.Method.Timeout as Timeout
 import Tct.Processor (solveBy)
 import Tct.Processor.Args ((:+:)(..), Unit(..))
 import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations hiding (withArgs)
 import qualified Tct.Processor.Transformations as T
-import qualified Tct.Processor.Timeout as Timeout
+
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)

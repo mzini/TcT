@@ -48,7 +48,7 @@ import Tct.Method.Poly.NaturalPI
 import Tct.Method.PopStar hiding (popstar, lmpo)
 import Tct.Method.Uncurry hiding (uncurry)
 import Tct.Method.Weightgap 
-import Tct.Processor.Timeout hiding (timeout)
+import Tct.Method.Timeout hiding (timeout)
 
 
 -- generated: Tue Dec 27 14:31:00 JST 2011

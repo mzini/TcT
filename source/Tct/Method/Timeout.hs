@@ -9,7 +9,7 @@
 
 --------------------------------------------------------------------------------
 -- | 
--- Module      :  Tct.Processor.Timeout
+-- Module      :  Tct.Method.Timeout
 -- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
 --                Georg Moser <georg.moser@uibk.ac.at>, 
 --                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
@@ -22,7 +22,7 @@
 -- This module provides processors that may timeout.
 --------------------------------------------------------------------------------   
 
-module Tct.Processor.Timeout 
+module Tct.Method.Timeout 
     ( timeout
     , timeoutProcessor
     , TOProof (..)

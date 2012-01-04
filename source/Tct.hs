@@ -62,7 +62,7 @@ import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
 import qualified Tct.Instances as Instances
 import qualified Tct.Processors as Processors
-import qualified Tct.Processor.Timeout as Timeout
+import qualified Tct.Method.Timeout as Timeout
 
 ----------------------------------------------------------------------
 -- TCT error

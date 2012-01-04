@@ -68,7 +68,7 @@ Library
    Tct.Main.Version
    Tct.Processor
    Tct.Processor.Parse
-   Tct.Processor.Timeout
+   Tct.Method.Timeout
    Tct.Processor.Orderings
    Tct.Processor.Standard
    Tct.Processor.Args

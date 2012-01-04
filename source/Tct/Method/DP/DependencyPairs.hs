@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+
 {- | 
 Module      :  Tct.Method.DP.DependencyPairs
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -47,7 +48,7 @@ import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
 import Tct.Processor.Args.Instances ()
-import Tct.Processor.PPrint (enumeration')
+import Tct.Utils.Enum (enumeration')
 
 
 markSymbol :: Symbol -> SignatureMonad Symbol

@@ -698,7 +698,8 @@ import Tct (Config, defaultConfig)
 import qualified Tct as Tct
 import qualified Tct.Processors as Processors
 import qualified Tct.Instances as Instances ()
-import Tct.Processor.PPrint
+import Tct.Utils.PPrint
+import Tct.Utils.Enum
 import Tct.Main.Version (version)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A

@@ -55,7 +55,6 @@ import Tct.Processor.Args
 import Termlib.Utils (PrettyPrintable (..))
 import Text.PrettyPrint.HughesPJ
 import qualified Tct.Processor as P
-
 import qualified Data.List as L
 
 

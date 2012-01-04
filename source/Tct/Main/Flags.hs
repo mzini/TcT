@@ -1,3 +1,18 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_HADDOCK hide #-}
+
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Main.Debug
+-- Copyright   :  (c) Koen Claessen, Niklas Sorensson
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- Parsing of Flags, copied from Paradox/Equinox with minor modifications.
+--------------------------------------------------------------------------------   
+
 {-
 Paradox/Equinox -- Copyright (c) 2003-2007, Koen Claessen, Niklas Sorensson
 
@@ -21,7 +36,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -}
 
-{-# LANGUAGE FlexibleInstances #-}
+
 
 module Tct.Main.Flags
  ( AnswerType (..)

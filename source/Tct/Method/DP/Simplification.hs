@@ -61,7 +61,8 @@ import Data.Maybe (isJust, fromMaybe, listToMaybe)
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args
-import Tct.Processor.PPrint
+import Tct.Utils.PPrint
+import Tct.Utils.Enum (enumeration')
 import Tct.Method.DP.Utils 
 import Tct.Method.DP.DependencyGraph
 import qualified Data.Graph.Inductive.Graph as Graph

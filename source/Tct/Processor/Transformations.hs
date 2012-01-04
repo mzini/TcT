@@ -21,51 +21,49 @@
 -- This module gives the infrastructure for /transformation processors/.
 -- Transformation processors transform an input problem into zero or more
 -- subproblems, reflecting the complexity of the input problem.
+-- Transformations abort if the input problem cannot be simplified. 
+-- Use 'try' to continue with the input problem.
 --------------------------------------------------------------------------------   
 
 module Tct.Processor.Transformations 
        (
-         Transformer (..)
+         -- * Using Transformations          
+         TheTransformer (..)
+         -- ** Combinators
+       , try
+       , Try
+       , (>>>)
+       , (<>)
+       , exhaustively
+       , idtrans
+         -- ** Lifting to Processors       
+       , (>>|)
+       , (>>||)         
+         
+         -- * Defining new Transformations
+         -- | In order to define a new transformation, 
+         -- define an instance of 'Transformer' and 'TransformationProof'. 
+         -- Use 'withArgs' for providing an instance constructor, compare "Tct.instances".
+         -- Use 'transformationProcessor' to lift the defined transformation to a processor.
+       , Transformer (..)
        , TransformationProof (..)         
-       , TheTransformer (..)
        , Transformation (..)
        , withArgs
-         -- * Transformation Result
+       , transformationProcessor
+         -- ** Transformation Result
        , Result (..)
        , proofFromResult
        , subProblemsFromResult
        , isProgressResult
        , mapResult
          
-         -- * Transformation Proof
+         -- ** Transformation Proof
        , Proof (..)
        , subProblems
        , findProof
        , transformationProof
        , answerFromSubProof
-         
-         -- * Combinators
-         -- ** Try 
-       , try
-       , Try
-       , TryProof (..)
-         -- ** Composition
-       , (>>>)
-       , (:>>>:)
-       , ComposeProof (..)
-         -- ** Choice
-       , (<>)
-       , (:<>:)
-       , ChoiceProof (..)
-         -- ** Exhaustively
-       , exhaustively
-         -- ** Identity transformation
-       , idtrans
-       , Id
-         -- * Lifting to Processors       
-       , (>>|)
-       , (>>||)         
-         
+                  
          -- * Existential Quantification
        , SomeTransformation (..)
        , SomeTransProof (..)
@@ -93,7 +91,8 @@ import Termlib.Problem
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Utils as Util
 
-import Tct.Processor.PPrint
+import Tct.Utils.Enum
+import Tct.Utils.PPrint
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
@@ -147,7 +146,7 @@ class TransformationProof t where
 
 -- | Result type for a transformation.
 data Result t = NoProgress (ProofOf t)  -- ^ The transformation did not simplify the problem.
-              | Progress (ProofOf t) (Enumeration Problem) -- ^ The transformation reselted in the given subproblems.
+              | Progress (ProofOf t) (Enumeration Problem) -- ^ The transformation resulted in the given subproblems.
 
 
 
@@ -214,7 +213,7 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
     description  :: t -> [String] 
     description  = const []
 
-    -- | Arguments of the transformation.
+    -- | Arguments of the transformation, cf. "Tct.Processor.Args".
     type ArgumentsOf t
     -- | Proof type of the transformation.    
     type ProofOf t
@@ -240,8 +239,7 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
 --- Transformation Combinators
 
 data t1 :>>>: t2 = TheTransformer t1 :>>>: TheTransformer t2
-data ComposeProof t1 t2 = ComposeProof { firstproof :: Result t1
-                                       , sndproof   :: Maybe (Enumeration (Result t2)) }
+data ComposeProof t1 t2 = ComposeProof (Result t1) (Maybe (Enumeration (Result t2)))
 
 
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) where
@@ -636,10 +634,11 @@ instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) w
   pprintProof proof mde = pprintProof proof mde
   answer proof = answer proof
 
-
+-- | Constructor for instances.
 withArgs :: (Transformer t) => (Transformation t sub) -> (Domains (ArgumentsOf t)) -> TheTransformer t
 (Transformation t) `withArgs` as = TheTransformer t as 
 
+-- | Lifts transformations to standard processors.
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Transformation t sub)
 transformationProcessor t = S.StdProcessor (Transformation t)
 

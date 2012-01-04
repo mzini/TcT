@@ -43,7 +43,8 @@ import Data.Maybe (catMaybes)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor.Args as A
-import Tct.Processor.PPrint
+import Tct.Utils.Enum
+import Tct.Utils.PPrint
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert

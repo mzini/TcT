@@ -15,7 +15,6 @@
 -- Stability   :  unstable
 -- Portability :  unportable      
 -- 
-
 -- This module provides dependency graphs.
 --------------------------------------------------------------------------------   
 
@@ -157,7 +156,7 @@ import Termlib.Trs.PrettyPrint (pprintTrs)
 import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty, Str)
 import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
-import Tct.Processor.PPrint
+import Tct.Utils.PPrint
 
 --------------------------------------------------------------------------------
 -- Dependency Graph Type

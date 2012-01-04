@@ -1,3 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tct.Method.DP.PathAnalysis
@@ -13,14 +21,6 @@
 -- This module provides the path analysis with respect to dependency
 -- graphs.
 --------------------------------------------------------------------------------   
-
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tct.Method.DP.PathAnalysis 
        (
@@ -53,7 +53,8 @@ import Tct.Method.DP.DependencyGraph
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
-import Tct.Processor.PPrint
+import Tct.Utils.PPrint
+import Tct.Utils.Enum
 import Tct.Processor.Args.Instances ()
 import Tct.Method.DP.Utils
 

@@ -66,7 +66,7 @@ data PIVar = PIVar { restrict :: Bool
                    deriving (Eq, Ord, Show, Typeable)
 
 type VPolynomial a = Polynomial V.Variable a
-type VMonomial a = Monomial V.Variable a
+-- type VMonomial a = Monomial V.Variable a
 
 -- | A 'SimpleMonomial' denotes a monomial with variables in 'Variable', 
 -- and can be build using '^^^', 'constant' and 'mono'.
@@ -163,29 +163,25 @@ instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variab
 (^^^) :: a -> Int -> Power a
 a ^^^ i = Pow a i
 
--- | Teturns a new monomial without variables.
+-- | Returns a new monomial without variables.
 constant :: SimpleMonomial
 constant = mono []
 
 -- | @
 -- mono [v1^^^k1,...,vn^^^kn]
 -- @ 
--- constructs the 'Poly.SimpleMonomial'
+-- constructs the 'SimpleMonomial'
 -- @
 -- c * v1^k1 * ... * v1^kn
 -- @
--- where @c@ is unique for the constructed monomial
+-- where @c@ is unique for the constructed monomial.
 mono :: [Power V.Variable] -> SimpleMonomial
 mono = CoefficientMonomial
 
--- | returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
+-- | Returns a new monomial whose coefficient is guaranteed to be @0@ or @1@.
 boolCoefficient :: SimpleMonomial -> SimpleMonomial
 boolCoefficient (CoefficientMonomial ps) = SimpleMonomial ps
 boolCoefficient sm                       = sm
-
--- arbitraryCoefficient :: SimpleMonomial -> SimpleMonomial
--- arbitraryCoefficient (SimpleMonomial ps)      = CoefficientMonomial ps
--- arbitraryCoefficient sm                       = sm
 
 polynomialFromShape :: RingConst a => PolyShape -> (F.Symbol, Int) -> VPolynomial a
 polynomialFromShape shape (f,ar) = mkPoly $ normalise $ monoFromShape shape

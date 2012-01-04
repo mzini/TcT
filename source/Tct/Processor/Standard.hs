@@ -1,35 +1,36 @@
-
-{-
-This file is part of the Tyrolean Complexity Tool (TCT).
-
-The Tyrolean Complexity Tool is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-The Tyrolean Complexity Tool is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with the Tyrolean Complexity Tool.  If not, see <http://www.gnu.org/licenses/>.
--}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+--------------------------------------------------------------------------------
+-- | 
+-- Module      :  Tct.Processor.Standard
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>,
+-- License     :  LGPL (see COPYING)
+--
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+-- 
+-- This module gives the infrastructure for /standard processors/.
+--------------------------------------------------------------------------------   
+
 module Tct.Processor.Standard 
-    -- ( TheProcessor (..)
-    -- , Processor (..)
-    -- , StdProcessor(..)
-    -- , theInstance
-    -- , apply
-    -- , withArgs
-    -- , modifyArguments)
+       (
+         -- * Defining new Processors
+         -- | In order to define a new standard processor, 
+         -- define an instance of 'Processor'.
+         TheProcessor (..)
+       , Processor (..)
+       , StdProcessor (..)
+       , withArgs
+       , modifyArguments
+       , apply
+       )
 where
 
 import Text.ParserCombinators.Parsec
@@ -37,31 +38,49 @@ import Text.ParserCombinators.Parsec
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
-import Tct.Processor.Args.Instances ()
 import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
 import Termlib.Rule (Rule)
 import Tct.Processor.Parse
 
-data TheProcessor a = TheProcessor { processor     :: a
-                                   , processorArgs :: Domains (ArgumentsOf a) }
+-- | This datatype defines a specific instance of a standard processor 
+data TheProcessor a = TheProcessor { processor     :: a -- ^ The processor.
+                                   , processorArgs :: Domains (ArgumentsOf a) -- ^ Arguments of a processor.
+                                   }
 
+-- | The main class a processor implements.
 class (P.ComplexityProof (ProofOf proc)) => Processor proc where
-    type ArgumentsOf proc
-    type ProofOf proc
+    -- | Unique name.  
     name         :: proc -> String
-    instanceName :: TheProcessor proc -> String
-    instanceName = name . processor
+    -- | Description of the processor.    
     description  :: proc -> [String]
     description  = const []
+    
+    -- | Arguments of the processor, cf. "Tct.Processor.Args".
+    type ArgumentsOf proc
+    -- | Proof type of the transformation.        
+    type ProofOf proc
+    
+    -- | Description of the arguments, cf. module "Tct.Processor.Args".
     arguments    :: proc -> (ArgumentsOf proc)
+    
+    -- | Optional name specific to instances. Defaults to the processor name.
+    instanceName :: TheProcessor proc -> String    
+    instanceName = name . processor
+
+    -- | The solve method. Given an instance and a problem, it constructs
+    -- a proof object. 
     solve        :: P.SolverM m => TheProcessor proc -> Problem -> m (ProofOf proc)
+    
+    -- | Similar to 'solve', but constructs a 'P.PartialProof'. At least all rules
+    -- in the additional paramter of type '[Rule]' should be /removed/. Per default, 
+    -- this method returns 'P.PartialInapplicable'. 
     solvePartial :: P.SolverM m => TheProcessor proc -> [Rule] -> Problem -> m (P.PartialProof (ProofOf proc))
     solvePartial _ _ prob = return $ P.PartialInapplicable prob
 
 
+-- ^ Provides a lifting from 'Processor' to 'P.Processor'.
 data StdProcessor a = StdProcessor a
-
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
     type P.ProofOf (StdProcessor proc)      = ProofOf proc
@@ -70,9 +89,6 @@ instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProce
     instanceName (TP theproc)               = instanceName theproc
     solve_ (TP theproc) prob                = solve theproc prob
     solvePartial_ (TP theproc) stricts prob = solvePartial theproc stricts prob
-
-theInstance :: P.InstanceOf (StdProcessor a) -> TheProcessor a
-theInstance (TP a) = a
 
 instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (StdProcessor a) where
     description     (StdProcessor a) = description a
@@ -103,13 +119,16 @@ mkParseProcessor nm args = do _ <- string nm
         continueWith '\t' = True
         continueWith _    = False 
 
+-- | Constructor for instances.
 withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
 (StdProcessor p) `withArgs` a = TP $ TheProcessor { processor = p
                                                   , processorArgs = a }
 
+-- | Modifyer for arguments of instances.
 modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (P.InstanceOf (StdProcessor a) -> P.InstanceOf (StdProcessor a))
 modifyArguments f (TP (TheProcessor a args)) = TP (TheProcessor a (f args))
                                    
+-- | Wrapper around 'solve', constructing a 'P.Proof'. 
 apply :: (P.SolverM m, Processor p, Arguments (ArgumentsOf p)) =>
         (StdProcessor p) -> A.Domains (ArgumentsOf p) -> Problem -> m (P.Proof (StdProcessor p))
 apply proc args prob = P.apply inst prob

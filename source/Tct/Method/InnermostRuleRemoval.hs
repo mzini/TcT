@@ -1,3 +1,8 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+
 {- | 
 Module      :  Tct.Method.InnermostRuleRemoval
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -11,11 +16,6 @@ Portability :  unportable
 
 This module implements the /innermost rule removal/ transformation.
 -}
-
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 
 module Tct.Method.InnermostRuleRemoval
     ( irr
@@ -32,7 +32,7 @@ import Data.Maybe (isJust, catMaybes)
 import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
-import Tct.Processor.PPrint (enumeration')
+import Tct.Utils.Enum (enumeration')
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A

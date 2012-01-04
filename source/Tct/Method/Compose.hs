@@ -61,7 +61,8 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
-import Tct.Processor.PPrint
+import Tct.Utils.Enum (enumeration')
+import Tct.Utils.PPrint (block')
 import Tct.Processor.Args.Instances
 import Tct.Processor (ComplexityProof (..), certificate)
 import qualified Tct.Certificate as Cert

@@ -4,21 +4,21 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-{- | 
-Module      :  Tct.Method.Bounds.Automata
-Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
-               Georg Moser <georg.moser@uibk.ac.at>, 
-               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
-License     :  LGPL (see COPYING)
-
-Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>, 
-               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
-Stability   :  unstable
-Portability :  unportable      
-
-This module implements automata functionality as employed by 
-the bounds processor.
--}
+----------------------------------------------------------------------------------
+-- |
+-- Module      :  Tct.Method.Bounds.Automata
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+-- License     :  LGPL (see COPYING)
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+--
+-- This module implements automata functionality as employed by 
+-- the bounds processor.
+-----------------------------------------------------------------------------------
 
 module Tct.Method.Bounds.Automata where
 

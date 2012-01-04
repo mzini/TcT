@@ -51,7 +51,7 @@ import Termlib.Trs (Trs)
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
-import Tct.Processor.PPrint
+import Tct.Utils.Enum (enumeration')
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import Tct.Certificate (constant, certified)
 

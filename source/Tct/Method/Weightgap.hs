@@ -49,7 +49,8 @@ import Tct.Encoding.UsablePositions
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
-import Tct.Processor.PPrint
+import Tct.Utils.Enum (enumeration')
+import Tct.Utils.PPrint
 import Tct.Method.Matrix.MatrixInterpretation hiding (signature)
 import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor.Args as A

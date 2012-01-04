@@ -47,7 +47,8 @@ import Termlib.Utils as Utils
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
-import Tct.Processor.PPrint
+import Tct.Utils.Enum (enumeration')
+import Tct.Utils.PPrint
 import Tct.Method.DP.Utils 
 
 -- | The Trs 'mkUsableRules prob trs' contains

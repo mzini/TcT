@@ -1,21 +1,22 @@
-{- | 
-Module      :  Tct.Processor.LogginSolver
-Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
-               Georg Moser <georg.moser@uibk.ac.at>, 
-               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
-License     :  LGPL (see COPYING)
-
-Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
-Stability   :  unstable
-Portability :  unportable      
-
-This module implements usable argument positions, in 
-particular an SAT encoding for usable argument positions
--}
-
-{-# OPTIONS_HADDOCK prune #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+
+-----------------------------------------------------------------------------------
+-- |
+-- Module      :  Tct.Processor.LogginSolver
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+-- License     :  LGPL (see COPYING)
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+--
+-- This module provides an implementation of 'P.SolverM' that
+-- performs logging of processor calls.
+----------------------------------------------------------------------------------
+
+
 
 module Tct.Processor.LoggingSolver where
 import Control.Concurrent.Chan

@@ -70,7 +70,8 @@ import Control.Monad.Trans (liftIO)
 import qualified Termlib.Trs as Trs
 import Termlib.Problem (strictComponents) 
 import qualified Tct.Processor as P
-import Tct.Processor.PPrint
+import Tct.Utils.PPrint
+import Tct.Utils.Enum (enumeration')
 import Tct.Certificate (certified, constant)
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args
@@ -254,7 +255,7 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
         case proof of 
           (OneOfFailed _ failures) -> text "None of the processors succeeded."
                                      $+$ text "" 
-                                     $+$ detailsFailed (enumeration' failures) mde
+                                     $+$ detailsFailed (enumeration' failures)
           (OneOfSucceeded o p) 
               | mde == P.StrategyOutput -> case o of 
                                            Sequentially -> procName p <+> text "succeeded:"
@@ -263,6 +264,11 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
                                          $+$ text ""
                                          $+$ P.pprintProof (P.result p) mde
               | otherwise              -> P.pprintProof (P.result p) mde
+      where procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+            detailsFailed ps = block "Details of failed attempt(s)" 
+                              $ [ (a, procName p <+> text "failed due to the following reason:" 
+                                      $+$ (indent $ P.pprintProof (P.result p) mde))
+                                | (a,p) <- ps, P.failed p]
 
     answer (OneOfFailed _ _)    = P.MaybeAnswer
     answer (OneOfSucceeded _ p) = P.answer p

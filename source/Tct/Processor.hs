@@ -1,26 +1,27 @@
-{- | 
-Module      :  Tct.Processor
-Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
-               Georg Moser <georg.moser@uibk.ac.at>, 
-               Andreas Schnabl <andreas.schnabl@uibk.ac.at>
-License     :  LGPL (see COPYING)
-
-Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
-Stability   :  unstable
-Portability :  unportable      
-
-This module defines basic interfaces and functionality concerning
-complexity processors. A parameterised complexity processor, 
-a so called /processor instance/, constructs from a complexity problem
-a proof object. 
--}
-
 {-# OPTIONS_HADDOCK prune #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+
+----------------------------------------------------------------------------------
+-- |
+-- Module      :  Tct.Processor
+-- Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
+--                Georg Moser <georg.moser@uibk.ac.at>, 
+--                Andreas Schnabl <andreas.schnabl@uibk.ac.at>
+-- License     :  LGPL (see COPYING)
+-- Maintainer  :  Martin Avanzini <martin.avanzini@uibk.ac.at>
+-- Stability   :  unstable
+-- Portability :  unportable      
+--
+-- This module defines basic interfaces and functionality concerning
+-- complexity processors. A parameterised complexity processor, 
+-- a so called /processor instance/, constructs from a complexity problem
+-- a proof object. 
+----------------------------------------------------------------------------------
+
 
 
 module Tct.Processor
@@ -192,7 +193,7 @@ class (ComplexityProof (ProofOf proc)) => Processor proc where
   solve_          :: SolverM m => InstanceOf proc -> Problem -> m (ProofOf proc)
     
   -- | Similar to 'solve_', but constructs a 'PartialProof'. At least all rules
-  -- in the additional paramter of type '[Rule]' should be /removed/. Per defaul, 
+  -- in the additional paramter of type '[Rule]' should be /removed/. Per default, 
   -- this method returns 'PartialInapplicable'. 
   solvePartial_   :: SolverM m => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
   solvePartial_   _ _ prob = return $ PartialInapplicable prob

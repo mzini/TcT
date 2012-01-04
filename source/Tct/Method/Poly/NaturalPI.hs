@@ -64,7 +64,7 @@ import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
-import Tct.Processor.PPrint (indent)
+import Tct.Utils.PPrint (indent)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 

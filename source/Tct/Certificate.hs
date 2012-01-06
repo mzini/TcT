@@ -198,9 +198,9 @@ instance Parsable Certificate where
                            _ <- char ')'
                            return $ Exp $ Just n
           pSupexp     = string "SUPEREXPONENTIAL" >> return Supexp
-          pPrec       = string "PRIMITIVE RECURSIVE" >> return Primrec
-          pMrec       = string "MULTIPLE RECURSIVE" >> return Multrec
-          pRec        = string "RECURSIVE" >> return Rec
+          pPrec       = string "PRIMREC" >> return Primrec
+          pMrec       = string "MULTREC" >> return Multrec
+          pRec        = string "REC" >> return Rec
           pUnknown    = string "?" >> return Unknown
           pInt        = many1 digit >>= return . read
 
@@ -212,9 +212,9 @@ instance PrettyPrintable Complexity where
     pprint (Exp Nothing)   = text "ELEMENTARY"
     pprint (Exp (Just n))  = text "ELEMENTARY" <> (parens $ text $ show n)
     pprint Supexp          = text "SUPEREXPONENTIAL"
-    pprint Primrec         = text "PRIMITIVE RECURSIVE"
-    pprint Multrec         = text "MULTIPLE RECURSIVE"
-    pprint Rec             = text "RECURSIVE"
+    pprint Primrec         = text "PRIMREC"
+    pprint Multrec         = text "MULTREC"
+    pprint Rec             = text "REC"
     pprint Unknown         = text "?"
 
 instance PrettyPrintable Certificate where 

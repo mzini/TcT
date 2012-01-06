@@ -534,6 +534,7 @@ initialGhciFile = return $ content
                   [ ":set -package tct"
                   , ":set prompt \"TcT> \""
                   , ":load tct.hs"
+                  , ":module +Tct.Interactive"                    
                   , "setConfig config"
                   , "welcome" ]
   

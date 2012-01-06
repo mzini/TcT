@@ -45,7 +45,7 @@ where
 
 import Control.Monad (liftM)
 import Data.Set (Set, (\\))
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, catMaybes)
 import qualified Data.Set as Set
 import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
@@ -93,7 +93,7 @@ import qualified Tct.Encoding.SafeMapping as SMEnc
 --------------------------------------------------------------------------------
 --- proof object
 
-data OrdType = POP | ProdPOP | LMPO deriving (Typeable, Show, Eq)
+data OrdType = POP | SPOP | LMPO deriving (Typeable, Show, Eq)
 
 data PopStar = PopStar { kind :: OrdType } deriving (Typeable, Show)
 
@@ -167,7 +167,7 @@ instance ComplexityProof PopStarOrder where
   answer order = case kind $ S.processor inst of 
                    LMPO    -> CertAnswer $ certified (unknown, expo Nothing)
                    POP     -> CertAnswer $ certified (unknown, poly Nothing)
-                   ProdPOP | wsc       -> CertAnswer $ certified (unknown, poly $ Just ub) 
+                   SPOP | wsc       -> CertAnswer $ certified (unknown, poly $ Just ub) 
                            | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
             _ :+: wsc :+: _ = S.processorArgs inst
@@ -187,54 +187,79 @@ instance ComplexityProof PopStarOrder where
 --------------------------------------------------------------------------------
 --- processor 
 
+argPS :: Arg Bool
+argPS = 
+  opt { A.name = "ps"
+      , A.description = "Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order."
+      , A.defaultValue = False }
+  
+argWSC :: Arg Bool
+argWSC = 
+  opt { A.name = "wsc"
+      , A.description = "Weak Safe Composition: If enabled then composition is restricted to weak safe composition."
+      , A.defaultValue = False }
+         
+argDeg :: Arg (Maybe Nat)
+argDeg = 
+  opt { A.name = "deg"
+      , A.description = unwords [ "Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven." 
+                                , "This flag only works in combination with product extension and weak safe composition, "
+                                , "cf. 'popstarSmall'."]
+      , A.defaultValue = Nothing }
+
 instance S.Processor PopStar where
     name p = case kind p of 
-               LMPO    -> "lmpo"
-               POP     -> "popstar"
-               ProdPOP -> "popstarSmall"
+               LMPO -> "lmpo"
+               POP  -> "popstar"
+               SPOP -> "popstarSmall"
 
-    description p = case kind p of 
-                      LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
-                                       , "a technique applicable for innermost runtime-complexity analysis."
-                                       , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
-                                       , "restricted so that compatibility assesses polytime computability of the functions defined."
-                                       , "Further, it induces exponentially bounded innermost runtime-complexity."]]
-                      POP   -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
-                                        , "a technique applicable for innermost runtime-complexity analysis."
-                                        , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
-                                        , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity." ]
-                              , unlines [ "The implementation for DP problems additionally employs argument filterings."]]
-                      ProdPOP -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders'"
-                                          , "with product extension, c.f. processor 'popstar'."]]
+    description p = 
+      case kind p of 
+        LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
+                         , "a technique applicable for innermost runtime-complexity analysis."
+                         , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
+                         , "restricted so that compatibility assesses polytime computability of the functions defined."
+                         , "Further, it induces exponentially bounded innermost runtime-complexity."]]
+        POP   -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
+                          , "a technique applicable for innermost runtime-complexity analysis."
+                          , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
+                          , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity." ]
+                , unlines [ "The implementation for DP problems additionally employs argument filterings."]]
+        SPOP -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders'"
+                         , "with product extension, c.f. processor 'popstar'."]]
 
 
     type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool :+: Arg (Maybe Nat)
 
     instanceName inst = show $ ppname <+> ppargs
-        where ppname = case kind $ S.processor inst of 
-                         LMPO -> text "Lightweight Multiset Path Order"
-                         POP -> text "Polynomial Path Order"
-                         ProdPOP -> text "Polynomial Path Order (product extension)"
+        where ppname = 
+                case knd of 
+                  LMPO -> text "Lightweight Multiset Path Order"
+                  POP -> text "Polynomial Path Order"
+                  SPOP | wsc -> text "Small Polynomial Path Order"
+                       | otherwise -> text "Polynomial Path Order"
+              ppargs = parens $ vcat $ punctuate (text ",") features
+                where features = [text n 
+                                 | n <- catMaybes [ whenTrue wsc "WSC"
+                                                 , whenTrue ps "PS"
+                                                 , whenTrue (knd == SPOP && not wsc) "PROD"
+                                                 , (\ bnd -> show bnd ++ "-bounded") `fmap` mbnd ] ]
+                      whenTrue True  n = Just n
+                      whenTrue False _ = Nothing
+              knd = kind $ S.processor inst
+              ps :+: wsc :+: mbnd = S.processorArgs inst
 
-              ppargs | ps && wsc = text "with parameter subtitution and weak safe composition"
-                     | ps        = text "with parameter subtitution"
-                     | wsc       = text "with weak safe composition"
-                     | otherwise = PP.empty
-              ps :+: wsc :+: _ = S.processorArgs inst
-
-    arguments _ = ps :+: wsc :+: bnd
-        where ps = opt { A.name = "ps"
-                       , A.description = "Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order."
-                       , A.defaultValue = True } 
-              wsc = opt { A.name = "wsc"
-                        , A.description = "Weak Safe Composition: If enabled then composition is restricted to weak safe composition."
-                        , A.defaultValue = False }
-              bnd = opt { A.name = "deg"
-                        , A.description = unwords [ "Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven." 
-                                                  , "This flag only works in combination with product extension and weak safe composition, "
-                                                  , "cf. 'popstarSmall'."]
-                        , A.defaultValue = Nothing }
-                  
+    arguments p = 
+      case kind p of 
+        LMPO    -> argPS 
+                  :+: argWSC 
+                  :+: argDeg
+        POP     -> argPS { A.defaultValue = True} 
+                  :+: argWSC 
+                  :+: argDeg        
+        SPOP    -> argPS { A.defaultValue = True}
+                  :+: argWSC { A.defaultValue = True} 
+                  :+: argDeg
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
@@ -247,7 +272,7 @@ popstarProcessor :: S.StdProcessor PopStar
 popstarProcessor = S.StdProcessor (PopStar POP)
 
 ppopstarProcessor :: S.StdProcessor PopStar
-ppopstarProcessor = S.StdProcessor (PopStar ProdPOP)
+ppopstarProcessor = S.StdProcessor (PopStar SPOP)
 
 lmpoProcessor :: S.StdProcessor PopStar
 lmpoProcessor = S.StdProcessor (PopStar LMPO)
@@ -316,7 +341,7 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
           allowAF   = (isDP && knd /= LMPO && Trs.isEmpty (Prob.strictTrs prob))
           allowMR   = knd == LMPO 
-          forcePROD = knd == ProdPOP          
+          forcePROD = knd == SPOP          
           isDP      = Prob.isDPProblem prob
           
           quasiConstrs = quasiConstructorsFor prob

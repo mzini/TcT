@@ -91,6 +91,7 @@ Library
    Tct.Method.Combinator
    Tct.Method.InnermostRuleRemoval
    Tct.Method.PopStar
+   Tct.Method.Mpo
    Tct.Method.EpoStar
    Tct.Method.Compose
    Tct.Method.ComposeRC

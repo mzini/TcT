@@ -82,6 +82,7 @@ module Tct.Instances
     , PopStar.lmpo     
     , PopStar.popstarSmall
     , PopStar.popstarSmallPS
+    , Mpo.mpo
       
       -- ** Bounds Processor
     , Bounds.bounds
@@ -163,6 +164,7 @@ module Tct.Instances
     , ComposeRC.composeRC
     , Compose.ComposeBound (..)      
     , Compose.Partitioning (..)
+    , ComposeRC.composeRCselect
     , ComposeRC.solveAWith
     , ComposeRC.solveBWith
     -- *** RuleSelector
@@ -211,6 +213,7 @@ import Termlib.Problem (Problem)
 import Termlib.Variable (Variable)
 import qualified Tct.Method.Combinator as Combinators
 import qualified Tct.Method.PopStar as PopStar
+import qualified Tct.Method.Mpo as Mpo
 import qualified Tct.Method.EpoStar as EpoStar
 import qualified Tct.Method.Compose as Compose
 import qualified Tct.Method.ComposeRC as ComposeRC

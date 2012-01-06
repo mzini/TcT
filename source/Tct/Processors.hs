@@ -19,6 +19,9 @@
 -- in the dimension of the constructed matrix interpretation. 
 -- Parameterised processors are called /processor instances/, and 
 -- can be obtained using the constructors in "Tct.Instances".
+--
+-- A list of processors and their synopsis can also be obtained from
+-- the command line, using the flag @--list@.
 --------------------------------------------------------------------------------   
 {-# LANGUAGE CPP #-}
 module Tct.Processors where
@@ -30,8 +33,23 @@ import Prelude hiding (fail, uncurry)
 
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
+import Tct.Processor.Standard (StdProcessor)
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Method.Predicates as Preds
+import Tct.Method.Predicates hiding
+  ( isDuplicating
+   , isConstructor 
+   , isGround
+   , isLeftLinear
+   , isRightLinear
+   , isWellFormed
+   , isOutermost
+   , isCollapsing
+   , isInnermost
+   , isFull
+   , isContextSensitive
+   , isDCProblem
+   , isRCProblem) 
 import Tct.Method.Bounds hiding (bounds)
 import Tct.Method.Combinator hiding (fail, success, empty, open, ite, best, fastest, sequentially)
 import Tct.Method.Compose hiding (compose)
@@ -49,21 +67,214 @@ import Tct.Method.PopStar hiding (popstar, lmpo)
 import Tct.Method.Uncurry hiding (uncurry)
 import Tct.Method.Weightgap 
 import Tct.Method.Timeout hiding (timeout)
+import Tct.Method.Mpo hiding (mpo)
 
+-- generated: Fri Jan  6 13:08:14 JST 2012
+builtInProcessors :: P.AnyProcessor 
+builtInProcessors = 
+    isDuplicating
+    P.<|>
+    isConstructor
+    P.<|>
+    isCollapsing
+    P.<|>
+    isGround
+    P.<|>
+    isLeftLinear
+    P.<|>
+    isRightLinear
+    P.<|>
+    isWellFormed
+    P.<|>
+    isOutermost
+    P.<|>
+    isInnermost
+    P.<|>
+    isFull
+    P.<|>
+    isContextSensitive
+    P.<|>
+    isDCProblem
+    P.<|>
+    isRCProblem
+    P.<|>
+    popstar
+    P.<|>
+    ppopstar
+    P.<|>
+    lmpo
+    P.<|>
+    bounds
+    P.<|>
+    fail
+    P.<|>
+    success
+    P.<|>
+    empty
+    P.<|>
+    open
+    P.<|>
+    ite
+    P.<|>
+    best
+    P.<|>
+    fastest
+    P.<|>
+    sequentially
+    P.<|>
+    epostar
+    P.<|>
+    matrix
+    P.<|>
+    arctic
+    P.<|>
+    mpo
+    P.<|>
+    poly
+    P.<|>
+    timeout
+    P.<|>
+    S.StdProcessor irr
+    P.<|>
+    S.StdProcessor composeRC
+    P.<|>
+    S.StdProcessor weightgap
+    P.<|>
+    S.StdProcessor compose
+    P.<|>
+    S.StdProcessor dependencyPairs
+    P.<|>
+    S.StdProcessor removeTail
+    P.<|>
+    S.StdProcessor simpDPRHS
+    P.<|>
+    S.StdProcessor simpKP
+    P.<|>
+    S.StdProcessor usableRules
+    P.<|>
+    S.StdProcessor pathAnalysis
+    P.<|>
+    S.StdProcessor uncurry
+    P.<|>
+    foldr (P.<|>) P.none Preds.predicateProcessors
 
--- generated: Tue Dec 27 14:31:00 JST 2011
+-- generated: Fri Jan  6 13:10:41 JST 2012
 {- |
-The processor either returns the result of the given processor
-or, if the timeout elapses, aborts the computation and returns
-MAYBE.
 
-[timeout :: \[\<nat>\]] The timeout in seconds
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
 
-[processor :: \[\<processor>\]] The processor to apply with timeout
 
 -}
-timeout :: S.StdProcessor (Timeout P.AnyProcessor)
-timeout = timeoutProcessor
+isDuplicating :: S.StdProcessor Predicate
+isDuplicating = isDuplicatingProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isConstructor :: S.StdProcessor Predicate
+isConstructor = isConstructorProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isCollapsing :: S.StdProcessor Predicate
+isCollapsing = isCollapsingProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isGround :: S.StdProcessor Predicate
+isGround = isGroundProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isLeftLinear :: S.StdProcessor Predicate
+isLeftLinear = isLeftLinearProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isRightLinear :: S.StdProcessor Predicate
+isRightLinear = isRightLinearProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isWellFormed :: S.StdProcessor Predicate
+isWellFormed = isWellFormedProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isOutermost :: S.StdProcessor Predicate
+isOutermost = isOutermostProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isInnermost :: S.StdProcessor Predicate
+isInnermost = isInnermostProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isFull :: S.StdProcessor Predicate
+isFull = isFullProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isContextSensitive :: S.StdProcessor Predicate
+isContextSensitive = isContextSensitiveProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isDCProblem :: S.StdProcessor Predicate
+isDCProblem = isDCProblemProcessor
+
+{- |
+
+[on :: strict|weak|both|union /(optional)/] Chooses the TRS from the problem on which the predicate is applied (only applies to predicates on TRSs).
+
+
+-}
+isRCProblem :: S.StdProcessor Predicate
+isRCProblem = isRCProblemProcessor
 
 {- |
 This processor implements orientation of the input problem using
@@ -76,11 +287,11 @@ innermost runtime-complexity.
 The implementation for DP problems additionally employs argument
 filterings.
 
-[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
+[ps :: On|Off /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
-[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
+[wsc :: On|Off /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
+[deg :: \<nat>|none /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 popstar :: S.StdProcessor PopStar
@@ -91,11 +302,11 @@ This processor implements orientation of the input problem using
 \'polynomial path orders\'
 with product extension, c.f. processor \'popstar\'.
 
-[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
+[ps :: On|Off /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
-[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
+[wsc :: On|Off /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
+[deg :: \<nat>|none /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 ppopstar :: S.StdProcessor PopStar
@@ -112,11 +323,11 @@ the functions defined.
 Further, it induces exponentially bounded innermost
 runtime-complexity.
 
-[ps :: \[On|Off\] /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
+[ps :: On|Off /(optional)/] Parameter substitution: If enabled, parameter substitution is allowed, strengthening the order.
 
-[wsc :: \[On|Off\] /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
+[wsc :: On|Off /(optional)/] Weak Safe Composition: If enabled then composition is restricted to weak safe composition.
 
-[deg :: \[\<nat>|none\] /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
+[deg :: \<nat>|none /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
 lmpo :: S.StdProcessor PopStar
@@ -128,7 +339,7 @@ that induces linear derivational- and runtime-complexity for
 right-linear problems.
 For non-right-linear problems this processor fails immediately.
 
-[initial :: \[minimal|perSymbol\] /(optional)/] The employed initial automaton.
+[initial :: minimal|perSymbol /(optional)/] The employed initial automaton.
 If 'perSymbol' is set then the initial automaton admits one dedicated
 state per function symbols.
 If 'minimal' is set then the initial automaton admits exactly
@@ -136,7 +347,7 @@ one state for derivational-complexity analysis. For runtime-complexity analysis,
 two states are used in order to distinguish defined symbols from constructors.
 
 
-[enrichment :: \[match|roof|top\] /(optional)/] The employed enrichment.
+[enrichment :: match|roof|top /(optional)/] The employed enrichment.
 
 -}
 bounds :: S.StdProcessor Bounds
@@ -173,11 +384,11 @@ open = openProcessor
 {- |
 This processor implements conditional branching
 
-[guard :: \[\<processor>\]] The guard processor. It succeeds if it returns 'Yes(*,*)'.
+[guard :: \<processor>] The guard processor. It succeeds if it returns 'Yes(*,*)'.
 
-[then :: \[\<processor>\]] The processor that is applied if guard succeeds.
+[then :: \<processor>] The processor that is applied if guard succeeds.
 
-[else :: \[\<processor>\]] The processor that is applied if guard fails.
+[else :: \<processor>] The processor that is applied if guard fails.
 
 -}
 ite :: S.StdProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor)
@@ -187,7 +398,7 @@ ite = iteProcessor
 Processor \'Best\' applies the given list of processors in parallel
 and returns the proof admitting the lowest complexity certificate.
 
-[subprocessors :: \[\<processor>...\]] a list of subprocessors
+[subprocessors :: \<processor>...] a list of subprocessors
 
 -}
 best :: S.StdProcessor (OneOf P.AnyProcessor)
@@ -197,7 +408,7 @@ best = bestProcessor
 Processor \'Fastest\' applies the given list of processors in
 parallel and returns the first successful proof.
 
-[subprocessors :: \[\<processor>...\]] a list of subprocessors
+[subprocessors :: \<processor>...] a list of subprocessors
 
 -}
 fastest :: S.StdProcessor (OneOf P.AnyProcessor)
@@ -207,7 +418,7 @@ fastest = fastestProcessor
 Processor \'Sequentially\' applies the given list of processors
 sequentially and returns the first successful proof.
 
-[subprocessors :: \[\<processor>...\]] a list of subprocessors
+[subprocessors :: \<processor>...] a list of subprocessors
 
 -}
 sequentially :: S.StdProcessor (OneOf P.AnyProcessor)
@@ -220,7 +431,7 @@ runtime-complexity analysis. Exponential path orders are a
 miniaturisation of \'lexicographic path orders\', restricted so
 that compatibility assesses exponential runtime complexity.
 
-[ecomp :: \[On|Off\] /(optional)/] Extended Composition: If this flag is enabled, then the slightly more . liberal composition scheme 'f(x;y) = h(g(;x);k(x;y))' is permitted. Currently it is not known whether this extension is sound.
+[ecomp :: On|Off /(optional)/] Extended Composition: If this flag is enabled, then the slightly more . liberal composition scheme 'f(x;y) = h(g(;x);k(x;y))' is permitted. Currently it is not known whether this extension is sound.
 
 -}
 epostar :: S.StdProcessor EpoStar
@@ -230,7 +441,7 @@ epostar = epostarProcessor
 This processor orients the problem using matrix-interpretation over
 natural numbers.
 
-[cert :: \[algebraic|automaton|nothing\] /(optional)/] This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of
+[cert :: algebraic|automaton|nothing /(optional)/] This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of
 the interpretation of the considered starting terms relative to their size.
 Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,
 they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left
@@ -243,33 +454,33 @@ Note that matrix interpretations produced with this option do not induce polynom
 The default value is 'automaton'.
 
 
-[degree :: \[\<nat>|none\] /(optional)/] This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a
+[degree :: \<nat>|none /(optional)/] This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a
 polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to.
 If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices.
 If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'.
 Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified.
 
 
-[dim :: \[\<nat>\] /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
+[dim :: \<nat> /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
  in the matrix-interpretation.
 
 
-[bound :: \[\<nat>\] /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
+[bound :: \<nat> /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
 Such an upper-bound is necessary as we employ bit-blasting to SAT internally
 when searching for compatible matrix interpretations.
 
 
-[bits :: \[\<nat>|none\] /(optional)/] This argument plays the same role as 'bound',
+[bits :: \<nat>|none /(optional)/] This argument plays the same role as 'bound',
 but instead of an upper-bound the number of bits is specified.
 This argument overrides the argument 'bound'.
 
 
-[cbits :: \[\<nat>|none\] /(optional)/] This argument specifies the number of bits used for intermediate results, 
+[cbits :: \<nat>|none /(optional)/] This argument specifies the number of bits used for intermediate results, 
 as for instance coefficients of matrices obtained by interpreting
 left- and right-hand sides.
 
 
-[uargs :: \[On|Off\] /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
+[uargs :: On|Off /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
 in order to relax the monotonicity constraints on the interpretation.
 
 
@@ -281,26 +492,26 @@ matrix = matrixProcessor
 This processor orients the problem using matrix-interpretation over
 the arctic semiring.
 
-[dim :: \[\<nat>\] /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
+[dim :: \<nat> /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
  in the matrix-interpretation.
 
 
-[bound :: \[\<nat>\] /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
+[bound :: \<nat> /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
 Such an upper-bound is necessary as we employ bit-blasting to SAT internally
 when searching for compatible matrix interpretations.
 
 
-[bits :: \[\<nat>|none\] /(optional)/] This argument plays the same role as 'bound',
+[bits :: \<nat>|none /(optional)/] This argument plays the same role as 'bound',
 but instead of an upper-bound the number of bits is specified.
 This argument overrides the argument 'bound'.
 
 
-[cbits :: \[\<nat>|none\] /(optional)/] This argument specifies the number of bits used for intermediate results, 
+[cbits :: \<nat>|none /(optional)/] This argument specifies the number of bits used for intermediate results, 
 as for instance coefficients of matrices obtained by interpreting
 left- and right-hand sides.
 
 
-[uargs :: \[On|Off\] /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
+[uargs :: On|Off /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
 in order to relax the monotonicity constraints on the interpretation.
 
 
@@ -309,31 +520,39 @@ arctic :: S.StdProcessor ArcticMI
 arctic = arcticProcessor
 
 {- |
+This processor implements \'multiset path orders\' as found in the
+literature.
+
+-}
+mpo :: StdProcessor Mpo
+mpo = mpoProcessor
+
+{- |
 This processor orients the problem using polynomial interpretation
 over natural numbers.
 
-[kind :: \[linear|stronglylinear|simple|simplemixed|quadratic\] /(optional)/] This argument specifies the shape of the polynomials used in the interpretation.
+[kind :: linear|stronglylinear|simple|simplemixed|quadratic /(optional)/] This argument specifies the shape of the polynomials used in the interpretation.
 Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',
 referring to the respective shapes of the abstract polynomials used.
 The deault value is 'stronglylinear'.
 
 
-[bound :: \[\<nat>\] /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
+[bound :: \<nat> /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
 Such an upper-bound is necessary as we employ bit-blasting to SAT internally
 when searching for compatible matrix interpretations.
 
 
-[bits :: \[\<nat>|none\] /(optional)/] This argument plays the same role as 'bound',
+[bits :: \<nat>|none /(optional)/] This argument plays the same role as 'bound',
 but instead of an upper-bound the number of bits is specified.
 This argument overrides the argument 'bound'.
 
 
-[cbits :: \[\<nat>|none\] /(optional)/] This argument specifies the number of bits used for intermediate results, 
+[cbits :: \<nat>|none /(optional)/] This argument specifies the number of bits used for intermediate results, 
 as for instance coefficients of matrices obtained by interpreting
 left- and right-hand sides.
 
 
-[uargs :: \[On|Off\] /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
+[uargs :: On|Off /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
 in order to relax the monotonicity constraints on the interpretation.
 
 
@@ -342,19 +561,32 @@ poly :: S.StdProcessor NaturalPI
 poly = polyProcessor
 
 {- |
+The processor either returns the result of the given processor
+or, if the timeout elapses, aborts the computation and returns
+MAYBE.
+
+[timeout :: \<nat>] The timeout in seconds
+
+[processor :: \<processor>] The processor to apply with timeout
+
+-}
+timeout :: S.StdProcessor (Timeout P.AnyProcessor)
+timeout = timeoutProcessor
+
+{- |
 This processor removes rules \'f(l_1,...,l_n) -> r\' for which l_i
 (1 \<= i \<=n) is not a normal form.
 The processor applies only to innermost problems.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -377,24 +609,24 @@ processors that are applied on the two individual subproblems. The
 transformation results into the systems which could not be oriented
 by those processors.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
 
-[split :: \[\] /(optional)/] This problem determines the strict rules of the selected upper congruence rules.
+[split ::  /(optional)/] This problem determines the strict rules of the selected upper congruence rules.
 
-[sub-processor-A :: \[\<processor>|none\] /(optional)/] If given, applied on the problem reflecting the upper congruence classes.
+[sub-processor-A :: \<processor>|none /(optional)/] If given, applied on the problem reflecting the upper congruence classes.
 
-[sub-processor-B :: \[\<processor>|none\] /(optional)/] If given, applied on the problem reflecting the lower congruence classes.
+[sub-processor-B :: \<processor>|none /(optional)/] If given, applied on the problem reflecting the lower congruence classes.
 
 -}
 composeRC :: T.Transformation (ComposeRC P.AnyProcessor P.AnyProcessor) P.AnyProcessor
@@ -404,26 +636,26 @@ composeRC = composeRCProcessor
 Uses the weight gap principle to shift some strict rules to the
 weak part of the problem.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
 
-[on :: \[trs|any\] /(optional)/] This flag determine which rules have to be strictly oriented by the the matrix interpretation for
+[on :: trs|any /(optional)/] This flag determine which rules have to be strictly oriented by the the matrix interpretation for
 the weight gap principle. Here 'trs' refers to all strict non-dependency-pair rules of the
 considered problem, while 'any' only demands any rule at all to be strictly oriented.
 The default value is 'trs'.
 
 
-[cert :: \[algebraic|automaton|nothing\] /(optional)/] This argument specifies restrictions on the matrix-interpretation for the weight gap condition which induce polynomial growth of
+[cert :: algebraic|automaton|nothing /(optional)/] This argument specifies restrictions on the matrix-interpretation for the weight gap condition which induce polynomial growth of
 the interpretation of the considered starting terms relative to their size.
 Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,
 they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left
@@ -436,32 +668,32 @@ Note that matrix interpretations produced with this option do not induce polynom
 The default value is 'automaton'.
 
 
-[degree :: \[\<nat>|none\] /(optional)/] This argument ensures that the complexity induced by the searched matrix interpretation for the weight gap condition is bounded by a
+[degree :: \<nat>|none /(optional)/] This argument ensures that the complexity induced by the searched matrix interpretation for the weight gap condition is bounded by a
 polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to.
 If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices.
 If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'.
 Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified.
 
 
-[dim :: \[\<nat>\] /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
+[dim :: \<nat> /(optional)/] This argument specifies the dimension of the vectors and square-matrices appearing
  in the matrix-interpretation for the weight gap condition.
 
 
-[bound :: \[\<nat>\] /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
+[bound :: \<nat> /(optional)/] This argument specifies an upper-bound on coefficients appearing in the interpretation.
 Such an upper-bound is necessary as we employ bit-blasting to SAT internally
 when searching for compatible matrix interpretations for the weight gap condition.
 
 
-[bits :: \[\<nat>|none\] /(optional)/] This argument plays the same role as 'bound',
+[bits :: \<nat>|none /(optional)/] This argument plays the same role as 'bound',
 but instead of an upper-bound the number of bits is specified.
 This argument overrides the argument 'bound'.
 
 
-[cbits :: \[\<nat>|none\] /(optional)/] This argument specifies the number of bits used for intermediate results,
+[cbits :: \<nat>|none /(optional)/] This argument specifies the number of bits used for intermediate results,
 computed for the matrix interpretation of the weight gap condition.
 
 
-[uargs :: \[On|Off\] /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
+[uargs :: On|Off /(optional)/] This argument specifies whether usable arguments are computed (if applicable)
 in order to relax the monotonicity constraints on the interpretation.
 
 
@@ -478,25 +710,25 @@ follows the ideas presented in \/Complexity Bounds From Relative
 Termination Proofs\/
 (\<http:\/\/www.imn.htwk-leipzig.de\/~waldmann\/talk\/06\/rpt\/rel\/main.pdf>)
 
-[subprocessor :: \[\<processor>\]] The processor applied on subproblem (A).
+[subprocessor :: \<processor>] The processor applied on subproblem (A).
 
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
 
-[split :: \[dynamic\] /(optional)/] This argument of type 'Compose.Partitioning' determines strict rules of problem (A). Usually, this should be set to 'Dynamic', in which case the given processor determines selection of rules dynamically.
+[split :: dynamic /(optional)/] This argument of type 'Compose.Partitioning' determines strict rules of problem (A). Usually, this should be set to 'Dynamic', in which case the given processor determines selection of rules dynamically.
 
-[allow :: \[Add|Mult|Compose\] /(optional)/] This argument type 'Compose.ComposeBound' determines how the complexity certificate should be obtained from subproblems (A) and (B). Consequently, this argument also determines the shape of (B). The third argument defines a processor that is applied on problem (A). If this processor succeeds, the input problem is transformed into (B). Note that for compose bound 'Mult' the transformation only succeeds if applied to non size-increasing Problems.
+[allow :: Add|Mult|Compose /(optional)/] This argument type 'Compose.ComposeBound' determines how the complexity certificate should be obtained from subproblems (A) and (B). Consequently, this argument also determines the shape of (B). The third argument defines a processor that is applied on problem (A). If this processor succeeds, the input problem is transformed into (B). Note that for compose bound 'Mult' the transformation only succeeds if applied to non size-increasing Problems.
 
 -}
 compose :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
@@ -505,20 +737,20 @@ compose = composeProcessor
 {- |
 Applies the (weak) depencency pair transformation.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
 
-[usetuples :: \[On|Off\] /(optional)/] This argument specifies whether dependency tuples instead of pairs should be used.
+[usetuples :: On|Off /(optional)/] This argument specifies whether dependency tuples instead of pairs should be used.
 
 
 -}
@@ -530,15 +762,15 @@ Recursively removes all nodes that are either leafs in the
 dependency-graph or from the given problem. Only applicable if the
 strict component is empty.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -552,15 +784,15 @@ Simplify right hand sides of dependency pairs by removing marked
 subterms whose root symbols are undefined. Only applicable if the
 strict component is empty.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -575,15 +807,15 @@ predecessors in the dependency graph are strict and there is no
 edge from the rule to itself. Only applicable if the strict
 component is empty.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -597,15 +829,15 @@ This processor restricts the strict- and weak-rules to usable rules
 with
 respect to the dependency pairs.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -618,15 +850,15 @@ usableRules = usableRulesProcessor
 This processor implements path-analysis as described in the
 dependency pair paper.
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -639,15 +871,15 @@ pathAnalysis = pathAnalysisProcessor
 This processor implements \'Uncurrying\' for
 left-head-variable-free ATRSs
 
-[subprocessor :: \[\<processor>\]] The processor that is applied on the transformed problem(s)
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
-[strict :: \[On|Off\] /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
 Otherwise, it applies the subprocessor on the untransformed input.
 
 
-[parallel :: \[On|Off\] /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
 
-[checkSubsumed :: \[On|Off\] /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
 A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
 Currently we only take subset-inclusions of the different components into account.
 
@@ -656,65 +888,3 @@ Currently we only take subset-inclusions of the different components into accoun
 uncurry :: T.Transformation Uncurry P.AnyProcessor
 uncurry = uncurryProcessor
 
--- generated: Tue Dec 27 14:31:20 JST 2011
--- | This processor collects all built in processors, 
--- see "Tct.Configuration" for usage information.
-builtInProcessors :: P.AnyProcessor 
-builtInProcessors = 
-    timeout
-    P.<|>
-    popstar
-    P.<|>
-    ppopstar
-    P.<|>
-    lmpo
-    P.<|>
-    bounds
-    P.<|>
-    fail
-    P.<|>
-    success
-    P.<|>
-    empty
-    P.<|>
-    open
-    P.<|>
-    ite
-    P.<|>
-    best
-    P.<|>
-    fastest
-    P.<|>
-    sequentially
-    P.<|>
-    epostar
-    P.<|>
-    matrix
-    P.<|>
-    arctic
-    P.<|>
-    poly
-    P.<|>
-    S.StdProcessor irr
-    P.<|>
-    S.StdProcessor composeRC
-    P.<|>
-    S.StdProcessor weightgap
-    P.<|>
-    S.StdProcessor compose
-    P.<|>
-    S.StdProcessor dependencyPairs
-    P.<|>
-    S.StdProcessor removeTail
-    P.<|>
-    S.StdProcessor simpDPRHS
-    P.<|>
-    S.StdProcessor simpKP
-    P.<|>
-    S.StdProcessor usableRules
-    P.<|>
-    S.StdProcessor pathAnalysis
-    P.<|>
-    S.StdProcessor uncurry
-    P.<|>
-    foldr (P.<|>) P.none Preds.predicateProcessors

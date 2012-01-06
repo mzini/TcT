@@ -270,6 +270,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
 
+-- | This is the default 'RuleSelector' used with 'composeRC'.
 composeRCselect :: RuleSelector a
 composeRCselect = selFromWDG "below first cut in WDG" fn
     where fn _ dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
@@ -303,7 +304,7 @@ composeRCProcessor = T.Transformation ComposeRC
 -- processors that are applied on the two individual subproblems. The
 -- transformation results into the systems which could not be oriented
 -- by those processors.
-composeRC :: (P.Processor p1, P.Processor p2) => RuleSelector () -> T.TheTransformer (ComposeRC p1 p2)
+composeRC :: RuleSelector () -> T.TheTransformer (ComposeRC P.AnyProcessor P.AnyProcessor)
 composeRC s = T.Transformation ComposeRC `T.withArgs` (s :+: Nothing :+: Nothing)
 
 -- | Specify a processor to solve Problem A immediately. 

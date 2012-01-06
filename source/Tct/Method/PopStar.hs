@@ -142,8 +142,10 @@ instance ComplexityProof PopStarOrder where
                     pp (Fun f ts) = 
                       case AF.filtering f af of 
                         AF.Projection i -> pp (ts!!(i-1))
-                        AF.Filtering is -> pprint (f,sig) <> parens ( ppa normals <> sc <> ppa safes )
+                        AF.Filtering is -> pprint (f,sig) <> parens ( ppargs )
                           where (safes,normals) = IntSet.partition (SMEnc.isSafe sm f) is
+                                ppargs | IntSet.null is = PP.empty
+                                       | otherwise      = ppa normals <> sc <> ppa safes
                                 ppa poss        = sep $ punctuate (text ",") [pp ti | (i,ti) <- zip [1..] ts
                                                                                     , i `IntSet.member` poss]
                                 sc | IntSet.null safes = text ";"

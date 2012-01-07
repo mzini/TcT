@@ -238,9 +238,9 @@ instance S.Processor PopStar where
                   POP -> text "Polynomial Path Order"
                   SPOP | wsc -> text "Small Polynomial Path Order"
                        | otherwise -> text "Polynomial Path Order"
-              ppargs = parens $ vcat $ punctuate (text ",") features
+              ppargs = parens $ hcat $ punctuate (text ",") features
                 where features = [text n 
-                                 | n <- catMaybes [ whenTrue wsc "WSC"
+                                 | n <- catMaybes [ whenTrue ((knd /= SPOP) && wsc) "WSC"
                                                  , whenTrue ps "PS"
                                                  , whenTrue (knd == SPOP && not wsc) "PROD"
                                                  , (\ bnd -> show bnd ++ "-bounded") `fmap` mbnd ] ]

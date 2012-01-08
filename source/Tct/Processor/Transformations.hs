@@ -305,6 +305,7 @@ someProof sub t prob res subproofs = Proof { transformationResult = res
                                            , appliedSubprocessor  = P.someInstance sub
                                            , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subproofs }
 
+-- % maybe should return Try t1 proof
 mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (Transformation (Try t2) sub))
 mkComposeProof sub t1 t2 input r1 r2s subproofs =
     Proof { transformationResult = r1

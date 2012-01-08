@@ -1107,7 +1107,8 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
           where mkNode prob res = Transformed progressed prob tinst tproof subTrees
                   where progressed = T.isProgressResult res
                         tproof = T.proofFromResult res
-                        subTrees = Open `mapEnum` T.subProblemsFromResult res
+                        subTrees | progressed = Open `mapEnum` T.subProblemsFromResult res
+                                 | otherwise  = enumeration' [Open prob] 
       where tinst = T.someTransformation t         
                                       
 instance P.Processor p => Apply (P.InstanceOf p) where

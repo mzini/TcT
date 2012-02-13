@@ -29,13 +29,15 @@ module Tct.Method.Predicates
        , isDuplicating
        , isLeftLinear
        , isRightLinear
+       , isOverlay
+       , isOrthogonal
        , isGround
        , isWellFormed
        , isFull
        , isInnermost
        , isOutermost
        , isRCProblem      
-       , isDCProblem      
+       , isDCProblem
        , isContextSensitive
          -- ** Lifting of functions to predicate processors.
        , trsPredicate
@@ -46,6 +48,8 @@ module Tct.Method.Predicates
        , isDuplicatingProcessor
        , isLeftLinearProcessor
        , isRightLinearProcessor
+       , isOrthogonalProcessor
+       , isOverlayProcessor
        , isGroundProcessor
        , isWellFormedProcessor
        , isFullProcessor
@@ -141,6 +145,10 @@ isRightLinearProcessor :: S.StdProcessor Predicate
 isRightLinearProcessor = trsPredicateProcessor "rightlinear" Trs.isRightLinear
 isWellFormedProcessor :: S.StdProcessor Predicate
 isWellFormedProcessor = trsPredicateProcessor "wellformed" Trs.wellFormed
+isOverlayProcessor :: S.StdProcessor Predicate
+isOverlayProcessor = trsPredicateProcessor "overlay" Trs.isOverlay
+isOrthogonalProcessor :: S.StdProcessor Predicate
+isOrthogonalProcessor = trsPredicateProcessor "orthogonal" Trs.wellFormed
 
 isStrat :: String -> (Strategy -> Bool) -> S.StdProcessor Predicate
 isStrat n check = problemPredicateProcessor n (\ prob -> check $ strategy prob)
@@ -168,6 +176,8 @@ predicateProcessors = [ isDuplicatingProcessor
                       , isGroundProcessor
                       , isLeftLinearProcessor
                       , isRightLinearProcessor
+                      , isOrthogonalProcessor
+                      , isOverlayProcessor
                       , isWellFormedProcessor
                       , isOutermostProcessor
                       , isFullProcessor
@@ -196,6 +206,10 @@ isRightLinear :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
 isRightLinear a = isRightLinearProcessor `S.withArgs` a
 isWellFormed :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
 isWellFormed a = isWellFormedProcessor `S.withArgs` a
+isOrthogonal :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isOrthogonal a = isOrthogonalProcessor `S.withArgs` a
+isOverlay :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isOverlay a = isOverlayProcessor `S.withArgs` a
 isOutermost :: P.InstanceOf (S.StdProcessor Predicate)
 isOutermost = isOutermostProcessor `S.withArgs` Union
 isInnermost :: P.InstanceOf (S.StdProcessor Predicate)

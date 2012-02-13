@@ -210,7 +210,7 @@ module Tct.Configuration (
 where
 
 import qualified Tct.Interactive as Interactive ()
-import qualified Tct.Instances as Instances
+import qualified Tct.Instances as Instances ()
 import Tct (defaultConfig, Config (..), tct)
 import qualified Tct.Processor.Args.Instances as Args
 import qualified Tct.Processor.Args as Arg ()

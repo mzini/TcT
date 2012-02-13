@@ -696,7 +696,7 @@ import qualified Termlib.Term.Parser as TParser
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
-import qualified Tct.Processors as Processors
+import qualified Tct.Processors as Processors ()
 import qualified Tct.Instances as Instances ()
 import Tct.Utils.PPrint
 import Tct.Utils.Enum

@@ -60,6 +60,7 @@ import Tct.Method.DP.Simplification hiding (simpDPRHS, simpKP)
 import Tct.Method.DP.UsableRules hiding (usableRules)
 import Tct.Method.EpoStar hiding (epostar)
 import Tct.Method.InnermostRuleRemoval hiding (irr)
+import Tct.Method.ToInnermost hiding (toInnermost)
 import Tct.Method.Matrix.ArcticMI hiding (arctic)
 import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Poly.NaturalPI
@@ -135,6 +136,8 @@ builtInProcessors =
     timeout
     P.<|>
     S.StdProcessor irr
+    P.<|>
+    S.StdProcessor toInnermost
     P.<|>
     S.StdProcessor composeRC
     P.<|>
@@ -294,6 +297,7 @@ filterings.
 [deg :: \<nat>|none /(optional)/] Deg: If set and applicable, polynomially bounded runtime complexity with given degree is proven. This flag only works in combination with product extension and weak safe composition,  cf. 'popstarSmall'.
 
 -}
+
 popstar :: S.StdProcessor PopStar
 popstar = popstarProcessor
 
@@ -735,6 +739,26 @@ compose :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
 compose = composeProcessor
 
 {- |
+Switches to innermost rewriting on overlay and right-linear input.
+
+[subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
+
+[strict :: On|Off /(optional)/] If this flag is set and the transformation fails, this processor aborts.
+Otherwise, it applies the subprocessor on the untransformed input.
+
+
+[parallel :: On|Off /(optional)/] Decides whether the given subprocessor should be applied in parallel.
+
+[checkSubsumed :: On|Off /(optional)/] This flag determines whether the processor should reuse proofs in case that one generated problem subsumes another one.
+A problem (A) is subsumed by problem (B) if the complexity of (A) is bounded from above by the complexity of (B).
+Currently we only take subset-inclusions of the different components into account.
+
+
+-}
+toInnermost :: T.Transformation ToInnermost P.AnyProcessor
+toInnermost = toInnermostProcessor
+
+{- |
 Applies the (weak) depencency pair transformation.
 
 [subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
@@ -754,6 +778,8 @@ Currently we only take subset-inclusions of the different components into accoun
 
 
 -}
+
+
 dependencyPairs :: T.Transformation DPs P.AnyProcessor
 dependencyPairs = dependencyPairsProcessor
 

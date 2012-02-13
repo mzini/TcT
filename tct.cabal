@@ -90,6 +90,7 @@ Library
    Tct.Encoding.HomomorphicInterpretation
    Tct.Method.Combinator
    Tct.Method.InnermostRuleRemoval
+   Tct.Method.ToInnermost
    Tct.Method.PopStar
    Tct.Method.Mpo
    Tct.Method.EpoStar

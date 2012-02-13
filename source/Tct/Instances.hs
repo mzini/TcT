@@ -148,8 +148,11 @@ module Tct.Instances
     , exhaustively
     , T.idtrans
       
-      --- ** Innermost Rule Removal
+      -- ** Innermost Rule Removal
     , IRR.irr
+      
+      -- ** 
+    , TOI.toInnermost
       
       -- ** Uncurrying
     , Uncurry.uncurry
@@ -234,6 +237,7 @@ import qualified Tct.Method.DP.PathAnalysis as PathAnalysis
 import qualified Tct.Method.Weightgap as Weightgap
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Method.InnermostRuleRemoval as IRR
+import qualified Tct.Method.ToInnermost as TOI
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Method.Timeout as Timeout

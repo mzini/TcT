@@ -45,7 +45,7 @@ import Termlib.Utils (PrettyPrintable(..))
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 
-data InnermostRuleRemoval = InnermostRuleRemoval deriving (Show,Typeable)
+data InnermostRuleRemoval = InnermostRuleRemoval deriving (Show)
 
 data RuleRemoval = RuleRemoval { removed :: [Rule], reason :: Rule}
       

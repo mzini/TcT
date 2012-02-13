@@ -524,9 +524,12 @@ tct conf = do ecfg <- runErroneous
                  do warns <- parseArguments conf >>= runTct
                     liftIO $ putWarnings warns
                     return ()
-             case r of 
-               Left err  -> putErrorMsg err >> return exitFail
-               _         -> return ExitSuccess             
+             ret <- case r of 
+                     Left err  -> putErrorMsg err >> return exitFail
+                     _         -> return ExitSuccess
+             liftIO $ hFlush stdout
+             liftIO $ hFlush stderr
+             return ret
 
 initialGhciFile :: IO String
 initialGhciFile = return $ content

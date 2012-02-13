@@ -165,7 +165,7 @@ module Tct.Instances
     , Compose.composeDynamic
     , Compose.composeStatic
     , ComposeRC.composeRC
-    , Compose.ComposeBound (..)      
+    , Compose.ComposeBound (..)
     , Compose.Partitioning (..)
     , ComposeRC.composeRCselect
     , ComposeRC.solveAWith
@@ -174,19 +174,19 @@ module Tct.Instances
     -- | A 'Compose.RuleSelector' is used to select 
     -- rules from a problem. Various combinators 
     -- are implemented.
-    , Compose.RuleSelector      
-    , Compose.selRules
-    , Compose.selDPs
-    , Compose.selStricts
-    , Compose.selWeaks
-    , Compose.selFromWDG
-    , Compose.selFromCWDG
-    , Compose.selFirstCongruence
-    , Compose.selFirstStrictCongruence
-    , Compose.selCombine 
-    , Compose.selInverse
-    , Compose.selUnion
-    , Compose.selInter
+    , RS.RuleSelector      
+    , RS.selRules
+    , RS.selDPs
+    , RS.selStricts
+    , RS.selWeaks
+    , RS.selFromWDG
+    , RS.selFromCWDG
+    , RS.selFirstCongruence
+    , RS.selFirstStrictCongruence
+    , RS.selCombine 
+    , RS.selInverse
+    , RS.selUnion
+    , RS.selInter
       
       -- ** Weak Dependency Pairs
     , DP.dependencyPairs
@@ -238,6 +238,7 @@ import qualified Tct.Method.Weightgap as Weightgap
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Method.InnermostRuleRemoval as IRR
 import qualified Tct.Method.ToInnermost as TOI
+import qualified Tct.Method.RuleSelector as RS
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Method.Timeout as Timeout

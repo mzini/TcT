@@ -88,6 +88,7 @@ Library
    Tct.Encoding.Natring
    Tct.Encoding.AbstractInterpretation
    Tct.Encoding.HomomorphicInterpretation
+   Tct.Method.RuleSelector
    Tct.Method.Combinator
    Tct.Method.InnermostRuleRemoval
    Tct.Method.ToInnermost

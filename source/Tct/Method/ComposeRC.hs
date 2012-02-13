@@ -60,7 +60,7 @@ import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import Tct.Method.DP.DependencyGraph
 import qualified Tct.Method.DP.DependencyGraph as DG
-import Tct.Method.Compose hiding (progress)
+import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
 import qualified Data.Graph.Inductive.Graph as Gr
 import Data.Graph.Inductive.Query.TransClos (trc)

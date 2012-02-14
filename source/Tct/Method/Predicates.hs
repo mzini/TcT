@@ -148,7 +148,7 @@ isWellFormedProcessor = trsPredicateProcessor "wellformed" Trs.wellFormed
 isOverlayProcessor :: S.StdProcessor Predicate
 isOverlayProcessor = trsPredicateProcessor "overlay" Trs.isOverlay
 isOrthogonalProcessor :: S.StdProcessor Predicate
-isOrthogonalProcessor = trsPredicateProcessor "orthogonal" Trs.wellFormed
+isOrthogonalProcessor = trsPredicateProcessor "orthogonal" Trs.isOrthogonal
 
 isStrat :: String -> (Strategy -> Bool) -> S.StdProcessor Predicate
 isStrat n check = problemPredicateProcessor n (\ prob -> check $ strategy prob)

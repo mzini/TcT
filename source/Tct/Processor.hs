@@ -300,9 +300,10 @@ yesAnswer = CertAnswer $ certified (unknown, unknown)
 
 
 instance Utils.Parsable Answer where
-  parse = parseYes Parsec.<|> parseMaybe Parsec.<|> parseTO
+  parse = parseYes Parsec.<|> parseMaybe Parsec.<|> parseNo Parsec.<|> parseTO
     where parseMaybe   = Parsec.string "MAYBE" >> return MaybeAnswer
           parseTO      = Parsec.string "TIMEOUT" >> return TimeoutAnswer
+          parseNo      = Parsec.string "NO" >> return NoAnswer
           parseYes     = Utils.parse >>= return . CertAnswer
 
 instance PrettyPrintable Answer where 

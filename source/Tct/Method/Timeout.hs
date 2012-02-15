@@ -49,10 +49,6 @@ timeout i proc = S.StdProcessor Timeout  `S.withArgs` (Nat i :+: proc)
 timeoutProcessor :: S.StdProcessor (Timeout AnyProcessor)
 timeoutProcessor = S.StdProcessor Timeout
 
-toSeconds :: Int -> Double
-toSeconds i = fromIntegral i / (10 ^ (6 :: Int))
--- ())
-
 
 data TOProof p = TimedOut Int 
                | TOProof (ProofOf p)
@@ -68,7 +64,7 @@ instance Processor p => S.Processor (Timeout p) where
                                     :+: 
                                     arg { A.name = "processor"
                                         , A.description = "The processor to apply with timeout"}
-    instanceName tinst            = instanceName inst ++ " (timeout of " ++ show (toSeconds i) ++ " seconds)"
+    instanceName tinst            = instanceName inst ++ " (timeout of " ++ show i ++ " seconds)"
       where Nat i :+: inst = S.processorArgs tinst
     solve tinst prob  = 
         do io <- mkIO $ apply inst prob 
@@ -81,7 +77,7 @@ instance Processor p => S.Processor (Timeout p) where
 instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
     pprintProof (TOProof p)  mde = pprintProof p mde
     pprintProof (TimedOut i) _   = text "Computation stopped due to timeout after" 
-                                   <+> double (toSeconds i) 
+                                   <+> double (fromIntegral i)
                                    <+> text "seconds."
     answer (TOProof p)  = answer p
     answer (TimedOut _) = TimeoutAnswer

@@ -91,6 +91,7 @@ module Tct.Instances
       
      -- ** Control Structures
     , Combinators.ite      
+    , Combinators.iteProgress      
     , step
     , upto
     , withProblem

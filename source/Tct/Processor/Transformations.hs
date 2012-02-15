@@ -607,14 +607,13 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
                                                            | otherwise    = ([], ps)
                                 esubproofs <- P.evalList par (P.succeeded . snd) 
                                              [P.apply sub p' >>= \ r -> return (e,r) | (e,p') <- unsubsumed]
-                                return $ case mkSubproofs esubproofs ps of 
-                                  Just sps -> mkProof res $ unsubsumedProofs ++ subsumedProofs
-                                    where unsubsumedProofs = mapEnum (liftMS Nothing) sps
-                                          subsumedProofs = catMaybes [ do proof_i <- find e_i sps
-                                                                          return $ (SN e_j, liftMS (Just p_i) proof_i)
-                                                                     | (SN e_i, p_i, SN e_j) <- subsumed ]
-
-                                  Nothing  -> mkProof res []
+                                let subproofs = case esubproofs of { Left (fld,sps) -> fld:sps; Right sps -> sps }
+                                    unsubsumedProofs = mapEnum (liftMS Nothing) subproofs
+                                    subsumedProofs = catMaybes [ do proof_i <- find e_i subproofs
+                                                                    return $ (SN e_j, liftMS (Just p_i) proof_i)
+                                                               | (SN e_i, p_i, SN e_j) <- subsumed ]
+                                return $ mkProof res $ unsubsumedProofs ++ subsumedProofs
+                                          
         where (Transformation t) = S.processor inst
               tinst         = TheTransformer t args
               str :+: par :+: checkSubsume :+: args :+: sub = S.processorArgs inst
@@ -622,8 +621,6 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
               splitSubsumed ((e_i, p_i):ps) = ([ (e_i, p_i, e_j) | (e_j, _) <- subs_i ] ++ subs', unsubs')
                 where (subs_i, unsubs_i) = partition (\ (_, p_j) -> p_i `subsumes` p_j) ps
                       (subs', unsubs') = splitSubsumed unsubs_i
-              mkSubproofs (Right subproofs) ps = sequence [(,) (SN e) `liftM` find e subproofs | (SN e,_) <- ps]
-              mkSubproofs (Left  (fld,ss))  _  = Just (fld : ss)
               mkProof res subproofs = Proof { transformationResult = res
                                             , inputProblem         = prob
                                             , appliedSubprocessor  = (SSI sub)

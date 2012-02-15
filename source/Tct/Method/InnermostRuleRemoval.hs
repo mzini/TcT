@@ -29,7 +29,6 @@ module Tct.Method.InnermostRuleRemoval
 where
 
 import Data.Maybe (isJust, catMaybes)
-import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import Tct.Utils.Enum (enumeration')

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -59,6 +60,10 @@ module Tct.Method.Combinator
        , IteProof (..)
        , Ite
        , iteProcessor
+       
+       , iteProgress
+       , IteProgressProof
+       , IteProgress
        )
 where
 import Prelude hiding (fail)
@@ -74,6 +79,7 @@ import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
 import Tct.Certificate (certified, constant)
 import qualified Tct.Processor.Standard as S
+import qualified Tct.Processor.Transformations as T
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -235,20 +241,84 @@ iteProcessor :: S.StdProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor
 iteProcessor = S.StdProcessor Ite
 
 
+-- branching on transformations
+
+data IteProgress g t e = IteProgress (T.TheTransformer g)
+
+data IteProgressProof g t e = IteProgressTransformed   (T.Proof g t) 
+                            | IteProgressUntransformed (T.TheTransformer g) (T.ProofOf g) (P.Proof e)
+
+instance ( T.Transformer g
+         , P.Processor t
+         , P.Processor e) => P.ComplexityProof (IteProgressProof g t e) where
+  answer (IteProgressTransformed p)   = P.answer p
+  answer (IteProgressUntransformed _ _ p) = P.answer p
+  pprintProof (IteProgressTransformed p)   mde = P.pprintProof p mde
+  pprintProof (IteProgressUntransformed tr tp p) mde = 
+    case mde of 
+      P.StrategyOutput ->
+        text "Transformation of the input failed:"
+        $+$ text ""
+        $+$ T.pprintTProof tr (P.inputProblem p) tp
+        $+$ text ""        
+        $+$ text "We continue with processor" <+> text (P.instanceName (P.appliedProcessor p))
+        $+$ text ""        
+        $+$ indent (P.pprintProof (P.result p) mde )
+      P.ProofOutput -> P.pprintProof (P.result p) mde
+
+instance ( T.Transformer g
+         , P.Processor t
+         , P.Processor e) => S.Processor (IteProgress g t e) where
+  type S.ProofOf (IteProgress g t e) = IteProgressProof g t e
+  type S.ArgumentsOf (IteProgress g t e) = Arg (Proc t) :+: Arg (Proc e) :+: Arg Bool
+  name _ = "iteProgress"
+  arguments _ = arg { A.name = "then"
+                    , A.description = "The processor that is applied if the transformation succeeds." }
+                :+: 
+                arg { A.name = "else"
+                    , A.description = "The processor that is applied if the transformation fails." }
+                :+: 
+                opt { A.name = "parallel"
+                    , A.description = "Decides whether the given subprocessor should be applied in parallel."
+                    , A.defaultValue = False }
+                
+
+  solve inst prob = 
+    do res <- T.transform g prob
+       case res of 
+         T.NoProgress tp -> 
+           do sp <- P.apply e prob
+              return $ IteProgressUntransformed g tp sp
+         T.Progress _ ps -> 
+           do esubproofs <- P.evalList par (P.succeeded . snd) 
+                           [P.apply t prob_i >>= \ r -> return (i,r) 
+                           | (i,prob_i) <- ps]
+              let subproofs = case esubproofs of {Left (fld,sps) -> fld:sps; Right sps -> sps}
+                  proof = T.Proof { T.transformationResult = res
+                                  , T.inputProblem         = prob
+                                  , T.appliedSubprocessor  = t
+                                  , T.appliedTransformer   = g
+                                  , T.subProofs            = subproofs}
+              return $ IteProgressTransformed proof 
+           
+    where IteProgress g     = S.processor inst
+          (t :+: e :+: par) = S.processorArgs inst
+            
+
+iteProgress :: (T.Transformer g, P.Processor t, P.Processor e) => 
+              T.TheTransformer g
+              -> P.InstanceOf t
+              -> P.InstanceOf e
+              -> P.InstanceOf (S.StdProcessor (IteProgress g t e))
+iteProgress g t e = S.StdProcessor (IteProgress g) `S.withArgs` (t :+: e :+: False)
+
+
 -- parallel combinators
 
 data OneOf p = Best | Fastest | Sequentially deriving (Eq, Show)
 
 data OneOfProof p = OneOfFailed (OneOf p) [P.Proof p]
                   | OneOfSucceeded (OneOf p) (P.Proof p)
-
--- instance P.Answerable (P.Proof p) => P.Answerable (OneOfProof p) where
---     answer (OneOfFailed _ _)    = P.MaybeAnswer
---     answer (OneOfSucceeded _ p) = P.answer p
-
--- instance P.Verifiable (P.Proof p) => P.Verifiable (OneOfProof p) where
---     verify _    (OneOfFailed _ _)    = P.verifyOK
---     verify prob (OneOfSucceeded _ p) = P.verify prob p
 
 instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
     pprintProof proof mde = 

@@ -483,7 +483,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
           dp mkdp = mkdp
                      >>| UR.usableRules 
                      >>| (insideDP 
-                         `Combinators.orFaster` (PathAnalysis.pathAnalysis >>|| UR.usableRules >>| insideDP))
+                         `Combinators.orFaster` (PathAnalysis.pathAnalysis False >>|| UR.usableRules >>| insideDP))
              where insideDP  = te dpsimps >>| empty `Combinators.before` (try wgUsables >>| te (try dpsimps >>> wgAll) >>| directs)
                    wgAll     = weightgap lin 
                                <> weightgap quad

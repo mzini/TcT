@@ -68,7 +68,8 @@ data PathProof = PathProof { computedPaths   :: [Path]
                            , computedDG      :: DG
                            , subsumedBy      :: [(Path,[Path])]
                            , variables       :: V.Variables
-                           , signature       :: F.Signature}
+                           , signature       :: F.Signature
+                           , isLinearProof   :: Bool}
                  | Error DPError
 
 data PathAnalysis = PathAnalysis
@@ -76,12 +77,16 @@ data PathAnalysis = PathAnalysis
 instance T.Transformer PathAnalysis where
     name PathAnalysis        = "pathanalysis"
     description PathAnalysis = ["This processor implements path-analysis as described in the dependency pair paper."]
-    type T.ArgumentsOf PathAnalysis = Unit
+    type T.ArgumentsOf PathAnalysis = Arg Bool
     type T.ProofOf PathAnalysis = PathProof
-    arguments PathAnalysis = Unit
-    transform _ prob | not $ Prob.isDPProblem prob = return $ T.NoProgress $ Error NonDPProblemGiven
-                     | otherwise                 = return $ res
-        where res | progressed = T.Progress p (enumeration [(thePath pth, prob') | (pth,prob') <- pathsToProbs ])
+    arguments PathAnalysis = opt { A.name = "linear"
+                                 , A.description = unlines [ "If this flag is set, linear path analysis is employed."]
+                                 , A.defaultValue = False }
+    transform inst prob 
+           | not $ Prob.isDPProblem prob = return $ T.NoProgress $ Error NonDPProblemGiven
+           | otherwise                 = return $ res
+        where lin = T.transformationArgs inst
+              res | progressed = T.Progress p (enumeration [(thePath pth, prob') | (pth,prob') <- pathsToProbs ])
                   | otherwise  = T.NoProgress p
               edg  = estimatedDependencyGraph Edg prob
               cedg = toCongruenceGraph edg
@@ -90,13 +95,26 @@ instance T.Transformer PathAnalysis where
                             , computedDG      = edg
                             , subsumedBy      = subsume
                             , variables       = Prob.variables prob
-                            , signature       = Prob.signature prob}
-              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom [] Trs.empty) (roots cedg)
+                            , signature       = Prob.signature prob
+                            , isLinearProof   = lin}
+              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) (roots cedg)
               paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
-              walkFrom prefix weaks n = new ++ concatMap (walkFrom path weaks') (successors cedg n)
+              walkFrom | lin       = walkFromL
+                       | otherwise = walkFromQ Trs.empty
+              walkFromL prefix n = new ++ concatMap (walkFromL path) sucs
                   where path = prefix ++ [n]
-                        sucs = successors cedg n
+                        sucs = List.nub $ successors cedg n
+                        new | null sucs = [Right ( Path path
+                                          , prob { Prob.strictDPs = stricts, Prob.weakDPs = weaks} )]
+                            | otherwise = []
+                        rs      = allRulesFromNodes cedg path
+                        stricts = Trs.fromRules [ r | (StrictDP, r) <- rs]
+                        weaks   = Trs.fromRules [ r | (WeakDP, r) <- rs]
+                          
+              walkFromQ weaks prefix n = new ++ concatMap (walkFromQ weaks' path) sucs
+                  where path = prefix ++ [n]
+                        sucs = List.nub $ successors cedg n
                         rs = allRulesFromNodes cedg [n]
                         strict_n = Trs.fromRules [ r | (StrictDP, r) <- rs]
                         weak_n = Trs.fromRules [ r | (WeakDP, r) <- rs]
@@ -132,7 +150,7 @@ instance T.TransformationProof PathAnalysis where
     pprintProof proof mde = 
         case T.transformationProof proof of 
           Error   e   -> pprint e
-          tproof -> text "We use following congruence DG for path analysis"
+          tproof -> text "We use following congruence DG for" <+> text nm
                    $+$ text ""
                    $+$ pprintCWDG cwdg sig vars ppLabel
                    $+$ text ""
@@ -141,6 +159,8 @@ instance T.TransformationProof PathAnalysis where
                     sig = signature tproof
                     vars = variables tproof
   
+                    nm | isLinearProof tproof = "linear path analysis"
+                       | otherwise            = "path analysis"
                     ppLabel pth _ = PP.brackets $ centering 20 $ ppMaybeAnswerOf (Path pth)
                         where centering n d =  text $ take pre ss ++ s ++ take post ss
                                   where s = show d
@@ -188,6 +208,7 @@ instance T.TransformationProof PathAnalysis where
 pathAnalysisProcessor :: T.Transformation PathAnalysis P.AnyProcessor
 pathAnalysisProcessor = T.Transformation PathAnalysis
 
--- | Implements path analysis.
-pathAnalysis :: T.TheTransformer PathAnalysis
-pathAnalysis = T.Transformation PathAnalysis `T.withArgs` ()
+-- | Implements path analysis. If the given argument is 'True', then
+-- linear path analysis is employed.
+pathAnalysis :: Bool -> T.TheTransformer PathAnalysis
+pathAnalysis lin = T.Transformation PathAnalysis `T.withArgs` lin

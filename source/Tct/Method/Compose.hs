@@ -153,9 +153,11 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                      rDps = Trs.fromRules (P.ppRemovableDPs sp1)
                      sDps = Prob.strictDPs prob \\ rDps
                  return $ mkResult (Right sp1) (rDps, sDps) (rTrs, sTrs)                         
-            Static s -> 
-              do sp1 <- P.apply inst1 prob1
-                 return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
+            Static s 
+              | Trs.isEmpty rDps && Trs.isEmpty rTrs -> return $ T.NoProgress $ Inapplicable "no rule selected"
+              | otherwise -> 
+                do sp1 <- P.apply inst1 prob1
+                   return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
               where rs             = rsSelect s compfn prob
                     rDps           = Prob.sdp rs `Trs.union` Trs.fromRules forcedDps
                     rTrs           = Prob.strs rs `Trs.union` Trs.fromRules forcedTrs

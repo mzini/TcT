@@ -383,20 +383,24 @@ pprintLabeledRules name sig vars rs = text name <> text ":"
 
 -- graphviz output of dgs
 
-toGraphViz :: [(DG,F.Signature,V.Variables)] -> DotGraph NodeId
+toGraphViz :: [(DG,F.Signature,V.Variables)] -> DotGraph String
 toGraphViz dgs = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
   where digraph (i,(dg,sig,vars)) = 
+          GV.cluster (Str $ pack $ "dg_" ++ show i) $
           do mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
              mapM_ edgesToGV nds
-             GV.graphAttrs [GVattribs.toLabel $ "\\l" ++ show (pprintLabeledRules "Rules" sig vars lrules)]
+             GV.graphAttrs [GVattribs.toLabel pplabel]
           where nds   = nodes dg
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
+                pplabel = "Below rules are as follows:\\l" ++ concatMap (\ (n,r) -> " " ++ show n ++ ": " ++ st (R.lhs r) ++ " -> " ++ st (R.rhs r) ++ "\\l") lrules
+                  where st t = show $ pprint (t,sig,vars)
                 sccToGV (j,scc) = GV.cluster (Str $ pack $ show i ++ "_" ++ show j) $ mapM nodesToGV $ withNodeLabels' dg scc
-                nodesToGV (n,(strictness,_)) = GV.node n (attribs strictness)
+                nodesToGV (n,(strictness,_)) = GV.node (nde n) (GVattribs.toLabel (show n) : attribs strictness)
                   where attribs StrictDP = [GVattribs.shape GVattribs.Circle]
                         attribs WeakDP   = [GVattribs.shape GVattribs.Circle, GVattribs.style GVattribs.dotted]
-                edgesToGV n = mapM (\ (m,_,k) -> GV.edge n m [GVattribs.toLabel (show k)]) (lsuccessors dg n)
-        
+                edgesToGV n = mapM (\ (m,_,k) -> GV.edge (nde n) (nde m) [GVattribs.toLabel (show k)]) (lsuccessors dg n)
+                nde n = show i ++ "_" ++ show n
+                
 saveGraphViz :: [(DG,F.Signature,V.Variables)] -> FilePath -> IO FilePath
 saveGraphViz dgs = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs) GVcommands.Svg
                 

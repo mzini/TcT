@@ -305,7 +305,10 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: TheTransformer SomeTransformation
-dpsimps   = try DPSimp.removeTails >>> try DPSimp.simpDPRHS >>> UR.usableRules
+dpsimps   = try DPSimp.removeTails 
+            >>> try DPSimp.simpDPRHS 
+            >>> try DPSimp.simpKP            
+            >>> UR.usableRules
 
 class IsDefaultOption a where
     defaultOptions :: a
@@ -484,7 +487,10 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                      >>| UR.usableRules 
                      >>| (insideDP 
                          `Combinators.orFaster` (PathAnalysis.pathAnalysis False >>|| UR.usableRules >>| insideDP))
-             where insideDP  = te dpsimps >>| empty `Combinators.before` (try wgUsables >>| te (try dpsimps >>> wgAll) >>| directs)
+             where insideDP  = te dpsimps' >>| empty `Combinators.before` (try wgUsables >>| te (try dpsimps' >>> wgAll) >>| directs)
+                   dpsimps'  = try DPSimp.removeTails 
+                               >>> try DPSimp.simpDPRHS 
+                               >>> try DPSimp.simpKP                   
                    wgAll     = weightgap lin 
                                <> weightgap quad
                                <> weightgap cubic

@@ -34,6 +34,7 @@ module Tct.Method.DP.PathAnalysis
 where
 
 import qualified Data.List as List
+import qualified Data.Set as Set
 import Control.Monad (liftM)
 import Control.Applicative ((<|>))
 -- import Control.Monad.Trans (liftIO)
@@ -99,22 +100,33 @@ instance T.Transformer PathAnalysis where
                             , variables       = Prob.variables prob
                             , signature       = Prob.signature prob
                             , isLinearProof   = lin}
-              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) rts
+              (subsume, pathsToProbs) = partitionEithers $ concatMap walk rts
+                 where walk | lin       = walkFromL 
+                            | otherwise = walkFromQ
               paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
-              walkFrom | lin       = walkFromL
-                       | otherwise = walkFromQ Trs.empty
-              walkFromL prefix n = new ++ concatMap (walkFromL path) sucs
-                  where path = prefix ++ [n]
-                        sucs = List.nub $ successors cedg n
-                        new | null sucs = [Right ( Path path
-                                          , prob { Prob.strictDPs = stricts, Prob.weakDPs = weaks} )]
+
+              walkFromL n = [ toSubsumed r | r <- walked]
+                 where walked = walkFromL' prob { Prob.strictDPs = Trs.empty, Prob.weakDPs = Trs.empty} ([],Set.empty) n
+                       toSubsumed (path, nds,pprob) = 
+                                case [ Path path2 | (path2, nds2, _) <- walked , nds `Set.isProperSubsetOf` nds2 ] of
+                                   []   -> Right (Path path, pprob)
+                                   pths -> Left (Path path, pths)
+              walkFromL' pprob (prefix, nds) n = new ++ concatMap (walkFromL' pprob' (prefix', nds')) sucs
+                  where sucs    = List.nub $ successors cedg n
+                        prefix' = prefix ++ [n]
+                        nds'    = n `Set.insert` nds
+                        pprob'  = pprob { Prob.strictDPs = Prob.strictDPs pprob `Trs.union` stricts
+                                        , Prob.weakDPs   = Prob.weakDPs pprob `Trs.union` weaks }
+
+                        new | null sucs = [ ( prefix', nds', pprob') ]
                             | otherwise = []
-                        rs      = allRulesFromNodes cedg path
+                        rs      = allRulesFromNodes cedg [n]
                         stricts = Trs.fromRules [ r | (StrictDP, r) <- rs]
                         weaks   = Trs.fromRules [ r | (WeakDP, r) <- rs]
                           
-              walkFromQ weaks prefix n = new ++ concatMap (walkFromQ weaks' path) sucs
+              walkFromQ = walkFromQ' Trs.empty []
+              walkFromQ' weaks prefix n = new ++ concatMap (walkFromQ' weaks' path) sucs
                   where path = prefix ++ [n]
                         sucs = List.nub $ successors cedg n
                         rs = allRulesFromNodes cedg [n]

@@ -99,7 +99,7 @@ instance T.Transformer PathAnalysis where
                             , variables       = Prob.variables prob
                             , signature       = Prob.signature prob
                             , isLinearProof   = lin}
-              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) 
+              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) rts
               paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
               walkFrom | lin       = walkFromL
@@ -132,7 +132,7 @@ instance T.Transformer PathAnalysis where
                                [pth] -> length spath < length sprob
                                    where spath = [ r | (StrictDP, r) <- allRulesFromNodes cedg (thePath pth) ]
                                          sprob = Trs.toRules $ Prob.strictDPs prob
-                                _     -> True
+                               _     -> True
 
 printPathName :: CDG -> F.Signature -> V.Variables -> Path -> Doc
 printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeId n | n <- ns] 

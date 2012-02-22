@@ -393,7 +393,7 @@ toGraphViz dgs = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
           where nds   = nodes dg
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
                 pplabel = "Below rules are as follows:\\l" ++ concatMap (\ (n,r) -> " " ++ show n ++ ": " ++ st (R.lhs r) ++ " -> " ++ st (R.rhs r) ++ "\\l") lrules
-                  where st t = show $ pprint (t,sig,vars)
+                  where st t = [c | c <- show $ pprint (t,sig,vars), c /= '\n']
                 sccToGV (j,scc) = GV.cluster (Str $ pack $ show i ++ "_" ++ show j) $ mapM nodesToGV $ withNodeLabels' dg scc
                 nodesToGV (n,(strictness,_)) = GV.node (nde n) (GVattribs.toLabel (show n) : attribs strictness)
                   where attribs StrictDP = [GVattribs.shape GVattribs.Circle]

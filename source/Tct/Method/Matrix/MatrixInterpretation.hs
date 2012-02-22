@@ -30,7 +30,6 @@ where
 
 import Prelude hiding ((&&),(||),not,any)
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.Foldable (any)
 import Data.Typeable
@@ -133,9 +132,14 @@ pprintLI f (LI ms vec) = foldr handleLine empty [1..d]
 instance Semiring a => Interpretation (MatrixInter a) (LInter a) where
   interpretFun mi f lis = addAll $ zipWith handleArg [1..] lis
                           where handleArg   = liProd . fmatrix
-                                fmatrix i   = Maybe.fromJust $ Map.lookup (V.Canon i) (coefficients finter)
-                                finter      = Maybe.fromJust $ Map.lookup f $ interpretations mi
+                                fmatrix i   = find ("coefficient " ++ show (f,i)) (V.Canon i) coeffs
+                                finter      = find ("interpretation " ++ show f) f (interpretations mi)
+                                coeffs      = coefficients finter
                                 addAll      = liBigPlus (constant finter)
+                                find e a m = case Map.lookup a m of 
+                                                Just r  -> r
+                                                Nothing -> error $ "Matrix " ++ e ++ " not found!"
+                                  
   interpretVar mi v     = LI (Map.singleton v (unit dim)) (zerovec dim)
                           where dim = dimension mi
 

@@ -165,13 +165,13 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                         subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
                                              , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
 
-              probA = prob { Prob.signature = sig'
-                           , Prob.strictDPs = selectedStrictDPs
-                           , Prob.weakDPs   = Trs.unions [ cutDPs, uncutDPs, selectedWeakDPs ] }
+              probA = Prob.sanitise $ prob { Prob.signature = sig'
+                                           , Prob.strictDPs = selectedStrictDPs
+                                           , Prob.weakDPs   = Trs.unions [ cutDPs, uncutDPs, selectedWeakDPs ] }
 
-              probB = prob { Prob.signature = sig'
-                           , Prob.strictDPs = uncutDPs `Trs.union` unchangedStrictDPs
-                           , Prob.weakDPs   = unchangedWeakDPs }
+              probB = Prob.sanitise $ prob { Prob.signature = sig'
+                                           , Prob.strictDPs = uncutDPs `Trs.union` unchangedStrictDPs
+                                           , Prob.weakDPs   = unchangedWeakDPs }
 
               
               (selectedNodes, selectedStrictDPs, selectedWeakDPs) = 

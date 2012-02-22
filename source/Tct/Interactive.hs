@@ -1098,7 +1098,7 @@ runTct = P.runSolver (P.SolverState $ P.MiniSat "minisat2")
 
 instance T.Transformer t => Apply (T.TheTransformer t) where
   apply' t selected = 
-    do mrs <- runTct $ evalEnum True [ (i, T.transform tinst prob) | (i, prob) <- selected ]
+    do mrs <- runTct $ evalEnum False [ (i, T.sanitiseResult `liftM` T.transform tinst prob) | (i, prob) <- selected ]
        case mrs of 
          Nothing -> 
            error "error when transforming some problem"
@@ -1117,7 +1117,8 @@ instance P.Processor p => Apply (P.InstanceOf p) where
        case mrs of 
          Nothing -> error "error when solving some problem"
          Just rs -> return $ \ (SN sn) prob -> mkNode prob `fmap` (find sn rs)
-      where mkNode prob res = Closed prob pinst res
+      where mkNode prob res | P.succeeded res = Closed prob pinst res
+                            | otherwise       = Open prob
             pinst = P.someInstance p
                 
 --------------------------------------------------------------------------------

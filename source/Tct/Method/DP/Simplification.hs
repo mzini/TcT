@@ -209,8 +209,8 @@ instance T.Transformer SimpRHS where
                    | otherwise        = return $ T.NoProgress proof
     where proof = SRHSProof { srhsReplacedRules = [rule | (_, _, rule, Just _) <- elims]
                             , srhsDG            = wdg
-                            , srhsSig           = Prob.signature prob'
-                            , srhsVars          = Prob.variables prob' }
+                            , srhsSig           = sig 
+                            , srhsVars          = Prob.variables prob }
           strs  = Prob.strictTrs prob
           (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
           wdg   = estimatedDependencyGraph Edg prob
@@ -307,7 +307,7 @@ instance T.Transformer SimpKP where
                               , skpRule = mrl
                               , skpPres = pres
                               , skpSig  = Prob.signature prob
-                              , skpVars  = Prob.variables prob}
+                              , skpVars = Prob.variables prob}
           (mrl,pres) = maybe (Nothing,[]) (\ (nrl,rs) -> (Just nrl, rs)) mres
           prob' = maybe prob (\ (_,rl) -> prob { Prob.strictDPs = (Trs pres `Trs.union` sdps) Trs.\\ Trs [rl]
                                               , Prob.weakDPs   = (wdps Trs.\\ Trs pres) `Trs.union` Trs [rl]}) mrl

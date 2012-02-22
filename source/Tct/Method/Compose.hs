@@ -163,10 +163,10 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                     rTrs           = Prob.strs rs `Trs.union` Trs.fromRules forcedTrs
                     sTrs           = strictTrs prob Trs.\\ rTrs
                     sDps           = strictDPs prob Trs.\\ rDps
-                    prob1 = prob { strictDPs = rDps
-                                 , strictTrs = rTrs
-                                 , weakTrs   = sTrs `Trs.union` weakTrs prob
-                                 , weakDPs   = sDps `Trs.union` weakDPs prob }
+                    prob1 = Prob.sanitise $ prob { strictDPs = rDps
+                                                 , strictTrs = rTrs
+                                                 , weakTrs   = sTrs `Trs.union` weakTrs prob
+                                                 , weakDPs   = sDps `Trs.union` weakDPs prob }
 
         where split :+: compfn :+: inst1 = T.transformationArgs inst
 
@@ -185,9 +185,9 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                                                      , strictDPs  = sDPs
                                                      , weakTrs    = rTrs `union` Prob.weakTrs prob
                                                      , weakDPs    = rDPs `union` Prob.weakDPs prob }
-                              | otherwise            = prob { startTerms = TermAlgebra
-                                                            , strictTrs  = sTrs
-                                                            , strictDPs  = sDPs }
+                              | otherwise    = prob { startTerms = TermAlgebra
+                                                    , strictTrs  = sTrs
+                                                    , strictDPs  = sDPs }
                                                        
               mreason | compfn /= Add && Trs.isDuplicating (Prob.allComponents prob) = Just "some rule is duplicating"
                       | compfn /= Add &&  not (Trs.isNonSizeIncreasing weaks)          = Just "some weak rule is size increasing"

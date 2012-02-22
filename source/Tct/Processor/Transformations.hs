@@ -56,6 +56,7 @@ module Tct.Processor.Transformations
        , subProblemsFromResult
        , isProgressResult
        , mapResult
+       , sanitiseResult
          
          -- ** Transformation Proof
        , Proof (..)
@@ -184,6 +185,10 @@ subProblemsFromResult (NoProgress _)  = []
 mapResult :: (ProofOf t1 -> ProofOf t2) -> Result t1 -> Result t2
 mapResult f (NoProgress p)  = NoProgress (f p)
 mapResult f (Progress p ps) = Progress (f p) ps
+
+sanitiseResult :: Result t1 -> Result t1
+sanitiseResult (Progress p ps) = Progress p $ mapEnum sanitise ps
+sanitiseResult res             = res
 
 transformationProof :: Proof t sub -> ProofOf t
 transformationProof tproof = case transformationResult tproof of 
@@ -595,7 +600,7 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
                                      :+: 
                                      arg { A.name = "subprocessor"
                                          , A.description = "The processor that is applied on the transformed problem(s)" }
-    solve inst prob = do res <- transform tinst prob
+    solve inst prob = do res <- sanitiseResult `liftM` transform tinst prob
                          case res of 
                            NoProgress _  -> 
                              if continue tinst || not str

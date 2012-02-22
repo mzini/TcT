@@ -168,7 +168,7 @@ instance ComplexityProof PopStarOrder where
                    LMPO    -> CertAnswer $ certified (unknown, expo Nothing)
                    POP     -> CertAnswer $ certified (unknown, poly Nothing)
                    SPOP | wsc       -> CertAnswer $ certified (unknown, poly $ Just ub) 
-                           | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
+                        | otherwise -> CertAnswer $ certified (unknown, poly Nothing)
       where inst       = popInstance order
             _ :+: wsc :+: _ = S.processorArgs inst
             ub              = modifyUB $ maximum (0 : Map.elems (Prec.recursionDepth rs prec))
@@ -425,7 +425,9 @@ orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasi
           popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
           preds               = Predicates {
                                 definedP    = defP
-                                , collapsingP   = if allowAF then AFEnc.isCollapsing else const bot
+                                , collapsingP   = if allowAF && not (forceWSC && forcePROD)  -- TODO verify
+                                                   then AFEnc.isCollapsing 
+                                                   else const bot
                                 , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
                                 , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
                                 , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)

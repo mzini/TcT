@@ -90,6 +90,8 @@ instance T.Transformer PathAnalysis where
                   | otherwise  = T.NoProgress p
               edg  = estimatedDependencyGraph Edg prob
               cedg = toCongruenceGraph edg
+              rts  = roots cedg
+              lfs  = leafs cedg
               p = PathProof { computedPaths   = paths
                             , computedCongrDG = cedg
                             , computedDG      = edg
@@ -97,7 +99,7 @@ instance T.Transformer PathAnalysis where
                             , variables       = Prob.variables prob
                             , signature       = Prob.signature prob
                             , isLinearProof   = lin}
-              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) (roots cedg)
+              (subsume, pathsToProbs) = partitionEithers $ concatMap (walkFrom []) 
               paths = [pth | (pth, _) <- subsume] ++ [pth | (pth,_) <- pathsToProbs]
 
               walkFrom | lin       = walkFromL
@@ -124,11 +126,13 @@ instance T.Transformer PathAnalysis where
                                                  , prob { Prob.strictDPs = strict_n, Prob.weakDPs = weaks} )]
                             where subsumed = not (null sucs) && Trs.isEmpty strict_n
 
-              progressed = case paths of 
-                             [pth] -> length spath < length sprob
-                                 where spath = [ r | (StrictDP, r) <- allRulesFromNodes cedg (thePath pth) ]
-                                       sprob = Trs.toRules $ Prob.strictDPs prob
-                             _     -> True
+              progressed | lin = length (rts ++ lfs) > 2
+                         | otherwise = 
+                            case paths of 
+                               [pth] -> length spath < length sprob
+                                   where spath = [ r | (StrictDP, r) <- allRulesFromNodes cedg (thePath pth) ]
+                                         sprob = Trs.toRules $ Prob.strictDPs prob
+                                _     -> True
 
 printPathName :: CDG -> F.Signature -> V.Variables -> Path -> Doc
 printPathName cwdg sig vars (Path ns) = hcat $ punctuate (text "->") [printNodeId n | n <- ns] 

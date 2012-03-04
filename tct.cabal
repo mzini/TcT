@@ -55,8 +55,12 @@ Executable tct
  hs-source-dirs:    
   source
 
- ghc-options:       
-  -threaded -O2 -fno-spec-constr-count
+ if impl(ghc < 7.0)
+    ghc-options:       
+      -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count
+ else
+    ghc-options:       
+      -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
 
 Library
  exposed-modules:   

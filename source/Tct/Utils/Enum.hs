@@ -109,7 +109,7 @@ findBy p ((SN a, e) : es) =
     case cast a of 
       Just a' | p a'      -> Just e
               | otherwise -> findBy p es
-      Nothing             -> Nothing
+      Nothing             -> findBy p es
 
 evalEnum :: (SolverM m) => Bool -> (Enumeration (m a)) -> m (Maybe (Enumeration a))
 evalEnum b ms = do rs <- evalList' b [ (,) e `liftM` m  | (e,m) <- ms ]

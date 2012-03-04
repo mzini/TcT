@@ -194,13 +194,15 @@ instance ( P.ComplexityProof (P.ProofOf g)
          , P.ComplexityProof (P.ProofOf t)
          , P.ComplexityProof (P.ProofOf e)) => P.ComplexityProof (IteProof g t e) where
       answer p = either P.answer P.answer $ branchProof p
+      
       pprintProof p mde@P.StrategyOutput = ppcond $+$ text "" $+$ ppbranch
             where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
                              $+$ (indent $ P.pprintProof (guardProof p) mde)
                   ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
-                             $+$ (indent $ P.pprintProof p P.ProofOutput)
+                             $+$ (indent $ P.pprintProof p P.StrategyOutput)
                   suc      = P.succeeded $ guardProof p
-      pprintProof p mde@P.ProofOutput    = case branchProof p of 
+                  
+      pprintProof p mde                  = case branchProof p of 
                                              Left pb  -> P.pprintProof pb mde
                                              Right pb -> P.pprintProof pb mde
 
@@ -264,7 +266,7 @@ instance ( T.Transformer g
         $+$ text "We continue with processor" <+> text (P.instanceName (P.appliedProcessor p))
         $+$ text ""        
         $+$ indent (P.pprintProof (P.result p) mde )
-      P.ProofOutput -> P.pprintProof (P.result p) mde
+      _ -> P.pprintProof (P.result p) mde
 
 instance ( T.Transformer g
          , P.Processor t

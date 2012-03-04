@@ -112,9 +112,9 @@ class TransformationProof t where
   pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> Doc
   -- | Pretty printer of the 'Proof'. A default implementation is given.
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
+  
   pprintProof proof mde = 
-      pprintTProof t input tproof
-      $+$ text ""
+      ppTransformationDetails 
       $+$ case subprobs of 
             []   -> text "No subproblems were generated"
             [_]  -> ppDetails Nothing
@@ -126,6 +126,10 @@ class TransformationProof t where
             tproof    = transformationProof proof
             t         = appliedTransformer proof
             input     = inputProblem proof
+            ppTransformationDetails 
+              | mde == P.OverviewOutput = PP.empty
+              | otherwise = pprintTProof t input tproof
+                            $+$ text ""
             ppOverviews = text "Overall, the transformation results in the following sub-problem(s):"
                           $+$ text ""
                           $+$ block "Generated new problems" (ppOverview `map` subprobs)
@@ -270,38 +274,75 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
 
     pprintTProof (TheTransformer (t1 :>>>: _) _)  prob (ComposeProof r1 Nothing) = 
         pprintTProof t1  prob (proofFromResult r1)
-    pprintTProof (TheTransformer (t1 :>>>: t2) _) prob (ComposeProof r1 (Just r2s)) = 
-        pprintTProof t1 prob (proofFromResult r1)
-        $+$ if not contd 
-             then PP.empty 
-             else text ""
-                  $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problem(s):")
-                  $+$ text ""
-                  $+$ ppOverviews 
-                where contd = continue t1 || (case r1 of {Progress {} -> True; _ -> False})
-                      subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
-                      ppOverviews = 
-                        case subprobs of 
-                          [(i,prob_i)] -> indent (ppOverview i prob_i)
-                          _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
-                                              | (i, prob_i) <- subprobs]
-                      ppOverview (SN i) prob_i = 
-                        text "We consider the problem"
-                        $+$ text ""
-                        $+$ Util.pprint prob_i
-                        $+$ text ""
-                        $+$ case find i r2s of 
-                               Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
-                               Just r2_i@(Progress _ ps) -> 
-                                 pprintTProof t2 prob_i (proofFromResult r2_i)
-                                 $+$ if null ps 
-                                     then PP.empty
-                                     else text ""
-                                          $+$ text "The consider problem is replaced by"
-                                          $+$ text ""
-                                          $+$ enum ps
-                               Just r2_i@(NoProgress _) -> 
-                                 pprintTProof t2 prob_i (proofFromResult r2_i)
+    pprintTProof (TheTransformer (t1 :>>>: t2) _) prob (ComposeProof r1 (Just r2s)) =
+        case r1 of 
+          Progress tproof _ -> 
+            pprintTProof t1 prob tproof
+            $+$ ppOverviews False
+          NoProgress tproof 
+            | subProgress -> ppOverviews False
+            | otherwise   -> pprintTProof t1 prob tproof
+                            $+$ ppOverviews True
+          
+      where subProgresseds = [ r | r@(_, Progress _ _) <- r2s ]
+            subProgress = not (null subProgresseds)
+            subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
+            ppOverviews showFailed =
+              case subprobs of 
+                [(i,prob_i)] -> indent (ppOverview i prob_i)
+                _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
+                                    | (i, prob_i) <- subprobs]
+              where ppOverview (SN i) prob_i = 
+                      case find i r2s of 
+                        Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
+                        Just r2_i@(Progress _ _) -> 
+                          ppRes prob_i r2_i
+                        Just r2_i@(NoProgress _) 
+                          | showFailed   -> ppRes prob_i r2_i   
+                          | otherwise -> PP.empty
+                    ppRes prob_i r2_i =  
+                      (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the sub-problem:")
+                      $+$ text ""
+                      $+$ Util.pprint prob_i
+                      $+$ text ""
+                      $+$ pprintTProof t2 prob_i (proofFromResult r2_i)
+                      $+$ if null ps 
+                          then PP.empty
+                          else text ""
+                               $+$ text "The consider problem is replaced by"
+                               $+$ text ""
+                               $+$ enum ps
+                     where ps = subProblemsFromResult r2_i
+          -- $+$ if not contd 
+          --    then PP.empty 
+          --    else text ""
+          --         $+$ (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the resulting sub-problem(s):")
+          --         $+$ text ""
+          --         $+$ ppOverviews 
+          --       where contd = continue t1 || (case r1 of {Progress {} -> True; _ -> False})
+          --             subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
+          --             ppOverviews = 
+          --               case subprobs of 
+          --                 [(i,prob_i)] -> indent (ppOverview i prob_i)
+          --                 _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
+          --                                     | (i, prob_i) <- subprobs]
+          --             ppOverview (SN i) prob_i = 
+          --               text "We consider the problem"
+          --               $+$ text ""
+          --               $+$ Util.pprint prob_i
+          --               $+$ text ""
+          --               $+$ case find i r2s of 
+          --                      Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
+          --                      Just r2_i@(Progress _ ps) -> 
+          --                        pprintTProof t2 prob_i (proofFromResult r2_i)
+          --                        $+$ if null ps 
+          --                            then PP.empty
+          --                            else text ""
+          --                                 $+$ text "The consider problem is replaced by"
+          --                                 $+$ text ""
+          --                                 $+$ enum ps
+          --                      Just r2_i@(NoProgress _) -> 
+          --                        pprintTProof t2 prob_i (proofFromResult r2_i)
 
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
 someProof sub t prob res subproofs = Proof { transformationResult = res
@@ -462,8 +503,7 @@ instance TransformationProof t => TransformationProof (Try t) where
     pprintProof proof mde = 
         case result of 
           NoProgress (TryProof p) 
-              | mde == P.ProofOutput -> ppsub
-              | otherwise -> 
+              | mde == P.StrategyOutput -> 
                   pprintTProof t' (inputProblem proof) p
                   $+$ text ""
                   $+$ text "We abort the transformation and continue with the subprocessor on the previous problem" 
@@ -471,6 +511,8 @@ instance TransformationProof t => TransformationProof (Try t) where
                   $+$ Util.pprint (inputProblem proof)
                   $+$ text ""
                   $+$ ppsub
+              | otherwise -> ppsub
+                  
           Progress (TryProof p) _ -> pprintProof proof { appliedTransformer  = t'
                                                       , transformationResult = const p `mapResult` result } mde
       where t         = appliedTransformer proof

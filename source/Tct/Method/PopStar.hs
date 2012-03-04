@@ -243,7 +243,7 @@ instance S.Processor PopStar where
                                  | n <- catMaybes [ whenTrue ((knd /= SPOP) && wsc) "WSC"
                                                  , whenTrue ps "PS"
                                                  , whenTrue (knd == SPOP && not wsc) "PROD"
-                                                 , (\ bnd -> show bnd ++ "-bounded") `fmap` mbnd ] ]
+                                                 , (\ (Nat bnd) -> show bnd ++ "-bounded") `fmap` mbnd ] ]
                       whenTrue True  n = Just n
                       whenTrue False _ = Nothing
               knd = kind $ S.processor inst
@@ -425,9 +425,12 @@ orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasi
           popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
           preds               = Predicates {
                                 definedP    = defP
-                                , collapsingP   = if allowAF && not (forceWSC && forcePROD)  -- TODO verify
-                                                   then AFEnc.isCollapsing 
-                                                   else const bot
+                                , collapsingP = case (allowAF, forceWSC, forcePROD) of 
+                                                     (True   , True    , True) -> \ f -> if f `Set.member` quasiDefineds 
+                                                                                        then bot 
+                                                                                        else AFEnc.isCollapsing f
+                                                     (True   , _       , _   ) -> AFEnc.isCollapsing
+                                                     (False  , _       , _   ) -> \ _ -> bot
                                 , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
                                 , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
                                 , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)

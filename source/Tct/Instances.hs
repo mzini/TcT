@@ -195,7 +195,8 @@ module Tct.Instances
       -- ** DP Transformations      
       -- | The following transformations only work on dependency pair problems, 
       -- as obtained by 'DP.dependencyPairs' and 'DP.dependencyTuples'.
-    , PathAnalysis.pathAnalysis      
+    , pathAnalysis      
+    , linearPathAnalysis
     , UR.usableRules
     , DPSimp.removeTails
     , DPSimp.simpDPRHS      
@@ -252,6 +253,15 @@ import qualified Tct.Processor.Transformations as T
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
+
+-- TODO doc
+pathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
+pathAnalysis = PathAnalysis.pathAnalysis False
+
+-- TODO doc
+linearPathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
+linearPathAnalysis = PathAnalysis.pathAnalysis True
+
 
 -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
 named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))

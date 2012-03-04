@@ -268,15 +268,18 @@ options =
     , meaning = let readOutputMode ('a':_) = OnlyAnswer
                     readOutputMode ('p':_) = WithProof ProofOutput
                     readOutputMode ('s':_) = WithProof StrategyOutput
+                    readOutputMode ('o':_) = WithProof OverviewOutput                    
                     readOutputMode md      = error $ "unsupported output mode (this is covered by flagparser anyway): " ++ md
-                in (\n f -> f{ outputMode = readOutputMode n }) <$> argOption ["answer","proof","strategy", "a", "p", "s"]
+                in (\n f -> f{ outputMode = readOutputMode n }) <$> argOption ["answer","proof","strategy", "overview", "a", "p", "s", "o"]
     , help    = [ "Verbosity of proof mode."
                 , " answer:   print only answer from proof"
                 , " proof:    print the full proof"
                 , " strategy: print the full proof, enriched with strategy information"
+                , " overview: print a minimal proof output, neglecting details"                  
                 , " a:        like answer"
                 , " p:        like proof"
-                , " s:        like strategy"] }
+                , " s:        like strategy"
+                , " o:        like overview"] }
   , Option
     { long    = "answer"
     , short    = "a"

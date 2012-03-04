@@ -162,8 +162,9 @@ minisatValue m e  =
 
 -- processor
 
-data PPMode = ProofOutput  -- ^ standard proof output
+data PPMode = ProofOutput    -- ^ standard proof output
             | StrategyOutput -- ^ also output of extended /strategy information/
+            | OverviewOutput  -- ^ Only present an overview
             deriving (Show, Eq, Ord)
 
 -- | Complexity proofs should be instance of the 'ComplexityProof' class.
@@ -365,6 +366,7 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
         $+$ case mde of 
               StrategyOutput -> text "Application of" <+> qtext (instanceName inst) <> text ":"
               ProofOutput    -> text "Proof:"
+              OverviewOutput -> text "Overview:"              
         $+$ nest 2 (pprintProof res mde)
     answer = answer . result
 

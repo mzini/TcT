@@ -678,6 +678,10 @@ module Tct.Interactive
       -- | Set the configuration.      
     , modifyConfig
       -- | Modify the configuration according to the given function.      
+      
+    -- * Silent Versions
+    , wdgs'
+    , problems' 
     )
 where
 
@@ -1072,19 +1076,22 @@ apply a =
                    st' = st { proofTree = Just $ pt `modifyOpenWith` fn'}
                pprintResult opens fn
                if anyChange
-                then putState st' >> pprint st'
+                then putState st' >> pprint (text "Problems simplified. Use 'state' to see the current proof state")
                 else pprint (text "No Progress :(")
-              where opens = enumOpenFromTree pt
-                    selected = [ eprob | (_,eprob@(sn,_)) <- opens, not $ isUnselected st sn]
+              where opens = [ p | p@(_,(sn,_)) <- enumOpenFromTree pt, not $ isUnselected st sn]
+                    selected = [ eprob | (_,eprob) <- opens]
                     changed Open{}                           = False
                     changed (Closed  _ _ p)                  = P.succeeded p
                     changed (Transformed progressed _ _ _ _) = progressed
  
           pprintResult opens fn = 
-            pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens ])
+            pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])
               where pp i sn prob = 
                       heading ("Problem " ++ show i)
-                      $+$ indent (U.pprint (maybe (Open prob) id (fn sn prob)))
+                      $+$ case fn sn prob of 
+                             Nothing  -> text "The problem remains open"
+                             Just pt' -> U.pprint pt'
+                      -- indent (U.pprint (maybe (Open prob) id (fn sn prob)))
                       -- block' "Considered Problem"
                       -- [ text "We consider the following problem:"
                       --   $+$ indent (U.pprint prob)
@@ -1331,14 +1338,24 @@ proof = do st <- getState
 pprintIth :: U.PrettyPrintable p => String -> (Int,p) -> IO ()
 pprintIth nm (i,p) = pprint (text nm <+> text (show i) <> text ":"
                              $+$ indent (U.pprint p))
+     
 
 problems :: IO [Problem]
 problems = 
   do ps <- problems'
-     mapM_ (pprintIth "Problem")  $zip [1..] ps
+     mapM_ (pprintIth "Problem")  $ zip [1..] ps
      return ps
-     
 
+wdgs' :: IO [DG.DG]
+wdgs' = 
+  do probs <- problems'
+     let dgs = [ (DG.estimatedDependencyGraph DG.Edg prob
+                 , Prob.signature prob 
+                 , Prob.variables prob) 
+               | prob <- probs ]
+     _ <- forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
+     return [dg | (dg,_,_) <- dgs]
+          
 wdgs :: IO [DG.DG]   
 wdgs = do probs <- problems'
           let dgs = [ (DG.estimatedDependencyGraph DG.Edg prob

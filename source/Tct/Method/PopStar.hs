@@ -46,6 +46,7 @@ where
 import Control.Monad (liftM)
 import Data.Set (Set, (\\))
 import Data.Maybe (isJust, catMaybes)
+import Data.List (partition)
 import qualified Data.Set as Set
 import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
@@ -105,6 +106,7 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping -- ^ Th
                              , popInputProblem      :: Problem -- ^ The input problem.
                              , popInstance          :: S.TheProcessor PopStar -- ^ The specific instance employed.
                              , popUsableSymbols     :: [Symbol] -- ^ Defined symbols of usable rules.
+                             , popStrictlyOriented  :: Trs -- ^ The rules that were effectively strictly oriented.
                              }
 
 instance ComplexityProof PopStarOrder where
@@ -136,9 +138,11 @@ instance ComplexityProof PopStarOrder where
                         $+$ ppTrs "Weak DPs  "   weakDPs
                         $+$ ppTrs "Strict Trs"   (restrictUsables . strictTrs)
                         $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)
-
-            ppTrs n sel = block n $ pprintTrs (\ rl -> fsep [pp (lhs rl), text "->", pp (rhs rl)]) (rules $ sel prob)
-              where pp (Var x) = pprint (x,vars)
+            
+            ppTrs n sel = block n $ pprintTrs (\ rl -> fsep [pp (lhs rl), arr rl, pp (rhs rl)]) (rules $ sel prob)
+              where arr rl | Trs.member sr rl = text "->"
+                           | otherwise        = text "-->="
+                    pp (Var x) = pprint (x,vars)
                     pp (Fun f ts) = 
                       case AF.filtering f af of 
                         AF.Projection i -> pp (ts!!(i-1))
@@ -157,6 +161,7 @@ instance ComplexityProof PopStarOrder where
             sm             = popSafeMapping order
             us             = popUsableSymbols order
             maf            = popArgumentFiltering order
+            sr             = popStrictlyOriented order
             restrictUsables trs | isJust maf = Trs.filterRules 
                                                (\ rl -> case root (lhs rl) of 
                                                    Right f -> f `elem` us
@@ -263,10 +268,28 @@ instance S.Processor PopStar where
 
     type S.ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
-                     ((BasicTerms _ _), Innermost) -> orientProblem inst prob
+                     ((BasicTerms _ _), Innermost) -> orientProblem inst Nothing prob
                      _                             -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
 
-
+    solvePartial inst rs prob = 
+      case (Prob.startTerms prob, Prob.strategy prob) of 
+        ((BasicTerms _ _), Innermost) -> mkPP `liftM` orientProblem inst (Just rs) prob
+        _                             -> return $ mkPP $ Inapplicable "Processor only applicable for innermost runtime complexity analysis"
+      where sig = Prob.signature prob
+            mkPP proof = P.PartialProof { P.ppInputProblem  = prob
+                                        , P.ppResult        = proof
+                                        , P.ppRemovableDPs  = sdps
+                                        , P.ppRemovableTrs  = strs }
+              where (sdps, strs) = partition marked sr
+                    sr = 
+                      case proof of 
+                        (Order p) -> Trs.toRules $ popStrictlyOriented p
+                        _         -> []
+                    marked r = 
+                      case root (lhs r) of 
+                        Right f -> isMarked sig f
+                        Left  _ -> False
+                      
 
 popstarProcessor :: S.StdProcessor PopStar
 popstarProcessor = S.StdProcessor (PopStar POP)
@@ -334,8 +357,8 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem inst prob = maybe Incompatible Order `liftM` slv 
+orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Maybe [Rule] -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv 
                                     
     where knd = kind $ S.processor inst
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
@@ -356,30 +379,36 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
               | otherwise = solveDirect
           
           solveDP = solveConstraint form initial mkOrd
-              where mkOrd (us :&: sm :&: rs :&: prec :&: af) = PopOrder { popSafeMapping       = sm
-                                                                        , popPrecedence        = prec
-                                                                        , popRecursives        = rs
-                                                                        , popArgumentFiltering = Just af 
-                                                                        , popInputProblem      = prob 
-                                                                        , popInstance          = inst 
-                                                                        , popUsableSymbols     = us }
-                    initial                            = UREnc.initialUsables 
-                                                         :&: SMEnc.empty sig quasiConstrs 
-                                                         :&: PrecEnc.initialRecursiveSymbols                                                         
-                                                         :&: PrecEnc.initial sig 
-                                                         :&: AFEnc.initial sig
+              where mkOrd (us :&: sm :&: rs :&: prec :&: af :&: Sr sr) = 
+                      PopOrder { popSafeMapping       = sm
+                               , popPrecedence        = prec
+                               , popRecursives        = rs
+                               , popArgumentFiltering = Just af 
+                               , popInputProblem      = prob 
+                               , popInstance          = inst 
+                               , popUsableSymbols     = us 
+                               , popStrictlyOriented  = sr }
+                    initial  = UREnc.initialUsables 
+                               :&: SMEnc.empty sig quasiConstrs 
+                               :&: PrecEnc.initialRecursiveSymbols                                                         
+                               :&: PrecEnc.initial sig 
+                               :&: AFEnc.initial sig
+                               :&: initialStrictRules 
 
           solveDirect = solveConstraint form initial mkOrd
-              where mkOrd (sm :&: rs :&: prec) = PopOrder { popSafeMapping       = sm
-                                                          , popPrecedence        = prec
-                                                          , popRecursives        = rs
-                                                          , popArgumentFiltering = Nothing
-                                                          , popInputProblem      = prob 
-                                                          , popInstance          = inst 
-                                                          , popUsableSymbols     = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob }
+              where mkOrd (sm :&: rs :&: prec :&: Sr sr) = 
+                      PopOrder { popSafeMapping       = sm
+                               , popPrecedence        = prec
+                               , popRecursives        = rs
+                               , popArgumentFiltering = Nothing
+                               , popInputProblem      = prob 
+                               , popInstance          = inst 
+                               , popUsableSymbols     = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob 
+                               , popStrictlyOriented  = sr}
                     initial             = SMEnc.empty sig quasiConstrs 
                                           :&: PrecEnc.initialRecursiveSymbols
                                           :&: PrecEnc.initial sig
+                                          :&: initialStrictRules
 
           solveConstraint :: (S.Decoder e a) => P.SolverM m => MemoFormula PopArg MiniSatSolver MiniSatLiteral -> e -> (e -> b) -> m (Maybe b)
           solveConstraint constraint initial makeResult = 
@@ -387,14 +416,25 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                  return $ makeResult `liftM` r
           
           form = fm maybeOrientable 
-                 && bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
-                 && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ weaks]
                  && validPrecedence
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
-                 && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD stricts weaks quasiDefineds
+                 && orientRulesConstraint
 
           usable = return . UREnc.usable prob
+          
+          orientRulesConstraint = 
+            case mOrientStrict of 
+              Nothing 
+                -> bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
+                  && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ weaks]
+                  && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD allrules weaks quasiDefineds
+              Just sr
+                -> let rest = allrules Trs.\\ Trs.fromRules sr
+                  in bigAnd [not (usable r) || atom (strictlyOriented r) | r <- sr]
+                     && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- Trs.toRules rest]
+                     && bigOr [ atom (strictlyOriented r) | r <- Trs.toRules stricts]
+                     && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD allrules rest quasiDefineds
           maybeOrientable = allowMR || allowAF || isDP || (all maybeOrientableRule $ rules allrules)
             where maybeOrientableRule r = 
                       case rtl of 
@@ -402,11 +442,11 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                         Right sym -> sym `Set.member` quasiDefineds --> cardinality rtl (rhs r) <= 1
                       where rtl = root (lhs r)
           
-          validArgumentFiltering = return $ 
-                                   AFEnc.validSafeArgumentFiltering fs sig
-                                   && (case bnd of 
-                                         Just (Nat 0) -> bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
-                                         _            -> top)
+          validArgumentFiltering = 
+            return $ AFEnc.validSafeArgumentFiltering fs sig
+                     && (case bnd of 
+                           Just (Nat 0) -> bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
+                           _            -> top)
             where fs = Set.toList $ Trs.functionSymbols allrules
           
           validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (natToInt `liftM` bnd)
@@ -416,13 +456,14 @@ orientProblem inst prob = maybe Incompatible Order `liftM` slv
                                    | otherwise = top
                                                  
 orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Bool -> Bool -> Bool -> Trs -> Trs -> Set Symbol -> MemoFormula PopArg s l
-orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strict weak quasiDefineds = 
-    strict `orientStrictBy` pop && weak `orientWeakBy` popEq
+orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strictRules eqRules quasiDefineds = 
+    strictRules `orientStrictBy` pop && eqRules `orientWeakBy` eq
     where orientBy ob trs ord = bigAnd [atom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
           orientStrictBy = orientBy strictlyOriented 
           orientWeakBy = orientBy weaklyOriented
           pop s t             = orient preds (Gt s t)
-          popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
+          eq s t              = orient preds (Eq s t)
+--          popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
           preds               = Predicates {
                                 definedP    = defP
                                 , collapsingP = case (allowAF, forceWSC, forcePROD) of 

@@ -256,9 +256,9 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
       case tproof of 
         ComposeRCInapplicable{} -> P.MaybeAnswer
         _ -> 
-          case (lb,ub) of
-            (Cert.Unknown, Cert.Unknown) -> P.CertAnswer $ Cert.certified (Cert.Unknown, ub)
-            _                            -> P.CertAnswer $ Cert.certified (Cert.Unknown, ub)
+          case ub of
+            Cert.Unknown -> P.MaybeAnswer
+            _            -> P.CertAnswer $ Cert.certified (lb, ub)
         where tproof = T.transformationProof proof
               subproofs = T.subProofs proof
               ub = Cert.upperBound cert1 `Cert.mult` Cert.upperBound cert2

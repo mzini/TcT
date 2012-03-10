@@ -264,8 +264,8 @@ linearPathAnalysis = PathAnalysis.pathAnalysis True
 
 
 -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
-named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))
-named n inst = proc `S.withArgs` ()
+named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf P.SomeProcessor
+named n inst = some $ proc `S.withArgs` ()
   where proc = Custom.fromAction d (\ () -> P.solve inst)
         d    = Custom.Description { Custom.as    = n
                                   , Custom.descr = []
@@ -297,7 +297,7 @@ withProblem f = proc `S.withArgs` ()
 step :: (Transformer t1, P.Processor a) =>
        [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
 step []     _ _ = some Combinators.empty
-step (i:is) t p = some $ p i `Combinators.before` (t i >>| step is t p)
+step (i:is) t p = some $ p i `Combinators.before` (t i >>| empty `Combinators.before` step is t p)
 
 
 -- | @

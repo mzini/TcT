@@ -410,9 +410,10 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
               transform2 r1 ps = do r2s <- mapM trans ps
                                     let tproof = ComposeProof r1 $ Just [(e1,r2_i) | (e1, r2_i,_) <- r2s]
                                         esubprobs = concatMap mkSubProbs r2s
-                                        anyProgress = isProgressResult r1 || any isProgressResult [r2_i | (_,r2_i,_) <- r2s]
-                                        proof | anyProgress = Progress tproof esubprobs
-                                              | otherwise   = NoProgress tproof
+                                        progressed | continue t2 = isProgressResult r1 || any isProgressResult [r2_i | (_,r2_i,_) <- r2s]
+                                                   | otherwise   = all isProgressResult [r2_i | (_,r2_i,_) <- r2s]
+                                        proof | progressed = Progress tproof esubprobs
+                                              | otherwise  = NoProgress tproof
                                     return $ proof
                   where trans (e1, prob_i) = do {r2_i <- transform t2 prob_i; return (e1, r2_i, prob_i)}
 
@@ -745,9 +746,9 @@ t1 <> t2 = someTransformation inst
     where inst = TheTransformer (t1 :<>: t2) ()
 
 -- | The transformer @exhaustively t@ applies @t@ repeatedly until @t@ fails.
--- @exhaustively t == t '>>>' exhaustively t@.
+-- @exhaustively t == t '>>>' try (exhaustively t)@.
 exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
-exhaustively t = t >>> exhaustively t
+exhaustively t = t >>> try (exhaustively t)
 
 -- | Identity transformation.
 idtrans :: TheTransformer Id

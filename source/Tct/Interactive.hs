@@ -772,7 +772,7 @@ instance U.PrettyPrintable ProofTree where
                   ppProof = 
                     T.pprintTProof tinst prob tproof
                     $+$ text ""
-                    $+$ ppOverview
+                    -- $+$ ppOverview
                     $+$ ppSubs
                   ppSubs = vcat subPPs
                   ppOverview = 
@@ -898,7 +898,7 @@ instance U.PrettyPrintable ST where
             $+$ text ""
             $+$ nb "Use 'load <filename>' to load a new problem."
           ppTree pt | null opens = 
-            text "Hurray, the problem was solved with certicficate" <+> U.pprint (P.answer $ proofFromTree pt)
+            text "Hurray, the problem was solved with certicficate" <+> U.pprint (P.answer $ proofFromTree pt) <> text "."
             $+$ text "Use 'proof' to show the complete proof."
                     | otherwise = 
               block  "Unselected Open Problems" [ (SN i, ppProb prob) | (i,(_,prob)) <- unselecteds]
@@ -1073,10 +1073,16 @@ apply a =
             do fn <- apply' a selected
                let fn' sn prob = fromMaybe (Open prob) (fn sn prob)
                    anyChange = any changed [ fn' sn prob | (sn,prob) <- selected]
-                   st' = st { proofTree = Just $ pt `modifyOpenWith` fn'}
+                   pt' = pt `modifyOpenWith` fn'
+                   st' = st { proofTree = Just $ pt'}
                pprintResult opens fn
                if anyChange
-                then putState st' >> pprint (text "Problems simplified. Use 'state' to see the current proof state")
+                then putState st' 
+                     >> if null (enumOpenFromTree pt')
+                        then pprint $ (text "Hurray, the problem was solved with certicficate" 
+                                       <+> U.pprint (P.answer $ proofFromTree pt')) <> text "."
+                                       $+$ text "Use 'proof' to show the complete proof."
+                        else pprint (text "Problems simplified. Use 'state' to see the current proof state.")
                 else pprint (text "No Progress :(")
               where opens = [ p | p@(_,(sn,_)) <- enumOpenFromTree pt, not $ isUnselected st sn]
                     selected = [ eprob | (_,eprob) <- opens]
@@ -1121,11 +1127,9 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
 instance P.Processor p => Apply (P.InstanceOf p) where
   apply' p selected =   
     do mrs <- runTct $ evalEnum False [ (i, P.solve pinst prob) | (i, prob) <- selected ]
-       case mrs of 
-         Nothing -> error "error when solving some problem"
-         Just rs -> return $ \ (SN sn) prob -> mkNode prob `fmap` (find sn rs)
-      where mkNode prob res | P.succeeded res = Closed prob pinst res
-                            | otherwise       = Open prob
+       maybe (error "error when solving some problem") (return . lookupResult) mrs
+      where lookupResult rs = 
+              \ (SN sn) prob -> Closed prob pinst `fmap` find sn rs
             pinst = P.someInstance p
                 
 --------------------------------------------------------------------------------

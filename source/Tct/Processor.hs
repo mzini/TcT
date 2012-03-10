@@ -103,7 +103,6 @@ import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 import Tct.Certificate
-import Tct.Processor.Parse hiding (fromString)
 import qualified Tct.Processor.Parse as Parse
 
 -- | Representation of a SAT-solver. Currently, only 'minisat' (cf. <http://minisat.se>) is supported.
@@ -280,7 +279,7 @@ synopsis p = unwords $ deleteAll "" $ map f (synString p)
                              | otherwise = y : deleteAll x ys
 
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
-parseProcessor a =  whiteSpace >> (parens parse Parsec.<|> parse)
+parseProcessor a =  Parse.whiteSpace >> (Parse.parens parse Parsec.<|> parse)
     where parse = parseProcessor_ a
 
 fromString :: AnyProcessor -> String -> Either ParseError (InstanceOf SomeProcessor)
@@ -365,9 +364,18 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
         $+$ text ""
         $+$ case mde of 
               StrategyOutput -> text "Application of" <+> qtext (instanceName inst) <> text ":"
-              ProofOutput    -> text "Proof:"
+              ProofOutput    -> text "Proof-Output:"
               OverviewOutput -> text "Overview:"              
         $+$ nest 2 (pprintProof res mde)
+      -- ppIntro 
+      -- $+$ text ""
+      -- $+$ nest 2 (pprint prob)
+      -- $+$ text ""      
+      
+      --   where ppIntro = "We continue the proof of the following problem" <+> brackets (pprint ans)
+      --         ans = answer p
+              
+      
     answer = answer . result
 
 -- | Objects of type 'ProofPartial proc' correspond to a proof node

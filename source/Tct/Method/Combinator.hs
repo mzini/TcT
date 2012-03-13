@@ -263,7 +263,7 @@ instance ( T.Transformer g
       P.StrategyOutput ->
         paragraph "Transformation of the input failed:"
         $+$ text ""
-        $+$ T.pprintTProof tr (P.inputProblem p) tp
+        $+$ T.pprintTProof tr (P.inputProblem p) tp mde
         $+$ text ""        
         $+$ paragraph ("We continue with processor '" ++ P.instanceName (P.appliedProcessor p) ++ "'.")
         $+$ text ""        

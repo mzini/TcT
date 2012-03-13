@@ -209,8 +209,8 @@ instance T.TransformationProof PathAnalysis where
                                         ppsubproof = do subproof <- findSubProof path
                                                         return $ P.pprintProof subproof mde
 
-    pprintTProof _ _ (Error e) = pprint e
-    pprintTProof _ _ tproof    = block' "Transformation Details" [ppTrans]
+    pprintTProof _ _ (Error e) _ = pprint e
+    pprintTProof _ _ tproof    _ = block' "Transformation Details" [ppTrans]
         where ppTrans = paragraph "Following congruence DG was used:"
                         $+$ text ""
                         $+$ pprintCWDG cwdg (signature tproof) (variables tproof) (\ _ _ -> text "")

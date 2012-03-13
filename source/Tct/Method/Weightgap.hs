@@ -109,7 +109,7 @@ instance T.TransformationProof WeightGap where
           mkAnswer (P.CertAnswer tc) (P.CertAnswer c) = P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
           mkAnswer _                 a                = a
                        
-  pprintTProof _ _  = pprint 
+  pprintTProof _ _ p _ = pprint p
 
 
 instance T.Transformer WeightGap where

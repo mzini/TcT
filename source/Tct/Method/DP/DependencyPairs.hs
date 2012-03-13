@@ -113,7 +113,7 @@ instance PrettyPrintable DPProof where
 
 instance T.TransformationProof DPs where
     answer = T.answerFromSubProof
-    pprintTProof _ _ = pprint
+    pprintTProof _ _ p _ = pprint p
 
 instance T.Transformer DPs where
     name DPs = "dp"

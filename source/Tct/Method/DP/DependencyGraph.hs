@@ -362,7 +362,7 @@ pprintCWDG cwdg sig vars ppLabel = printTree 45 ppNode ppLabel pTree
                                    $+$ text "Here dependency-pairs are as follows:"
                                    $+$ text ""
                                    $+$ pprintLabeledRules "Strict DPs" sig vars (rs StrictDP)
-                                   $+$ pprintLabeledRules "WeakDPs DPs" sig vars (rs WeakDP)
+                                   $+$ pprintLabeledRules "Weak DPs" sig vars (rs WeakDP)
     where ppNode _ n    = printNodeId n
           pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
                          , pptSuc = sortBy compareLabel . snub . successors cwdg}

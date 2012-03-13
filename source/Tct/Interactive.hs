@@ -770,7 +770,7 @@ instance U.PrettyPrintable ProofTree where
                   mans | isOpen    = Nothing
                        | otherwise = Just (P.answer $ proofFromTree pt)
                   ppProof = 
-                    T.pprintTProof tinst prob tproof
+                    T.pprintTProof tinst prob tproof P.ProofOutput
                     $+$ text ""
                     -- $+$ ppOverview
                     $+$ ppSubs

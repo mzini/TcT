@@ -217,9 +217,9 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                         ub2 = ubound sp2
                         ubound :: P.ComplexityProof p => p -> Cert.Complexity
                         ubound p = Cert.upperBound $ certificate p
-      pprintTProof _ _ (Inapplicable reason) = paragraph ("We cannot use 'composeCompose' since " 
-                                                          ++ reason ++ ".")
-      pprintTProof t prob (tproof@(ComposeProof compfn split stricts esp1)) = 
+      pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'composeCompose' since " 
+                                                            ++ reason ++ ".")
+      pprintTProof t prob (tproof@(ComposeProof compfn split stricts esp1)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
                         ++ tName ++ " to orient following rules strictly. "

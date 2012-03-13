@@ -70,7 +70,7 @@ instance T.TransformationProof InnermostRuleRemoval where
                      (NotApplicable _, _             ) -> P.MaybeAnswer
                      (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
                      (IRRProof _ _   , _             ) -> P.MaybeAnswer
-    pprintTProof _ _ = pprint
+    pprintTProof _ _ p _ = pprint p
               
 instance T.Transformer InnermostRuleRemoval where
     type T.ArgumentsOf InnermostRuleRemoval = A.Unit

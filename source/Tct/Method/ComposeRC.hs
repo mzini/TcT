@@ -223,24 +223,25 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
 instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
-    pprintTProof _ _ (ComposeRCInapplicable reason) = text "Compose RC is inapplicable since" <+> text reason
-    pprintTProof _ prob tproof = paragraph "We measure the number of applications of following selected rules relative to the remaining rules."
-                                $+$ text ""
-                                $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
-                                $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
-                                $+$ text ""
-                                $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
-                                               ++ show (cpRuleSelector tproof) ++ ","
-                                               ++ " and closed under successors in the dependency graph.")
-                                $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
-                                $+$ text ""
-                                $+$ block' "Problem (A)" [pprint (cpProbA tproof)]
-                                $+$ text ""
-                                $+$ paragraph "The number of B-applications is expressed by the following problem."
-                                $+$ text ""
-                                $+$ block' "Problem (B)" [pprint (cpProbB tproof)]
-                                $+$ maybePrintSub (cpProofA tproof) "A"
-                                $+$ maybePrintSub (cpProofB tproof) "B"
+    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Compose RC is inapplicable since" <+> text reason
+    pprintTProof _ prob tproof _ = 
+      paragraph "We measure the number of applications of following selected rules relative to the remaining rules."
+      $+$ text ""
+      $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
+      $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
+      $+$ text ""
+      $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
+                     ++ show (cpRuleSelector tproof) ++ ","
+                     ++ " and closed under successors in the dependency graph.")
+      $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
+      $+$ text ""
+      $+$ block' "Problem (A)" [pprint (cpProbA tproof)]
+      $+$ text ""
+      $+$ paragraph "The number of B-applications is expressed by the following problem."
+      $+$ text ""
+      $+$ block' "Problem (B)" [pprint (cpProbB tproof)]
+      $+$ maybePrintSub (cpProofA tproof) "A"
+      $+$ maybePrintSub (cpProofB tproof) "B"
        where sig = cpSig tproof
              vars = Prob.variables prob
              pptrs = pprintNamedTrs sig vars

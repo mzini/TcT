@@ -109,7 +109,7 @@ class TransformationProof t where
   -- | Construct an 'P.Answer' from the 'Proof'.
   answer :: P.Processor sub => Proof t sub -> P.Answer
   -- | Pretty print the transformation proof.
-  pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> Doc
+  pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> P.PPMode -> Doc
   -- | Pretty printer of the 'Proof'. A default implementation is given.
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
   
@@ -128,7 +128,7 @@ class TransformationProof t where
             input     = inputProblem proof
             ppTransformationDetails 
               | mde == P.OverviewOutput = PP.empty
-              | otherwise = pprintTProof t input tproof
+              | otherwise = pprintTProof t input tproof mde
                             $+$ text ""
             ppOverviews = text "Overall, the transformation results in the following sub-problem(s):"
                           $+$ text ""
@@ -254,7 +254,7 @@ data ComposeProof t1 t2 = ComposeProof (Result t1) (Maybe (Enumeration (Result t
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) where
     pprintProof proof mde =
       case tproof of 
-         ComposeProof r1 Nothing    -> pprintTProof t1 input (proofFromResult r1)
+         ComposeProof r1 Nothing    -> pprintTProof t1 input (proofFromResult r1) mde
          ComposeProof r1 (Just r2s) -> P.pprintProof (mkComposeProof sub t1 t2 input r1 r2s subproofs) mde
       where tproof    = transformationProof proof
             input     = inputProblem proof
@@ -272,16 +272,16 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
             sub       = P.someInstance (appliedSubprocessor proof)
             TheTransformer (t1 :>>>: t2) () = appliedTransformer proof
 
-    pprintTProof (TheTransformer (t1 :>>>: _) _)  prob (ComposeProof r1 Nothing) = 
-        pprintTProof t1  prob (proofFromResult r1)
-    pprintTProof (TheTransformer (t1 :>>>: t2) _) prob (ComposeProof r1 (Just r2s)) =
+    pprintTProof (TheTransformer (t1 :>>>: _) _)  prob (ComposeProof r1 Nothing) mde = 
+        pprintTProof t1  prob (proofFromResult r1) mde
+    pprintTProof (TheTransformer (t1 :>>>: t2) _) prob (ComposeProof r1 (Just r2s)) mde =
         case r1 of 
           Progress tproof _ -> 
-            pprintTProof t1 prob tproof
+            pprintTProof t1 prob tproof mde
             $+$ ppOverviews False
           NoProgress tproof 
             | subProgress -> ppOverviews False
-            | otherwise   -> pprintTProof t1 prob tproof
+            | otherwise   -> pprintTProof t1 prob tproof mde
                             $+$ ppOverviews True
           
       where subProgresseds = [ r | r@(_, Progress _ _) <- r2s ]
@@ -305,14 +305,14 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                       $+$ text ""
                       $+$ Util.pprint prob_i
                       $+$ text ""
-                      $+$ pprintTProof t2 prob_i (proofFromResult r2_i)
-                      $+$ if null ps 
-                          then PP.empty
-                          else text ""
-                               $+$ Util.paragraph "The consider problem is replaced by"
-                               $+$ text ""
-                               $+$ enum ps
-                     where ps = subProblemsFromResult r2_i
+                      $+$ pprintTProof t2 prob_i (proofFromResult r2_i) mde
+                     --  $+$ if null ps 
+                     --      then PP.empty
+                     --      else text ""
+                     --           $+$ Util.paragraph "The considered problem is replaced by"
+                     --           $+$ text ""
+                     --           $+$ enum ps
+                     -- where ps = subProblemsFromResult r2_i
           -- $+$ if not contd 
           --    then PP.empty 
           --    else text ""
@@ -431,7 +431,7 @@ data Id = Id
 data IdProof = IdProof
 
 instance TransformationProof Id where
-  pprintTProof _ _ _ = PP.empty
+  pprintTProof _ _ _ _ = PP.empty
   answer = answerFromSubProof
   
 instance Transformer Id where 
@@ -451,18 +451,20 @@ data ChoiceProof t1 t2 = ChoiceOne (Result t1)
                        | ChoiceTwo (Result t1) (Result t2)
                        
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) where
-  pprintTProof (TheTransformer (t1 :<>: _) _) prob (ChoiceOne r1) = 
-    pprintTProof t1 prob (proofFromResult r1)
-  pprintTProof (TheTransformer (t1 :<>: t2) _) prob (ChoiceTwo r1 r2) = 
+  pprintTProof (TheTransformer (t1 :<>: _) _) prob (ChoiceOne r1) mde = 
+    pprintTProof t1 prob (proofFromResult r1) mde
+  pprintTProof (TheTransformer (t1 :<>: t2) _) prob (ChoiceTwo r1 r2) P.StrategyOutput = 
     Util.paragraph ("We fail transforming the problem using '" ++ instanceName t1 ++ "':")
     $+$ text ""
-    $+$ indent (pprintTProof t1 prob (proofFromResult r1))
+    $+$ indent (pprintTProof t1 prob (proofFromResult r1) P.StrategyOutput)
     $+$ text ""
     $+$ Util.paragraph ("We try instead '" ++ instanceName t2 ++ "'. We reconsider following problem:")
     $+$ text ""    
     $+$ Util.pprint prob
     $+$ text ""
-    $+$ indent (pprintTProof t2 prob (proofFromResult r2))
+    $+$ indent (pprintTProof t2 prob (proofFromResult r2) P.StrategyOutput)
+  pprintTProof (TheTransformer (_ :<>: t2) _) prob (ChoiceTwo _ r2) mde =     
+    pprintTProof t2 prob (proofFromResult r2) mde
     
   answer proof = case transformationProof proof of 
                     ChoiceOne r1 -> answer $ proof { transformationResult = r1 
@@ -506,7 +508,7 @@ instance TransformationProof t => TransformationProof (Try t) where
         case result of 
           NoProgress (TryProof p) 
               | mde == P.StrategyOutput -> 
-                  pprintTProof t' (inputProblem proof) p
+                  pprintTProof t' (inputProblem proof) p mde
                   $+$ text ""
                   $+$ Util.paragraph "We abort the transformation and continue with the subprocessor on the previous problem" 
                   $+$ text ""

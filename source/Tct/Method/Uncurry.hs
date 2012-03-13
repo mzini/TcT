@@ -72,7 +72,7 @@ instance T.TransformationProof Uncurry where
                      (EmptyStrictRules, _             ) -> P.CertAnswer $ certified (constant, constant)
                      (_               , [(_,subproof)]) -> P.answer subproof
                      (_               , _             ) -> P.MaybeAnswer
-    pprintTProof _ _ proof =
+    pprintTProof _ _ proof _ =
         case proof of 
           NotUncurryable r -> paragraph ("The system cannot be uncurried since given TRS is " ++ r ++ ".")
           EmptyStrictRules -> paragraph "The strict rules are empty."

@@ -78,15 +78,16 @@ data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] -- ^ Tail Node
                        
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
-  pprintTProof _ _ (Error e) = pprint e
-  pprintTProof _ _ p | null remls = text "No dependency-pair could be removed"
-                     | otherwise  = text "We consider the the dependency graph"
-                                    $+$ text ""
-                                    $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-                                    $+$ text ""
-                                    $+$ paragraph "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
-                                    $+$ text ""
-                                    $+$ indent (pprintTrs ppRule remls)
+  pprintTProof _ _ (Error e) _ = pprint e
+  pprintTProof _ _ p _ | null remls = text "No dependency-pair could be removed"
+                       | otherwise  = 
+     text "We consider the the dependency graph"
+     $+$ text ""
+     $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+     $+$ text ""
+     $+$ paragraph "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+     $+$ text ""
+     $+$ indent (pprintTrs ppRule remls)
      where vars          = variables p                              
            sig           = signature p
            cwdg          = cgraph p
@@ -176,15 +177,15 @@ data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] -- ^ Rules that coul
                        
 instance T.TransformationProof SimpRHS where
   answer = T.answerFromSubProof
-  pprintTProof _ _ (SRHSError e) = pprint e
-  pprintTProof _ _ p | null repls = text "No rule was simplified"
-                     | otherwise = text "We consider the following dependency-graph" 
-                                   $+$ text ""
-                                   $+$ indent (pprint (dg, sig, vars))
- 
-                                   $+$ paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
-                                   $+$ text ""
-                                   $+$ indent (pprint (Trs repls, sig, vars))
+  pprintTProof _ _ (SRHSError e) _ = pprint e
+  pprintTProof _ _ p _ | null repls = text "No rule was simplified"
+                       | otherwise = 
+       text "We consider the following dependency-graph" 
+       $+$ text ""
+       $+$ indent (pprint (dg, sig, vars))
+       $+$ paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
+       $+$ text ""
+       $+$ indent (pprint (Trs repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p
@@ -253,8 +254,8 @@ data SimpKPProof = SimpKPProof { skpDG            :: DG -- ^ Employed Dependency
                        
 instance T.TransformationProof SimpKP where
   answer = T.answerFromSubProof
-  pprintTProof _ _ (SimpKPErr e) = pprint e
-  pprintTProof _ _ p = 
+  pprintTProof _ _ (SimpKPErr e) _ = pprint e
+  pprintTProof _ _ p _ = 
     case skpRule p of 
       Nothing -> text "No rule found for knowledge propagation"
       Just (i,rl) -> text "We consider the following dependency-graph" 

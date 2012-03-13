@@ -49,7 +49,7 @@ instance PrettyPrintable ToInnermostProof where
                              
 instance T.TransformationProof ToInnermost where
   answer = T.answerFromSubProof
-  pprintTProof _ _ = pprint
+  pprintTProof _ _ p _ = pprint p
   
   
 instance T.Transformer ToInnermost where

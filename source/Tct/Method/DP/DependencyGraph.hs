@@ -357,7 +357,7 @@ pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
 pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> (braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ])
 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
-pprintCWDG cwdg sig vars ppLabel = printTree 60 ppNode ppLabel pTree
+pprintCWDG cwdg sig vars ppLabel = printTree 45 ppNode ppLabel pTree
                                    $+$ text ""
                                    $+$ text "Here dependency-pairs are as follows:"
                                    $+$ text ""

@@ -44,7 +44,7 @@ import Termlib.FunctionSymbol (Signature, Symbol, SignatureMonad, Attributes(..)
 import qualified Termlib.FunctionSymbol as F
 import Termlib.Signature (runSignature, getSignature)
 import Termlib.Term (Term(..))
-import Termlib.Utils (PrettyPrintable(..),Enumerateable(..))
+import Termlib.Utils (PrettyPrintable(..),Enumerateable(..), paragraph)
 import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 
@@ -74,10 +74,12 @@ instance T.TransformationProof Uncurry where
                      (_               , _             ) -> P.MaybeAnswer
     pprintTProof _ _ proof =
         case proof of 
-          NotUncurryable r -> text "The system cannot be uncurried since given TRS is" <+> text r <> text "."
-          EmptyStrictRules -> text "The strict rules are empty."
-          _                -> text "We uncurry the input using the following uncurry rules."
+          NotUncurryable r -> paragraph ("The system cannot be uncurried since given TRS is " ++ r ++ ".")
+          EmptyStrictRules -> paragraph "The strict rules are empty."
+          _                -> paragraph "We uncurry the input using the following uncurry rules."
+                             $+$ text ""
                              $+$ (nest 2 $ pptrs $ uncurryTrs proof)
+                             
              where pptrs trs = pprint (trs,sig,vars)
                    sig = newSignature proof
                    vars = Prob.variables $ inputProblem proof

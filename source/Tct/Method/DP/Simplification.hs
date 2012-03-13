@@ -80,15 +80,11 @@ instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
   pprintTProof _ _ (Error e) = pprint e
   pprintTProof _ _ p | null remls = text "No dependency-pair could be removed"
-                     | otherwise  = text "We consider the the dependency-graph"
-                                    $+$ text ""
-                                    $+$ indent (pprint (wdg, sig, vars))
-                                    $+$ text ""
-                                    $+$ text "together with the congruence-graph"
+                     | otherwise  = text "We consider the the dependency graph"
                                     $+$ text ""
                                     $+$ indent (pprintCWDG cwdg sig vars ppLabel)
                                     $+$ text ""
-                                    $+$ text "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+                                    $+$ paragraph "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
                                     $+$ text ""
                                     $+$ indent (pprintTrs ppRule remls)
      where vars          = variables p                              
@@ -186,7 +182,7 @@ instance T.TransformationProof SimpRHS where
                                    $+$ text ""
                                    $+$ indent (pprint (dg, sig, vars))
  
-                                   $+$ text "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
+                                   $+$ paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
                                    $+$ text ""
                                    $+$ indent (pprint (Trs repls, sig, vars))
      where vars  = srhsVars p                              
@@ -265,11 +261,11 @@ instance T.TransformationProof SimpKP where
                     $+$ text ""
                     $+$ indent (pprint (dg, sig, vars))
                     $+$ text ""
-                    $+$ text "The number of applications of the rule"
+                    $+$ paragraph "The number of applications of the rule"
                     $+$ text ""
                     $+$ indent (pprintNamedTrs sig vars rlname (Trs [rl]))
                     $+$ text ""                  
-                    $+$ text "is given by the number of applications of following rules"
+                    $+$ paragraph "is given by the number of applications of following rules"
                     $+$ text ""
                     $+$ indent (pprintNamedTrs sig vars prename (Trs (skpPres p)))
                     $+$ text ""

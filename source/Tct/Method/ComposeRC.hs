@@ -50,7 +50,7 @@ import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
-import Termlib.Utils (PrettyPrintable (..), snub)
+import Termlib.Utils (PrettyPrintable (..), snub, paragraph)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Signature as Sig
@@ -224,21 +224,21 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
 
 instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
     pprintTProof _ _ (ComposeRCInapplicable reason) = text "Compose RC is inapplicable since" <+> text reason
-    pprintTProof _ prob tproof = text "We measure the number of applications of following selected rules relative to the remaining rules"
+    pprintTProof _ prob tproof = paragraph "We measure the number of applications of following selected rules relative to the remaining rules."
                                 $+$ text ""
                                 $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
                                 $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
                                 $+$ text ""
-                                $+$ (text "These ruleset (A) was choosen by selecting function" 
-                                     <+> quotes (text (show (cpRuleSelector tproof))) <> text ","
-                                     <+> text "and closed under successors in the dependency graph.")
-                                $+$ text "The length of a single A-subderivation is expressed by the following problem."
+                                $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
+                                               ++ show (cpRuleSelector tproof) ++ ","
+                                               ++ " and closed under successors in the dependency graph.")
+                                $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
                                 $+$ text ""
-                                $+$ block' "Problem A" [pprint (cpProbA tproof)]
+                                $+$ block' "Problem (A)" [pprint (cpProbA tproof)]
                                 $+$ text ""
-                                $+$ text "The number of B-applications is expressed by the following problem."
+                                $+$ paragraph "The number of B-applications is expressed by the following problem."
                                 $+$ text ""
-                                $+$ block' "Problem B" [pprint (cpProbB tproof)]
+                                $+$ block' "Problem (B)" [pprint (cpProbB tproof)]
                                 $+$ maybePrintSub (cpProofA tproof) "A"
                                 $+$ maybePrintSub (cpProofB tproof) "B"
        where sig = cpSig tproof
@@ -246,11 +246,13 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
              pptrs = pprintNamedTrs sig vars
              maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
              maybePrintSub Nothing  _ = empty
-             maybePrintSub (Just p) n | P.succeeded p = text ""
-                                                        $+$ text "We first check Problem" <+> text n <> text ":"
-                                                        $+$ indent (P.pprintProof p P.ProofOutput)
-                                      | otherwise     = text "We did not obtain a certificate for Problem" <+> text n
-                                                        $+$ text "We abort."
+             maybePrintSub (Just p) n 
+               | P.succeeded p = text ""
+                                 $+$ paragraph ("TcT answers on problem (" ++ n ++ ") " 
+                                                ++ show (pprint (P.answer p)) ++ ".")
+                                 $+$ indent (P.pprintProof p P.ProofOutput) 
+               | otherwise     = paragraph ("Unfortnuately TcT could not construct a certificate for Problem ("
+                                            ++ show n ++ "). We abort.")
 
     answer proof = 
       case tproof of 

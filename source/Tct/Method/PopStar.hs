@@ -68,7 +68,7 @@ import Termlib.Rule (lhs, rhs, Rule)
 -- import Termlib.Signature (runSignature)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
-import Termlib.Utils (PrettyPrintable(..), ($++$), block)
+import Termlib.Utils (PrettyPrintable(..), ($++$), block, paragraph)
 import qualified Termlib.ArgumentFiltering as AF
 import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
@@ -110,23 +110,23 @@ data PopStarOrder = PopOrder { popSafeMapping       :: SMEnc.SafeMapping -- ^ Th
                              }
 
 instance ComplexityProof PopStarOrder where
-  pprintProof order _ = text "The input was oriented with the instance of" 
-                        $+$ (text (S.instanceName inst) <+> text "as induced by the safe mapping")
+  pprintProof order _ = paragraph ("The input was oriented with the instance of '" 
+                                   ++ S.instanceName inst ++ "' as induced by the safe mapping")
                         $++$ pparam (popSafeMapping order)
                         $++$ text "and precedence"
                         $++$ (pparam prec <+> text ".")
-                        $++$ text "Following symbols are considered recursive:"
+                        $++$ paragraph "Following symbols are considered recursive:"
                         $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- Set.toList rs])
-                        $++$ (text "The recursion depth is" <+> text (show recdepth) <+> text ".")
+                        $++$ paragraph( "The recursion depth is " ++ show recdepth ++ ".")
                         $+$ (case maf of 
                                Nothing -> PP.empty
                                Just af -> text "" 
-                                         $+$ text "Further, following argument filtering is employed:"
+                                         $+$ paragraph "Further, following argument filtering is employed:"
                                          $++$ pparam af
-                                         $++$ text "Usable defined function symbols are a subset of:"
+                                         $++$ paragraph "Usable defined function symbols are a subset of:"
                                          $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us]))
-                        $++$ text "For your convenience, here are the oriented rules in predicative" 
-                        $+$  text "notation (possibly applying argument filtering):"
+                        $++$ paragraph ("For your convenience, here are the oriented rules in predicative " 
+                                        ++ "notation, possibly applying argument filtering:")
                         $++$ pparam ppProblem
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam   = nest 1 . pprint
@@ -150,8 +150,8 @@ instance ComplexityProof PopStarOrder where
                           where (safes,normals) = IntSet.partition (SMEnc.isSafe sm f) is
                                 ppargs | IntSet.null is = PP.empty
                                        | otherwise      = ppa normals <> sc <> ppa safes
-                                ppa poss        = sep $ punctuate (text ",") [pp ti | (i,ti) <- zip [1..] ts
-                                                                                    , i `IntSet.member` poss]
+                                ppa poss        = sep $ punctuate (text ", ") [pp ti | (i,ti) <- zip [1..] ts
+                                                                                     , i `IntSet.member` poss]
                                 sc | IntSet.null safes = text ";"
                                    | otherwise         = text "; "
                     af = maybe (AF.empty sig) id maf

@@ -356,26 +356,33 @@ data Proof proc = Proof { appliedProcessor :: InstanceOf proc
 
 instance (Processor proc) => ComplexityProof (Proof proc) where
     pprintProof p@(Proof inst prob res) mde = 
-        text "We consider the following Problem:"
+        paragraph ("We are left with following problem, upon which TcT provides the certificate " ++ 
+                   (show $ pprint ans) ++ ".")
         $+$ text ""
-        $+$ nest 2 (pprint prob)
-        $+$ text ""
-        $+$ text "Certificate:" <+> pprint (answer p)
+        $+$ pprintComponents prob
+        $+$ text "Obligation:" 
+        $+$ nest 2 ppObligation
+        $+$ text "Answer:"
+        $+$ nest 2 (pprint ans)        
         $+$ text ""
         $+$ case mde of 
               StrategyOutput -> text "Application of" <+> qtext (instanceName inst) <> text ":"
-              ProofOutput    -> text "Proof-Output:"
-              OverviewOutput -> text "Overview:"              
-        $+$ nest 2 (pprintProof res mde)
-      -- ppIntro 
-      -- $+$ text ""
-      -- $+$ nest 2 (pprint prob)
-      -- $+$ text ""      
-      
-      --   where ppIntro = "We continue the proof of the following problem" <+> brackets (pprint ans)
-      --         ans = answer p
-              
-      
+                               $+$ nest 2 (pprintProof res mde)
+              OverviewOutput -> text "Overview:"
+                               $+$ nest 2 (pprintProof res mde)
+              ProofOutput    -> pprintProof res mde
+          where ans = answer p
+                ppObligation = text strat <> text st
+                st = 
+                  case startTerms prob of 
+                    TermAlgebra   -> "derivational complexity"
+                    BasicTerms {} -> "runtime complexity"
+                strat = 
+                  case strategy prob of 
+                    Innermost          -> "innermost "
+                    Full               -> ""
+                    ContextSensitive _ -> "context-sensitive "
+                    Outermost          -> "outermost "
     answer = answer . result
 
 -- | Objects of type 'ProofPartial proc' correspond to a proof node

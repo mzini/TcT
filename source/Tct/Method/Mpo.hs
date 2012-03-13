@@ -43,7 +43,7 @@ import Termlib.Rule (lhs, rhs, Rule)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
 import Termlib.Trs.PrettyPrint (pprintTrs)
-import Termlib.Utils (PrettyPrintable(..),($++$), block)
+import Termlib.Utils (PrettyPrintable(..),($++$), block, paragraph)
 import qualified Termlib.ArgumentFiltering as AF
 import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
@@ -90,16 +90,16 @@ data MpoOrder = MpoOrder
               deriving Show
 
 instance ComplexityProof MpoOrder where
-  pprintProof order _ = text "The input was oriented with the instance of" 
-                        $+$ (text "'multiset path orders' as induced by the precedence")
+  pprintProof order _ = paragraph ("The input was oriented with the instance of" 
+                                   ++ "'multiset path orders' as induced by the precedence")
                         $++$ (pparam prec <+> text ".")
                         $+$ (case maf of 
                                Nothing -> PP.empty
                                Just af -> text "" 
                                          $+$ text "Further, following argument filtering is employed:"
                                          $++$ pparam af
-                                         $++$ text "Applying the argument filtering on the input problem results in"
-                                         $++$ text "the following TRSs (here only usable rules modulo the argument filtering are shown)."                                         
+                                         $++$ paragraph ( "Applying the argument filtering on the input problem results in "
+                                                          ++ "the following rules (here only usable rules modulo the argument filtering are shown).")   
                                          $++$ pparam ppProblem
                             )
       where pparam :: PrettyPrintable p => p -> Doc 

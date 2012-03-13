@@ -35,6 +35,7 @@ import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args.Instances hiding (Processor)
+import Termlib.Utils (paragraph)
 import Tct.Processor hiding (Proof, (<|>))
 import Text.PrettyPrint.HughesPJ hiding (brackets)
 
@@ -76,8 +77,8 @@ instance Processor p => S.Processor (Timeout p) where
             
 instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
     pprintProof (TOProof p)  mde = pprintProof p mde
-    pprintProof (TimedOut i) _   = text "Computation stopped due to timeout after" 
-                                   <+> double (fromIntegral i)
-                                   <+> text "seconds."
+    pprintProof (TimedOut i) _   = 
+      paragraph ("Computation stopped due to timeout after " 
+                 ++ show (double (fromIntegral i)) ++ " seconds.")
     answer (TOProof p)  = answer p
     answer (TimedOut _) = TimeoutAnswer

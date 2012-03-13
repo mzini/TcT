@@ -775,17 +775,17 @@ instance U.PrettyPrintable ProofTree where
                     -- $+$ ppOverview
                     $+$ ppSubs
                   ppSubs = vcat subPPs
-                  ppOverview = 
-                    heading "Generated New Problems"
-                    $+$ text ""
-                    $+$ indent (if null ts'
-                                then text "The transformation did not generate new subproblems." 
-                                     $+$ text ""
-                                else vcat [ text "*" 
-                                            <+> ((text "Problem" <+> ppNum as')
-                                                 $+$ indent (U.pprint $ problemFromTree t)
-                                                 $+$ text "")
-                                          | (as',t) <- ts'])
+                  -- ppOverview = 
+                  --   heading "Generated New Problems"
+                  --   $+$ text ""
+                  --   $+$ indent (if null ts'
+                  --               then text "The transformation did not generate new subproblems." 
+                  --                    $+$ text ""
+                  --               else vcat [ text "*" 
+                  --                           <+> ((text "Problem" <+> ppNum as')
+                  --                                $+$ indent (U.pprint $ problemFromTree t)
+                  --                                $+$ text "")
+                  --                         | (as',t) <- ts'])
 
                     
           ppNode :: [Int] -> String -> Problem -> Maybe P.Answer -> Doc -> Doc

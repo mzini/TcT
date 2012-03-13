@@ -74,6 +74,8 @@ import Control.Monad.Trans (liftIO)
 
 import qualified Termlib.Trs as Trs
 import Termlib.Problem (strictComponents) 
+import Termlib.Utils (paragraph) 
+
 import qualified Tct.Processor as P
 import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
@@ -163,7 +165,7 @@ empty = S.StdProcessor EmptyRules `S.withArgs` ()
 data OpenProof = OpenProof
 instance P.ComplexityProof OpenProof
   where answer _ = P.MaybeAnswer
-        pprintProof _ _ = text "The problem remains open"
+        pprintProof _ _ = paragraph "The problem remains open."
         
 data Open = Open
 instance S.Processor Open where
@@ -196,9 +198,9 @@ instance ( P.ComplexityProof (P.ProofOf g)
       answer p = either P.answer P.answer $ branchProof p
       
       pprintProof p mde@P.StrategyOutput = ppcond $+$ text "" $+$ ppbranch
-            where ppcond   = text ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
+            where ppcond   = paragraph ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
                              $+$ (indent $ P.pprintProof (guardProof p) mde)
-                  ppbranch = text ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
+                  ppbranch = paragraph ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
                              $+$ (indent $ P.pprintProof p P.StrategyOutput)
                   suc      = P.succeeded $ guardProof p
                   
@@ -259,11 +261,11 @@ instance ( T.Transformer g
   pprintProof (IteProgressUntransformed tr tp p) mde = 
     case mde of 
       P.StrategyOutput ->
-        text "Transformation of the input failed:"
+        paragraph "Transformation of the input failed:"
         $+$ text ""
         $+$ T.pprintTProof tr (P.inputProblem p) tp
         $+$ text ""        
-        $+$ text "We continue with processor" <+> text (P.instanceName (P.appliedProcessor p))
+        $+$ paragraph ("We continue with processor '" ++ P.instanceName (P.appliedProcessor p) ++ "'.")
         $+$ text ""        
         $+$ indent (P.pprintProof (P.result p) mde )
       _ -> P.pprintProof (P.result p) mde
@@ -330,16 +332,17 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
                                      $+$ detailsFailed (enumeration' failures)
           (OneOfSucceeded o p) 
               | mde == P.StrategyOutput -> case o of 
-                                           Sequentially -> procName p <+> text "succeeded:"
-                                           Fastest      -> procName p <+> text "proved the goal fastest:"
-                                           Best         -> procName p <+> text "proved the best result:"
+                                           Sequentially -> paragraph (procName p ++ " succeeded:")
+                                           Fastest      -> paragraph (procName p ++ " proved the goal fastest:")
+                                           Best         -> paragraph (procName p ++ " proved the best result:")
                                          $+$ text ""
                                          $+$ P.pprintProof (P.result p) mde
               | otherwise              -> P.pprintProof (P.result p) mde
-      where procName p = quotes $ text $ P.instanceName $ P.appliedProcessor p
+      where procName p = "'" ++ P.instanceName (P.appliedProcessor p) ++ "'"
             detailsFailed ps = block "Details of failed attempt(s)" 
-                              $ [ (a, procName p <+> text "failed due to the following reason:" 
-                                      $+$ (indent $ P.pprintProof (P.result p) mde))
+                              $ [ (a, paragraph (procName p ++ " failed due to the following reason:")
+                                      $+$ text ""
+                                      $+$ (P.pprintProof (P.result p) mde))
                                 | (a,p) <- ps, P.failed p]
 
     answer (OneOfFailed _ _)    = P.MaybeAnswer

@@ -90,19 +90,25 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
 instance ComplexityProof MatrixOrder where
     pprintProof order _ = (if uargs order == fullWithSignature (signature $ ordInter order)
                             then empty
-                            else (text "The following argument positions are usable:")
-                            $+$ indent (pprint (uargs order, signature $ ordInter order)))
-                            $+$ (text "We have the following" <+> ppknd (param order) <+> text "matrix interpretation:")
-                            $+$ pprint (ordInter order)
-        where ppknd UnrestrictedMatrix            = text "unrestricted"
-              ppknd (TriangularMatrix Nothing)    = text "triangular"
-              ppknd (TriangularMatrix (Just n))   = text "triangular with at most" <+> int n <+> text (if n == 1 then "one" else "ones") <+> text "in the main diagonals"
-              ppknd (ConstructorBased _ Nothing)  = text "constructor-restricted"
-              ppknd (ConstructorBased _ (Just n)) = text "constructor-restricted with at most" <+> int n <+> text (if n == 1 then "one" else "ones") <+> text "in the main diagonals"
-              ppknd (EdaMatrix Nothing)           = text "EDA-non-satisfying"
-              ppknd (EdaMatrix (Just n))          = text "EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
-              ppknd (ConstructorEda _ Nothing)    = text "constructor-based EDA-non-satisfying"
-              ppknd (ConstructorEda _ (Just n))   = text "constructor-based EDA-non-satisfying and IDA" <> parens (int n) <> text "-non-satisfying"
+                            else paragraph "The following argument positions are usable:")
+                                 $+$ indent (pprint (uargs order, signature $ ordInter order))
+                                 $+$ text ""
+                            $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
+                            $+$ text ""
+                            $+$ indent(pprint (ordInter order))
+        where ppknd UnrestrictedMatrix            = "unrestricted matrix interpretation."
+              ppknd (TriangularMatrix Nothing)    = "triangular matrix interpretation."
+              ppknd (TriangularMatrix (Just n))   = "triangular matrix interpretation. Note that " 
+                                                    ++ "the diagonal of the component-wise maxima of interpretation-entries contains no more than "              
+                                                    ++ show n ++ " non-zero entries."
+              ppknd (ConstructorBased _ Nothing)  = "constructor-restricted matrix interpretation."
+              ppknd (ConstructorBased _ (Just n)) = "constructor-restricted matrix interpretation. Note that " 
+                                                    ++ "the diagonal of the component-wise maxima of interpretation-entries contains no more than "              
+                                                    ++ show n ++ " non-zero entries."
+              ppknd (EdaMatrix Nothing)           = "matrix interpretation satisfying not(EDA)."
+              ppknd (EdaMatrix (Just n))          = "matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ ")."
+              ppknd (ConstructorEda _ Nothing)    = "constructor-based matrix interpretation satisfying not(EDA)."
+              ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ ")."
 
     answer (MatrixOrder _ UnrestrictedMatrix _)          = CertAnswer $ certified (unknown, expo (Just 1))
     answer (MatrixOrder m (TriangularMatrix _) _)        = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
@@ -118,19 +124,19 @@ instance ComplexityProof MatrixOrder where
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"
 
-    description NaturalMI = [ "This processor orients the problem using matrix-interpretation over natural numbers." ]
+    description NaturalMI = [ "This processor orients the problem using matrix interpretation over natural numbers." ]
 
     type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments NaturalMI = opt { A.name        = "cert"
-                              , A.description = unlines [ "This argument specifies restrictions on the matrix-interpretation which induce polynomial growth of"
+                              , A.description = unlines [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
                                                         , "the interpretation of the considered starting terms relative to their size."
                                                         , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
                                                         , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
-                                                        , "half below the diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
+                                                        , "half below the diagonal are zero. Such matrix interpretations induce polynomial derivational-complexity." 
                                                         , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
                                                         , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
                                                         , "the flag 'degree' is set, are used)."
-                                                        , "If 'nothing' is given, then matrix-interpretations of all function symbols are unrestricted."
+                                                        , "If 'nothing' is given, then matrix interpretations of all function symbols are unrestricted."
                                                         , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
                                                         , "The default value is 'automaton'."
                                                         ]
@@ -147,7 +153,7 @@ instance S.Processor NaturalMI where
                           :+:
                           opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
-                                                        , " in the matrix-interpretation."]
+                                                        , " in the matrix interpretation."]
                               , A.defaultValue = Nat 2 }
                           :+:
                           opt { A.name        = "bound"
@@ -179,7 +185,7 @@ instance S.Processor NaturalMI where
 --                                                         , "to using a tcap-like function." ]
 --                               , A.defaultValue = UArgByCap }
 
-    instanceName inst = "matrix-interpretation of dimension " ++ show (dim $ S.processorArgs inst)
+    instanceName inst = "matrix interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
     type S.ProofOf NaturalMI = OrientationProof MatrixOrder
 

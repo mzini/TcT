@@ -50,7 +50,7 @@ import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
 import Tct.Utils.Enum (enumeration')
-import Tct.Utils.PPrint
+import Tct.Utils.PPrint ()
 import Tct.Method.Matrix.MatrixInterpretation hiding (signature)
 import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor.Args as A
@@ -78,15 +78,17 @@ data WeightGapProof = WeightGapProof { wgInputProblem :: Problem
 instance PrettyPrintable WeightGapProof where
   pprint (WeightGapProof _ e@Empty _ _ _) = P.pprintProof e P.ProofOutput
   pprint wgp 
-      | P.succeeded p = text "The weightgap principle applies, where following rules are oriented strictly:"
+      | P.succeeded p = paragraph ("The weightgap principle applies.")
                         $+$ text ""
-                        $+$ pptrs "Dependency Pairs" sDPs
-                        $+$ pptrs "TRS Component" sTrs
+                        $+$ P.pprintProof p P.ProofOutput
                         $+$ text ""
-                        $+$ block' intertitle [P.pprintProof p P.ProofOutput]
+                        $+$ paragraph ("This " ++ intertitle ++ " orients following rules strictly:")
+
+                        $+$ pptrs "DPs" sDPs
+                        $+$ pptrs "Trs" sTrs
                         $+$ text ""
-                        $+$ text "The strictly oriented rules are moved into the weak component."
-      | otherwise     = text "The weightgap principle does not apply"
+                        $+$ paragraph "The rules moved into the corresponging weak component."
+      | otherwise     = text "The weightgap principle does not apply."
     where ip = wgInputProblem wgp
           p  = wgProof wgp
           sDPs = Trs.fromRules $ wgRemovableDps wgp
@@ -95,9 +97,9 @@ instance PrettyPrintable WeightGapProof where
           sig  = signature ip
           vars = variables ip
           intertitle = case wgConstGrowth wgp of
-                         Just False -> "Interpretation of nonconstant growth"
-                         Just True  -> "Interpretation of constant growth"
-                         Nothing    -> "Interpretation"
+                         Just False -> "nonconstant growth matrix-interpretation"
+                         Just True  -> "constant growth matrix-interpretation"
+                         Nothing    -> "matrix-interpretation"
 
 instance T.TransformationProof WeightGap where 
   answer proof = case T.subProofs proof of 

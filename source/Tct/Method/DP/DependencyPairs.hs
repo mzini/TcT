@@ -97,15 +97,16 @@ data DPProof = DPProof { strictDPs    :: Trs
              | TuplesNonInnermost
 
 instance PrettyPrintable DPProof where 
-    pprint NotRCProblem = text "The input problem is not a RC-problem. We cannot compute dependency pairs."
-    pprint ContainsDPs  = text "The input problem contains already dependency pairs. "
-    pprint TuplesNonInnermost  = text "Dependency tuples only applicable to innermost problems."
-    pprint p            = text "We add following dependency" <+> text (if tuplesUsed p then "tuples" else "pairs")
+    pprint NotRCProblem = paragraph "The input problem is not a RC-problem. We cannot compute dependency pairs."
+    pprint ContainsDPs  = paragraph "The input problem contains already dependency pairs. "
+    pprint TuplesNonInnermost  = paragraph "Dependency tuples only applicable to innermost problems."
+    pprint p            = paragraph ("We add following dependency " 
+                                     ++ (if tuplesUsed p then "tuples" else "pairs"))
                           $+$ text ""
-                          $+$ nest 2 (ppTrs "Strict DPs" (strictDPs p)
-                                      $+$ ppTrs  "Weak DPs" (weakDPs p))
+                          $+$ ppTrs "Strict DPs" (strictDPs p)
+                          $+$ ppTrs  "Weak DPs" (weakDPs p)
                           $+$ text ""
-                          $+$ text "and replace the set of basic marked basic terms accordingly."
+                          $+$ paragraph "and replace the set of basic marked basic terms accordingly."
         where sig = newSignature p
               vars = newVariables p
               ppTrs = pprintNamedTrs sig vars

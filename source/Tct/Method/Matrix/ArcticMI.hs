@@ -69,7 +69,7 @@ instance ComplexityProof ArcticOrder where
     pprintProof order _ = 
         text "The following argument positions are usable:"
         $+$ pprint (uargs order, signature $ ordInter order)
-        $+$ text "The input is compatible using the following" <+> text "arctic interpretation:"
+        $+$ paragraph ("The input is compatible using the following arctic interpretation.")
         $+$ pprint (ordInter order)
     answer (ArcticOrder _ _) = CertAnswer $ certified (unknown, poly (Just 1))
 
@@ -77,12 +77,12 @@ instance ComplexityProof ArcticOrder where
 instance S.Processor ArcticMI where
     name ArcticMI = "arctic"
 
-    description ArcticMI = [ "This processor orients the problem using matrix-interpretation over the arctic semiring." ]
+    description ArcticMI = [ "This processor orients the problem using matrix interpretation over the arctic semiring." ]
 
     type S.ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments ArcticMI =  opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
-                                                        , " in the matrix-interpretation."]
+                                                        , " in the matrix interpretation."]
                               , A.defaultValue = Nat 3 }
                           :+:
                           opt { A.name        = "bound"

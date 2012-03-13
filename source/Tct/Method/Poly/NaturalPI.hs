@@ -78,14 +78,14 @@ instance ComplexityProof PolynomialOrder where
   pprintProof order _ = 
       (if uargs order == fullWithSignature (signature $ ordInter order)
        then empty
-       else (text "The following argument positions are usable:")
-       $+$ indent (pprint (uargs order, signature $ ordInter order)))
-      $+$ (text "We have the following" <+> ppknd (param order) <+> text "polynomial interpretation:")
+       else (paragraph "The following argument positions are usable:"
+             $+$ indent (pprint (uargs order, signature $ ordInter order))))
+      $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
       $+$ pprint (ordInter order)
     where ppknd (UnrestrictedPoly   shp) = ppshp shp
-          ppknd (ConstructorBased _ shp) = text "restricted" <+> ppshp shp
-          ppshp (SimpleShape s) = text (show s)
-          ppshp (CustomShape _) = text ""          
+          ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
+          ppshp (SimpleShape s) = show s ++ " polynomial interpretation."
+          ppshp (CustomShape _) = "polynomial interpretation." 
 
   answer order = CertAnswer $ certified (unknown, ub)
     where ub = case knd of 

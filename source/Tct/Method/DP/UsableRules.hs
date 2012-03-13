@@ -85,8 +85,7 @@ data URProof = URProof { usableStrict :: Trs -- ^ Usable strict rules
 instance PrettyPrintable URProof where 
   pprint p@URProof {} 
     | prog && null allUrs = text "No rule is usable."
-    | prog               = text "We replace strict/weak-rules by the corresponding usable rules:"
-                           $+$ text ""
+    | prog               = paragraph "We replace strict/weak-rules by the corresponding usable rules:"
                            $+$ indent (ppTrs "Strict Usable Rules" (usableStrict p)
                                        $+$ ppTrs "Weak Usable Rules" (usableWeak p))
     | otherwise       = text "All rules are usable."

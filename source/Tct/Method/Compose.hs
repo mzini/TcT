@@ -49,7 +49,7 @@ import Tct.Processor (ComplexityProof (..), certificate)
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
-import Termlib.Utils (PrettyPrintable (..))
+import Termlib.Utils (PrettyPrintable (..), paragraph)
 import Termlib.Trs (RuleList(..), union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
@@ -70,8 +70,8 @@ data Partitioning = Static (RuleSelector ComposeBound) -- ^ Select rules statica
  deriving (Typeable)
 
 instance Show Partitioning where
-    show Dynamic         = "dynamic"
-    show (Static s) = show $ text "statically using" <+> quotes (text (show s))
+    show Dynamic    = "dynamically selecting rules"
+    show (Static s) = "statically selecting rules by '" ++ show s ++ "'"
 
 instance AssocArgument Partitioning where 
     assoc _ = [ ("dynamic",    Dynamic) ] --TODO extend
@@ -217,39 +217,41 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                         ub2 = ubound sp2
                         ubound :: P.ComplexityProof p => p -> Cert.Complexity
                         ubound p = Cert.upperBound $ certificate p
-      pprintTProof _ _ (Inapplicable reason) = text "Compose is inapplicable since" <+> text reason
+      pprintTProof _ _ (Inapplicable reason) = paragraph ("We cannot use 'composeCompose' since " 
+                                                          ++ reason ++ ".")
       pprintTProof t prob (tproof@(ComposeProof compfn split stricts esp1)) = 
         if progress tproof 
-        then fsep [text "We use the processor", tName, text "to orient following rules strictly.", parens ppsplit]
+        then paragraph ("We use the processor " 
+                        ++ tName ++ " to orient following rules strictly. "
+                        ++ "These rules were chosen according to '" ++ show split ++ "'.")
              $+$ text ""
-             $+$ pptrs "Dependency Pairs" rDPs
-             $+$ pptrs "TRS Component" rTrs
+             $+$ pptrs "DPs" rDPs
+             $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ fsep [text "The induced complexity of", tName, text "on above rules is", pprint (either P.answer P.answer esp1) <> text "."]
+             $+$ paragraph ("The induced complexity of" ++ tName ++ " on above rules is " 
+                            ++ show (pprint (either P.answer P.answer esp1)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""
-             $+$ (text "The overall complexity is obtained by" 
-                  <+> qtext (case compfn of 
-                                Add     -> "addition"
-                                Mult    -> "multiplication"
-                                Compose -> "composition") <> text ".")
-        else block' "Sub-proof" [ if null stricts 
-                                  then text "We fail to orient any rules."
-                                       $+$ text ""
-                                       $+$ ppSubproof
-                                  else text "We have tried to orient orient following rules strictly:"
-                                       $+$ text ""
-                                       $+$ pptrs "Strict Rules" (Trs stricts)]
-            where rDPs = either (Prob.strictDPs . P.inputProblem) (Trs . P.ppRemovableDPs) esp1
+             $+$ paragraph( "The overall complexity is obtained by " ++ compName ++ ".")
+        else if null stricts 
+             then paragraph "We fail to orient any rules."
+                  $+$ text ""
+                  $+$ ppSubproof
+             else paragraph "We have tried to orient orient following rules strictly:"
+                  $+$ text ""
+                  $+$ pptrs "Strict Rules" (Trs stricts)
+            where compName = case compfn of 
+                                 Add     -> "addition"
+                                 Mult    -> "multiplication"
+                                 Compose -> "composition"
+                  rDPs = either (Prob.strictDPs . P.inputProblem) (Trs . P.ppRemovableDPs) esp1
                   rTrs = either (Prob.strictTrs . P.inputProblem) (Trs . P.ppRemovableTrs) esp1
                   sig = Prob.signature prob
                   vars = Prob.variables prob
-                  qtext = quotes . text
-                  tName = qtext $ T.instanceName t
+                  tName = "'" ++ T.instanceName t ++ "'"
                   pptrs = pprintNamedTrs sig vars
                   ppSubproof = either (\p -> P.pprintProof p P.ProofOutput) (\p -> P.pprintProof p P.ProofOutput) esp1
-                  ppsplit = text "These rules where chosen" <+> text (show split) <> text "."
 
 composeProcessor :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
 composeProcessor = T.Transformation ComposeProc

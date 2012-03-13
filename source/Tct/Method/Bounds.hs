@@ -79,13 +79,10 @@ data BoundsCertificate = BoundsCertificate { boundHeight    :: Int
 
 data BoundsProof = BP Enrichment (Maybe BoundsCertificate)
 
-ppEnrichment :: Enrichment -> Doc
-ppEnrichment = text . show
-
 instance ComplexityProof BoundsProof where
-    pprintProof (BP e Nothing) _ = (ppEnrichment e) <> text "-boundness" <+> text "of the problem could not be verified." 
-    pprintProof (BP e (Just p)) _ = text "The problem is" <+> (ppEnrichment e) <> text "-bounded by" <+> pprint (boundHeight p) <> text "."
-                                    $+$ text "The enriched problem is compatible with the following automaton:"
+    pprintProof (BP e Nothing) _ = paragraph (show e ++ "-boundness of the problem could not be verified.") 
+    pprintProof (BP e (Just p)) _ = paragraph ("The problem is " ++ show e ++ "-bounded by " ++ show (boundHeight p) ++ "."
+                                               ++ " The enriched problem is compatible with the following automaton.")
                                     $+$ pprint (toRules (automaton p), (sig p))
     answer (BP _ Nothing) = MaybeAnswer
     answer (BP _ _)       = CertAnswer $ certified (unknown, poly (Just 1))

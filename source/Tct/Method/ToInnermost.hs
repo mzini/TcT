@@ -42,10 +42,10 @@ data ToInnermostProof = ToiNonOverlay
 data ToInnermost = ToInnermost deriving Show
                         
 instance PrettyPrintable ToInnermostProof where
-  pprint ToiNonRightLinear = text "The input is not right linear" 
-  pprint ToiNonOverlay     = text "The input is not an overlay" 
-  pprint ToiSuccess        = text "The input is is overlay and right-linear." 
-                             $+$ text "Switching to innermost rewriting."
+  pprint ToiNonRightLinear = text "The input is not right linear." 
+  pprint ToiNonOverlay     = text "The input is not an overlay." 
+  pprint ToiSuccess        = paragraph ("The input is is overlay and right-linear." 
+                                        ++ "Switching to innermost rewriting.")
                              
 instance T.TransformationProof ToInnermost where
   answer = T.answerFromSubProof

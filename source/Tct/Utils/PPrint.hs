@@ -46,7 +46,7 @@ enum es =  vcat [pprint a <> text ")" <+> pprint e $+$ text "" | (a,e) <- es]
 block :: (PrettyPrintable t) => String -> Enumeration t -> Doc
 block _ [] = empty
 block h [(_,d)] = heading h $+$ (indent $ pprint d)
-block h ds = heading h $+$ (indent $ enum ds)
+block h ds = heading h $+$ enum ds
 
 -- | Like 'block', but expects a list instead of an enumeration.
 block' :: (PrettyPrintable t) => String -> [t] -> Doc

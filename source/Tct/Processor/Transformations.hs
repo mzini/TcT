@@ -289,19 +289,19 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
             subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
             ppOverviews showFailed =
               case subprobs of 
-                [(i,prob_i)] -> indent (ppOverview i prob_i)
+                [(i,prob_i)] -> ppOverview i prob_i
                 _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
                                     | (i, prob_i) <- subprobs]
               where ppOverview (SN i) prob_i = 
                       case find i r2s of 
-                        Nothing   -> text "We abort on this problem. THIS SHOULD NOT HAPPEN!"
+                        Nothing   -> Util.paragraph "We abort on this problem. THIS SHOULD NOT HAPPEN!"
                         Just r2_i@(Progress _ _) -> 
                           ppRes prob_i r2_i
                         Just r2_i@(NoProgress _) 
                           | showFailed   -> ppRes prob_i r2_i   
                           | otherwise -> PP.empty
                     ppRes prob_i r2_i =  
-                      (text "We apply the transformation" <+> Util.qtext (instanceName t2) <+> text "on the sub-problem:")
+                      Util.paragraph ("We apply the transformation '" ++ instanceName t2 ++ "' on the sub-problem:")
                       $+$ text ""
                       $+$ Util.pprint prob_i
                       $+$ text ""
@@ -309,7 +309,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                       $+$ if null ps 
                           then PP.empty
                           else text ""
-                               $+$ text "The consider problem is replaced by"
+                               $+$ Util.paragraph "The consider problem is replaced by"
                                $+$ text ""
                                $+$ enum ps
                      where ps = subProblemsFromResult r2_i
@@ -393,11 +393,12 @@ instance Numbering a => Numbering (Unique a) where
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     name (TheTransformer t1 _ :>>>: _) = name t1
-    instanceName (TheTransformer (t1 :>>>: _) _) = instanceName t1 ++ " >>> ..."
+    instanceName (TheTransformer (t1 :>>>: _) _) = instanceName t1
     description _ = ["Implements sequencing of two transformations"]
     type ArgumentsOf (t1 :>>>: t2) = Unit
     type ProofOf (t1 :>>>: t2)    = ComposeProof t1 t2
     arguments _ = Unit
+    continue (TheTransformer (t1 :>>>: t2) _) = continue t1 && continue t2
     transform inst prob = do
       r1 <- transform t1 prob
       case r1 of 
@@ -453,11 +454,11 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
   pprintTProof (TheTransformer (t1 :<>: _) _) prob (ChoiceOne r1) = 
     pprintTProof t1 prob (proofFromResult r1)
   pprintTProof (TheTransformer (t1 :<>: t2) _) prob (ChoiceTwo r1 r2) = 
-    text "We fail transforming the problem using" <+> quotes (text (instanceName t1))
+    Util.paragraph ("We fail transforming the problem using '" ++ instanceName t1 ++ "':")
     $+$ text ""
     $+$ indent (pprintTProof t1 prob (proofFromResult r1))
     $+$ text ""
-    $+$ text "We try instead" <+> quotes (text (instanceName t2)) <+> text "on the problem"
+    $+$ Util.paragraph ("We try instead '" ++ instanceName t2 ++ "'. We reconsider following problem:")
     $+$ text ""    
     $+$ Util.pprint prob
     $+$ text ""
@@ -474,7 +475,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
   name (TheTransformer t1 _ :<>: _)           = name t1
-  instanceName (TheTransformer (t1 :<>: _) _) = instanceName t1 ++ " <> ..."
+  instanceName (TheTransformer (t1 :<>: _) _) = instanceName t1
   
   type ArgumentsOf (t1 :<>: t2) = Unit
   type ProofOf (t1 :<>: t2) = ChoiceProof t1 t2
@@ -507,7 +508,7 @@ instance TransformationProof t => TransformationProof (Try t) where
               | mde == P.StrategyOutput -> 
                   pprintTProof t' (inputProblem proof) p
                   $+$ text ""
-                  $+$ text "We abort the transformation and continue with the subprocessor on the previous problem" 
+                  $+$ Util.paragraph "We abort the transformation and continue with the subprocessor on the previous problem" 
                   $+$ text ""
                   $+$ Util.pprint (inputProblem proof)
                   $+$ text ""
@@ -519,7 +520,7 @@ instance TransformationProof t => TransformationProof (Try t) where
       where t         = appliedTransformer proof
             t'        = fromTry t
             msubproof = case subProofs proof of 
-                          [(_,sp)] -> Just sp
+                          [(_,sp)] -> Just $ P.result sp
                           _        -> Nothing
             result    = transformationResult proof
             ppsub = case msubproof of 
@@ -541,7 +542,7 @@ instance TransformationProof t => TransformationProof (Try t) where
 instance (Transformer t) => Transformer (Try t) where
     name (Try t) = name t
     continue _ = True
-    instanceName inst = "try " ++ instanceName (fromTry inst)
+    instanceName inst = instanceName (fromTry inst)
     description (Try t) = description t
     type ArgumentsOf  (Try t) = ArgumentsOf t
     type ProofOf (Try t) = TryProof t
@@ -765,12 +766,12 @@ liftMS mprob proof = proof { P.appliedProcessor = SSI (P.appliedProcessor proof)
 instance P.ComplexityProof proof => P.ComplexityProof (MaybeSubsumed proof) where 
   answer (MaybeSubsumed _ proof) = P.answer proof
   pprintProof (MaybeSubsumed Nothing  proof) mde = P.pprintProof proof mde
-  pprintProof (MaybeSubsumed (Just p) proof) mde = text "The complexity of the input problem is bounded by the complexity of the problem"
+  pprintProof (MaybeSubsumed (Just p) proof) mde = Util.paragraph "The complexity of the input problem is bounded by the complexity of the problem"
                                                    $+$ text ""
                                                    $+$ indent (Util.pprint p)
                                                    $+$ text ""
-                                                   $+$ text "on which the subprocessor has allready been applied."
-                                                   $+$ text "We reuse following proof:"
+                                                   $+$ Util.paragraph "on which the subprocessor has allready been applied. We reuse following proof:"
+                                                   $+$ text ""
                                                    $+$ P.pprintProof proof mde
 
 instance P.Processor proc => P.Processor (Subsumed proc) where

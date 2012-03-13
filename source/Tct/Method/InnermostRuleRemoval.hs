@@ -39,7 +39,7 @@ import Termlib.Problem hiding (Strategy, variables, strategy)
 import Termlib.Rule (Rule, rewrite)
 import Termlib.Term (immediateSubterms)
 import Termlib.Trs ((\\), RuleList(..), unions, fromRules)
-import Termlib.Utils (PrettyPrintable(..))
+import Termlib.Utils (PrettyPrintable(..), paragraph)
 
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
@@ -54,12 +54,13 @@ data IRRProof = IRRProof { inputProblem :: Problem
               | NotApplicable String
 
 instance PrettyPrintable IRRProof where 
-    pprint (NotApplicable r) = text "The processor is not applicable, reason is:" $+$ (nest 2 $ text r)
-    pprint proof | length (removals proof) == 0 = text "The input problem contains no overlaps that give rise to inapplicable rules."
-                 | otherwise                   = text "Arguments of following rules are not normal-forms:" 
+    pprint (NotApplicable r) = paragraph "The processor is not applicable, reason is:" $+$ (nest 1 $ text r)
+    pprint proof | length (removals proof) == 0 = paragraph "The input problem contains no overlaps that give rise to inapplicable rules."
+                 | otherwise                   = paragraph "Arguments of following rules are not normal-forms:" 
+                                                 $+$ text ""
                                                  $+$ pprint (trs, Prob.signature prob, Prob.variables prob)
                                                  $+$ text ""
-                                                 $+$ text "All above mentioned rules can be savely removed."
+                                                 $+$ paragraph "All above mentioned rules can be savely removed."
                  where trs  = unions [ fromRules (removed rr) | rr <- removals proof] 
                        prob = inputProblem proof
 

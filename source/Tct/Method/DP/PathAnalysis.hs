@@ -166,8 +166,7 @@ instance T.TransformationProof PathAnalysis where
     pprintProof proof mde = 
         case T.transformationProof proof of 
           Error   e   -> pprint e
-          tproof -> text "We use following congruence DG for" <+> text nm
-                   $+$ text ""
+          tproof -> paragraph ("We employ '" ++ nm ++ "' using the following approximated dependency graph:")
                    $+$ pprintCWDG cwdg sig vars ppLabel
                    $+$ text ""
                    $+$ ppDetails

@@ -81,7 +81,7 @@ instance PrettyPrintable a => PrettyPrintable (MatrixInter a) where
   pprint (MI _ sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints)) -- (text "Dimension:" <+> int d) $$
     where printInters = vcat . map (uncurry printInter) . Map.assocs
           printInter f li = fHead <+> nest (length (show fHead) + 1) (pprint li)
-            where fHead = pprint (f,sig) <> fargs li <+> char '='
+            where fHead = brackets (pprint (f,sig)) <> fargs li <+> char '='
                   fargs = parens . hsep . punctuate comma . map (\(V.Canon i) -> char 'x' <> int i) . Map.keys . coefficients
 
 instance PrettyPrintable a => PrettyPrintable (LInter a) where

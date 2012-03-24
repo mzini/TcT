@@ -21,8 +21,8 @@ import Prelude hiding ((&&),(||),not)
 import qualified Data.Foldable as F
 import Qlogic.Semiring
 
-newtype Vector a = Vector [a] deriving Show
-newtype Matrix a = Matrix [Vector a] deriving Show
+newtype Vector a = Vector [a] deriving (Show, Eq)
+newtype Matrix a = Matrix [Vector a] deriving (Show, Eq)
 
 instance Functor Vector where
   fmap f (Vector v) = Vector $ map f v

@@ -77,15 +77,22 @@ instance Functor MatrixInter where
 instance Functor LInter where
   fmap f li = LI (Map.map (fmap f) (coefficients li)) (fmap f (constant li))
 
-instance PrettyPrintable a => PrettyPrintable (MatrixInter a) where
-  pprint (MI _ sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints)) -- (text "Dimension:" <+> int d) $$
-    where printInters = vcat . map (uncurry printInter) . Map.assocs
-          printInter f li = fHead <+> nest (length (show fHead) + 1) (pprint li)
-            where fHead = brackets (pprint (f,sig)) <> fargs li <+> char '='
-                  fargs = parens . hsep . punctuate comma . map (\(V.Canon i) -> char 'x' <> int i) . Map.keys . coefficients
-
-instance PrettyPrintable a => PrettyPrintable (LInter a) where
-   pprint = pprintLI mVar
+instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (MatrixInter a) where
+  pprint (MI _ sig ints) = text "Interpretation Functions:" 
+                           $+$ vcat (punctuate (text "" $$ text "") 
+                                     [ p indend | (_, p) <- ps ])
+                            
+    where ps = [ printInter  f li | (f, li) <- Map.assocs ints]
+          printInter f li = (length name, \ ind -> pprintLI name ind ppVar li)
+            where name = show $ brackets (pprint (f,sig)) <> ppArgs <+> text "= "
+                  ppArgs | null vs = empty
+                         | otherwise = parens $ hsep $ punctuate comma [ppVar var | var <- vs]
+                  vs = Map.keys $ coefficients $ li
+                  ppVar (V.Canon v) = char 'x' <> int v
+                  ppVar (V.User v)  = char 'y' <> int v
+          indend = maximum (0 : [ len | (len, _) <- ps ])
+instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (LInter a) where
+   pprint = pprintLI "" 0 mVar
      where mVar (V.Canon v) = char 'x' <> int v
            mVar (V.User v)  = char 'y' <> int v
 --   pprint (LI ms vec) = foldr handleLine empty [1..d]
@@ -102,22 +109,41 @@ instance PrettyPrintable a => PrettyPrintable (LInter a) where
 --           prettyLength                   = length . show . pprint
 --           d                              = vecdim vec
 
-instance PrettyPrintable a => PrettyPrintable (LInter a, V.Variables) where
-   pprint (li, var) = pprintLI mVar li
+instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (LInter a, V.Variables) where
+   pprint (li, var) = pprintLI "" 0 mVar li
      where mVar v = text $ V.variableName v var
 
-pprintLI :: PrettyPrintable a => (V.Variable -> Doc) -> LInter a -> Doc
-pprintLI f (LI ms vec) = foldr handleLine empty [1..d]
-    where handleLine i doc       = Map.foldrWithKey (handleMatrix i) (vLine i) ms $$ doc
-          handleMatrix i v m doc = mLine i m <+> mVar i v <+> doc
-          colWidths m            = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
-          mLine i m              = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
-          mCell (cell, l) doc    = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
-          mVar i v | i == 1      = f v <+> char '+'
-          mVar _ v | otherwise   = text $ replicate (length (show $ f v) + 2) ' '
-          vLine i                = brackets $ pprint (vEntry i vec)
-          prettyLength           = length . show . pprint
-          d                      = vecdim vec
+pprintLI :: (Eq a, PrettyPrintable a, Semiring a) => String -> Int -> (V.Variable -> Doc) -> LInter a -> Doc
+pprintLI name indend ppVar (LI ms vec) = vcat [ text (whenBaseLine i (alignRight indend name))
+                                                <> ppRow i | i <- [1..d] ]
+    where d = vecdim vec
+          vs = [ (var, (show . pprint) `fmap` m) | (var, m) <- Map.toList ms , m  /= zeroMatrix ]
+          
+          ppRow i = hsep $ 
+                    punctuate (text $ whenBaseLine i " +") $
+                    [ ppVariableCoefficient i m 
+                      <+> text (whenBaseLine i (show (ppVar var))) | (var,m) <- vs] ++ [ppConstant i]
+                          
+          ppConstant i = brackets $ pprint (vEntry i vec)
+          
+          ppVariableCoefficient i m = 
+            brackets (fsep [ text $ alignRight w cell | (cell, w) <- zip rs widths ])
+                                          
+            where rs = elts $ row i m
+                  widths = [collWidth j | j <- [1..d]]
+                  collWidth j = maximum $ 0 : [ length e | e <- elts $ col j m ]
+                  
+
+          zeroMatrix = zeromatrix d d
+          elts (Vector es) = es          
+          
+          whenBaseLine :: Int -> String -> String
+          whenBaseLine i str 
+            | floor mid  == i = str
+            | otherwise = [' ' | _ <- str]
+              where mid = fromIntegral (d + 1) / (2 :: Rational)
+          alignRight pad str = replicate diff ' ' ++ str
+            where diff = pad - length str
 
 -- pprint' :: PrettyPrintable a => LInter a -> Doc
 -- pprint' (LI ms v) = Map.foldWithKey pArg (pVector v) ms

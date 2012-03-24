@@ -343,7 +343,7 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
                               $ [ (a, paragraph (procName p ++ " failed due to the following reason:")
                                       $+$ text ""
                                       $+$ (P.pprintProof (P.result p) mde))
-                                | (a,p) <- ps, P.failed p]
+                                | (a,p) <- ps]
 
     answer (OneOfFailed _ _)    = P.MaybeAnswer
     answer (OneOfSucceeded _ p) = P.answer p

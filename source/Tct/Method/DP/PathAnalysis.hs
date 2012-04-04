@@ -78,8 +78,8 @@ data PathAnalysis = PathAnalysis
 instance T.Transformer PathAnalysis where
     name PathAnalysis        = "pathanalysis"
     description PathAnalysis = ["This processor implements path-analysis as described in the dependency pair paper."]
-    type T.ArgumentsOf PathAnalysis = Arg Bool
-    type T.ProofOf PathAnalysis = PathProof
+    type ArgumentsOf PathAnalysis = Arg Bool
+    type ProofOf PathAnalysis = PathProof
     arguments PathAnalysis = opt { A.name = "linear"
                                  , A.description = unlines [ "If this flag is set, linear path analysis is employed."]
                                  , A.defaultValue = False }

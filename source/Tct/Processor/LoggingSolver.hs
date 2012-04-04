@@ -26,16 +26,16 @@ import System.IO (Handle, hPutStrLn, hFlush)
 import Control.Concurrent (ThreadId, forkIO, myThreadId)
 import qualified Control.Exception as C
 import Text.PrettyPrint.HughesPJ
-import Control.Monad.RWS.Lazy
+import Control.Monad.RWS.Lazy hiding ((<>))
 import Data.UUID
 import System.UUID.V4
+import System.Locale 
 
 import Data.Time.Clock (getCurrentTime, picosecondsToDiffTime, UTCTime(..))
 import Data.Time.Format (formatTime)
 import Data.Time.LocalTime (utcToLocalZonedTime, ZonedTime(..))
 import Termlib.Problem
 import Termlib.Utils
-import Locale
 
 import Tct.Main.Debug
 import Tct.Processor as P

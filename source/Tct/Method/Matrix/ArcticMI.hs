@@ -79,7 +79,7 @@ instance S.Processor ArcticMI where
 
     description ArcticMI = [ "This processor orients the problem using matrix interpretation over the arctic semiring." ]
 
-    type S.ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    type ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments ArcticMI =  opt { A.name        = "dim"
                               , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
                                                         , " in the matrix interpretation."]
@@ -110,7 +110,7 @@ instance S.Processor ArcticMI where
 
     instanceName inst = "arctic-interpretation of dimension " ++ show (dim inst)
 
-    type S.ProofOf ArcticMI = OrientationProof ArcticOrder
+    type ProofOf ArcticMI = OrientationProof ArcticOrder
     solve inst problem  | not isMonadic                        = return $ Inapplicable "Arctic Interpretations only applicable for monadic problems"
                         | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig inst
                         | otherwise                            = orientRelative strat st sr wr sig inst

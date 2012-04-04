@@ -85,8 +85,8 @@ instance T.TransformationProof Uncurry where
                    vars = Prob.variables $ inputProblem proof
 
 instance T.Transformer Uncurry where
-    type T.ArgumentsOf Uncurry = A.Unit
-    type T.ProofOf     Uncurry = UncurryProof
+    type ArgumentsOf Uncurry = A.Unit
+    type ProofOf     Uncurry = UncurryProof
     name Uncurry = "uncurry"
     description Uncurry = [ "This processor implements 'Uncurrying' for left-head-variable-free ATRSs"]
     arguments Uncurry = A.Unit

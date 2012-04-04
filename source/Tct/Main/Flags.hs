@@ -58,8 +58,8 @@ module Tct.Main.Flags
  )
 where 
 
+import Data.Char
 import Data.List (intersperse, isPrefixOf)
-import Char
 import GHC.Conc (numCapabilities)
 import Control.Monad.Instances()
 

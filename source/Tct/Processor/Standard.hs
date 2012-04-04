@@ -83,8 +83,8 @@ class (P.ComplexityProof (ProofOf proc)) => Processor proc where
 data StdProcessor a = StdProcessor a
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
-    type P.ProofOf (StdProcessor proc)      = ProofOf proc
-    data P.InstanceOf (StdProcessor proc)   = TP (TheProcessor proc)
+    type ProofOf (StdProcessor proc)      = ProofOf proc
+    data InstanceOf (StdProcessor proc)   = TP (TheProcessor proc)
     name (StdProcessor proc)                = name proc
     instanceName (TP theproc)               = instanceName theproc
     solve_ (TP theproc) prob                = solve theproc prob
@@ -115,7 +115,7 @@ mkParseProcessor nm args = do _ <- string nm
         syn = nm ++ " " ++ (synopsis args)
         continueWith ' '  = True
         continueWith '\n' = True
-        continueWith ')' = True
+        continueWith ')'  = True
         continueWith '\t' = True
         continueWith _    = False 
 

@@ -113,7 +113,7 @@ instance S.Processor NaturalPI where
 
   description NaturalPI = [ "This processor orients the problem using polynomial interpretation over natural numbers." ]
 
-  type S.ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
   arguments NaturalPI = opt { A.name         = "kind"
                             , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
                                                        , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
@@ -146,7 +146,7 @@ instance S.Processor NaturalPI where
 
   instanceName inst = show (shape $ S.processorArgs inst) ++ " polynomial interpretation"
 
-  type S.ProofOf NaturalPI = OrientationProof PolynomialOrder
+  type ProofOf NaturalPI = OrientationProof PolynomialOrder
 
   solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
                      | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)

@@ -617,8 +617,8 @@ p1 `subsumes` p2 = check strictTrs
 data Transformation t sub = Transformation t
 
 instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub) where
-    type S.ProofOf (Transformation t sub)     = Proof t (Subsumed sub)
-    type S.ArgumentsOf (Transformation t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
+    type ProofOf (Transformation t sub)     = Proof t (Subsumed sub)
+    type ArgumentsOf (Transformation t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     
     name (Transformation t)        = name t
     instanceName inst              = instanceName tinst
@@ -777,8 +777,8 @@ instance P.ComplexityProof proof => P.ComplexityProof (MaybeSubsumed proof) wher
                                                    $+$ P.pprintProof proof mde
 
 instance P.Processor proc => P.Processor (Subsumed proc) where
-   data P.InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
-   type P.ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
+   data InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
+   type ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
    name (Subsumed proc) = P.name proc
    instanceName (SSI inst) = P.instanceName inst
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 

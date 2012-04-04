@@ -102,7 +102,7 @@ instance Functor (Polynomial V.Variable) where
 instance Functor (Monomial V.Variable) where
   fmap f (Mono n vs) = Mono (f n) vs
 
-instance (Num a, PrettyPrintable a) => PrettyPrintable (PolyInter a) where
+instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (PolyInter a) where
   pprint (PI sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints))
     where printInters = vcat . map (uncurry printInter) . Map.assocs
           printInter f p = fHead <+> nest (length (show fHead) + 1) (pprint p)
@@ -110,10 +110,10 @@ instance (Num a, PrettyPrintable a) => PrettyPrintable (PolyInter a) where
                   fargs = parens $ hsep $ punctuate comma $ map (\i -> char 'x' <> int i) [1..a]
                   a = F.arity sig f
 
-instance (Num a, PrettyPrintable a) => PrettyPrintable (Polynomial V.Variable a) where
+instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (Polynomial V.Variable a) where
   pprint (Poly xs) = hcat $ punctuate (text " + ") $ map pprint xs
 
-instance (Num a, PrettyPrintable a) => PrettyPrintable (Monomial V.Variable a) where
+instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (Monomial V.Variable a) where
   pprint (Mono n []) = pprint n
   pprint (Mono n vs) | n == 0 = empty
                      | n == 1 = ppvars

@@ -193,7 +193,7 @@ instance S.Processor EpoStar where
                               , "a technique applicable for innermost runtime-complexity analysis."
                               , "Exponential path orders are a miniaturisation of 'lexicographic path orders',"
                               , "restricted so that compatibility assesses exponential runtime complexity."]]
-    type S.ArgumentsOf EpoStar = Arg Bool
+    type ArgumentsOf EpoStar = Arg Bool
 
     instanceName inst = S.name (S.processor inst) 
                         ++ case S.processorArgs inst of {True -> "(extended composition)"; False -> ""}
@@ -204,7 +204,7 @@ instance S.Processor EpoStar where
                                                 , "Currently it is not known whether this extension is sound."]
                       , A.defaultValue = False }
 
-    type S.ProofOf EpoStar = OrientationProof EpoStarOrder
+    type ProofOf EpoStar = OrientationProof EpoStarOrder
 
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob, Prob.allComponents prob) of 
                         ((BasicTerms ds cs), Innermost, trs) 

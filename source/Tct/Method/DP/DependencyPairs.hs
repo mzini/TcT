@@ -122,8 +122,8 @@ instance T.Transformer DPs where
        where tups = T.transformationArgs inst
     description DPs = ["Applies the (weak) depencency pair transformation."]
 
-    type T.ArgumentsOf DPs = Arg Bool
-    type T.ProofOf DPs = DPProof
+    type ArgumentsOf DPs = Arg Bool
+    type ProofOf DPs = DPProof
     arguments DPs = opt { A.name = "usetuples"
                         , A.description = unlines [ "This argument specifies whether dependency tuples instead of pairs should be used."]
                         , A.defaultValue = False }

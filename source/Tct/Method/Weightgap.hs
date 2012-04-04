@@ -126,8 +126,8 @@ instance T.Transformer WeightGap where
              maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]
 
-  type T.ArgumentsOf WeightGap = (Arg (EnumOf WgOn)) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
-  type T.ProofOf WeightGap = WeightGapProof
+  type ArgumentsOf WeightGap = (Arg (EnumOf WgOn)) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+  type ProofOf WeightGap = WeightGapProof
   arguments WeightGap =   opt { A.name        = "on"
                               , A.description = unlines [ "This flag determine which rules have to be strictly oriented by the the matrix interpretation for"
                                                         , "the weight gap principle. Here 'trs' refers to all strict non-dependency-pair rules of the"

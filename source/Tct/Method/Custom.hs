@@ -51,8 +51,8 @@ data Custom arg res = Custom { description :: Description arg
 -- processor instance
 
 instance (P.ComplexityProof res) => S.Processor (Custom arg res) where
-  type S.ProofOf (Custom arg res)     = res
-  type S.ArgumentsOf (Custom arg res) = arg
+  type ProofOf (Custom arg res)     = res
+  type ArgumentsOf (Custom arg res) = arg
   name        = as . description
   description = descr . description
   arguments   = args . description

@@ -108,8 +108,8 @@ instance P.ComplexityProof TrivialProof where
 data Fail = Fail deriving (Show)
 
 instance S.Processor Fail where
-    type S.ArgumentsOf Fail = Unit
-    type S.ProofOf Fail     = TrivialProof
+    type ArgumentsOf Fail = Unit
+    type ProofOf Fail     = TrivialProof
     name Fail               = "fail"
     instanceName _          = "fail"
     solve _ _               = return Failed
@@ -119,8 +119,8 @@ instance S.Processor Fail where
 data Success = Success deriving (Show)
 
 instance S.Processor Success where
-    type S.ArgumentsOf Success = Unit
-    type S.ProofOf Success     = TrivialProof
+    type ArgumentsOf Success = Unit
+    type ProofOf Success     = TrivialProof
     name Success               = "success"
     instanceName _             = "success"
     solve _ _                  = return Succeeded
@@ -130,8 +130,8 @@ instance S.Processor Success where
 data EmptyRules = EmptyRules deriving (Show)
 
 instance S.Processor EmptyRules where
-    type S.ArgumentsOf EmptyRules = Unit
-    type S.ProofOf EmptyRules     = TrivialProof
+    type ArgumentsOf EmptyRules = Unit
+    type ProofOf EmptyRules     = TrivialProof
     name EmptyRules               = "empty"
     solve _ prob | Trs.isEmpty $ strictComponents prob = return $ Empty True
                  | otherwise                           = return $ Empty False
@@ -169,8 +169,8 @@ instance P.ComplexityProof OpenProof
         
 data Open = Open
 instance S.Processor Open where
-  type S.ProofOf Open = OpenProof
-  type S.ArgumentsOf Open = A.Unit
+  type ProofOf Open = OpenProof
+  type ArgumentsOf Open = A.Unit
   
   name _ = "Open"
   arguments _ = A.Unit
@@ -212,8 +212,8 @@ instance ( P.Processor g
          , P.Processor t
          , P.Processor e) 
     => S.Processor (Ite g t e) where
-        type S.ProofOf (Ite g t e)    = IteProof g t e 
-        type S.ArgumentsOf (Ite g t e) = Arg (Proc g) :+: Arg (Proc t) :+: Arg (Proc e)
+        type ProofOf (Ite g t e)    = IteProof g t e 
+        type ArgumentsOf (Ite g t e) = Arg (Proc g) :+: Arg (Proc t) :+: Arg (Proc e)
         name Ite = "ite"
         instanceName inst = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
           where g :+: _ :+: _ = S.processorArgs inst
@@ -273,8 +273,8 @@ instance ( T.Transformer g
 instance ( T.Transformer g
          , P.Processor t
          , P.Processor e) => S.Processor (IteProgress g t e) where
-  type S.ProofOf (IteProgress g t e) = IteProgressProof g t e
-  type S.ArgumentsOf (IteProgress g t e) = Arg (Proc t) :+: Arg (Proc e) :+: Arg Bool
+  type ProofOf (IteProgress g t e) = IteProgressProof g t e
+  type ArgumentsOf (IteProgress g t e) = Arg (Proc t) :+: Arg (Proc e) :+: Arg Bool
   name _ = "iteProgress"
   arguments _ = arg { A.name = "then"
                     , A.description = "The processor that is applied if the transformation succeeds." }
@@ -350,8 +350,8 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
 
 
 instance (P.Processor p) => S.Processor (OneOf p) where
-    type S.ArgumentsOf (OneOf p) = Arg [Proc p]
-    type S.ProofOf (OneOf p)     = OneOfProof p
+    type ArgumentsOf (OneOf p) = Arg [Proc p]
+    type ProofOf (OneOf p)     = OneOfProof p
 
     name Fastest      = "fastest"
     name Sequentially = "sequentially"

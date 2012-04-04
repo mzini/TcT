@@ -95,8 +95,8 @@ instance AssocArgument (RuleSelector ()) where
 
 
 instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
-    type T.ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
-    type T.ProofOf (ComposeRC p1 p2)     = ComposeRCProof p1 p2
+    type ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
+    type ProofOf (ComposeRC p1 p2)     = ComposeRCProof p1 p2
 
     name _ = "compose-rc"
     instanceName inst = show $ text "compose-rc" <+> parens (ppsplit)

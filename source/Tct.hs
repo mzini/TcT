@@ -28,22 +28,23 @@ module Tct
     , haddockOptions)
 where 
 
-import Control.Concurrent (killThread, forkOS)
-import Control.Concurrent.MVar (putMVar, readMVar, newEmptyMVar)
+import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent.MVar (tryPutMVar, readMVar, newEmptyMVar)
 import Control.Monad.Error
 import Control.Monad.Instances( )
-import Control.Monad.RWS.Lazy
+import Control.Monad.RWS.Lazy hiding ((<>))
 import Data.List (sortBy)
 import Data.Maybe (isJust)
 import Data.Typeable 
-import System
 import System.Directory
 import System.FilePath ((</>))
 import System.IO
+import System.Environment (getArgs)
+import System.Exit
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
 import System.Process (runCommand, waitForProcess)
-import System.Posix.Signals (Handler(..), installHandler, sigTERM, sigPIPE)
+import System.Posix.Signals (Handler(..), installHandler, sigTERM)
 import System.Posix.Files (ownerReadMode, ownerWriteMode, ownerExecuteMode, unionFileModes, setFileMode)
 import qualified Config.Dyre as Dyre
 import qualified Control.Exception as C
@@ -200,7 +201,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , getSolver       = getDefaultSolver
                        , outputMode      = WithProof ProofOutput
                        , putProof        = \ p mde -> hPutPretty stdout (pprintProof p mde)
-                       , putError        = \ e -> hPutStrLn stdout "ERROR" >> hPutStrLn stderr "" >> hPutPretty stderr (pprint e)
+                       , putError        = \ e -> hPutPretty stderr (pprint e)
                        , putWarning      = hPutPretty stderr . pprint 
                        , configDir       = do home <- liftIO $ getHomeDirectory 
                                               return $ home </> ".tct"
@@ -243,7 +244,7 @@ processorFromString str allProcessors = case fromString allProcessors str of
                                           Right proc' -> return proc'
 
 processorFromFile :: FilePath -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
-processorFromFile fn allProcessors =  do str <- (liftIO $ readFile fn `catch` const (return ""))
+processorFromFile fn allProcessors =  do str <- (liftIO $ readFile fn `C.catch` (\ (_ :: C.SomeException) -> return ""))
                                          case str of 
                                            ""  -> throwError (strMsg $ "cannot read strategy from file " ++ fn)
                                            _   -> processorFromString str allProcessors
@@ -426,15 +427,18 @@ runTct cfg
                        proc <- liftEIO $ getProc prob procs
                        tproc <- maybe proc (\ i -> someInstance $ Timeout.timeout i proc) `liftM` fromConfig timeoutAfter
                        proof <- process tproc prob
-                       putPretty (pprint $ answer proof)
-                       case outputMode cfg of 
-                         OnlyAnswer    -> return ()
-                         WithProof mde -> putPretty $ text "" 
-                                                     $+$ pprintProof proof mde
-                                                     $+$ text "" 
-                                                     $+$ if succeeded proof 
-                                                          then text "Hurray, we answered"  <+> pprint (answer proof)
-                                                          else text "Arrrr.."
+                       let ans = answer proof
+                       liftIO $ C.mask_ $ do 
+                         putPretty (pprint ans)
+                         case outputMode cfg of 
+                           OnlyAnswer    -> return ()
+                           WithProof mde -> 
+                             putPretty $ text "" 
+                             $+$ pprintProof proof mde
+                             $+$ text "" 
+                             $+$ if succeeded proof 
+                                 then text "Hurray, we answered"  <+> pprint (answer proof)
+                                 else text "Arrrr.."
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 
@@ -485,55 +489,75 @@ parseArguments defaults =
 exitFail :: ExitCode
 exitFail = ExitFailure $ -1 
 
+data ReturnCode = SigTerm
+                -- | SigPipe
+                | ExitNormal
+                | ExitError TCTError
+                deriving Show
+                  
 -- | This runs TcT with the given configuration. 
 -- Use 'defaultConfig' for running TcT with the default configuration.
 tct :: Config -> IO ()
-tct conf = do ecfg <- runErroneous
-                     $ do cfgDir <- configDir conf
-                          liftIO $ maybeCreateConfigDir cfgDir
-                          liftIO $ hFlush stdout
-                          return cfgDir
-              case ecfg of 
-                Left e -> putErrorMsg e
-                Right dir -> 
-                  flip Dyre.wrapMain conf 
-                  Dyre.defaultParams { Dyre.projectName = "tct"
-                                     , Dyre.configCheck = recompile conf
-                                     , Dyre.realMain    = realMain
-                                     , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
-                                     , Dyre.configDir   = Just $ return dir
-                                     , Dyre.cacheDir    = Just $ return dir
-                                     , Dyre.statusOut   = hPutStrLn stderr
-                                     , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
-                  --MA:TODO: does -N work properly on colo6 & co?, "-with-rtsopts=-N", 
+tct conf = do
+  ecfg <- getConfigDir
+  case ecfg of 
+    Left e -> putErrorMsg e >> exitWith exitFail
+    Right dir -> do 
+      let dyreConf = 
+            Dyre.defaultParams 
+              { Dyre.projectName = "tct"
+              , Dyre.configCheck = recompile conf
+              , Dyre.realMain    = realMain
+              , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+              , Dyre.configDir   = Just $ return dir
+              , Dyre.cacheDir    = Just $ return dir
+              , Dyre.statusOut   = hPutStrLn stderr
+              , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
+      Dyre.wrapMain dyreConf conf
+    
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
-        realMain cfg | errorMsg cfg /= [] = mapM (putErrorMsg . strMsg) (errorMsg cfg) >> exitWith exitFail
-                     | otherwise          = C.block $ do mv   <- newEmptyMVar
-                                                         _    <- installHandler sigTERM (Catch $ putMVar mv $ exitFail) Nothing
-                                                         _    <- installHandler sigPIPE (Catch $ putMVar mv $ ExitSuccess) Nothing
-                                                         let main pid = do {e <- readMVar mv; killThread pid; return e}
-                                                             child = (C.unblock tctProcess >>= putMVar mv) 
-                                                                     `C.catch` \ (e :: C.SomeException) -> putErrorMsg (SomeExceptionRaised e) >> putMVar mv exitFail
-                                                             handler pid (e :: C.SomeException) = do killThread pid
-                                                                                                     putErrorMsg $ (SomeExceptionRaised e)
-                                                                                                     exitWith exitFail
-                                                         pid <- forkOS $ child
-                                                         e <- main pid `C.catch` handler pid
-                                                         exitWith e
-        tctProcess = 
-          do 
-             r <- runErroneous $
-                 do warns <- parseArguments conf >>= runTct
-                    liftIO $ putWarnings warns
-                    return ()
-             ret <- case r of 
-                     Left err  -> putErrorMsg err >> return exitFail
-                     _         -> return ExitSuccess
-             liftIO $ hFlush stdout
-             liftIO $ hFlush stderr
-             return ret
-
+        
+        getConfigDir = 
+          runErroneous $ do 
+            cfgDir <- configDir conf
+            liftIO $ maybeCreateConfigDir cfgDir >> hFlush stdout
+            return cfgDir
+        
+        worker mv = do
+          r <- runErroneous (parseArguments conf >>= runTct)
+          case r of 
+            Left err -> do 
+              _ <- tryPutMVar mv $ ExitError $ err
+              return ()
+            Right warns -> do 
+              putWarnings warns
+              _ <- tryPutMVar mv ExitNormal
+              return ()
+          
+        realMain cfg 
+          | null (errorMsg cfg) = do
+              mv <- newEmptyMVar
+              _ <- installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing -- hPutStrLn stderr "term" >> hFlush stderr >> 
+              -- _ <- installHandler sigPIPE (Catch $ hPutStrLn stderr "pipe" >> hFlush stderr >> tryPutMVar mv SigPipe >>= hPutStrLn stderr . show) Nothing -- hPutStrLn stderr "pipe" >> hFlush stderr >> 
+              pid <- forkIO $ C.mask $ \ recover -> 
+                      recover (worker mv) `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
+              -- hPutStrLn stderr "waiting..." >> hFlush stderr
+              e <- readMVar mv
+              -- hPutStrLn stderr "received..." >> hFlush stderr              
+              killThread pid
+              -- hPutStrLn stderr "killed..." >> hFlush stderr                            
+              hFlush stdout
+              hFlush stderr
+              case e of 
+                SigTerm -> exitWith exitFail
+                -- SigPipe -> exitWith ExitSuccess
+                ExitError err -> putErrorMsg err >> exitWith exitFail
+                ExitNormal -> exitWith ExitSuccess
+          | otherwise = do
+              putErrorMsg $ strMsg $ unlines $ errorMsg cfg
+              exitWith exitFail
+              
 initialGhciFile :: IO String
 initialGhciFile = return $ content
   where content = unlines 

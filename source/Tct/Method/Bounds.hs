@@ -94,7 +94,7 @@ instance S.Processor Bounds where
                                    , "that induces linear derivational- and runtime-complexity for right-linear problems." 
                                    , "For non-right-linear problems this processor fails immediately."] ]
 
-    type S.ArgumentsOf Bounds = Arg (EnumOf InitialAutomaton) :+: Arg (EnumOf Enrichment)
+    type ArgumentsOf Bounds = Arg (EnumOf InitialAutomaton) :+: Arg (EnumOf Enrichment)
 
     instanceName inst = "Bounds with " ++ show e ++ "-enrichment and initial automaton '" ++ show i ++ "'"
         where e :+: i = S.processorArgs inst
@@ -112,7 +112,7 @@ instance S.Processor Bounds where
                            , A.description  = "The employed enrichment." 
                            , A.defaultValue = Match}
 
-    type S.ProofOf Bounds     = BoundsProof
+    type ProofOf Bounds     = BoundsProof
 
     solve inst prob | isApplicable = do a <- compatibleAutomaton strict weak e i
                                         return $ BP e (Just $ BoundsCertificate (maximum $ 0 : [l | (_, l) <- Set.toList $ symbols a]) a sign)

@@ -42,7 +42,6 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs, RuleList(..))
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils hiding (block)
-import Termlib.Utils as Utils
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -103,8 +102,8 @@ instance T.Transformer UR where
     name UR = "usablerules"
     description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"
                      , "respect to the dependency pairs."]
-    type T.ArgumentsOf UR = Unit
-    type T.ProofOf UR = URProof 
+    type ArgumentsOf UR = Unit
+    type ProofOf UR = URProof 
     arguments UR = Unit
     transform _ prob | not (Prob.isDPProblem prob) = return $ T.NoProgress $ Error NonDPProblemGiven
                      | otherwise                 = return $ res

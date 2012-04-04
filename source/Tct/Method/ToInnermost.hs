@@ -56,8 +56,8 @@ instance T.Transformer ToInnermost where
     name ToInnermost        = "toInnermost"
     description ToInnermost = ["Switches to innermost rewriting on overlay and right-linear input."]
 
-    type T.ArgumentsOf ToInnermost = A.Unit
-    type T.ProofOf ToInnermost = ToInnermostProof
+    type ArgumentsOf ToInnermost = A.Unit
+    type ProofOf ToInnermost = ToInnermostProof
     
     arguments ToInnermost = A.Unit
 

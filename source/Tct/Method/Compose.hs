@@ -93,8 +93,8 @@ progress Inapplicable {} = False
 
 
 instance (P.Processor p) => T.Transformer (Compose p) where
-    type T.ArgumentsOf (Compose p) = Arg (Assoc Partitioning) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
-    type T.ProofOf (Compose p)     = ComposeProof p
+    type ArgumentsOf (Compose p) = Arg (Assoc Partitioning) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
+    type ProofOf (Compose p)     = ComposeProof p
 
     name _              = "compose"
     instanceName inst   = show $ text "compose" <+> parens (ppsplit <> text "," <+> ppCompFn)

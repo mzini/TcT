@@ -55,8 +55,8 @@ data TOProof p = TimedOut Int
                | TOProof (ProofOf p)
 
 instance Processor p => S.Processor (Timeout p) where 
-    type S.ProofOf (Timeout p)     = TOProof p
-    type S.ArgumentsOf (Timeout p) = Arg Nat :+: Arg (Proc p)
+    type ProofOf (Timeout p)     = TOProof p
+    type ArgumentsOf (Timeout p) = Arg Nat :+: Arg (Proc p)
     description _                  = ["The processor either returns the result of the given processor"
                                      , " or, if the timeout elapses, aborts the computation and returns MAYBE."]
     name  Timeout                 = "timeout"

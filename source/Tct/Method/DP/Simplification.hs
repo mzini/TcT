@@ -116,8 +116,8 @@ instance T.Transformer RemoveTail where
                                     , "Only applicable if the strict component is empty."]
                            ]
   
-  type T.ArgumentsOf RemoveTail = Unit
-  type T.ProofOf RemoveTail = RemoveTailProof
+  type ArgumentsOf RemoveTail = Unit
+  type ProofOf RemoveTail = RemoveTailProof
   arguments RemoveTail = Unit
   transform _ prob | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ Error $ ContainsStrictRule
                    | null labTails  = return $ T.NoProgress proof
@@ -193,8 +193,8 @@ instance T.TransformationProof SimpRHS where
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"
-  type T.ArgumentsOf SimpRHS = Unit
-  type T.ProofOf SimpRHS     = SimpRHSProof
+  type ArgumentsOf SimpRHS = Unit
+  type ProofOf SimpRHS     = SimpRHSProof
   arguments _ = Unit
   description _ = [unwords [ "Simplify right hand sides of dependency pairs by removing marked subterms "
                            , "whose root symbols are undefined."
@@ -281,8 +281,8 @@ instance T.TransformationProof SimpKP where
 
 instance T.Transformer SimpKP where 
   name _ = "simpKP"
-  type T.ArgumentsOf SimpKP = Unit
-  type T.ProofOf SimpKP     = SimpKPProof
+  type ArgumentsOf SimpKP = Unit
+  type ProofOf SimpKP     = SimpKPProof
   arguments _ = Unit
   description SimpKP = [unwords [ "Moves a strict dependency into the weak component"
                                 , "if all predecessors in the dependency graph are strict" 

@@ -73,8 +73,8 @@ instance T.TransformationProof InnermostRuleRemoval where
     pprintTProof _ _ p _ = pprint p
               
 instance T.Transformer InnermostRuleRemoval where
-    type T.ArgumentsOf InnermostRuleRemoval = A.Unit
-    type T.ProofOf     InnermostRuleRemoval = IRRProof
+    type ArgumentsOf InnermostRuleRemoval = A.Unit
+    type ProofOf     InnermostRuleRemoval = IRRProof
     name        InnermostRuleRemoval = "irr"
     arguments   InnermostRuleRemoval = Unit
     description InnermostRuleRemoval = [ "This processor removes rules 'f(l_1,...,l_n) -> r' for which l_i (1 <= i <=n) is not a normal form."

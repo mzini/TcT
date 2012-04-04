@@ -126,7 +126,7 @@ instance S.Processor NaturalMI where
 
     description NaturalMI = [ "This processor orients the problem using matrix interpretation over natural numbers." ]
 
-    type S.ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+    type ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments NaturalMI = opt { A.name        = "cert"
                               , A.description = unlines [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
                                                         , "the interpretation of the considered starting terms relative to their size."
@@ -187,7 +187,7 @@ instance S.Processor NaturalMI where
 
     instanceName inst = "matrix interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
-    type S.ProofOf NaturalMI = OrientationProof MatrixOrder
+    type ProofOf NaturalMI = OrientationProof MatrixOrder
 
     solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
                        | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)

@@ -104,8 +104,8 @@ instance P.ComplexityProof PredicateProof where
                   | otherwise     = text "NOT"
 
 instance S.Processor Predicate where
-    type S.ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
-    type S.ProofOf Predicate = PredicateProof
+    type ArgumentsOf Predicate = Arg (EnumOf WhichTrs)
+    type ProofOf Predicate = PredicateProof
     name (TrsPredicate n _) = n
     name (ProblemPredicate n _) = n
     solve inst prob = return $ PredicateProof proc ans

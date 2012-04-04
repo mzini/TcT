@@ -234,7 +234,7 @@ instance S.Processor PopStar where
                          , "with product extension, c.f. processor 'popstar'."]]
 
 
-    type S.ArgumentsOf PopStar = Arg Bool :+: Arg Bool :+: Arg (Maybe Nat)
+    type ArgumentsOf PopStar = Arg Bool :+: Arg Bool :+: Arg (Maybe Nat)
 
     instanceName inst = show $ ppname <+> ppargs
         where ppname = 
@@ -243,7 +243,7 @@ instance S.Processor PopStar where
                   POP -> text "Polynomial Path Order"
                   SPOP | wsc -> text "Small Polynomial Path Order"
                        | otherwise -> text "Polynomial Path Order"
-              ppargs | null features = ""
+              ppargs | null features = PP.empty
                      | otherwise     = parens $ hcat $ punctuate (text ",") features
                 where features = [text n 
                                  | n <- catMaybes [ whenTrue ((knd /= SPOP) && wsc) "WSC"
@@ -267,7 +267,7 @@ instance S.Processor PopStar where
                   :+: argWSC { A.defaultValue = True} 
                   :+: argDeg
 
-    type S.ProofOf PopStar = OrientationProof PopStarOrder
+    type ProofOf PopStar = OrientationProof PopStarOrder
     solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
                      ((BasicTerms _ _), Innermost) -> orientProblem inst Nothing prob
                      _                             -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")

@@ -374,7 +374,9 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
           stricts  = Prob.strictComponents prob
           weaks    = Prob.weakComponents prob
           allrules = Prob.allComponents prob
+          dps      = Prob.dpComponents prob
           sig      = Prob.signature prob
+          
 
           slv | isDP      = solveDP 
               | otherwise = solveDirect
@@ -429,13 +431,13 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
               Nothing 
                 -> bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
                   && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ weaks]
-                  && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD allrules weaks quasiDefineds
+                  && orderingConstraints allrules weaks
               Just sr
                 -> let rest = allrules Trs.\\ Trs.fromRules sr
                   in bigAnd [not (usable r) || atom (strictlyOriented r) | r <- sr]
                      && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- Trs.toRules rest]
                      && bigOr [ atom (strictlyOriented r) | r <- Trs.toRules stricts]
-                     && orderingConstraints allowAF allowMR allowPS forceWSC forcePROD allrules rest quasiDefineds
+                     && orderingConstraints allrules rest
           maybeOrientable = allowMR || allowAF || isDP || (all maybeOrientableRule $ rules allrules)
             where maybeOrientableRule r = 
                       case rtl of 
@@ -450,38 +452,41 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
                            _            -> top)
             where fs = Set.toList $ Trs.functionSymbols allrules
           
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (natToInt `liftM` bnd)
+          validPrecedence = 
+            liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (natToInt `liftM` bnd)
           
-          validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
-            where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
-                                   | otherwise = top
+          validUsableRules = 
+            liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
+              where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
+                                     | otherwise = top
                                                  
-orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Bool -> Bool -> Bool -> Trs -> Trs -> Set Symbol -> MemoFormula PopArg s l
-orderingConstraints allowAF allowMR allowPS forceWSC forcePROD strictRules eqRules quasiDefineds = 
-    strictRules `orientStrictBy` pop && eqRules `orientWeakBy` eq
-    where orientBy ob trs ord = bigAnd [atom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
-          orientStrictBy = orientBy strictlyOriented 
-          orientWeakBy = orientBy weaklyOriented
-          pop s t             = orient preds (Gt s t)
-          eq s t              = orient preds (Eq s t)
---          popEq s t           = orient preds (Eq s t) || orient preds (Gt s t)
-          preds               = Predicates {
-                                definedP    = defP
-                                , collapsingP = case (allowAF, forceWSC, forcePROD) of 
-                                                     (True   , True    , True) -> \ f -> if f `Set.member` quasiDefineds 
-                                                                                        then bot 
-                                                                                        else AFEnc.isCollapsing f
-                                                     (True   , _       , _   ) -> AFEnc.isCollapsing
-                                                     (False  , _       , _   ) -> \ _ -> bot
-                                , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
-                                , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
-                                , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
-                                , precEqP       = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
-                                , allowMulRecP  = fm allowMR
-                                , allowPsP      = fm allowPS
-                                , weakSafeCompP = fm forceWSC
-                                , prodExtP      = fm forcePROD
-                              } where defP f = fm $ f `Set.member` quasiDefineds
+          orderingConstraints srules eqrules = 
+            bigAnd [ atom (strictlyOriented r) --> lhs r `pop` rhs r | r <- rules srules]
+            && bigAnd [ atom (weaklyOriented r) --> lhs r `eq` rhs r | r <- rules eqrules]
+              where pop s t = orient preds (Gt s t)
+                    eq s t  = orient preds (Eq s t)
+                    preds = 
+                      Predicates { definedP    = defP
+                                 , collapsingP = colP
+                                 , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
+                                 , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
+                                 , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
+                                 , precEqP       = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
+                                 , allowMulRecP  = fm allowMR
+                                 , allowPsP      = fm allowPS
+                                 , weakSafeCompP = fm forceWSC
+                                 , prodExtP      = fm forcePROD
+                                 } 
+                    defP f = fm $ f `Set.member` quasiDefineds
+                    markeds = Trs.definedSymbols dps
+                    colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
+                                                              then bot 
+                                                              else AFEnc.isCollapsing f
+                           | allowAF = AFEnc.isCollapsing f
+                           | otherwise = bot
+                      
+                     
+                                                 
 
 
 newtype AlphaAtom   = Alpha   (Int, (Term, Term))      deriving (Eq, Ord, Typeable, Show)

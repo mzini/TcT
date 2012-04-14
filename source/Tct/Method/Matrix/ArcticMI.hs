@@ -81,30 +81,30 @@ instance S.Processor ArcticMI where
 
     type ArgumentsOf ArcticMI = (Arg Nat) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments ArcticMI =  opt { A.name        = "dim"
-                              , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
+                              , A.description = unwords [ "This argument specifies the dimension of the vectors and square-matrices appearing"
                                                         , " in the matrix interpretation."]
                               , A.defaultValue = Nat 3 }
                           :+:
                           opt { A.name        = "bound"
-                              , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
+                              , A.description = unwords [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
                                                         , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
                                                         , "when searching for compatible matrix interpretations."]
                               , A.defaultValue = Nat 3 }
                           :+:
                           opt { A.name        = "bits"
-                              , A.description = unlines [ "This argument plays the same role as 'bound',"
+                              , A.description = unwords [ "This argument plays the same role as 'bound',"
                                                         , "but instead of an upper-bound the number of bits is specified."
                                                         , "This argument overrides the argument 'bound'."]
                               , A.defaultValue = Nothing }
                           :+:
                           opt { A.name = "cbits"
-                              , A.description = unlines [ "This argument specifies the number of bits used for intermediate results, "
+                              , A.description = unwords [ "This argument specifies the number of bits used for intermediate results, "
                                                         , "as for instance coefficients of matrices obtained by interpreting"
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
                           :+:
                           opt { A.name = "uargs"
-                              , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
+                              , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
                                                         , "in order to relax the monotonicity constraints on the interpretation."]
                               , A.defaultValue = True }
 

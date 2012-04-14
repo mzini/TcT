@@ -90,7 +90,7 @@ instance ComplexityProof BoundsProof where
 -- processor
 instance S.Processor Bounds where
     name Bounds = "bounds"
-    description Bounds = [ unlines [ "This processor implements the (match|roof|top)-bounds technique"
+    description Bounds = [ unwords [ "This processor implements the (match|roof|top)-bounds technique"
                                    , "that induces linear derivational- and runtime-complexity for right-linear problems." 
                                    , "For non-right-linear problems this processor fails immediately."] ]
 
@@ -100,7 +100,7 @@ instance S.Processor Bounds where
         where e :+: i = S.processorArgs inst
 
     arguments Bounds = opt { A.name         = "initial"
-                           , A.description  = unlines ["The employed initial automaton."
+                           , A.description  = unwords ["The employed initial automaton."
                                                       , "If 'perSymbol' is set then the initial automaton admits one dedicated"
                                                       , "state per function symbols."
                                                       , "If 'minimal' is set then the initial automaton admits exactly"

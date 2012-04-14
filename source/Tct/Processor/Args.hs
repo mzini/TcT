@@ -152,7 +152,7 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                  , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
 
     parseInteractive a procs = 
-        do putStrLn $ show (text "* '" <> text (name a) <> text "'"
+        do putStrLn $ show (text "* " <> text (name a) <> text ":"
                             $+$ nest 2 (descr $+$ text "" $+$ syn $+$ text ""))
            ask
       where syn = text "Synopsis:" <+> text (domainName phantom)
@@ -161,7 +161,8 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
               do putStrLn $ show $ nest 2 $ U.paragraph ( "Use the default value '"
                                                          ++ showArg phantom (defaultValue a) 
                                                          ++"'? Enter 'yes' or 'no', default is 'yes':")
-                 putStr "  > "
+                 putStrLn ""
+                 putStr "> "
                  str <- getLine
                  if map toLower str == "no" 
                   then ask'

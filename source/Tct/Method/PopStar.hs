@@ -220,17 +220,17 @@ instance S.Processor PopStar where
 
     description p = 
       case kind p of 
-        LMPO -> [ unlines [ "This processor implements orientation of the input problem using 'light multiset path orders',"
+        LMPO -> [ unwords [ "This processor implements orientation of the input problem using 'light multiset path orders',"
                          , "a technique applicable for innermost runtime-complexity analysis."
                          , "Light multiset path orders are a miniaturisation of 'multiset path orders',"
                          , "restricted so that compatibility assesses polytime computability of the functions defined."
                          , "Further, it induces exponentially bounded innermost runtime-complexity."]]
-        POP   -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders',"
+        POP   -> [ unwords [ "This processor implements orientation of the input problem using 'polynomial path orders',"
                           , "a technique applicable for innermost runtime-complexity analysis."
                           , "Polynomial path orders are a miniaturisation of 'multiset path orders',"
                           , "restricted so that compatibility assesses a polynomial bound on the innermost runtime-complexity." ]
-                , unlines [ "The implementation for DP problems additionally employs argument filterings."]]
-        SPOP -> [ unlines [ "This processor implements orientation of the input problem using 'polynomial path orders'"
+                , unwords [ "The implementation for DP problems additionally employs argument filterings."]]
+        SPOP -> [ unwords [ "This processor implements orientation of the input problem using 'polynomial path orders'"
                          , "with product extension, c.f. processor 'popstar'."]]
 
 

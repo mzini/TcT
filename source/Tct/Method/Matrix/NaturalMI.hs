@@ -128,7 +128,7 @@ instance S.Processor NaturalMI where
 
     type ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
     arguments NaturalMI = opt { A.name        = "cert"
-                              , A.description = unlines [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
+                              , A.description = unwords [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
                                                         , "the interpretation of the considered starting terms relative to their size."
                                                         , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
                                                         , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
@@ -143,7 +143,7 @@ instance S.Processor NaturalMI where
                               , A.defaultValue = Automaton}
                           :+:
                           opt { A.name        = "degree"
-                              , A.description = unlines [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
+                              , A.description = unwords [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
                                                         , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
                                                         , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
                                                         , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
@@ -152,38 +152,32 @@ instance S.Processor NaturalMI where
                               , A.defaultValue = Nothing}
                           :+:
                           opt { A.name        = "dim"
-                              , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
+                              , A.description = unwords [ "This argument specifies the dimension of the vectors and square-matrices appearing"
                                                         , " in the matrix interpretation."]
                               , A.defaultValue = Nat 2 }
                           :+:
                           opt { A.name        = "bound"
-                              , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
+                              , A.description = unwords [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
                                                         , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
                                                         , "when searching for compatible matrix interpretations."]
                               , A.defaultValue = Nat 3 }
                           :+:
                           opt { A.name        = "bits"
-                              , A.description = unlines [ "This argument plays the same role as 'bound',"
+                              , A.description = unwords [ "This argument plays the same role as 'bound',"
                                                         , "but instead of an upper-bound the number of bits is specified."
                                                         , "This argument overrides the argument 'bound'."]
                               , A.defaultValue = Nothing }
                           :+:
                           opt { A.name = "cbits"
-                              , A.description = unlines [ "This argument specifies the number of bits used for intermediate results, "
+                              , A.description = unwords [ "This argument specifies the number of bits used for intermediate results, "
                                                         , "as for instance coefficients of matrices obtained by interpreting"
                                                         , "left- and right-hand sides."]
                               , A.defaultValue = Nothing }
                           :+:
                           opt { A.name = "uargs"
-                              , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
+                              , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
                                                         , "in order to relax the monotonicity constraints on the interpretation."]
                               , A.defaultValue = True }
---                           :+:
---                           opt { A.name = "uargs"
---                               , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument positions."
---                                                         , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
---                                                         , "to using a tcap-like function." ]
---                               , A.defaultValue = UArgByCap }
 
     instanceName inst = "matrix interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 

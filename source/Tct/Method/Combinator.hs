@@ -215,7 +215,7 @@ instance ( P.Processor g
         type ProofOf (Ite g t e)    = IteProof g t e 
         type ArgumentsOf (Ite g t e) = Arg (Proc g) :+: Arg (Proc t) :+: Arg (Proc e)
         name Ite = "ite"
-        instanceName inst = "Branch on wether processor '" ++ P.instanceName g ++ "' succeeds"
+        instanceName inst = "Branch on whether processor '" ++ P.instanceName g ++ "' succeeds"
           where g :+: _ :+: _ = S.processorArgs inst
         description _ = ["This processor implements conditional branching"]
         arguments _ = arg { A.name = "guard"

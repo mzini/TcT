@@ -181,7 +181,7 @@ instance ComplexityProof PopStarOrder where
             prec            = popPrecedence order
             modifyUB        = 
               case popArgumentFiltering order of --TODO verify DP setting
-                Just af -> if hasProjection af then (\ b -> max 1 (b * 2))  else id
+                Just af -> if hasProjection af then (\ b -> max 1 b)  else id
                 Nothing -> id
             sig = Prob.signature $ popInputProblem order
             hasProjection af = AF.fold (\ sym filtering -> (||) (f sym filtering)) af False
@@ -479,10 +479,10 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
                                  } 
                     defP f = fm $ f `Set.member` quasiDefineds
                     markeds = Trs.definedSymbols dps
-                    colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
-                                                              then bot 
-                                                              else AFEnc.isCollapsing f
-                           | allowAF = AFEnc.isCollapsing f
+                    -- colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
+                    --                                           then bot 
+                    --                                           else AFEnc.isCollapsing f
+                    colP f | allowAF = AFEnc.isCollapsing f
                            | otherwise = bot
                       
                      

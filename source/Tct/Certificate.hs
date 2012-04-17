@@ -178,23 +178,32 @@ instance Ord Certificate where
 
 instance Parsable Certificate where
   parse = do _ <- string "YES"
+             spaces
              _ <- char '('
+             spaces             
              l <- parseBound
+             spaces             
              _ <- char ','
+             spaces
              u <- parseBound
+             spaces             
              _ <- char ')'
              return $ Cert (l, u)
     where parseBound  = try pPoly <|> pSpecPoly <|> pElem <|> pSupexp <|> pPrec <|> pMrec <|> pRec <|> pUnknown
           pPoly       = string "POLY" >> return (Poly Nothing)
           pSpecPoly   = do _   <- string "O("
+                           spaces
                            deg <- pPolyDegree
+                           spaces
                            _   <- char ')'
                            return $ Poly $ Just deg
           pPolyDegree = (char '1' >> return 0) <|> (string "n^" >> pInt)
           pElem       = do _ <- string "ELEMENTARY"
                            pSpecElem <|> return (Exp Nothing)
           pSpecElem   = do _ <- char '('
+                           spaces
                            n <- pInt
+                           spaces
                            _ <- char ')'
                            return $ Exp $ Just n
           pSupexp     = string "SUPEREXPONENTIAL" >> return Supexp

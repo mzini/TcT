@@ -973,7 +973,9 @@ setRC' = resetInitialWith' f
 
 setDC' :: IO ()
 setDC' = resetInitialWith' f
-  where f prob = prob { startTerms = TermAlgebra}
+  where f prob = prob { startTerms = TermAlgebra fs }
+          where rs = Prob.allComponents prob
+                fs = Trs.functionSymbols rs
 
 setIRC' :: IO ()
 setIRC' = setRC' >> setStrategy' Innermost

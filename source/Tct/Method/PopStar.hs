@@ -374,7 +374,7 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
           stricts  = Prob.strictComponents prob
           weaks    = Prob.weakComponents prob
           allrules = Prob.allComponents prob
-          dps      = Prob.dpComponents prob
+          -- dps      = Prob.dpComponents prob
           sig      = Prob.signature prob
           
 

@@ -55,6 +55,7 @@ import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))
 import qualified Termlib.Problem as Prob
+import qualified Termlib.FunctionSymbol as F
 import Tct.Method.RuleSelector
 -- import Termlib.Term (..)
 -- static partitioning
@@ -185,7 +186,7 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                                                      , strictDPs  = sDPs
                                                      , weakTrs    = rTrs `union` Prob.weakTrs prob
                                                      , weakDPs    = rDPs `union` Prob.weakDPs prob }
-                              | otherwise    = prob { startTerms = TermAlgebra
+                              | otherwise    = prob { startTerms = TermAlgebra $ F.symbols $ Prob.signature prob
                                                     , strictTrs  = sTrs
                                                     , strictDPs  = sDPs }
                                                        

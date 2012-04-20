@@ -164,7 +164,7 @@ isFullProcessor = isStrat "fullstrategy" ((==) Full)
 isContextSensitiveProcessor :: S.StdProcessor Predicate
 isContextSensitiveProcessor = isStrat "contextsensitive" (\ s -> case s of ContextSensitive _ -> True; _ -> False)
 isDCProblemProcessor :: S.StdProcessor Predicate
-isDCProblemProcessor = isStartTerms "DC problem" ((==) TermAlgebra)
+isDCProblemProcessor = isStartTerms "DC problem" (\ t -> case t of TermAlgebra{} -> True; _ -> False)
 isRCProblemProcessor :: S.StdProcessor Predicate
 isRCProblemProcessor = isStartTerms "RC problem" (\ t -> case t of BasicTerms{} -> True; _ -> False)
 

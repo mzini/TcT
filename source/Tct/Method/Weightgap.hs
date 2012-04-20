@@ -202,12 +202,14 @@ instance T.Transformer WeightGap where
                       | otherwise = do let wgon :+: wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs = T.transformationArgs inst
                                        let (sr, wr) = (Prob.strictComponents prob, Prob.weakComponents prob)
                                        let uarg' = case startTerms prob of
-                                                     TermAlgebra    -> fullWithSignature (signature prob)
+                                                     TermAlgebra _  -> fullWithSignature (signature prob)
                                                      BasicTerms _ _ -> if wgUargs then usableArgs (strategy prob) (sr `Trs.union` wr) else fullWithSignature (signature prob)
                                        p <- orientMatrix (weightGapConstraints wgon (strictTrs prob)) uarg' (st' wgon) sr wr (signature prob) (wgKind' wgon wgKind :+: wgDeg' wgon wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
                                        return $ mkProof wgon p
                                          where st' wgon | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = startTerms prob
-                                                        | otherwise                                       = TermAlgebra
+                                                        | otherwise                                     = toTA $ startTerms prob
+                                                  where toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
+                                                        toTA st                 = st
                                                wgDeg' wgon wgDeg | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgDeg
                                                                  | otherwise                                       = Just 1
                                                wgKind' wgon wgKind | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgKind

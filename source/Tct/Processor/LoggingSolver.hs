@@ -93,8 +93,8 @@ instance PrettyPrintable LoggingMsg where
                                        , ("Thread", text $ show thread)
                                        , ("Strategy", text $ show $ strategy prob)
                                        , ("Start-Terms", case startTerms prob of 
-                                                           TermAlgebra -> text $ "Terms"
-                                                           _           -> text $ "Basic")
+                                                           TermAlgebra {} -> text $ "Terms"
+                                                           BasicTerms {}  -> text $ "Basic")
                                        , ("Id", ppId)
                                        , ("Clock", timedoc)]
 

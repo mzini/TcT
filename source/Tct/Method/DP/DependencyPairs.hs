@@ -130,7 +130,7 @@ instance T.Transformer DPs where
 
     transform inst prob = return $  
         case (Prob.startTerms prob, Trs.isEmpty $ Prob.dpComponents prob, useTuples && (Prob.strategy prob /= Innermost)) of 
-          (TermAlgebra     , _    ,    _) -> T.NoProgress NotRCProblem
+          (TermAlgebra _   , _    ,    _) -> T.NoProgress NotRCProblem
           (_               , False,    _) -> T.NoProgress ContainsDPs
           (_               , _    , True) -> T.NoProgress TuplesNonInnermost
           (BasicTerms ds cs, _    , _   ) -> T.Progress proof  (enumeration' [prob'])

@@ -183,7 +183,7 @@ polyProcessor = S.StdProcessor NaturalPI
 
 kind :: Domains (S.ArgumentsOf NaturalPI) -> Prob.StartTerms -> PIKind
 kind args st = kind' (shape args) st
-  where kind' shp Prob.TermAlgebra       = UnrestrictedPoly shp
+  where kind' shp Prob.TermAlgebra {}    = UnrestrictedPoly shp
         kind' shp (Prob.BasicTerms _ cs) = ConstructorBased cs shp
 
 shape :: Domains (S.ArgumentsOf NaturalPI) -> PolyShape
@@ -205,7 +205,7 @@ usableArgsWhereApplicable :: PolyDP -> F.Signature -> Prob.StartTerms -> Bool ->
 usableArgsWhereApplicable PWithDP sig _                     ua strat r = (if ua then restrictToSignature compSig (usableArgs strat r) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra      _  _     _ = fullWithSignature sig
+usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra {}    _  _     _ = fullWithSignature sig
 usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r = if ua then usableArgs strat r else fullWithSignature sig
 
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
@@ -261,7 +261,7 @@ polyConstraints prel pdp ua st strict weak sig proc = strictChoice prel absi str
         strictChoice PDirect              = strictTrsConstraints
         strictChoice (PRelative oblrules) = relativeStricterTrsConstraints oblrules
         dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
-        dpChoice PNoDP   Prob.TermAlgebra      _     = monotoneConstraints
+        dpChoice PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints
         dpChoice PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice PNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
 

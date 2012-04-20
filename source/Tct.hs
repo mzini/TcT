@@ -41,6 +41,7 @@ import System.FilePath ((</>))
 import System.IO
 import System.Environment (getArgs)
 import System.Exit
+import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
 import System.Process (runCommand, waitForProcess)
@@ -217,8 +218,8 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , interactive     = False}
 
   where defaultProcessor prob _ = return $ case Prob.startTerms prob of 
-          Prob.TermAlgebra -> someInstance Instances.dc2011
-          _                -> someInstance Instances.rc2011
+          Prob.TermAlgebra {} -> someInstance Instances.dc2011
+          _                   -> someInstance Instances.rc2011
         getDefaultSolver = findSatSolver MiniSat "minisat" `catchError` (const $ findSatSolver MiniSat "minisat2")
 
 
@@ -469,9 +470,9 @@ runTct cfg
                                 , Prob.strategy   = strat (atype at)}
                    defineds = Trs.definedSymbols $ Prob.allComponents prob
                    constructors = Trs.constructors $ Prob.allComponents prob
-                   terms DC  _ _   = Prob.TermAlgebra
-                   terms IDC _ _   = Prob.TermAlgebra
-                   terms RC ds cs  = Prob.BasicTerms ds cs
+                   terms DC  ds cs = Prob.TermAlgebra $ ds `Set.union` cs
+                   terms IDC ds cs = Prob.TermAlgebra $ ds `Set.union` cs
+                   terms RC  ds cs = Prob.BasicTerms ds cs
                    terms IRC ds cs = Prob.BasicTerms ds cs
                    strat DC  = Prob.Full
                    strat IDC = Prob.Innermost

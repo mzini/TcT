@@ -140,12 +140,15 @@ mkMinRules :: Set.Set FS.Symbol -> Signature -> [State] -> State -> [Rule]
 mkMinRules fs sign qs q = [ Collapse (f,0) (take (FS.arity sign f) qs) q | f <- Set.toList $ fs]
 
 minimalInitialAutomaton :: Trs -> Trs -> StartTerms -> Signature -> Automaton
-minimalInitialAutomaton strict weak TermAlgebra        sign = fromRules $ mkMinRules (Trs.functionSymbols $ strict `Trs.union` weak) sign (repeat 1) 1 
+minimalInitialAutomaton strict weak (TermAlgebra fs)   sign = fromRules $ mkMinRules fs' sign (repeat 1) 1 
+  where fs' = fs `Set.intersection` Trs.functionSymbols trs
+        trs = strict `Trs.union` weak
+        
 minimalInitialAutomaton strict weak (BasicTerms ds cs) sign = fromRules $ mkMinRules ds' sign (repeat 2) 1 ++ mkMinRules cs' sign (repeat 2) 2
-    where fs = Trs.functionSymbols trs
-          ds' = fs `Set.intersection` ds
-          cs' = fs `Set.intersection` cs
-          trs = strict `Trs.union` weak
+  where fs = Trs.functionSymbols trs
+        ds' = fs `Set.intersection` ds
+        cs' = fs `Set.intersection` cs
+        trs = strict `Trs.union` weak
 
 mkPerSymRules :: Signature -> [FS.Symbol] -> FS.Symbol -> [Rule]
 mkPerSymRules sign fs f  = [ Collapse (f,0) args (enum f) | args <- listProduct $ take (FS.arity sign f) ffs ]
@@ -155,13 +158,13 @@ mkPerSymEmptyRules :: Signature -> State -> FS.Symbol -> [Rule]
 mkPerSymEmptyRules sign q f = [Collapse (f,0) (replicate (FS.arity sign f) q) (enum f)]
 
 perSymInitialAutomaton :: Trs -> Trs -> StartTerms -> Signature -> Automaton
-perSymInitialAutomaton strict weak TermAlgebra        sign = fromRules $ concatMap (mkPerSymRules sign fs) fs
-    where fs = Set.toList $ Trs.functionSymbols trs
-          trs = strict `Trs.union` weak
+perSymInitialAutomaton strict weak (TermAlgebra fs) sign = fromRules $ concatMap (mkPerSymRules sign fs') fs'
+  where fs' = Set.toList $ fs `Set.intersection` Trs.functionSymbols trs
+        trs = strict `Trs.union` weak
 perSymInitialAutomaton strict weak (BasicTerms ds cs) sign = fromRules $ mk ds' ++ mk cs'
-    where fs = Trs.functionSymbols trs
-          ds' = Set.toList $ fs `Set.intersection` ds
-          cs' = Set.toList $ fs `Set.intersection` cs
-          trs = strict `Trs.union` weak
-          mk roots = concatMap mkBase roots
-          mkBase = if null cs' then mkPerSymEmptyRules sign (maximum [ enum f | f <- Set.toList fs ] + 1) else mkPerSymRules sign cs'
+  where fs = Trs.functionSymbols trs
+        ds' = Set.toList $ fs `Set.intersection` ds
+        cs' = Set.toList $ fs `Set.intersection` cs
+        trs = strict `Trs.union` weak
+        mk roots = concatMap mkBase roots
+        mkBase = if null cs' then mkPerSymEmptyRules sign (maximum [ enum f | f <- Set.toList fs ] + 1) else mkPerSymRules sign cs'

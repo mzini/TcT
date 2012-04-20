@@ -188,8 +188,8 @@ usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool 
 usableArgsWhereApplicable MWithDP sig _                     _  _     _ = fullWithSignature compSig `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _  _     _ = fullWithSignature sig
-usableArgsWhereApplicable MNoDP   sig (Prob.BasicTerms _ _) ua strat r = if ua then usableArgs strat r else fullWithSignature sig
+usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra {}      _  _     _ = fullWithSignature sig
+usableArgsWhereApplicable MNoDP   sig Prob.BasicTerms {} ua strat r = if ua then usableArgs strat r else fullWithSignature sig
 
 instance PrettyPrintable ArcInt where
   pprint MinusInf = text "-inf"
@@ -253,10 +253,10 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         otherConstraints mi = dpChoice mdp st uaOn mi
         strictChoice MDirect              = strictTrsConstraints
         strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
-        dpChoice MWithDP _                     _     = safeRedpairConstraints sig
-        dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints sig
-        dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints sig ua
-        dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints sig
+        dpChoice MWithDP _                   _     = safeRedpairConstraints sig
+        dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints sig
+        dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints sig ua
+        dpChoice MNoDP   Prob.BasicTerms {}  False = monotoneConstraints sig
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => F.Signature -> UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints sig uarg mi = unaryConstraints strictUnaryInts && nullaryConstraints nullaryInts && weakMonotoneConstraints weakUnaryInts

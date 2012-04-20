@@ -219,9 +219,9 @@ matrixProcessor = S.StdProcessor NaturalMI
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
 kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
-kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> n) d)
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra       = EdaMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> n) d)
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
 bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
@@ -242,8 +242,8 @@ usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool 
 usableArgsWhereApplicable MWithDP sig _                     ua strat r = (if ua then restrictToSignature compSig (usableArgs strat r) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
   where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
         nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra      _  _     _ = fullWithSignature sig
-usableArgsWhereApplicable MNoDP   sig (Prob.BasicTerms _ _) ua strat r = if ua then usableArgs strat r else fullWithSignature sig
+usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra {}     _  _     _ = fullWithSignature sig
+usableArgsWhereApplicable MNoDP   sig Prob.BasicTerms {} ua strat r = if ua then usableArgs strat r else fullWithSignature sig
 
 -- uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
 -- uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
@@ -328,10 +328,10 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
         strictChoice MDirect              = strictTrsConstraints
         strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
 --         strictChoice MWeightGap = strictOneConstraints
-        dpChoice MWithDP _                     u     = safeRedpairConstraints sig ua u
-        dpChoice MNoDP   Prob.TermAlgebra      _     = monotoneConstraints
-        dpChoice MNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
-        dpChoice MNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
+        dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u
+        dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints
+        dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints ua
+        dpChoice MNoDP   Prob.BasicTerms {}  False = monotoneConstraints
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations

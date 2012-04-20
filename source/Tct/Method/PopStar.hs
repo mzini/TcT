@@ -478,7 +478,7 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
                                  , prodExtP      = fm forcePROD
                                  } 
                     defP f = fm $ f `Set.member` quasiDefineds
-                    markeds = Trs.definedSymbols dps
+                    -- markeds = Trs.definedSymbols dps
                     -- colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
                     --                                           then bot 
                     --                                           else AFEnc.isCollapsing f

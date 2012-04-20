@@ -90,7 +90,7 @@ where
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Concurrent.PFold (pfoldA, Return(..))
-import Data.Typeable
+import Data.Typeable hiding (mkTyCon)
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
@@ -159,7 +159,6 @@ minisatValue m e  =
        Left  _ -> return Nothing
     where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
 
--- processor
 
 data PPMode = ProofOutput    -- ^ standard proof output
             | StrategyOutput -- ^ also output of extended /strategy information/
@@ -172,6 +171,8 @@ class ComplexityProof proof where
     answer :: proof -> Answer
     -- | Pretty printer of proof. 
     pprintProof :: proof -> PPMode -> Doc
+    
+    toXml :: proof -> Xml
     
 -- | A /processor/ 'p' is an object whose /instances/ 'InstanceOf p'
 -- are equipped with a /solving method/, translating a complexity 
@@ -425,10 +426,10 @@ instance ComplexityProof SomeProof where
     answer (SomeProof p)      = answer p
 
 instance Typeable (SomeProcessor) where 
-    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.SomeProcessor") [mkTyConApp (mkTyCon "SomeProcessor") []]
+    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor"  "SomeProcessor") []]
 
 instance Typeable (InstanceOf SomeProcessor) where 
-    typeOf (SPI _) = mkTyConApp (mkTyCon "Tct.Processor.SPI") [mkTyConApp (mkTyCon "SomeInstance") []]
+    typeOf (SPI _) = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SPI") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeInstance") []]
 
 instance Processor SomeProcessor where
     type ProofOf    SomeProcessor = SomeProof
@@ -533,10 +534,10 @@ instance Processor AnyProcessor where
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance Typeable AnyProcessor where 
-    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.AnyProcessor") [mkTyConApp (mkTyCon "OO") []]
+    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "AnyProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "OO") []]
 
 instance Typeable (InstanceOf AnyProcessor) where 
-    typeOf _ = mkTyConApp (mkTyCon "Tct.Processor.OOI") [mkTyConApp (mkTyCon "SomeInstance") []]
+    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "OOI") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeInstance") []]
 
 instance ParsableProcessor AnyProcessor where
     description _             = []

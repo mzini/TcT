@@ -1059,7 +1059,11 @@ apply a =
        Just pt -> applyWithTree st pt
     where applyWithTree st pt = 
             do fn <- apply' a selected
-               let fn' sn prob = fromMaybe (Open prob) (fn sn prob)
+               let fn' sn prob = 
+                     case fn sn prob of 
+                       Just nd@(Closed _ _ p) | P.succeeded p -> nd
+                       Just nd@(Transformed True _ _ _ _) -> nd
+                       _ -> Open prob
                    anyChange = any changed [ fn' sn prob | (sn,prob) <- selected]
                    pt' = pt `modifyOpenWith` fn'
                    st' = st { proofTree = Just $ pt'}
@@ -1075,8 +1079,9 @@ apply a =
               where opens = [ p | p@(_,(sn,_)) <- enumOpenFromTree pt, not $ isUnselected st sn]
                     selected = [ eprob | (_,eprob) <- opens]
                     changed Open{}                           = False
-                    changed (Closed  _ _ p)                  = P.succeeded p
-                    changed (Transformed progressed _ _ _ _) = progressed
+                    changed _                                = True 
+                    --                                            (Closed  _ _ p)                  = P.succeeded p
+                    -- changed (Transformed progressed _ _ _ _) = progressed
  
           pprintResult opens fn = 
             pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])

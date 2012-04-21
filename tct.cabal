@@ -81,6 +81,7 @@ Library
    Tct.Processor.Transformations
    Tct.Processor.LoggingSolver
    Tct.Utils.Enum
+   Tct.Utils.Xml
    Tct.Utils.PPrint
    Tct.Encoding.ArgumentFiltering
    Tct.Encoding.UsableRules

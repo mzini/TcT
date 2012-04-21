@@ -99,7 +99,7 @@ import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import Termlib.Problem
--- import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml as Xml
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
@@ -173,8 +173,8 @@ class ComplexityProof proof where
     -- | Pretty printer of proof. 
     pprintProof :: proof -> PPMode -> Doc
     
-    -- toXml :: proof -> Xml.XmlContent
-    -- toXml _ = Xml.text "not implemented"
+    toXml :: proof -> Xml.XmlContent
+    toXml _ = Xml.text "not implemented"
     
 -- | A /processor/ 'p' is an object whose /instances/ 'InstanceOf p'
 -- are equipped with a /solving method/, translating a complexity 

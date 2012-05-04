@@ -43,6 +43,7 @@ import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Trs (Trs, RuleList (..), definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
+import qualified Tct.Utils.Xml as Xml
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -114,7 +115,17 @@ instance PrettyPrintable DPProof where
 instance T.TransformationProof DPs where
     answer = T.answerFromSubProof
     pprintTProof _ _ p _ = pprint p
-
+    tproofToXml _ _ NotRCProblem = ("dp", [Xml.elt "NotRcProblem" [] []])
+    tproofToXml _ _ ContainsDPs = ("dp", [Xml.elt "containsDPs" [] []])
+    tproofToXml _ _ TuplesNonInnermost = ("dp", [Xml.elt "tuplesNonInnermost" [] []])
+    tproofToXml _ _ p = 
+      ( "dp"
+      , [ Xml.elt (if tuplesUsed p then "tuples" else "pairs") [] []
+        , Xml.elt "strictDPs" [] [Xml.rules (strictDPs p) sig vs]
+        , Xml.elt "weakDPs" [] [Xml.rules (weakDPs p) sig vs]])
+      where sig = newSignature p
+            vs = newVariables p
+      
 instance T.Transformer DPs where
     name DPs = "dp"
     instanceName inst | tups = "Weak Dependency Tuples"

@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -75,6 +76,9 @@ module Tct.Processor.Transformations
          -- | The following utilities are used only internally.
        , liftMS
        , mkSubsumed
+         
+         -- * Misc
+       , transformerToXml
        )
 where
 
@@ -93,8 +97,10 @@ import qualified Termlib.Trs as Trs
 import qualified Termlib.Utils as Util
 
 import Tct.Utils.Enum
+import qualified Tct.Utils.Xml as Xml
 import Tct.Utils.PPrint
 import qualified Tct.Processor as P
+import qualified Tct.Proof as Proof
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -103,16 +109,51 @@ import Tct.Processor.Args hiding (name, description, synopsis)
 --------------------------------------------------------------------------------
 --- Transformation Proofs
 
+
+transformerToXml :: Transformer t => TheTransformer t -> Xml.XmlContent
+transformerToXml tinst = 
+  Xml.elt "transformationProcessor" [] 
+    [ Xml.elt "arguments" [] $ A.toXml (arguments t) (transformationArgs tinst)
+    , Xml.elt "name" [] [Xml.text $ name t]
+    , Xml.elt "description" [] [Xml.text $ unwords $ description t]]
+    where t = transformation tinst
+          
 -- | Every transformer needs to implement this class.
 -- Minimal definition: 'answer' and 'pprintTProof'.
 class TransformationProof t where
+  
   -- | Construct an 'P.Answer' from the 'Proof'.
   answer :: P.Processor sub => Proof t sub -> P.Answer
+  
+  -- | Construct an Xml-node from a transformation proof.
+  -- The default implementation wraps the pretty-printed output
+  -- in a 'proofdata' node
+  tproofToXml :: (Transformer t) => TheTransformer t -> Problem -> ProofOf t -> (String, [Proof.XmlContent])
+  tproofToXml t prob proof = 
+    ( name (transformation t)
+    , [ Xml.elt "proofdata" [] [Xml.text $ show $ pprintTProof t prob proof P.ProofOutput] ])
+    
+  proofToXml :: (Transformer t, P.Processor sub) => Proof t sub -> Proof.XmlContent
+  proofToXml proof = 
+    Xml.elt "transformation" [] 
+     [ transformerToXml tinst
+     , Xml.complexityProblem input ans
+     , Xml.elt "transformationProof" [] [Xml.elt n [] cnt]
+     , Xml.elt (if progressed then "progress" else "noprogress") [] []
+     , Xml.elt "subProofs" [] [Proof.toXml p | (_,p) <- subproofs ]]
+    where (n, cnt)  = tproofToXml tinst input tproof 
+          subproofs = subProofs proof
+          tproof    = transformationProof proof
+          tinst     = appliedTransformer proof
+          input     = inputProblem proof
+          ans       = answer proof
+          progressed = isProgressResult $ transformationResult proof
+          
   -- | Pretty print the transformation proof.
   pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> P.PPMode -> Doc
+  
   -- | Pretty printer of the 'Proof'. A default implementation is given.
   pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
-  
   pprintProof proof mde = 
       ppTransformationDetails 
       $+$ case subprobs of 
@@ -307,6 +348,22 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
                       $+$ text ""
                       $+$ pprintTProof t2 prob_i (proofFromResult r2_i) mde
 
+    proofToXml proof = 
+      case tproof of 
+         ComposeProof r1 Nothing -> 
+           let (n,cnt) = tproofToXml t1 input (proofFromResult r1)
+           in Xml.elt n [] 
+             [ transformerToXml tinst
+             , Xml.complexityProblem input P.MaybeAnswer
+             , Xml.elt "transformationProof" [] cnt]
+         ComposeProof r1 (Just r2s) -> proofToXml (mkComposeProof sub t1 t2 input r1 r2s subproofs)
+      where tproof    = transformationProof proof
+            input     = inputProblem proof
+            subproofs = P.someProcessorProof `mapEnum` subProofs proof
+            sub       = P.someInstance (appliedSubprocessor proof)
+            tinst@(TheTransformer (t1 :>>>: t2) ()) = appliedTransformer proof
+            
+
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
 someProof sub t prob res subproofs = Proof { transformationResult = res
                                            , inputProblem         = prob
@@ -357,7 +414,7 @@ instance Numbering a => Numbering (Unique a) where
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     name (TheTransformer t1 _ :>>>: _) = name t1
     instanceName (TheTransformer (t1 :>>>: _) _) = instanceName t1
-    description _ = ["Implements sequencing of two transformations"]
+    description (TheTransformer t1 _ :>>>: _) = description t1
     type ArgumentsOf (t1 :>>>: t2) = Unit
     type ProofOf (t1 :>>>: t2)    = ComposeProof t1 t2
     arguments _ = Unit
@@ -396,6 +453,11 @@ data IdProof = IdProof
 instance TransformationProof Id where
   pprintTProof _ _ _ _ = PP.empty
   answer = answerFromSubProof
+  proofToXml proof = 
+    case subProofs proof of 
+      [(_,p)] -> P.toXml p
+      _   -> error "proof of Id-trans does not contain subproof"
+    
   
 instance Transformer Id where 
   name Id = "id"
@@ -429,13 +491,21 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
   pprintTProof (TheTransformer (_ :<>: t2) _) prob (ChoiceTwo _ r2) mde =     
     pprintTProof t2 prob (proofFromResult r2) mde
     
-  answer proof = case transformationProof proof of 
-                    ChoiceOne r1 -> answer $ proof { transformationResult = r1 
-                                                   , appliedTransformer   = t1}
-                    ChoiceTwo _ r2 -> answer $ proof { transformationResult = r2, appliedTransformer   = t2}
-                      
+  answer proof = 
+    case transformationProof proof of 
+      ChoiceOne r1 -> answer $ proof { transformationResult = r1 
+                                    , appliedTransformer   = t1}
+      ChoiceTwo _ r2 -> answer $ proof { transformationResult = r2, appliedTransformer   = t2}
     where (TheTransformer (t1 :<>: t2) _) = appliedTransformer proof
     
+  proofToXml proof = 
+    case transformationProof proof of 
+      ChoiceOne r1 -> proofToXml $ proof { transformationResult = r1 
+                                        , appliedTransformer   = t1}
+      ChoiceTwo _ r2 -> proofToXml $ proof { transformationResult = r2
+                                          , appliedTransformer   = t2}
+    where (TheTransformer (t1 :<>: t2) _) = appliedTransformer proof
+
 
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
@@ -466,7 +536,7 @@ fromTry :: TheTransformer (Try t) -> TheTransformer t
 fromTry (TheTransformer (Try t) as) = TheTransformer t as
 
 
-instance TransformationProof t => TransformationProof (Try t) where
+instance (Transformer t, TransformationProof t) => TransformationProof (Try t) where
     pprintProof proof mde = 
         case result of 
           NoProgress (TryProof p) 
@@ -502,6 +572,17 @@ instance TransformationProof t => TransformationProof (Try t) where
 
     pprintTProof t prob (TryProof p) = pprintTProof (fromTry t) prob p
 
+    -- tproofToXml t prob (TryProof p) = 
+      
+    proofToXml proof = 
+      proofToXml proof { appliedTransformer  = t'
+                       , transformationResult = const p `mapResult` result }
+      where t'        = fromTry $ appliedTransformer proof
+            result    = transformationResult proof
+            p = case transformationResult proof of 
+                  NoProgress (TryProof p') -> p'
+                  Progress (TryProof p') _ -> p'                 
+
 
 
 instance (Transformer t) => Transformer (Try t) where
@@ -523,26 +604,27 @@ instance (Transformer t) => Transformer (Try t) where
 -- SomeTransformation
 
 data SomeTransformation = forall t. (Transformer t) => SomeTransformation t (Domains (ArgumentsOf t))
-data SomeTransProof = forall t. (TransformationProof t) => SomeTransProof (TheTransformer t) (ProofOf t)
+data SomeTransProof = forall t. (Transformer t, TransformationProof t) => SomeTransProof (TheTransformer t) (ProofOf t)
 
+onSomeProof :: P.Processor sub' => 
+              (forall t sub. (Transformer t, P.Processor sub) => Proof t sub -> a) -> Proof SomeTransformation sub' -> a
+f `onSomeProof` proof = 
+  case transformationProof proof of 
+    SomeTransProof tinst tproof -> 
+        f proof { transformationResult = 
+                     case transformationResult proof of 
+                       NoProgress _  -> NoProgress tproof
+                       Progress _ ps -> Progress tproof ps
+                , appliedTransformer = tinst }
+                
 instance TransformationProof SomeTransformation where
-  answer proof = 
-    case transformationProof proof of 
-      SomeTransProof tinst tproof -> answer proof'  
-        where proof' = proof { transformationResult = result'
-                             , appliedTransformer = tinst }
-              result' = case transformationResult proof of 
-                NoProgress _  -> NoProgress tproof
-                Progress _ ps -> Progress tproof ps
-  pprintProof proof mde = 
-    case transformationProof proof of 
-      SomeTransProof tinst tproof -> pprintProof proof' mde
-        where proof' = proof { transformationResult = result'
-                             , appliedTransformer = tinst }
-              result' = case transformationResult proof of 
-                NoProgress _  -> NoProgress tproof
-                Progress _ ps -> Progress tproof ps
+  answer proof = answer `onSomeProof` proof 
+  pprintProof proof = pprintProof `onSomeProof` proof
   pprintTProof _ prob (SomeTransProof t p) = pprintTProof t prob p
+  proofToXml proof = proofToXml `onSomeProof` proof
+  tproofToXml _ prob (SomeTransProof t p) = tproofToXml t prob p
+  
+  
   
 
 instance Transformer SomeTransformation where
@@ -645,6 +727,8 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
 instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) where 
   pprintProof proof mde = pprintProof proof mde
   answer proof = answer proof
+  toXml proof = proofToXml proof
+  
 
 -- | Constructor for instances.
 withArgs :: (Transformer t) => (Transformation t sub) -> (Domains (ArgumentsOf t)) -> TheTransformer t
@@ -738,12 +822,15 @@ instance P.ComplexityProof proof => P.ComplexityProof (MaybeSubsumed proof) wher
                                                    $+$ Util.paragraph "on which the subprocessor has allready been applied. We reuse following proof:"
                                                    $+$ text ""
                                                    $+$ P.pprintProof proof mde
+  toXml (MaybeSubsumed Nothing proof) = P.toXml proof
+  toXml (MaybeSubsumed _       proof) = P.toXml proof  
 
 instance P.Processor proc => P.Processor (Subsumed proc) where
    data InstanceOf (Subsumed proc) = SSI (P.InstanceOf proc)
    type ProofOf (Subsumed proc)    = MaybeSubsumed (P.ProofOf proc)
    name (Subsumed proc) = P.name proc
    instanceName (SSI inst) = P.instanceName inst
+   processorToXml (SSI inst) = P.processorToXml inst
    solve_ (SSI inst) prob = MaybeSubsumed Nothing `liftM` P.solve_ inst prob 
    solvePartial_ (SSI inst) rs prob = mk `liftM` P.solvePartial inst rs prob
         where mk pp = pp { P.ppResult = MaybeSubsumed Nothing $ P.ppResult pp}

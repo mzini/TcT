@@ -117,7 +117,8 @@ instance T.Transformer Uncurry where
                                                  (p, _) = runSignature m F.emptySignature
                                                  prob'  = prob { strictTrs = uncurriedStrict p
                                                                , weakTrs   = uncurriedWeak p `Trs.union` uncurryTrs p
-                                                               , signature = newSignature p }
+                                                               , signature = newSignature p
+                                                               , startTerms = TermAlgebra $ Trs.functionSymbols $ Prob.allComponents prob' }
 
 
 uncurryProcessor :: T.Transformation Uncurry P.AnyProcessor

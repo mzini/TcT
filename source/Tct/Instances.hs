@@ -318,7 +318,7 @@ dpsimps :: TheTransformer SomeTransformation
 dpsimps   = try DPSimp.removeTails 
             >>> try DPSimp.simpDPRHS 
             >>> try DPSimp.simpKP            
-            >>> UR.usableRules
+            >>> try UR.usableRules
 
 class IsDefaultOption a where
     defaultOptions :: a

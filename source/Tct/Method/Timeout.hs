@@ -31,30 +31,31 @@ where
 import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
 
+import Tct.Utils.Xml as Xml
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor.Standard as S
 import Tct.Processor.Args.Instances hiding (Processor)
 import Termlib.Utils (paragraph)
-import Tct.Processor hiding (Proof, (<|>))
+import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ hiding (brackets)
 
 data Timeout p = Timeout
 
 -- | @timeout sec t@ 
 -- aborts processor @t@ after @sec@ seconds.
-timeout :: Processor p => Int -> (InstanceOf p) -> InstanceOf (S.StdProcessor (Timeout p))
+timeout :: P.Processor p => Int -> (P.InstanceOf p) -> P.InstanceOf (S.StdProcessor (Timeout p))
 timeout i proc = S.StdProcessor Timeout  `S.withArgs` (Nat i :+: proc)
 
 
-timeoutProcessor :: S.StdProcessor (Timeout AnyProcessor)
+timeoutProcessor :: S.StdProcessor (Timeout P.AnyProcessor)
 timeoutProcessor = S.StdProcessor Timeout
 
 
 data TOProof p = TimedOut Int 
-               | TOProof (ProofOf p)
+               | TOProof (P.ProofOf p)
 
-instance Processor p => S.Processor (Timeout p) where 
+instance P.Processor p => S.Processor (Timeout p) where 
     type ProofOf (Timeout p)     = TOProof p
     type ArgumentsOf (Timeout p) = Arg Nat :+: Arg (Proc p)
     description _                  = ["The processor either returns the result of the given processor"
@@ -65,20 +66,22 @@ instance Processor p => S.Processor (Timeout p) where
                                     :+: 
                                     arg { A.name = "processor"
                                         , A.description = "The processor to apply with timeout"}
-    instanceName tinst            = instanceName inst ++ " (timeout of " ++ show i ++ " seconds)"
+    instanceName tinst            = P.instanceName inst ++ " (timeout of " ++ show i ++ " seconds)"
       where Nat i :+: inst = S.processorArgs tinst
     solve tinst prob  = 
-        do io <- mkIO $ apply inst prob 
+        do io <- P.mkIO $ P.apply inst prob 
            r <- liftIO $ timedKill (i * (10^(6 :: Int))) io
            return $ case r of 
-                      Just p  -> TOProof (result p)
+                      Just p  -> TOProof (P.result p)
                       Nothing -> TimedOut i
       where Nat i :+: inst = S.processorArgs tinst    
             
-instance ComplexityProof (ProofOf p) => ComplexityProof (TOProof p) where
-    pprintProof (TOProof p)  mde = pprintProof p mde
+instance P.ComplexityProof (P.ProofOf p) => P.ComplexityProof (TOProof p) where
+    pprintProof (TOProof p)  mde = P.pprintProof p mde
     pprintProof (TimedOut i) _   = 
       paragraph ("Computation stopped due to timeout after " 
                  ++ show (double (fromIntegral i)) ++ " seconds.")
-    answer (TOProof p)  = answer p
-    answer (TimedOut _) = TimeoutAnswer
+    answer (TOProof p)  = P.answer p
+    answer (TimedOut _) = P.TimeoutAnswer
+    toXml (TOProof p)   = P.toXml p
+    toXml (TimedOut i)  = Xml.elt "timeout" [] [Xml.text $ show (double (fromIntegral i))]

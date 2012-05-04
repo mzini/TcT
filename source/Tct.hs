@@ -59,6 +59,7 @@ import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags
 import Tct.Processor
+import Tct.Utils.Xml (putXmlProof)
 import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
@@ -123,6 +124,7 @@ instance PrettyPrintable [TCTWarning] where
 
 data OutputMode = OnlyAnswer 
                 | WithProof PPMode
+                | WithXml
 
 -- | Configuration of TcT. 
 data Config = Config { 
@@ -271,17 +273,20 @@ options =
                     readOutputMode ('p':_) = WithProof ProofOutput
                     readOutputMode ('s':_) = WithProof StrategyOutput
                     readOutputMode ('o':_) = WithProof OverviewOutput                    
+                    readOutputMode ('x':_) = WithXml                    
                     readOutputMode md      = error $ "unsupported output mode (this is covered by flagparser anyway): " ++ md
-                in (\n f -> f{ outputMode = readOutputMode n }) <$> argOption ["answer","proof","strategy", "overview", "a", "p", "s", "o"]
+                in (\n f -> f{ outputMode = readOutputMode n }) <$> argOption ["answer","proof","strategy", "overview", "xml", "a", "p", "s", "o", "x"]
     , help    = [ "Verbosity of proof mode."
                 , " answer:   print only answer from proof"
                 , " proof:    print the full proof"
                 , " strategy: print the full proof, enriched with strategy information"
                 , " overview: print a minimal proof output, neglecting details"                  
+                , " xml:      print xml output"
                 , " a:        like answer"
                 , " p:        like proof"
                 , " s:        like strategy"
-                , " o:        like overview"] }
+                , " o:        like overview"
+                , " x:        like xml"] }
   , Option
     { long    = "answer"
     , short    = "a"
@@ -430,11 +435,15 @@ runTct cfg
                        proof <- process tproc prob
                        let ans = answer proof
                        liftIO $ C.mask_ $ do 
-                         putPretty (pprint ans)
+                         
                          case outputMode cfg of 
-                           OnlyAnswer    -> return ()
+                           OnlyAnswer    -> putPretty (pprint ans)
+                           WithXml       ->
+                             putXmlProof (toXml proof)
                            WithProof mde -> 
-                             putPretty $ text "" 
+                             putPretty $ 
+                             pprint ans
+                             $+$ text "" 
                              $+$ pprintProof proof mde
                              $+$ text "" 
                              $+$ if succeeded proof 

@@ -14,24 +14,33 @@
 
 module Tct.Utils.Xml 
        ( XmlContent
-         -- ^ Constructors
+         -- * Constructors
        , elt
-         -- ^ Translations to XML for general data types
+         -- * Translations to XML for general data types
        , int
        , text
-         -- ^ Translations to XML for termlib data types         
+         -- * Translations to XML for termlib data types         
        , symbol
        , variable
        , term 
        , rule
        , rules
-       , complexityInput
+       , strategy
+       , startTerms
+       , complexityProblem
+         
+         -- * Output XML proof
+       , proofDocument
+       , putXmlProof
        )
        where
 
 import qualified Text.XML.HaXml.Types as Xml
+import qualified Text.XML.HaXml.Pretty as XmlPP
 import qualified Data.Set as Set
 import qualified Tct.Certificate as C
+import qualified Tct.Proof as Proof
+import Tct.Main.Version (version)
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Term as T
@@ -72,9 +81,8 @@ symbol f sig = mark $ label $ elt "name" [] [text $ Sig.attribute F.symIdent f s
 term :: T.Term -> F.Signature -> V.Variables -> XmlContent
 term (T.Var v   ) _   vs = variable v vs
 term (T.Fun f ts) sig vs = 
-  elt "funapp" [] [symbol f sig
-                  , elt "arg" [] [term t sig vs | t <- ts]]
-  
+  elt "funapp" [] $ [symbol f sig] ++ [elt "arg" [] [term t sig vs] | t <- ts]
+
 rule :: R.Rule -> F.Signature -> V.Variables -> XmlContent  
 rule r sig vs = 
   elt "rule" []
@@ -101,31 +109,59 @@ complexity C.Multrec          = elt "multiplerecursive" [] []
 complexity C.Rec              = elt "recursive" [] []
 complexity C.Unknown          = elt "unknown" [] []
 
-complexityInput :: Prob.Problem -> C.Complexity -> XmlContent
-complexityInput prob ub = 
-  elt "complexityInput" [] [trsInput, measure, complexity ub]
-    where trsInput = elt "trsInput" [] $ concat
-            [ trs
-            , strat
-            , rel ]
-                     
-          measure =
-            case Prob.startTerms prob of 
-              Prob.TermAlgebra fs -> 
-                elt "derivationalComplexity" [] [signature fs sig]
-              Prob.BasicTerms ds cs ->
-                elt "runtimeComplexity" [] [signature cs sig, signature ds sig]
+answer :: Proof.Answer -> XmlContent  
+answer Proof.NoAnswer          = elt "no" [] []
+answer Proof.MaybeAnswer       = elt "maybe" [] []
+answer Proof.TimeoutAnswer     = elt "timeout" [] []
+answer (Proof.CertAnswer cert) = 
+  elt "certified" [] [ elt "lowerbound" [] [complexity $ C.lowerBound cert] 
+                     , elt "upperbound" [] [complexity $ C.upperBound cert]]
+  
+strategy :: Prob.Strategy -> XmlContent
+strategy Prob.Innermost = elt "innermost" [] []
+strategy Prob.Full      = elt "full" [] []
+strategy Prob.Outermost = elt "outermost" [] []
+strategy _              = error "Xml.ComplexityInput: unsupported strategy contextsensitive"
 
-          trs = [elt "trs" [] [rules strs sig vs]]
-          rel | Trs.isEmpty wtrs = []
-              | otherwise        = [elt "relativeRules" [] [rules strs sig vs]]
-          strat = 
-            case Prob.strategy prob of 
-              Prob.Innermost -> [elt "strategy" [] [elt "innermost" [] []]]
-              Prob.Innermost -> []
-              _              -> error "Xml.ComplexityInput: unsupported strategy"
-
+startTerms :: Prob.StartTerms -> F.Signature -> XmlContent
+startTerms (Prob.TermAlgebra fs) sig =
+  elt "derivationalComplexity" [] [signature fs sig]
+startTerms (Prob.BasicTerms ds cs) sig =
+  elt "runtimeComplexity" [] [signature cs sig, signature ds sig]
+  
+complexityProblem :: Prob.Problem -> Proof.Answer -> XmlContent
+complexityProblem prob ans = 
+  elt "complexityInput" [] [ elt "relation" [] $ 
+                             concat [ trs "strictTrs" Prob.strictTrs
+                                    , trs "weakTrs" Prob.weakTrs
+                                    , trs "strictDPs" Prob.strictDPs
+                                    , trs "weakDPs" Prob.weakDPs]
+                           , elt "complexityMeasure" [] [startTerms (Prob.startTerms prob) sig]
+                           , elt "strategy" [] [strategy $ Prob.strategy prob]
+                           , elt "answer" [] [answer ans]]
+    where trs n f = 
+            case f prob of 
+              rs | Trs.isEmpty rs -> []
+                 | otherwise -> [elt n [] [ rules rs sig vs ]]
           sig = Prob.signature prob
           vs  = Prob.variables prob
-          strs = Prob.strictTrs prob
-          wtrs = Prob.weakTrs prob
+          
+          
+proofDocument :: XmlContent -> Xml.Document ()
+proofDocument cnt = 
+  Xml.Document prolog symtab el misc
+    where prolog = Xml.Prolog (Just xmlversion) [Xml.PI ("xml-stylesheet", style)] Nothing []
+            where xmlversion = Xml.XMLDecl "1.0" Nothing Nothing
+                  style = "type=\"text/xsl\" href=\"tctpfHTML.xsl\""
+          el = Xml.Elem (Xml.N "tctOutput") attribs [vs, cnt]
+            where attribs = [ (Xml.N "xmlns:xsi", Xml.AttValue [Left "http://www.w3.org/2001/XMLSchema-instance"])
+                            -- , (Xml.N "xsi", Xml.AttValue [Left "http://cl-informatik.uibk.ac.at/software/tct/include/tctpf.xsd"])
+                            ]
+                  vs = elt "version" [] [text $ version]
+          misc = []
+          symtab = []
+
+          
+putXmlProof :: XmlContent -> IO ()
+putXmlProof cnt = putStrLn $ show $ doc
+  where doc = XmlPP.document $ proofDocument cnt

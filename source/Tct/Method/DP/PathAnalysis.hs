@@ -159,7 +159,7 @@ instance T.TransformationProof PathAnalysis where
                            Just proofs -> if all P.succeeded proofs
                                           then P.CertAnswer $ certified (unknown, mkUb proofs)
                                           else P.MaybeAnswer
-                           Nothing  -> P.NoAnswer
+                           Nothing  -> P.MaybeAnswer
                          where mproofs = sequence [ T.findProof e proof | (SN e,_) <- subprobs]
                                mkUb proofs = maximum $ (Poly $ Just 1) : [upperBound $ P.certificate p | p <- proofs]
                            

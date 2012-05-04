@@ -91,18 +91,21 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Concurrent.PFold (pfoldA, Return(..))
 import Data.Typeable hiding (mkTyCon)
+import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
+import qualified Text.ParserCombinators.Parsec as Parsec
+import Text.PrettyPrint.HughesPJ hiding (parens)
 
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
-import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
-import qualified Text.ParserCombinators.Parsec as Parsec
-import Text.PrettyPrint.HughesPJ hiding (parens)
+
 import Termlib.Problem
-import qualified Tct.Utils.Xml as Xml
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
+
+import Tct.Proof
+import qualified Tct.Utils.Xml as Xml
 import Tct.Certificate
 import qualified Tct.Processor.Parse as Parse
 
@@ -161,20 +164,7 @@ minisatValue m e  =
     where val (MiniSat s) = SatSolver.value (setCmd s >> m) e 
 
 
-data PPMode = ProofOutput    -- ^ standard proof output
-            | StrategyOutput -- ^ also output of extended /strategy information/
-            | OverviewOutput  -- ^ Only present an overview
-            deriving (Show, Eq, Ord)
 
--- | Complexity proofs should be instance of the 'ComplexityProof' class.
-class ComplexityProof proof where
-    -- | Construct an 'Answer' from the proof.
-    answer :: proof -> Answer
-    -- | Pretty printer of proof. 
-    pprintProof :: proof -> PPMode -> Doc
-    
-    toXml :: proof -> Xml.XmlContent
-    toXml _ = Xml.text "not implemented"
     
 -- | A /processor/ 'p' is an object whose /instances/ 'InstanceOf p'
 -- are equipped with a /solving method/, translating a complexity 
@@ -190,6 +180,8 @@ class (ComplexityProof (ProofOf proc)) => Processor proc where
   -- proof output.
   instanceName    :: (InstanceOf proc) -> String
   
+  processorToXml  :: (InstanceOf proc) -> XmlContent
+
   -- | The solve method. Given an instance and a problem, it constructs
   -- a proof object. This method should not be called directly, instead
   -- the method 'solve' from the class 'SolverM' should be called.
@@ -256,7 +248,6 @@ instance PrettyPrintable ArgDescr where
 
 -- | Parsable processors provide additional information for parsing.
 class Processor a => ParsableProcessor a where
-  
     description     :: a -> [String]
     synString       :: a -> SynString
     posArgs         :: a -> [(Int, ArgDescr)]
@@ -290,62 +281,6 @@ fromString p s = mk $ Parse.fromString (parseProcessor p) p "supplied strategy" 
   where mk (Right (OOI inst)) = Right $ SPI $ SomeInstance inst
         mk (Left e)           = Left e
         
--- | The datatype 'Answer' reflects the answer type 
--- from the complexity competition. 
-data Answer = CertAnswer Certificate 
-            | MaybeAnswer
-            | NoAnswer
-            | TimeoutAnswer deriving (Eq, Ord, Show)
-
--- | Abbreviation for 'CertAnswer $ certified (unknown, unknown)'.
-yesAnswer :: Answer
-yesAnswer = CertAnswer $ certified (unknown, unknown)
-
-
-instance Utils.Parsable Answer where
-  parse = parseYes Parsec.<|> parseMaybe Parsec.<|> parseNo Parsec.<|> parseTO
-    where parseMaybe   = Parsec.string "MAYBE" >> return MaybeAnswer
-          parseTO      = Parsec.string "TIMEOUT" >> return TimeoutAnswer
-          parseNo      = Parsec.string "NO" >> return NoAnswer
-          parseYes     = Utils.parse >>= return . CertAnswer
-
-instance PrettyPrintable Answer where 
-  pprint (CertAnswer cert) = pprint cert
-  pprint TimeoutAnswer     = text "TIMEOUT"
-  pprint MaybeAnswer       = text "MAYBE"
-  pprint NoAnswer          = text "NO"
-
-instance ComplexityProof Answer where
-    pprintProof a _ = pprint a
-    answer = id
-
-
-
-
--- | returns the 'Certificate' associated 
--- with the proof. 
-certificate :: ComplexityProof p => p -> Certificate
-certificate p = case answer p of 
-                CertAnswer c -> c
-                _            -> uncertified
-                
--- | The predicate @'succeeded' p@ holds iff
--- @'answer' p@ is of shape @CertAnswer _@.
-succeeded :: ComplexityProof p => p -> Bool
-succeeded p = case answer p of 
-                CertAnswer _ -> True
-                _            -> False
-
--- | Negation of 'succeeded'.
-failed :: ComplexityProof p => p -> Bool
-failed = not . succeeded
-
--- | The predicate @'isTimeout' p@ holds iff 
--- @'answer' p@ is of shape @TimeoutAnswer _@.
-isTimeout :: ComplexityProof p => p -> Bool
-isTimeout p = case answer p of 
-                TimeoutAnswer -> True
-                _             -> False
                 
 --- * Proof Nodes
 
@@ -387,6 +322,11 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
                     ContextSensitive _ -> "context-sensitive "
                     Outermost          -> "outermost "
     answer = answer . result
+    
+    toXml (Proof inst prob res) = 
+      Xml.elt "proofNode" [] [ Xml.complexityProblem prob (answer res)
+                             , Xml.elt "proofDetail" [] [toXml res] 
+                             , processorToXml inst]
 
 -- | Objects of type 'ProofPartial proc' correspond to a proof node
 -- obtained by 'solvePartial'. 
@@ -426,6 +366,7 @@ data SomeInstance  = forall p. (Processor p) => SomeInstance (InstanceOf p)
 instance ComplexityProof SomeProof where 
     pprintProof (SomeProof p) = pprintProof p
     answer (SomeProof p)      = answer p
+    toXml (SomeProof p)       = toXml p
 
 instance Typeable (SomeProcessor) where 
     typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor"  "SomeProcessor") []]
@@ -436,9 +377,10 @@ instance Typeable (InstanceOf SomeProcessor) where
 instance Processor SomeProcessor where
     type ProofOf    SomeProcessor = SomeProof
     data InstanceOf SomeProcessor = SPI SomeInstance
-    name (SomeProcessor proc)                    = name proc
-    instanceName (SPI (SomeInstance inst))       = instanceName inst
-    solve_ (SPI (SomeInstance inst)) prob        = SomeProof `liftM` solve_ inst prob
+    name (SomeProcessor proc) = name proc
+    instanceName (SPI (SomeInstance inst)) = instanceName inst
+    processorToXml (SPI (SomeInstance inst)) = processorToXml inst    
+    solve_ (SPI (SomeInstance inst)) prob = SomeProof `liftM` solve_ inst prob
     solvePartial_ (SPI (SomeInstance inst)) stricts prob = do pp <- solvePartial_ inst stricts prob
                                                               return $ modify pp
         where modify pp = pp { ppResult = SomeProof $ ppResult pp}
@@ -522,7 +464,7 @@ prob `solveBy` proc = SomeProof `liftM` solve proc prob
 -- * Any Processor
 -- | AnyProcessor implements a choice of processors, i.e., a list of processors. 
 -- 'AnyProcessor's are mainly used for parsing. The 'InstanceOf' an any procesessor
--- is an instance of one of its elements
+-- is an instance of one of its elements.
 data AnyProcessor = OO String [SomeProcessor]
 
 instance Processor AnyProcessor where
@@ -530,6 +472,7 @@ instance Processor AnyProcessor where
     data InstanceOf AnyProcessor = OOI (InstanceOf SomeProcessor)
     name (OO s _)           = s
     instanceName (OOI inst) = instanceName inst
+    processorToXml (OOI inst) = processorToXml inst
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
     solvePartial_ (OOI inst) stricts prob  = do pp <- solvePartial_ inst stricts prob
                                                 return $ modify pp
@@ -585,10 +528,6 @@ fromProcessorList l = OO "any processor" l
 liftOOI :: InstanceOf SomeProcessor -> InstanceOf AnyProcessor
 liftOOI = OOI
 
--- | 
 parseAnyProcessor :: ProcessorParser (InstanceOf AnyProcessor)
 parseAnyProcessor = getState >>= parseProcessor
-
-
--- * Construct instances from defaultValues
 

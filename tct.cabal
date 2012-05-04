@@ -71,9 +71,9 @@ Library
    Tct.Main.Flags
    Tct.Main.Debug
    Tct.Main.Version
+   Tct.Proof
    Tct.Processor
    Tct.Processor.Parse
-   Tct.Method.Timeout
    Tct.Processor.Orderings
    Tct.Processor.Standard
    Tct.Processor.Args
@@ -94,6 +94,7 @@ Library
    Tct.Encoding.Natring
    Tct.Encoding.AbstractInterpretation
    Tct.Encoding.HomomorphicInterpretation
+   Tct.Method.Timeout
    Tct.Method.RuleSelector
    Tct.Method.Combinator
    Tct.Method.InnermostRuleRemoval

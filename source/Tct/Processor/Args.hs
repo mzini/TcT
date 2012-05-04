@@ -45,6 +45,8 @@ module Tct.Processor.Args
        ) where
 
 import qualified Tct.Processor as P
+import qualified Tct.Utils.Xml as Xml
+
 import Tct.Processor.Parse
 import Text.Parsec.Prim
 import Text.Parsec.Combinator hiding (optional)
@@ -57,6 +59,7 @@ import Control.Monad (liftM)
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.HughesPJ
+
 import qualified Termlib.Utils as U
 -- single argument
 data Phantom k = Phantom
@@ -90,6 +93,7 @@ type OptionalParser = P.ProcessorParser (String, SomeDomainElt)
 
 class Arguments a where
     type Domains a 
+    toXml :: a -> Domains a -> [Xml.XmlContent]
 
 class Arguments a => ParsableArguments a where
     descriptions :: a -> [P.ArgDescr]
@@ -116,13 +120,20 @@ data a :+: b = a :+: b deriving (Typeable, Show)
 
 instance Arguments Unit where 
     type Domains Unit = ()
+    toXml _ _ = []
 
 instance (Argument a) => Arguments (Arg a) where
     type Domains (Arg a) = Domain a
+    toXml (a :: Arg a) d = 
+      [Xml.elt "argument" []
+        [ Xml.elt "name" [] [Xml.text $ name a]
+        , Xml.elt "description" [] [Xml.text $ name a]
+        , Xml.elt "value" [] [Xml.text $ showArg (Phantom :: Phantom a) d]]]
 
 instance (Arguments a, Arguments b) => Arguments (a :+: b) where
     type Domains (a :+: b) = Domains a :+: Domains b
-
+    toXml (a :+: b) (da :+: db) = toXml a da ++ toXml b db
+    
 instance ParsableArguments Unit where
     parseArgs Unit _ = return ()
     optionalParsers Unit = []

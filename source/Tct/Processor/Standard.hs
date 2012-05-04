@@ -37,6 +37,7 @@ import Text.ParserCombinators.Parsec
 --import qualified Control.Exception as Ex
 
 import qualified Tct.Processor as P
+import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
@@ -83,11 +84,18 @@ class (P.ComplexityProof (ProofOf proc)) => Processor proc where
 data StdProcessor a = StdProcessor a
 
 instance (Processor proc, Arguments (ArgumentsOf proc)) => P.Processor (StdProcessor proc) where
-    type ProofOf (StdProcessor proc)      = ProofOf proc
-    data InstanceOf (StdProcessor proc)   = TP (TheProcessor proc)
-    name (StdProcessor proc)                = name proc
-    instanceName (TP theproc)               = instanceName theproc
-    solve_ (TP theproc) prob                = solve theproc prob
+    type ProofOf (StdProcessor proc) = ProofOf proc
+    data InstanceOf (StdProcessor proc) = TP (TheProcessor proc)
+    
+    name (StdProcessor proc) = name proc
+    processorToXml (TP theproc) = 
+      Xml.elt "processor" [] [ Xml.elt "name" [] [Xml.text $ name proc]
+                             , Xml.elt "arguments" [] $ A.toXml (arguments proc) (processorArgs theproc) 
+                             , Xml.elt "description" [] [Xml.text $ unwords $ description proc]]
+        where proc = processor theproc
+              
+    instanceName (TP theproc) = instanceName theproc
+    solve_ (TP theproc) prob = solve theproc prob
     solvePartial_ (TP theproc) stricts prob = solvePartial theproc stricts prob
 
 instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor (StdProcessor a) where

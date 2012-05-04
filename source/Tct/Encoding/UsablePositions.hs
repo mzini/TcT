@@ -42,6 +42,7 @@ module Tct.Encoding.UsablePositions
   , emptyWithSignature
   , fullWithSignature
   , restrictToSignature
+  , toXml
   )
 where
 
@@ -51,7 +52,7 @@ import Termlib.Term
 import Termlib.Trs (Trs)
 import Termlib.Problem hiding (variables)
 import qualified Termlib.Trs as Trs
-
+import qualified Termlib.FunctionSymbol as F
 import Prelude hiding (lookup)
 import qualified Data.IntSet as IntSet
 import qualified Data.IntMap as IntMap
@@ -63,8 +64,19 @@ import Data.Typeable
 import Termlib.Utils (PrettyPrintable(..), enum, invEnum)
 import Termlib.FunctionSymbol
 import Text.PrettyPrint.HughesPJ hiding (empty)
+import qualified Tct.Utils.Xml as Xml
+
 
 newtype UsablePositions = UP (IntMap IntSet) deriving (Eq, Show)
+
+toXml :: Signature -> UsablePositions -> Xml.XmlContent
+toXml sig (UP m) = 
+  Xml.elt "usablePositions" []
+    [ Xml.elt "usable" [] $
+       [ Xml.elt "name" [] [Xml.text $ F.symbolName sig $ invEnum f]
+       , Xml.elt "arity" [] [Xml.int $ F.arity sig $ invEnum f] ] 
+       ++ [ Xml.elt "position" [] [Xml.int i] | i <- IntSet.toList is]  
+    | (f,is) <- IntMap.toList m]
 
 
 -- | Empty usable positions.

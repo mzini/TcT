@@ -78,6 +78,7 @@ import Termlib.Utils (paragraph)
 
 import qualified Tct.Processor as P
 import Tct.Utils.PPrint
+import qualified Tct.Utils.Xml as Xml
 import Tct.Utils.Enum (enumeration')
 import Tct.Certificate (certified, constant)
 import qualified Tct.Processor.Standard as S
@@ -101,7 +102,10 @@ instance P.ComplexityProof TrivialProof where
     pprintProof Failed        _ = text "Fail"
     pprintProof (Empty True)  _ = text "Empty rules are trivially bounded"
     pprintProof (Empty False) _ = text "Empty strict component of the problem is NOT empty."
-
+    toXml Succeeded = Xml.elt "success" [] []
+    toXml Failed = Xml.elt "failed" [] []
+    toXml (Empty True) = Xml.elt "empty" [] []    
+    toXml (Empty False) = Xml.elt "nonempty" [] []        
 -- instance P.Verifiable TrivialProof where
 --     verify _ _ = P.verifyOK
 
@@ -189,25 +193,40 @@ open = openProcessor `S.withArgs` ()
 
 data Ite g t e = Ite
 
-data IteProof g t e = IteProof { guardProof  :: P.ProofOf g
-                               , branchProof :: Either (P.ProofOf t) (P.ProofOf e) }
+data IteProof g t e = IteProof { guardProof  :: P.Proof g
+                               , branchProof :: Either (P.Proof t) (P.Proof e) }
 
-instance ( P.ComplexityProof (P.ProofOf g)
+instance ( P.Processor g
+         , P.Processor t
+         , P.Processor e           
+         , P.ComplexityProof (P.ProofOf g)
          , P.ComplexityProof (P.ProofOf t)
          , P.ComplexityProof (P.ProofOf e)) => P.ComplexityProof (IteProof g t e) where
-      answer p = either P.answer P.answer $ branchProof p
+      answer p = either (P.answer . P.result) (P.answer . P.result) (branchProof p)
       
-      pprintProof p mde@P.StrategyOutput = ppcond $+$ text "" $+$ ppbranch
-            where ppcond   = paragraph ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
-                             $+$ (indent $ P.pprintProof (guardProof p) mde)
-                  ppbranch = paragraph ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
-                             $+$ (indent $ P.pprintProof p P.StrategyOutput)
-                  suc      = P.succeeded $ guardProof p
+      pprintProof p mde@P.StrategyOutput = 
+        paragraph ("a) We first check the conditional [" ++ (if suc then "Success" else "Fail") ++ "]:")
+        $+$ (indent $ P.pprintProof (P.result $ guardProof p) mde)
+        $+$ text "" 
+        $+$ paragraph ("b) We continue with the " ++ (if suc then "then" else "else") ++ "-branch:")
+        $+$ case branchProof p of 
+               Left bp -> P.pprintProof (P.result bp) mde
+               Right bp -> P.pprintProof (P.result bp) mde
+          where suc = P.succeeded $ P.result $ guardProof p
+                   
                   
-      pprintProof p mde                  = case branchProof p of 
-                                             Left pb  -> P.pprintProof pb mde
-                                             Right pb -> P.pprintProof pb mde
+      pprintProof p mde = 
+        case branchProof p of 
+          Left pb  -> P.pprintProof (P.result pb) mde
+          Right pb -> P.pprintProof (P.result pb) mde
 
+      toXml p = 
+        Xml.elt "ite" [] 
+          [ Xml.elt "guardProof" [] [P.toXml $ guardProof p]
+          , Xml.elt "guardSuccess" [] [Xml.text $ show $ P.succeeded $ guardProof p]
+          , Xml.elt "subProof" [] [sp]]
+        where sp = either P.toXml P.toXml $ branchProof p
+        
 instance ( P.Processor g
          , P.Processor t
          , P.Processor e) 
@@ -227,12 +246,12 @@ instance ( P.Processor g
                       arg { A.name = "else"
                           , A.description = "The processor that is applied if guard fails." }
         solve inst prob = 
-          do gproof <- P.solve g prob
+          do gproof <- P.apply g prob
              if P.succeeded gproof 
-               then do bproof <- P.solve t prob
+               then do bproof <- P.apply t prob
                        return $ IteProof { guardProof  = gproof
                                          , branchProof = Left bproof }
-               else do bproof <- P.solve e prob
+               else do bproof <- P.apply e prob
                        return $ IteProof { guardProof  = gproof
                                          , branchProof = Right bproof }
             where g :+: t :+: e = S.processorArgs inst
@@ -269,6 +288,14 @@ instance ( T.Transformer g
         $+$ text ""        
         $+$ indent (P.pprintProof (P.result p) mde )
       _ -> P.pprintProof (P.result p) mde
+  toXml (IteProgressTransformed p) = P.toXml p
+  toXml (IteProgressUntransformed tr tp p) = 
+    Xml.elt "iteProgress" []
+      [ Xml.elt "failedTransformation" [] 
+         [ Xml.elt n [] [T.transformerToXml tr
+                        , Xml.elt "transformationProof" [] trxml]]
+      , Xml.elt "subProof" [] [P.toXml p]]
+    where (n,trxml) = T.tproofToXml tr (P.inputProblem p) tp
 
 instance ( T.Transformer g
          , P.Processor t
@@ -345,6 +372,14 @@ instance (P.Processor p) => P.ComplexityProof (OneOfProof p) where
                                       $+$ (P.pprintProof (P.result p) mde))
                                 | (a,p) <- ps]
 
+    toXml (OneOfFailed p failures) = 
+      Xml.elt "oneOf" []
+        [ Xml.elt "combinator" [] [ Xml.text (show p) ]
+        , Xml.elt "failures" [] [ P.toXml p_i | p_i <- failures ]]
+    toXml (OneOfSucceeded p p_i) =       
+      Xml.elt "oneOf" []
+        [ Xml.elt "combinator" [] [ Xml.text (show p) ]
+        , Xml.elt "subProof" [] [ P.toXml p_i ]]
     answer (OneOfFailed _ _)    = P.MaybeAnswer
     answer (OneOfSucceeded _ p) = P.answer p
 

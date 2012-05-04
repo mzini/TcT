@@ -43,9 +43,10 @@ import qualified Tct.Processor.Transformations as T
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Utils.Enum (enumeration')
+import qualified Tct.Utils.Xml as Xml
 import Tct.Utils.PPrint (block')
 import Tct.Processor.Args.Instances
-import Tct.Processor (ComplexityProof (..), certificate)
+import Tct.Processor (certificate)
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
@@ -81,16 +82,19 @@ instance AssocArgument Partitioning where
 
 data Compose p = ComposeProc
 
-data ComposeProof p = ComposeProof ComposeBound Partitioning [Rule.Rule] (Either (P.Proof p) (P.PartialProof (P.ProofOf p)))
+data ComposeProof p = ComposeProof { proofBound        :: ComposeBound 
+                                   , proofPartitioning :: Partitioning 
+                                   , proofSelected     :: [Rule.Rule] 
+                                   , proofSubProof     :: (P.Proof p) }
                     | Inapplicable String
 
 
 progress :: P.Processor p => ComposeProof p -> Bool
-progress (ComposeProof _ _ _ esp) = 
-  case esp of 
-    Left sp1  -> not (Trs.isEmpty $ Prob.strictComponents $ P.inputProblem sp1) && P.succeeded sp1
-    Right sp1 -> not (null (P.ppRemovableTrs sp1) && null (P.ppRemovableDPs sp1))
 progress Inapplicable {} = False
+progress p@(ComposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subproof
+  where subproof = proofSubProof p
+        stricts = Prob.strictComponents $ P.inputProblem $ subproof
+
 
 
 instance (P.Processor p) => T.Transformer (Compose p) where
@@ -148,79 +152,94 @@ instance (P.Processor p) => T.Transformer (Compose p) where
         Nothing -> 
           case split of 
             Dynamic -> 
-              do sp1 <- P.solvePartial inst1 (forcedDps ++ forcedTrs)  prob
-                 let rTrs = Trs.fromRules (P.ppRemovableTrs sp1)
-                     sTrs = Prob.strictTrs prob \\ rTrs
-                     rDps = Trs.fromRules (P.ppRemovableDPs sp1)
+              do pp <- P.solvePartial inst1 (forcedDps ++ forcedTrs) prob
+                 let rDps = Trs.fromRules (P.ppRemovableDPs pp)
+                     rTrs = Trs.fromRules (P.ppRemovableTrs pp)
                      sDps = Prob.strictDPs prob \\ rDps
-                 return $ mkResult (Right sp1) (rDps, sDps) (rTrs, sTrs)                         
+                     sTrs = Prob.strictTrs prob \\ rTrs
+                     rSubProof = P.Proof { P.inputProblem = rProb (rDps,rTrs) (sDps,sTrs)
+                                         , P.appliedProcessor = inst1
+                                         , P.result = P.ppResult pp }
+                 return $ mkResult rSubProof (rDps,rTrs) (sDps,sTrs)
             Static s 
-              | Trs.isEmpty rDps && Trs.isEmpty rTrs -> return $ T.NoProgress $ Inapplicable "no rule selected"
+              | Trs.isEmpty rDps && Trs.isEmpty rTrs -> 
+                return $ T.NoProgress $ Inapplicable "no rule selected"
               | otherwise -> 
-                do sp1 <- P.apply inst1 prob1
-                   return $ mkResult (Left sp1) (rDps, sDps) (rTrs, sTrs)                         
-              where rs             = rsSelect s compfn prob
-                    rDps           = Prob.sdp rs `Trs.union` Trs.fromRules forcedDps
-                    rTrs           = Prob.strs rs `Trs.union` Trs.fromRules forcedTrs
-                    sTrs           = strictTrs prob Trs.\\ rTrs
-                    sDps           = strictDPs prob Trs.\\ rDps
-                    prob1 = Prob.sanitise $ prob { strictDPs = rDps
-                                                 , strictTrs = rTrs
-                                                 , weakTrs   = sTrs `Trs.union` weakTrs prob
-                                                 , weakDPs   = sDps `Trs.union` weakDPs prob }
+                do rSubProof <- P.apply inst1 $ rProb (rDps,rTrs) (sDps,sTrs)
+                   return $ mkResult rSubProof (rDps,rTrs) (sDps,sTrs)
+              where rs   = rsSelect s compfn prob
+                    rDps = Prob.sdp rs `Trs.union` Trs.fromRules forcedDps                    
+                    rTrs = Prob.strs rs `Trs.union` Trs.fromRules forcedTrs
+                    sDps = Prob.strictDPs prob \\ rDps
+                    sTrs = Prob.strictTrs prob \\ rTrs
+                    
 
         where split :+: compfn :+: inst1 = T.transformationArgs inst
 
               weaks   = Prob.weakComponents prob
 
-              (forcedDps, forcedTrs) = case compfn of 
-                                         Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
-                                             where fsi f = [ rule | rule <- Trs.rules (f prob), not (Rule.isNonSizeIncreasing rule)]
-                                         _       -> ([],[])
+              (forcedDps, forcedTrs) = 
+                case compfn of 
+                  Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
+                    where fsi f = [ rule | rule <- Trs.rules (f prob), not (Rule.isNonSizeIncreasing rule)]
+                  _       -> ([],[])
 
-              mkResult esp1 (rDPs, sDPs) (rTrs, sTrs)
-                  | progress tproof = T.Progress tproof  (enumeration'  [prob2])
+              rProb (rDps,rTrs) (sDps,sTrs) =
+                Prob.sanitise $ prob { strictDPs = rDps
+                                     , strictTrs = rTrs
+                                     , weakTrs   = sTrs `Trs.union` weakTrs prob
+                                     , weakDPs   = sDps `Trs.union` weakDPs prob }
+                      
+
+              mkResult rSubProof (rDps,rTrs) (sDps,sTrs)
+                  | progress tproof = T.Progress tproof  (enumeration'  [sProb])
                   | otherwise       = T.NoProgress tproof
-                  where tproof = ComposeProof compfn split (forcedDps ++ forcedTrs) esp1
-                        prob2 | compfn == Add = prob { strictTrs  = sTrs
-                                                     , strictDPs  = sDPs
-                                                     , weakTrs    = rTrs `union` Prob.weakTrs prob
-                                                     , weakDPs    = rDPs `union` Prob.weakDPs prob }
-                              | otherwise    = prob { startTerms = TermAlgebra $ F.symbols $ Prob.signature prob
-                                                    , strictTrs  = sTrs
-                                                    , strictDPs  = sDPs }
+                  where tproof = ComposeProof compfn split (forcedDps ++ forcedTrs) rSubProof
+                        sProb 
+                          | compfn == Add = 
+                            prob { strictTrs  = sTrs
+                                 , strictDPs  = sDps
+                                 , weakTrs    = rTrs `union` Prob.weakTrs prob
+                                 , weakDPs    = rDps `union` Prob.weakDPs prob }
+                          | otherwise = 
+                              prob { startTerms = TermAlgebra $ F.symbols $ Prob.signature prob
+                                   , strictTrs  = sTrs
+                                   , strictDPs  = sDps }
                                                        
-              mreason | compfn /= Add && Trs.isDuplicating (Prob.allComponents prob) = Just "some rule is duplicating"
-                      | compfn /= Add &&  not (Trs.isNonSizeIncreasing weaks)          = Just "some weak rule is size increasing"
-                      | otherwise = 
-                        case compfn of 
-                          Add              -> Nothing
-                          Mult | sizeinc   -> Just "some strict rule is size increasing"
-                               | otherwise -> Nothing
-                          Compose          -> Nothing
+              mreason 
+                | compfn /= Add && Trs.isDuplicating (Prob.allComponents prob) = Just "some rule is duplicating"
+                | compfn /= Add &&  not (Trs.isNonSizeIncreasing weaks)          = Just "some weak rule is size increasing"
+                | otherwise = 
+                  case compfn of 
+                    Add              -> Nothing
+                    Mult | sizeinc   -> Just "some strict rule is size increasing"
+                         | otherwise -> Nothing
+                    Compose          -> Nothing
                 where sizeinc = not $ Trs.isNonSizeIncreasing $ Prob.strictComponents prob
                                  
 
 instance P.Processor p => T.TransformationProof (Compose p) where
-      answer proof = case (T.transformationProof proof, T.subProofs proof)  of 
-                     (ComposeProof compfn _ _ esp1, [(_,sp2)]) -> mkAnswer compfn esp1 sp2
-                     _                                         -> P.MaybeAnswer
-        where mkAnswer compfn esp1 sp2 | success   = P.CertAnswer $ Cert.certified (Cert.constant, ub)
-                                       | otherwise = P.MaybeAnswer
-                  where success = case (either answer answer esp1, answer sp2) of
-                                    (P.CertAnswer _, P.CertAnswer _) -> True
-                                    _                                -> False
-                        ub = case compfn of 
-                               Add     -> ub1 `Cert.add` ub2
-                               Mult    -> ub1 `Cert.mult` ub2
-                               Compose -> ub1 `Cert.mult` (ub2 `Cert.compose` (Cert.poly (Just 1) `Cert.add` ub1))
-                        ub1 = either ubound ubound esp1
-                        ub2 = ubound sp2
-                        ubound :: P.ComplexityProof p => p -> Cert.Complexity
-                        ubound p = Cert.upperBound $ certificate p
+      answer proof = 
+        case T.subProofs proof  of 
+          [(_,sProof)] 
+            | success -> P.CertAnswer $ Cert.certified (Cert.constant, ub)
+              where tProof = T.transformationProof proof
+                    rProof = proofSubProof tProof
+                    
+                    success = progress tProof && P.succeeded sProof
+                    ub = 
+                      case proofBound tProof of 
+                        Add     -> rUb `Cert.add` sUb
+                        Mult    -> rUb `Cert.mult` sUb
+                        Compose -> rUb `Cert.mult` (sUb `Cert.compose` (Cert.poly (Just 1) `Cert.add` rUb))
+                    rUb = ubound rProof
+                    sUb = ubound sProof
+                    ubound p = Cert.upperBound $ certificate p                        
+          _  -> P.MaybeAnswer
+          
       pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'composeCompose' since " 
                                                             ++ reason ++ ".")
-      pprintTProof t prob (tproof@(ComposeProof compfn split stricts esp1)) _ = 
+      pprintTProof t prob (tproof@(ComposeProof compfn split stricts rSubProof)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
                         ++ tName ++ " to orient following rules strictly. "
@@ -230,7 +249,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ pptrs "Trs" rTrs
              $+$ text ""
              $+$ paragraph ("The induced complexity of" ++ tName ++ " on above rules is " 
-                            ++ show (pprint (either P.answer P.answer esp1)) ++ ".")
+                            ++ show (pprint (P.answer rSubProof)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""
@@ -246,13 +265,29 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                                  Add     -> "addition"
                                  Mult    -> "multiplication"
                                  Compose -> "composition"
-                  rDPs = either (Prob.strictDPs . P.inputProblem) (Trs . P.ppRemovableDPs) esp1
-                  rTrs = either (Prob.strictTrs . P.inputProblem) (Trs . P.ppRemovableTrs) esp1
+                  rDPs = Prob.strictDPs $ P.inputProblem $ rSubProof
+                  rTrs = Prob.strictTrs $ P.inputProblem $ rSubProof
                   sig = Prob.signature prob
                   vars = Prob.variables prob
                   tName = "'" ++ T.instanceName t ++ "'"
                   pptrs = pprintNamedTrs sig vars
-                  ppSubproof = either (\p -> P.pprintProof p P.ProofOutput) (\p -> P.pprintProof p P.ProofOutput) esp1
+                  ppSubproof = P.pprintProof rSubProof P.ProofOutput
+                  
+      tproofToXml tinst _ proof = 
+        ( "compose"
+        , [ Xml.elt "composeBy" [] [Xml.text compName]
+          , Xml.elt "splitBy" [] [Xml.text $ show split]
+          , Xml.elt "rSubProof" [] 
+            [ case proof of 
+                 Inapplicable reason -> Xml.elt "inapplicable" [] [Xml.text reason]
+                 ComposeProof {} -> P.toXml $ proofSubProof proof]]
+        )
+        where split :+: compFn :+: _ = T.transformationArgs tinst
+              compName = 
+                case compFn of 
+                  Add     -> "addition"
+                  Mult    -> "multiplication"
+                  Compose -> "composition"
 
 composeProcessor :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
 composeProcessor = T.Transformation ComposeProc

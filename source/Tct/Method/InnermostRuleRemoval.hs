@@ -32,6 +32,7 @@ import Data.Maybe (isJust, catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import Tct.Utils.Enum (enumeration')
+import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
@@ -64,13 +65,22 @@ instance PrettyPrintable IRRProof where
                  where trs  = unions [ fromRules (removed rr) | rr <- removals proof] 
                        prob = inputProblem proof
 
-
 instance T.TransformationProof InnermostRuleRemoval where 
     answer proof = case (T.transformationProof proof, T.subProofs proof) of 
                      (NotApplicable _, _             ) -> P.MaybeAnswer
                      (IRRProof _ _   , [(_,subproof)]) -> P.answer subproof
                      (IRRProof _ _   , _             ) -> P.MaybeAnswer
     pprintTProof _ _ p _ = pprint p
+    
+    tproofToXml _ _ (NotApplicable r) = 
+      ("irr", [Xml.elt "inapplicable" [] [Xml.text r]])
+    tproofToXml _ _ (IRRProof ip rss) = 
+      ("irr"
+      , [Xml.elt "removal" [] ((Xml.elt "reason" [] [rule r] ) : [Xml.elt "removed" [] [rule r' | r' <- rs]])
+        | RuleRemoval rs r <- rss])
+        where rule r = Xml.rule r sig vars
+              sig = Prob.signature ip
+              vars = Prob.variables ip
               
 instance T.Transformer InnermostRuleRemoval where
     type ArgumentsOf InnermostRuleRemoval = A.Unit

@@ -23,6 +23,7 @@ import Text.PrettyPrint.HughesPJ
 import Tct.Certificate (constant, certified)
 import Tct.Processor (Answer (..), ComplexityProof(..))
 import Tct.Utils.PPrint (indent)
+import qualified Tct.Utils.Xml as Xml
 
 data OrientationProof o = Order o -- ^ Proven with given order.
                         | Incompatible -- ^ The problem is incompatible.
@@ -41,3 +42,9 @@ instance ComplexityProof o => ComplexityProof (OrientationProof o) where
     answer Empty     = CertAnswer $ certified (constant, constant)
     answer Incompatible = MaybeAnswer
     answer (Inapplicable _) = MaybeAnswer
+
+    toXml ord = Xml.elt "order" [] [toXml' ord]
+      where toXml' (Order o) = Xml.elt "compatible" [] [toXml o]
+            toXml' Incompatible = Xml.elt "incompatible" [] []
+            toXml' Empty = Xml.elt "empty" [] []    
+            toXml' (Inapplicable r) = Xml.elt "inapplicable" [] [Xml.text r]    

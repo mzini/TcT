@@ -40,6 +40,7 @@ import qualified Qlogic.SatSolver as SatSolver
 import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
+import qualified Tct.Utils.Xml as Xml
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
@@ -51,7 +52,7 @@ import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix hiding (maxMatrix)
 import Tct.Encoding.Natring ()
 import Tct.Encoding.UsablePositions hiding (empty)
-import Tct.Method.Matrix.MatrixInterpretation
+import Tct.Method.Matrix.MatrixInterpretation as MI
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
@@ -108,7 +109,7 @@ instance ComplexityProof MatrixOrder where
               ppknd (EdaMatrix Nothing)           = "matrix interpretation satisfying not(EDA)."
               ppknd (EdaMatrix (Just n))          = "matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ ")."
               ppknd (ConstructorEda _ Nothing)    = "constructor-based matrix interpretation satisfying not(EDA)."
-              ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ ")."
+              ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
 
     answer (MatrixOrder _ UnrestrictedMatrix _)          = CertAnswer $ certified (unknown, expo (Just 1))
     answer (MatrixOrder m (TriangularMatrix _) _)        = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
@@ -120,6 +121,8 @@ instance ComplexityProof MatrixOrder where
     answer (MatrixOrder m (ConstructorEda _ Nothing) _)  = CertAnswer $ certified (unknown, poly (Just $ dimension m))
     answer (MatrixOrder _ (ConstructorEda _ (Just n)) _) = CertAnswer $ certified (unknown, poly (Just n))
 
+    toXml (MatrixOrder ord knd uarg) = 
+      Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"

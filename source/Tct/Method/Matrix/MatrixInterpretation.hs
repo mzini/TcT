@@ -43,11 +43,12 @@ import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
+import qualified Tct.Utils.Xml as Xml
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Matrix
+import qualified Tct.Encoding.UsablePositions as UArgs
 
-
-data MatrixInter a = MI {dimension :: Int
+data MatrixInter a = MI { dimension :: Int
                         , signature :: F.Signature
                         , interpretations :: Map.Map F.Symbol (LInter a)}
                         deriving Show
@@ -69,6 +70,46 @@ data MatrixKind = UnrestrictedMatrix
                 | EdaMatrix (Maybe Int)
                   deriving Show
 
+toXml :: MatrixInter Int -> MatrixKind -> UArgs.UsablePositions -> [Xml.XmlContent]
+toXml mi knd uargs = tpe : [ inter f li | (f,li) <- Map.toList $ interpretations mi ]
+  where dim = dimension mi
+        sig = signature mi
+        tpe = Xml.elt "type" []
+               [Xml.elt "matrixInterpretation" [] 
+                 [ Xml.elt "domain" [] [Xml.elt "naturals" [] []]
+                 , Xml.elt "dimension" [] [Xml.int dim]
+                 , Xml.elt "strictDimension" [] [Xml.int (1 :: Int)]
+                 , Xml.elt "kind" [] 
+                   [ case knd of 
+                        UnrestrictedMatrix    -> Xml.elt "unrestricted" [] []
+                        ConstructorBased _ mn -> Xml.elt "constructorBased" [] [Xml.int $ maybe dim id mn]
+                        TriangularMatrix mn   -> Xml.elt "triangular" [] [Xml.int $ maybe dim id mn]
+                        ConstructorEda _ mn   -> Xml.elt "constructorEda" [] [Xml.int $ maybe dim id mn]          
+                        EdaMatrix mn          -> Xml.elt "constructorEda" [] [Xml.int $ maybe dim id mn]
+                   ]
+                 , UArgs.toXml sig uargs]]
+        inter f li =
+          Xml.elt "interpret" []
+           [ Xml.elt "name" [] [Xml.text $ F.symbolName sig f]
+           , Xml.elt "arity" [] [Xml.int $ F.arity sig f] 
+           , xsum $ 
+             (xpoly $ xcoeff $ xvec $ constant li) : 
+              [xprod [xpoly $ xcoeff $ xmat m, xvar v ] | (v,m) <- Map.toList $ coefficients li]]
+          
+        xpoly p = Xml.elt "polynomial" [] [p]
+        xsum = xpoly . Xml.elt "sum" []
+        xprod = xpoly . Xml.elt "product" []
+
+        xvar (V.Canon i) = xpoly $ Xml.elt "variable" [] [Xml.int i]
+        xvar _           = error "non-canonical variable in abstract matrix interpretation"
+        
+        xcoeff c = Xml.elt "coefficient" [] [c]
+        xelt e = xcoeff (Xml.elt "integer" [] [Xml.int e])
+        xvec (Vector vs) = Xml.elt "vector" [] [xelt e | e <- vs]
+        xmat mx = Xml.elt "matrix" [] [xvec vs | vs <- vvs]
+          where (Matrix vvs) = transpose mx
+
+            
 instance PropAtom MIVar
 
 instance Functor MatrixInter where

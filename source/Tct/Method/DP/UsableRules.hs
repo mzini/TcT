@@ -97,7 +97,6 @@ instance T.TransformationProof UR where
     answer = T.answerFromSubProof
     pprintTProof _ _ p _ = pprint p
 
-
 instance T.Transformer UR where 
     name UR = "usablerules"
     description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"

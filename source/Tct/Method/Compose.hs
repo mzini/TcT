@@ -248,7 +248,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ pptrs "DPs" rDPs
              $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ paragraph ("The induced complexity of" ++ tName ++ " on above rules is " 
+             $+$ paragraph ("The induced complexity of " ++ tName ++ " on above rules is " 
                             ++ show (pprint (P.answer rSubProof)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]

@@ -124,6 +124,7 @@ instance ComplexityProof MatrixOrder where
     toXml (MatrixOrder ord knd uarg) = 
       Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
+
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"
 

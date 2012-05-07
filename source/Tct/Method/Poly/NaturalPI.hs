@@ -57,24 +57,26 @@ import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Natring ()
 import Tct.Encoding.Polynomial
-import Tct.Encoding.UsablePositions hiding (empty)
+import Tct.Encoding.UsablePositions hiding (empty, toXml)
 import Tct.Method.Poly.PolynomialInterpretation
-import Tct.Processor (Answer(..), ComplexityProof(..))
-import Tct.Processor.Args
+import Tct.Processor (Answer(..))
+import Tct.Processor.Args hiding (toXml)
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
 import Tct.Utils.PPrint (indent)
+import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 
-data PolynomialOrder = PolynomialOrder { ordInter :: PolyInter Int
-                                       , param    :: PIKind
-                                       , uargs    :: UsablePositions } deriving Show
+data PolynomialOrder = 
+  PolynomialOrder { ordInter :: PolyInter Int
+                  , param    :: PIKind
+                  , uargs    :: UsablePositions } deriving Show
 
 data NaturalPI = NaturalPI deriving (Typeable, Show)
 
-instance ComplexityProof PolynomialOrder where
+instance P.ComplexityProof PolynomialOrder where
   pprintProof order _ = 
       (if uargs order == fullWithSignature (signature $ ordInter order)
        then empty
@@ -94,11 +96,8 @@ instance ComplexityProof PolynomialOrder where
                                     | degree <= 1            -> expo (Just 1)
                                     | otherwise             -> expo (Just 2)
                  
-          degree = foldl max 0 [ foldl max 0 [ maxdegree m | m <- monos] 
-                                    | (f,(Poly monos)) <- inters, consider f ]
-            where maxdegree (Mono 0 _)      = 0
-                  maxdegree (Mono _ powers) = foldl (+) 0 [e | Pow _ e <- powers]
-                  consider f = 
+          degree = foldl max 0 [ d |  (f, d) <- degrees pint, consider f ]
+            where consider f = 
                     case knd of 
                       ConstructorBased cs _ -> not $ f `Set.member` cs
                       _                     -> True
@@ -106,7 +105,14 @@ instance ComplexityProof PolynomialOrder where
           isStrong = all (all (\ (Mono n _) -> n <= 1)) [ monos | (_,Poly monos) <- inters]
           
           knd      = param order
-          inters   = Map.toList $ interpretations $ ordInter order
+          pint     = ordInter order
+          inters   = Map.toList $ interpretations $ pint
+
+  toXml order = 
+    Xml.elt "interpretation" [] (toXml ord par ua)
+    where ord = ordInter order
+          par = param order
+          ua = uargs order
 
 instance S.Processor NaturalPI where
   name NaturalPI = "poly"

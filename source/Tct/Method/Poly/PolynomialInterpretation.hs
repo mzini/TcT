@@ -35,6 +35,8 @@ module Tct.Method.Poly.PolynomialInterpretation
        , PIVar (..)
        , PolyInter (..)
        , abstractInterpretation
+       , toXml
+       , degrees
        ) 
        where
 
@@ -52,18 +54,22 @@ import Termlib.Utils
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
+import qualified Tct.Utils.Xml as Xml
 import Tct.Processor.Args.Instances (AssocArgument (..))
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Polynomial
+import qualified Tct.Encoding.UsablePositions as UArgs
 
-data PolyInter a = PI { signature :: F.Signature
-                      , interpretations :: Map.Map F.Symbol (VPolynomial a) }
-                      deriving Show
+data PolyInter a = 
+  PI { signature :: F.Signature
+     , interpretations :: Map.Map F.Symbol (VPolynomial a) }
+  deriving Show
 
-data PIVar = PIVar { restrict :: Bool
-                   , varfun :: F.Symbol
-                   , argpos :: [Power V.Variable] }
-                   deriving (Eq, Ord, Show, Typeable)
+data PIVar = 
+  PIVar { restrict :: Bool
+        , varfun :: F.Symbol
+        , argpos :: [Power V.Variable] }
+  deriving (Eq, Ord, Show, Typeable)
 
 type VPolynomial a = Polynomial V.Variable a
 -- type VMonomial a = Monomial V.Variable a
@@ -158,6 +164,54 @@ instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variab
                                                else handlePow' origp (p `pprod` p) e (j - 1)
                                  | otherwise = p
   interpretVar _ v     = varToPoly v
+
+degrees :: PolyInter Int -> [(F.Symbol, Int)]
+degrees pint = [(f, foldl max 0 [ maxdegree m | m <- monos])
+               | (f,(Poly monos)) <- Map.toList $ interpretations $ pint ]
+  where maxdegree (Mono 0 _)      = 0
+        maxdegree (Mono _ powers) = foldl (+) 0 [e | Pow _ e <- powers]
+
+toXml :: PolyInter Int -> PIKind -> UArgs.UsablePositions -> [Xml.XmlContent]
+toXml pint knd uargs = tpe : [ inter f polys | (f,polys) <- Map.toList $ interpretations pint ]
+  where sig = signature pint
+        deg = foldl max 0 [ d |  (f, d) <- degrees pint, consider f ]
+          where consider f = 
+                  case knd of 
+                    ConstructorBased cs _ -> not $ f `Set.member` cs
+                    _                     -> True
+        tpe = Xml.elt "type" []
+               [Xml.elt "polynomialInterpretation" [] 
+                 [ Xml.elt "domain" [] [Xml.elt "naturals" [] []]
+                 , Xml.elt "degree" [] [Xml.int deg]
+                 , Xml.elt "kind" [] 
+                   [ case knd of 
+                        UnrestrictedPoly _   -> Xml.elt "unrestricted" [] []
+                        ConstructorBased _ _ -> Xml.elt "constructorBased" [] []
+                   ]
+                 , Xml.elt "shape" []
+                   [ Xml.text $ show $ 
+                     case knd of 
+                       UnrestrictedPoly sp   -> sp
+                       ConstructorBased _ sp -> sp ]
+                 , UArgs.toXml sig uargs]]
+        inter :: F.Symbol -> VPolynomial Int -> Xml.XmlContent
+        inter f (Poly ms) =
+          Xml.elt "interpret" []
+           [ Xml.elt "name" [] [Xml.text $ F.symbolName sig f]
+           , Xml.elt "arity" [] [Xml.int $ F.arity sig f] 
+           , xsum $ [ xmono n vs | Mono n vs <- ms ]]
+          
+        xpoly p = Xml.elt "polynomial" [] [p]
+        xsum = xpoly . Xml.elt "sum" []
+        xprod = xpoly . Xml.elt "product" []
+
+        xvar (V.Canon i) = xpoly $ Xml.elt "variable" [] [Xml.int i]
+        xvar _           = error "non-canonical variable in abstract matrix interpretation"
+        
+        xelt e = Xml.elt "coefficient" [] [Xml.elt "integer" [] [Xml.int e]]
+        xpow (Pow v i) = take i $ repeat $ xvar v
+        xmono n [] = xpoly $ xelt n
+        xmono n vs = xprod $ xelt n : concatMap xpow vs
 
 -- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@.
 (^^^) :: a -> Int -> Power a

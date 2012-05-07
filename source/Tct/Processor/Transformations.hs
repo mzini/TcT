@@ -351,17 +351,19 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
     proofToXml proof = 
       case tproof of 
          ComposeProof r1 Nothing -> 
-           let (n,cnt) = tproofToXml t1 input (proofFromResult r1)
-           in Xml.elt n [] 
-             [ transformerToXml tinst
-             , Xml.complexityProblem input P.MaybeAnswer
-             , Xml.elt "transformationProof" [] cnt]
-         ComposeProof r1 (Just r2s) -> proofToXml (mkComposeProof sub t1 t2 input r1 r2s subproofs)
+           proofToXml $ Proof { transformationResult = r1
+                              , inputProblem = input
+                              , appliedSubprocessor = sub
+                              , appliedTransformer = t1
+                              , subProofs = subproofs }
+         ComposeProof r1 (Just r2s) -> 
+           proofToXml (mkComposeProof sub t1 t2 input r1 r2s subproofs)
       where tproof    = transformationProof proof
             input     = inputProblem proof
             subproofs = P.someProcessorProof `mapEnum` subProofs proof
             sub       = P.someInstance (appliedSubprocessor proof)
-            tinst@(TheTransformer (t1 :>>>: t2) ()) = appliedTransformer proof
+            -- TheTransformer (t1 :>>>: t2) () = appliedTransformer proof            
+            (TheTransformer (t1 :>>>: t2) ()) = appliedTransformer proof
             
 
 someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor

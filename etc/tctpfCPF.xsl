@@ -185,6 +185,7 @@
   <xsl:template match="type">
     <xsl:element name="type">
       <xsl:choose>
+
 	<xsl:when test="matrixInterpretation">
 	  <xsl:element name="matrixInterpretation">
 	    <xsl:copy-of select="matrixInterpretation/domain"/>
@@ -192,8 +193,18 @@
 	    <xsl:copy-of select="matrixInterpretation/strictDimension"/>
 	  </xsl:element>
 	</xsl:when>
+
+	<xsl:when test="polynomialInterpretation">
+	  <xsl:element name="polynomial">
+	    <xsl:copy-of select="polynomialInterpretation/domain"/>
+	    <xsl:copy-of select="polynomialInterpretation/degree"/>
+	  </xsl:element>
+	</xsl:when>
+
 	<xsl:otherwise>
-	  <xsl:call-template name="notInCpfFormat"/>
+	  <xsl:call-template name="notCPF">
+	    <xsl:with-param name="reason">unsupported interpretation type</xsl:with-param>
+	  </xsl:call-template>
 	</xsl:otherwise>
       </xsl:choose>
     </xsl:element>

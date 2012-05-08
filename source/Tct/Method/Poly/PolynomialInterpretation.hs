@@ -208,9 +208,9 @@ toXml pint knd uargs = tpe : [ inter f polys | (f,polys) <- Map.toList $ interpr
         xvar (V.Canon i) = xpoly $ Xml.elt "variable" [] [Xml.int i]
         xvar _           = error "non-canonical variable in abstract matrix interpretation"
         
-        xelt e = Xml.elt "coefficient" [] [Xml.elt "integer" [] [Xml.int e]]
+        xelt e = xpoly $ Xml.elt "coefficient" [] [Xml.elt "integer" [] [Xml.int e]]
         xpow (Pow v i) = take i $ repeat $ xvar v
-        xmono n [] = xpoly $ xelt n
+        xmono n [] = xprod [xelt n]
         xmono n vs = xprod $ xelt n : concatMap xpow vs
 
 -- | @v ^^^ k@ denotes exponentiation of variable @v@ with constant @k@.

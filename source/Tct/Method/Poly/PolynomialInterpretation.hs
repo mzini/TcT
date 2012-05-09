@@ -174,11 +174,11 @@ degrees pint = [(f, foldl max 0 [ maxdegree m | m <- monos])
 toXml :: PolyInter Int -> PIKind -> UArgs.UsablePositions -> [Xml.XmlContent]
 toXml pint knd uargs = tpe : [ inter f polys | (f,polys) <- Map.toList $ interpretations pint ]
   where sig = signature pint
-        deg = foldl max 0 [ d |  (f, d) <- degrees pint, consider f ]
-          where consider f = 
-                  case knd of 
-                    ConstructorBased cs _ -> not $ f `Set.member` cs
-                    _                     -> True
+        deg = foldl max 0 [ d | (f, d) <- degrees pint ]
+          -- where consider f = 
+          --         case knd of 
+          --           ConstructorBased cs _ -> not $ f `Set.member` cs
+          --           _                     -> True
         tpe = Xml.elt "type" []
                [Xml.elt "polynomialInterpretation" [] 
                  [ Xml.elt "domain" [] [Xml.elt "naturals" [] []]

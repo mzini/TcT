@@ -67,16 +67,19 @@ import qualified Tct.Processor.Standard as S
 -- and how the induced complexity is computed.
 data NaturalMIKind = Algebraic -- ^ Count number of ones in diagonal to compute induced complexity function.
                    | Automaton -- ^ Use automaton-techniques to compute induced complexity function.
+                   | Triangular -- ^ Use triangular matrices only.
                    | Unrestricted -- ^ Put no further restrictions on the interpretation.
-                     deriving (Typeable, Bounded, Enum)
+                     deriving (Typeable, Bounded, Enum, Eq)
 
 instance Show NaturalMIKind where 
     show Algebraic    = "algebraic"
+    show Triangular   = "triangular"    
     show Automaton    = "automaton"
     show Unrestricted = "nothing"
 
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
+                               , miKind   :: NaturalMIKind
                                , uargs    :: UsablePositions } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
@@ -111,17 +114,23 @@ instance ComplexityProof MatrixOrder where
               ppknd (ConstructorEda _ Nothing)    = "constructor-based matrix interpretation satisfying not(EDA)."
               ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
 
-    answer (MatrixOrder _ UnrestrictedMatrix _)          = CertAnswer $ certified (unknown, expo (Just 1))
-    answer (MatrixOrder m (TriangularMatrix _) _)        = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m)))
-    answer (MatrixOrder m (ConstructorBased cs _) _)     = CertAnswer $ certified (unknown, poly (Just (diagonalNonZeroes $ maxNonIdMatrix m')))
-        where m'       = m{interpretations = filterCs $ interpretations m}
-              filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-    answer (MatrixOrder m (EdaMatrix Nothing) _)         = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder _ (EdaMatrix (Just n)) _)        = CertAnswer $ certified (unknown, poly (Just n))
-    answer (MatrixOrder m (ConstructorEda _ Nothing) _)  = CertAnswer $ certified (unknown, poly (Just $ dimension m))
-    answer (MatrixOrder _ (ConstructorEda _ (Just n)) _) = CertAnswer $ certified (unknown, poly (Just n))
-
-    toXml (MatrixOrder ord knd uarg) = 
+    answer order = CertAnswer $ certified (unknown, ub)
+       
+      where m = ordInter order
+            countDiagonal | miKind order == Triangular = const $ dimension m
+                          | otherwise = diagonalNonZeroes
+            ub = case param order of 
+                   UnrestrictedMatrix {} -> expo (Just 1)
+                   TriangularMatrix {} -> poly $ Just $ countDiagonal $ maxNonIdMatrix m
+                      where 
+                   ConstructorBased cs _ -> poly $ Just $ countDiagonal $ maxNonIdMatrix m'
+                      where m' = m{interpretations = filterCs $ interpretations m}
+                            filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+                   EdaMatrix Nothing -> poly $ Just $ dimension m
+                   EdaMatrix (Just n) -> poly $ Just n
+                   ConstructorEda _ Nothing -> poly $ Just $ dimension m
+                   ConstructorEda _ (Just n) -> poly $ Just $ n                   
+    toXml (MatrixOrder ord knd _ uarg) = 
       Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
 
@@ -202,14 +211,17 @@ instance S.Processor NaturalMI where
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
-            mkProof dps trs res@(Order (MatrixOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
-                                                                              , P.ppResult       = res 
-                                                                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
-                                                                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
-            mkProof _   _   res                              = P.PartialProof { P.ppInputProblem = problem
-                                                                              , P.ppResult       = res
-                                                                              , P.ppRemovableDPs = []
-                                                                              , P.ppRemovableTrs = [] }
+            mkProof dps trs res@(Order ord) = 
+               P.PartialProof { P.ppInputProblem = problem
+                              , P.ppResult       = res 
+                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
+                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
+                  where mi = ordInter ord
+            mkProof _   _   res = 
+               P.PartialProof { P.ppInputProblem = problem
+                              , P.ppResult       = res
+                              , P.ppRemovableDPs = []
+                              , P.ppRemovableTrs = [] }
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
             sdps  = Prob.strictDPs problem
@@ -224,8 +236,13 @@ kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
 kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
+kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> n) d)
 kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> n) d)
+
+mikind :: Domains (S.ArgumentsOf NaturalMI) -> NaturalMIKind
+mikind (k :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) = k
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
 bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
@@ -271,17 +288,18 @@ orientPartialRelative oblrules strat st strict weak sig mp = orientMatrix (parti
 
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientMatrix f ua st dps trs sig mp = do theMI <- P.minisatValue addAct mi
-                                         return $ case theMI of
-                                                   Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
-                                                   Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk ua
-                                      where addAct :: MiniSat ()
-                                            addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
-                                            mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
-                                            n       = bound mp
-                                            cb      = cbits mp
-                                            d       = dim mp
-                                            mk      = kind mp st
+orientMatrix f ua st dps trs sig mp = 
+  do theMI <- P.minisatValue addAct mi
+     return $ case theMI of
+                Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
+                Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk (mikind mp) ua
+    where addAct :: MiniSat ()
+          addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
+          mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
+          n       = bound mp
+          cb      = cbits mp
+          d       = dim mp
+          mk      = kind mp st
 
 data MatrixDP = MWithDP | MNoDP deriving Show
 data MatrixRelativity = MDirect | MRelative [R.Rule] deriving Show

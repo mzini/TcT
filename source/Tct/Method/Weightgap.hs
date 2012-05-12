@@ -214,10 +214,9 @@ instance T.Transformer WeightGap where
                                                                  | otherwise                                       = Just 1
                                                wgKind' wgon wgKind | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgKind
                                                                    | otherwise                                       = case wgKind of
-                                                                                                                         Algebraic -> Algebraic
-                                                                                                                         Automaton -> Automaton
                                                                                                                          Unrestricted -> Algebraic
-                                               mkProof wgon p@(Order (MatrixOrder mi _ _)) = case Trs.isEmpty remdps && Trs.isEmpty remtrs of
+                                                                                                                         _ -> wgKind
+                                               mkProof wgon p@(Order ord) = case Trs.isEmpty remdps && Trs.isEmpty remtrs of
                                                                                                True  -> T.NoProgress wgpr
                                                                                                False -> T.Progress wgpr (enumeration' [prob'])
                                                   where wgpr   = WeightGapProof { wgInputProblem = prob
@@ -225,6 +224,7 @@ instance T.Transformer WeightGap where
                                                                                 , wgRemovableDps = Trs.toRules remdps
                                                                                 , wgRemovableTrs = Trs.toRules remtrs
                                                                                 , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
+                                                        mi = ordInter ord
                                                         remdps = strictRules mi $ strictDPs prob
                                                         remtrs = strictRules mi $ strictTrs prob
                                                         prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps

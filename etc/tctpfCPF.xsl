@@ -22,11 +22,11 @@
     <xsl:element name="certificationProblem">
       <xsl:attribute name="xsi:noNamespaceSchemaLocation">cpf.xsd</xsl:attribute>
 
-      <xsl:element name="input">
+      <input>
 	<xsl:apply-templates select="proofNode/complexityInput"/>
-      </xsl:element>
+      </input>
 
-      <xsl:element name="cpfVersion"><xsl:value-of select="'2.0'"/></xsl:element>
+      <cpfVersion>2.1</cpfVersion>
 
       <xsl:element name="proof">
 	<xsl:apply-templates select="proofNode"/>
@@ -49,8 +49,13 @@
 	<xsl:element name="trs">
 	  <xsl:copy-of select="relation/strictTrs/rules"/>
 	</xsl:element>
+	<xsl:copy-of select="strategy"/>
+	<xsl:if test="relation/weakTrs/rules">
+	  <xsl:element name="relativeRules">
+	    <xsl:copy-of select="relation/weakTrs/rules"/>
+	  </xsl:element>
+	</xsl:if>
       </xsl:element>
-      
       <xsl:copy-of select="complexityMeasure/*"/>
       <xsl:copy-of select="answer/certified/upperbound/*"/>
     </xsl:element>

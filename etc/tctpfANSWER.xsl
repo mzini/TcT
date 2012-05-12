@@ -41,7 +41,6 @@
     <xsl:template match="polynomial">
        <xsl:choose>
             <xsl:when test="text() = 0">O(1)</xsl:when>
-            <xsl:when test="text() = 1">O(n)</xsl:when>
             <xsl:otherwise>
 	      <xsl:text>O(n^</xsl:text><xsl:value-of select="text()"/><xsl:text>)</xsl:text>
 	    </xsl:otherwise>

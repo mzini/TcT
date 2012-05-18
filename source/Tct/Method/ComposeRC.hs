@@ -37,7 +37,6 @@ where
 import Control.Monad (liftM, mplus)
 import Text.PrettyPrint.HughesPJ
 import qualified Data.Set as Set
-import qualified Data.List as List
 import Data.Maybe (catMaybes)
 
 import qualified Tct.Processor as P
@@ -53,8 +52,6 @@ import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils (PrettyPrintable (..), snub, paragraph)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
-import qualified Termlib.Signature as Sig
-import qualified Termlib.Variable as V
 import Termlib.Rule (Rule(..))
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -65,31 +62,25 @@ import Data.Graph.Inductive.Query.DFS (dfs)
 import qualified Data.Graph.Inductive.Graph as Gr
 import Data.Graph.Inductive.Query.TransClos (trc)
 import Data.Typeable ()
-import Data.Either (partitionEithers)
 
 data ComposeRC p1 p2 = ComposeRC
 data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: RuleSelector ()
                                            , cpUnselected   :: Trs.Trs
                                            , cpSelected     :: Trs.Trs 
-                                           , cpCut          :: Trs.Trs 
-                                           , cpUncut        :: Trs.Trs 
-                                           , cpUnchanged    :: Trs.Trs
                                            , cpProofA       :: Maybe (P.Proof p1) 
                                            , cpProofB       :: Maybe (P.Proof p2)
                                            , cpProbA        :: Prob.Problem
                                            , cpProbB        :: Prob.Problem
-                                           , cpWdg          :: DG.DG
-                                           , cpSig          :: F.Signature
-                                           , cpVars         :: V.Variables }
+                                           , cpWdg          :: DG.DG}
                           | ComposeRCInapplicable String
 
 progress :: (P.Processor p1, P.Processor p2) => ComposeRCProof p1 p2 -> Bool
 progress ComposeRCInapplicable {} = False
 progress proof = maybe True P.succeeded (cpProofA proof) 
                  && maybe True P.succeeded (cpProofB proof)
-                 && not (Trs.isEmpty (cpCut proof)) 
-                 && not (Trs.isEmpty (cpUncut proof))
-
+                 && not (Trs.isEmpty sdps)
+   where sdps = Prob.strictDPs $ cpProbB proof
+         
 instance AssocArgument (RuleSelector ()) where 
     assoc _ = [] -- TODO extend
 
@@ -150,74 +141,44 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               mkProof mProofA mProofB | progress tproof = T.Progress tproof subprobs
                                       | otherwise       = T.NoProgress tproof
                   where tproof = ComposeRCProof { cpRuleSelector = s
-                                                , cpUnselected   = unselectedDPs
+                                                , cpUnselected   = Trs.fromRules [ r | (_,(_,r)) <- unselectedLabeledNodes]
                                                 , cpSelected     = selectedStrictDPs `Trs.union` selectedWeakDPs
-                                                , cpCut          = cutDPs
-                                                , cpUncut        = uncutDPs
-                                                , cpUnchanged    = unchangedStrictDPs `Trs.union` unchangedWeakDPs
                                                 , cpProofA       = mProofA
                                                 , cpProofB       = mProofB
                                                 , cpProbA        = probA
                                                 , cpProbB        = probB
-                                                , cpWdg          = wdg
-                                                , cpSig          = sig'
-                                                , cpVars         = Prob.variables prob }
+                                                , cpWdg          = wdg }
                         subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
                                              , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
 
-              probA = Prob.sanitise $ prob { Prob.signature = sig'
-                                           , Prob.strictDPs = selectedStrictDPs
-                                           , Prob.weakDPs   = Trs.unions [ cutDPs, uncutDPs, selectedWeakDPs ] }
+              probA = Prob.sanitise $ prob { Prob.strictDPs = selectedStrictDPs
+                                           , Prob.weakDPs   = Trs.unions [ flatten unselectedStrictDPs
+                                                                         , flatten unselectedWeakDPs
+                                                                         , selectedWeakDPs ] }
 
-              probB = Prob.sanitise $ prob { Prob.signature = sig'
-                                           , Prob.strictDPs = uncutDPs `Trs.union` unchangedStrictDPs
-                                           , Prob.weakDPs   = unchangedWeakDPs }
+              probB = Prob.sanitise $ prob { Prob.strictDPs = unselectedStrictDPs
+                                           , Prob.weakDPs   = unselectedWeakDPs }
 
+              flatten = Trs.fromRules . concatMap flattenRule . Trs.toRules
+                 where flattenRule (Rule l (Term.Fun f ts))
+                           | F.isCompound sig f = [ Rule l ti | ti <- ts ]
+                       flattenRule (Rule l r) = [ Rule l r ]
               
               (selectedNodes, selectedStrictDPs, selectedWeakDPs) = 
                   (Set.fromList ns, Trs.fromRules rss, Trs.fromRules rsw)
                   where (ns,rsel) = unzip selected 
-                        (rss,rsw) = foldl (\ (rss',rsw') (a,r) -> 
-                                           case a of 
-                                             DG.StrictDP -> (r : rss',rsw')
-                                             DG.WeakDP   -> (rss', r : rsw')) ([],[]) rsel
+                        (rss,rsw) = foldl separate ([],[]) rsel
+                            where separate (stricts,weaks) (DG.StrictDP,r) = (r : stricts,weaks)
+                                  separate (stricts,weaks) (DG.WeakDP,r)   = (stricts,r : weaks)
                         selected = closeBySuccessor $ rsSelect s () prob
                         closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
-                            where initials = [ n | (n, (_, r)) <- allLabeledNodes, Trs.member dps r ]
+                            where initials = [ n | (n, (_, r)) <- allLabeledNodes, dps `Trs.member` r ]
                                   dps = Prob.sdp rs `Trs.union` Prob.wdp rs
 
-              unselectedNodes          = Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
-              unselectedNodesWithLabel = withNodeLabels' wdg $ Set.toList unselectedNodes
-              unselectedDPs            = Trs.fromRules [ r | (_,(_,r)) <- unselectedNodesWithLabel]
-              ((uncutDPs, cutDPs, unchangedStrictDPs, unchangedWeakDPs), sig') = 
-                  flip Sig.runSignature sig $ 
-                       do ls <- mapM splitRuleM $ unselectedNodesWithLabel
-                          let (unchanged, changed) = partitionEithers ls
-                              unchangedStrict      = [ r | (DG.StrictDP,r) <- unchanged ]
-                              unchangedWeak        = [ r | (DG.WeakDP,r)   <- unchanged ]
-                              (uncuts,cuts)          = unzip changed
-                              toTrs = Trs.fromRules
-                          return (toTrs uncuts, toTrs cuts, toTrs unchangedStrict, toTrs unchangedWeak)
-              splitRuleM (n, arl@(_,(Rule l r@(Term.Fun f ts)))) 
-                  | F.isCompound sig f = mk (zip [1..] ts)
-                  | otherwise          = mk (zip [1] [r])
-                  where mk its 
-                            | Set.null cutPositions = return $ Left arl
-                            | otherwise = do uncutRule <- mkrl "" uncutTerms
-                                             cutRule   <- mkrl "'" cutTerms
-                                             return $ Right (uncutRule, cutRule)
-                            where (uncutTerms,cutTerms) = List.partition (\ (i,_) -> i `Set.member` uncutPositions) its
-                                  uncutPositions = Set.fromList [ p | (m, _, p) <- lsuccessors wdg n, not $ m `Set.member` selectedNodes ]
-                                  cutPositions = Set.fromList [i | (i,_) <- its] Set.\\ uncutPositions
-                                  mkrl _ [(_,t)] = return $ Rule l t
-                                  mkrl sn tis    = 
-                                      do attribs <- F.getAttributes f 
-                                         c <- F.fresh attribs { F.symArity    = length tis
-                                                             , F.symIsCompound = True 
-                                                             , F.symIdent = F.symIdent attribs ++ sn}
-                                         return $ Rule l (Term.Fun c [ti | (_, ti) <- tis])
-              splitRuleM  (_,arl)  = return $ Left arl
-
+              unselectedLabeledNodes = DG.withNodeLabels' wdg $ Set.toList $ Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
+              unselectedStrictDPs = Trs.fromRules [ r | (_,(DG.StrictDP, r)) <- unselectedLabeledNodes ]
+              unselectedWeakDPs = Trs.fromRules [ r | (_,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
+              
               mapply :: (P.Processor p, P.SolverM m) => Maybe (P.InstanceOf p) -> Prob.Problem -> m (Maybe (P.Proof p))
               mapply Nothing      _     = return Nothing
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
@@ -242,8 +203,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
       $+$ block' "Problem (B)" [pprint (cpProbB tproof)]
       $+$ maybePrintSub (cpProofA tproof) "A"
       $+$ maybePrintSub (cpProofB tproof) "B"
-       where sig = cpSig tproof
-             vars = Prob.variables prob
+       where vars = Prob.variables prob
+             sig  = Prob.signature prob
              pptrs = pprintNamedTrs sig vars
              maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
              maybePrintSub Nothing  _ = empty

@@ -146,6 +146,7 @@ module Tct.Instances
     , T.try
     , (T.>>>)
     , (T.<>)      
+    , (T.<||>)            
     , exhaustively
     , T.idtrans
       

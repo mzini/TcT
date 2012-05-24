@@ -35,6 +35,7 @@ module Tct.Processor.Transformations
        , Try
        , (>>>)
        , (<>)
+       , (<||>)
        , exhaustively
        , idtrans
          -- ** Lifting to Processors       
@@ -472,15 +473,20 @@ instance Transformer Id where
 --------------------------------------------------------------------------------
 -- Choice
               
-data t1 :<>: t2 = TheTransformer t1 :<>: TheTransformer t2
+data t1 :<>: t2 = Choice { fstChoice :: TheTransformer t1  
+                         , sndChoice :: TheTransformer t2
+                         , parChoice :: Bool }
 
 data ChoiceProof t1 t2 = ChoiceOne (Result t1)
-                       | ChoiceTwo (Result t1) (Result t2)
+                       | ChoiceTwo (Result t2)
+                       | ChoiceSeq (Result t1) (Result t2) 
                        
 instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) where
-  pprintTProof (TheTransformer (t1 :<>: _) _) prob (ChoiceOne r1) mde = 
-    pprintTProof t1 prob (proofFromResult r1) mde
-  pprintTProof (TheTransformer (t1 :<>: t2) _) prob (ChoiceTwo r1 r2) P.StrategyOutput = 
+  pprintTProof (TheTransformer t _) prob (ChoiceOne r1) mde = 
+    pprintTProof (fstChoice t) prob (proofFromResult r1) mde
+  pprintTProof (TheTransformer t _) prob (ChoiceTwo r2) mde = 
+    pprintTProof (sndChoice t) prob (proofFromResult r2) mde
+  pprintTProof (TheTransformer t _) prob (ChoiceSeq r1 r2) P.StrategyOutput = 
     Util.paragraph ("We fail transforming the problem using '" ++ instanceName t1 ++ "':")
     $+$ text ""
     $+$ indent (pprintTProof t1 prob (proofFromResult r1) P.StrategyOutput)
@@ -490,44 +496,86 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
     $+$ Util.pprint prob
     $+$ text ""
     $+$ indent (pprintTProof t2 prob (proofFromResult r2) P.StrategyOutput)
-  pprintTProof (TheTransformer (_ :<>: t2) _) prob (ChoiceTwo _ r2) mde =     
-    pprintTProof t2 prob (proofFromResult r2) mde
+      where t1 = fstChoice t
+            t2 = sndChoice t
+            
+  pprintTProof (TheTransformer t _) prob (ChoiceSeq _ r2) mde =     
+    pprintTProof (sndChoice t) prob (proofFromResult r2) mde
     
   answer proof = 
     case transformationProof proof of 
       ChoiceOne r1 -> answer $ proof { transformationResult = r1 
                                     , appliedTransformer   = t1}
-      ChoiceTwo _ r2 -> answer $ proof { transformationResult = r2, appliedTransformer   = t2}
-    where (TheTransformer (t1 :<>: t2) _) = appliedTransformer proof
+      ChoiceTwo r2 -> answer $ proof { transformationResult = r2
+                                    , appliedTransformer   = t2}
+      ChoiceSeq _ r2 -> answer $ proof { transformationResult = r2
+                                      , appliedTransformer   = t2}
+    where (TheTransformer t _) = appliedTransformer proof
+          t1 = fstChoice t
+          t2 = sndChoice t
     
   proofToXml proof = 
     case transformationProof proof of 
       ChoiceOne r1 -> proofToXml $ proof { transformationResult = r1 
                                         , appliedTransformer   = t1}
-      ChoiceTwo _ r2 -> proofToXml $ proof { transformationResult = r2
+      ChoiceTwo r2 -> proofToXml $ proof { transformationResult = r2
+                                        , appliedTransformer   = t2}
+      ChoiceSeq _ r2 -> proofToXml $ proof { transformationResult = r2
                                           , appliedTransformer   = t2}
-    where (TheTransformer (t1 :<>: t2) _) = appliedTransformer proof
+    where (TheTransformer t _) = appliedTransformer proof
+          t1 = fstChoice t
+          t2 = sndChoice t
 
 
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
-  name (TheTransformer t1 _ :<>: _)           = name t1
-  instanceName (TheTransformer (t1 :<>: _) _) = instanceName t1
+  name t  = name $ transformation $ fstChoice t
+  instanceName (TheTransformer t _) = instanceName $ fstChoice t
   
   type ArgumentsOf (t1 :<>: t2) = Unit
   type ProofOf (t1 :<>: t2) = ChoiceProof t1 t2
   arguments _ = Unit
   
-  transform tinst prob = do r1 <- transform t1 prob
-                            case r1 of 
-                              Progress _ ps -> return $ Progress (ChoiceOne r1) ps
-                              NoProgress _  -> do r2 <- transform t2 prob
-                                                  return $ case r2 of 
-                                                             Progress _ ps -> Progress (ChoiceTwo r1 r2) ps
-                                                             NoProgress _  -> NoProgress (ChoiceTwo r1 r2)
-    where t1 :<>: t2 = transformation tinst
+  transform tinst prob 
+    | not (parChoice t) = 
+    do r1 <- transform t1 prob
+       case r1 of 
+         Progress _ ps -> return $ Progress (ChoiceOne r1) ps
+         NoProgress _  -> 
+           do r2 <- transform t2 prob
+              return $ case r2 of 
+                        Progress _ ps -> Progress (ChoiceSeq r1 r2) ps
+                        NoProgress _  -> NoProgress (ChoiceSeq r1 r2)
+     | otherwise = 
+         do rs <- P.evalList True (not . isProgress) [ Left `liftM` transform t1 prob
+                                                  , Right `liftM` transform t2 prob]
+            let toResult :: Either (Result t1) (Result t2) -> Result (t1 :<>: t2)
+                toResult (Left  r1@(Progress _ ps)) = Progress (ChoiceOne r1) ps 
+                toResult (Left  r1@(NoProgress _))  = NoProgress (ChoiceOne r1)
+                toResult (Right r2@(Progress _ ps)) = Progress (ChoiceTwo r2) ps 
+                toResult (Right r2@(NoProgress _))  = NoProgress (ChoiceTwo r2)
 
-  
+                select r@Progress{}                _                           = r
+                select _                           r@Progress{}                = r
+                select (NoProgress (ChoiceOne r1)) (NoProgress (ChoiceTwo r2)) = NoProgress (ChoiceSeq r1 r2)
+                select (NoProgress (ChoiceTwo r2)) (NoProgress (ChoiceOne r1)) = NoProgress (ChoiceSeq r1 r2)
+                select _                           _                           = error "Transformation.choice.select: impossible arguments given"
+
+            return $ case rs of 
+              Left (r, _) -> toResult r
+              Right [r] -> toResult r
+              Right [r1, r2] -> select (toResult r1) (toResult r2)
+              Right _ -> error "Transformation.choice: insufficient or more than one result returned"
+    where t = transformation tinst
+          t1 = fstChoice t
+          t2 = sndChoice t
+          isProgress (Left (Progress {})) = True
+          isProgress (Right (Progress {})) = True
+          isProgress _ = False
+           
+                      -- select [r2@(NoProgress ChoiceTwo {}), r1@(NoProgress ChoiceOne{})] = NoProgress (ChoiceSeq r1 r2)
+                      -- select [r] = r
+                      -- select (r@Progress{} : _) = r
 --------------------------------------------------------------------------------
 -- Try Transformation
 
@@ -792,10 +840,25 @@ t1 >>> t2 = someTransformation inst
 
 -- | The transformer @t1 \<\> t2@ transforms the input using @t1@ if successfull, otherwise
 -- @t2@ is applied.
-infixr 7 <>
+infixr 8 <>
 (<>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 <> t2 = someTransformation inst 
-    where inst = TheTransformer (t1 :<>: t2) ()
+    where inst = TheTransformer t ()
+          t = Choice { fstChoice = t1
+                     , sndChoice = t2
+                     , parChoice = False}
+
+-- | The transformer @t1 \<||\> t2@ applies the transformations @t1@ and
+-- @t2@ in parallel, using the result of whichever transformation succeeds first.
+infixr 7 <||>
+(<||>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
+t1 <||> t2 = someTransformation inst 
+    where inst = TheTransformer t ()
+          t = Choice { fstChoice = t1
+                     , sndChoice = t2
+                     , parChoice = True }
+              
+              
 
 -- | The transformer @exhaustively t@ applies @t@ repeatedly until @t@ fails.
 -- @exhaustively t == t '>>>' try (exhaustively t)@.

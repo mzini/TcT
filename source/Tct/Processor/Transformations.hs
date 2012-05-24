@@ -31,6 +31,8 @@ module Tct.Processor.Transformations
          -- * Using Transformations          
          TheTransformer (..)
          -- ** Combinators
+       , timeout
+       , Timeout         
        , try
        , Try
        , (>>>)
@@ -85,6 +87,9 @@ where
 
 import Control.Monad (liftM)
 
+import Control.Concurrent.Utils (timedKill)
+import Control.Monad.Trans (liftIO)
+
 import Data.Maybe (catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty, (<>))
 import qualified Text.PrettyPrint.HughesPJ as PP
@@ -96,6 +101,7 @@ import Data.List (partition)
 import Termlib.Problem
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Utils as Util
+import Termlib.Utils (paragraph)
 
 import Tct.Utils.Enum
 import qualified Tct.Utils.Xml as Xml
@@ -649,6 +655,65 @@ instance (Transformer t) => Transformer (Try t) where
               Try t = transformation inst
               tinst = TheTransformer { transformation = t
                                      , transformationArgs = transformationArgs inst }
+
+--------------------------------------------------------------------------------
+-- Try Transformation
+
+data Timeout t = Timeout t Int
+data TimeoutProof t = NoTimeout (ProofOf t)
+                    | TimedOut Int
+
+fromTimeout :: TheTransformer (Timeout t) -> TheTransformer t
+fromTimeout (TheTransformer (Timeout t _) as) = TheTransformer t as
+
+instance (Transformer t, TransformationProof t) => TransformationProof (Timeout t) where
+    answer proof = 
+        case transformationResult proof of 
+          Progress (NoTimeout p) ps -> answer $ proof { appliedTransformer   = t
+                                                     , transformationResult = Progress p ps}
+          NoProgress (NoTimeout p)  -> answer $ proof { appliedTransformer   = t
+                                                     , transformationResult = NoProgress p }
+          _                         -> P.MaybeAnswer
+          where t = fromTimeout $ appliedTransformer proof
+    pprintTProof tinst prob (NoTimeout p) mde = pprintTProof (fromTimeout tinst) prob p mde
+    pprintTProof _ _ (TimedOut i) _ = 
+      paragraph ("Computation stopped due to timeout after " 
+                 ++ show (double (fromIntegral i)) ++ " seconds.")
+
+    -- tproofToXml t prob (TryProof p) = 
+      
+    proofToXml proof =  
+        case transformationResult proof of 
+          Progress (NoTimeout p) ps -> proofToXml $ proof { appliedTransformer   = t
+                                                         , transformationResult = Progress p ps}
+          NoProgress (NoTimeout p)  -> proofToXml $ proof { appliedTransformer   = t
+                                                         , transformationResult = NoProgress p }
+          _                         -> Xml.elt "timeout" [] [Xml.text $ show i]
+          where t = fromTimeout $ appliedTransformer proof
+                Timeout _ i = transformation $ appliedTransformer proof
+
+
+instance (Transformer t) => Transformer (Timeout t) where
+    name (Timeout t _) = name t
+    continue _ = True
+    description (Timeout t _) = description t
+    type ArgumentsOf (Timeout t) = ArgumentsOf t
+    type ProofOf (Timeout t) = TimeoutProof t
+    arguments (Timeout t _) = arguments t
+    transform inst prob = 
+      do io <- P.mkIO $ transform tinst prob
+         r <- liftIO $ timedKill (i * (10^(6 :: Int))) io
+         return $ case r of 
+                   Just (Progress p ps) -> Progress (NoTimeout p) ps
+                   Just (NoProgress p) -> NoProgress (NoTimeout p)
+                   Nothing -> NoProgress (TimedOut i)
+        where Timeout t i = transformation inst 
+              tinst = TheTransformer { transformation = t
+                                     , transformationArgs = transformationArgs inst }
+
+timeout :: Int -> TheTransformer t -> TheTransformer (Timeout t)
+timeout i (TheTransformer t args) = TheTransformer (Timeout t i) args
+
 
 --------------------------------------------------------------------------------
 -- SomeTransformation

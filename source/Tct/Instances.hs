@@ -98,7 +98,7 @@ module Tct.Instances
     , named
       
       -- ** Combinators Guiding the Proof Search
-    , Timeout.timeout
+    , TimesOut (..)
     , Combinators.before 
     , Combinators.orBetter
     , Combinators.orFaster
@@ -205,6 +205,7 @@ module Tct.Instances
     , dpsimps
     , DG.Approximation(..)
 
+      
     -- * Default Options
     , IsDefaultOption (..)
       
@@ -248,7 +249,7 @@ import qualified Tct.Method.Timeout as Timeout
 import Tct.Processor (solveBy)
 import Tct.Processor.Args ((:+:)(..), Unit(..))
 import Tct.Processor.Args.Instances (nat)
-import Tct.Processor.Transformations hiding (withArgs)
+import Tct.Processor.Transformations hiding (withArgs, Timeout)
 import qualified Tct.Processor.Transformations as T
 
 
@@ -513,3 +514,16 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
 
+
+class TimesOut a where
+  type Timeout a
+  timeout :: Int -> a -> Timeout a -- ^ Lifts a processor or transformation to one that times out after given number of seconds
+  
+instance P.Processor p => TimesOut (P.InstanceOf p) where
+  type Timeout (P.InstanceOf p) = P.InstanceOf (S.StdProcessor (Timeout.Timeout p))
+  timeout = Timeout.timeout
+  
+
+instance T.Transformer t => TimesOut (TheTransformer t) where
+  type Timeout (TheTransformer t) = (TheTransformer (T.Timeout t))
+  timeout = T.timeout

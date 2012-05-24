@@ -22,6 +22,8 @@ This module defines the processor for matrix.
 module Tct.Method.Matrix.NaturalMI where
 
 import Control.Monad (liftM)
+import Control.Monad.Error (liftIO)
+import qualified Control.Exception as E
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
 import Text.PrettyPrint.HughesPJ
@@ -110,7 +112,7 @@ instance ComplexityProof MatrixOrder where
                                                     ++ "the diagonal of the component-wise maxima of interpretation-entries contains no more than "              
                                                     ++ show n ++ " non-zero entries."
               ppknd (EdaMatrix Nothing)           = "matrix interpretation satisfying not(EDA)."
-              ppknd (EdaMatrix (Just n))          = "matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ ")."
+              ppknd (EdaMatrix (Just n))          = "matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
               ppknd (ConstructorEda _ Nothing)    = "constructor-based matrix interpretation satisfying not(EDA)."
               ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
 
@@ -196,8 +198,9 @@ instance S.Processor NaturalMI where
 
     type ProofOf NaturalMI = OrientationProof MatrixOrder
 
-    solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
-                       | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
+    solve inst problem 
+       | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
+       | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
@@ -238,8 +241,8 @@ kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) =
 kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
 kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
 kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> n) d)
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> max 1 n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> max 1 n) d)
 
 mikind :: Domains (S.ArgumentsOf NaturalMI) -> NaturalMIKind
 mikind (k :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) = k
@@ -269,6 +272,13 @@ usableArgsWhereApplicable MNoDP   sig Prob.BasicTerms {} ua strat r = if ua then
 -- uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
 -- uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
 
+
+catchException :: P.SolverM m => m (S.ProofOf NaturalMI) -> m (S.ProofOf NaturalMI)
+catchException m = 
+  do io <- P.mkIO m 
+     liftIO $ io `E.catch` (\ E.StackOverflow -> return $ ExceptionRaised E.StackOverflow)
+
+
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientRelative strat st strict weak sig mp = orientMatrix relativeConstraints ua st strict weak sig mp
   where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
@@ -289,10 +299,11 @@ orientPartialRelative oblrules strat st strict weak sig mp = orientMatrix (parti
 orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
              -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orientMatrix f ua st dps trs sig mp = 
-  do theMI <- P.minisatValue addAct mi
-     return $ case theMI of
-                Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
-                Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk (mikind mp) ua
+  catchException $ 
+    do theMI <- P.minisatValue addAct mi
+       return $ case theMI of
+                  Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk (mikind mp) ua
     where addAct :: MiniSat ()
           addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
           mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)

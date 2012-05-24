@@ -1051,15 +1051,20 @@ class Apply p where
   apply' :: p -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
   
 apply :: Apply p => p -> IO ()
-apply a = 
-  do st <- getState  
-     case proofTree st of 
-       Nothing -> 
-         pprint (text "No system loaded"
-                 $+$ text ""
-                 $+$ nb "Use 'load <filename>' to load a new problem.")
-       Just pt -> applyWithTree st pt
-    where applyWithTree st pt = 
+apply a = app `Ex.catch` 
+           \ (Ex.SomeException _) -> 
+             do pprint $ text "Exception raised. Aborting..."
+                return ()
+    where app = 
+            do st <- getState  
+               case proofTree st of 
+                 Nothing -> 
+                   pprint (text "No system loaded"
+                           $+$ text ""
+                           $+$ nb "Use 'load <filename>' to load a new problem.")
+                 Just pt -> applyWithTree st pt
+
+          applyWithTree st pt = 
             do fn <- apply' a selected
                let fn' sn prob = 
                      case fn sn prob of 

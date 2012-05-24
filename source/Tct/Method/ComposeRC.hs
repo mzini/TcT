@@ -37,6 +37,7 @@ where
 import Control.Monad (liftM, mplus)
 import Text.PrettyPrint.HughesPJ
 import qualified Data.Set as Set
+import qualified Data.List as List
 import Data.Maybe (catMaybes)
 
 import qualified Tct.Processor as P
@@ -176,8 +177,12 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                                   dps = Prob.sdp rs `Trs.union` Prob.wdp rs
 
               unselectedLabeledNodes = DG.withNodeLabels' wdg $ Set.toList $ Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
-              unselectedStrictDPs = Trs.fromRules [ r | (_,(DG.StrictDP, r)) <- unselectedLabeledNodes ]
-              unselectedWeakDPs = Trs.fromRules [ r | (_,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
+              (cutWeakDPs, uncutWeakDPs) = List.partition isCut [ (n,r) | (n,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
+                    where isCut (n, _) = any (`Set.member` selectedNodes) (successors wdg n)
+              unselectedStrictDPs = Trs.fromRules $ [ r | (_,(DG.StrictDP, r)) <- unselectedLabeledNodes ] 
+                                                    ++ [ r | (_, r) <- cutWeakDPs]
+              unselectedWeakDPs = Trs.fromRules [ r | (_, r) <- uncutWeakDPs]
+
               
               mapply :: (P.Processor p, P.SolverM m) => Maybe (P.InstanceOf p) -> Prob.Problem -> m (Maybe (P.Proof p))
               mapply Nothing      _     = return Nothing

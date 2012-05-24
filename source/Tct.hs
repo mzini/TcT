@@ -44,7 +44,7 @@ import System.Exit
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
-import System.Process (runCommand, waitForProcess)
+import System.Process (system, waitForProcess)
 import System.Posix.Signals (Handler(..), installHandler, sigTERM)
 import System.Posix.Files (ownerReadMode, ownerWriteMode, ownerExecuteMode, unionFileModes, setFileMode)
 import qualified Config.Dyre as Dyre
@@ -396,22 +396,24 @@ liftEIO m = do me <- liftIO $ runErroneous m
 putPretty :: (MonadIO m) => Doc -> m ()
 putPretty a = liftIO $ putStrLn $ show a
 
+runInteractive :: Config -> ErroneousIO ()
+runInteractive cfg = 
+  do cfgdir <- configDir cfg
+     cwd <- liftIO $ 
+            (setCurrentDirectory cfgdir >> return True)
+            `C.catch` (\ (_:: C.SomeException) -> return False)
+     unless cwd (throwError $ strMsg $ 
+                 "Changing working directory to " 
+                 ++ cfgdir 
+                 ++ "failed. We abort.")
+     liftIO $ 
+       do runGhci `C.catch` (\ (_:: C.SomeException) -> return ())
+          putStrLn "Bye, have a nice day!"
+          return ()
+  where runGhci = system "ghci" >> return ()
+            
 runTct :: Config -> ErroneousIO [TCTWarning]
-runTct cfg 
-  | interactive cfg =
-    do cfgdir <- configDir cfg
-       cwd <- liftIO $ 
-             (setCurrentDirectory cfgdir >> return True)
-             `C.catch` (\ (_:: C.SomeException) -> return False)
-       unless cwd (throwError $ strMsg $ 
-                   "Changing working directory to " 
-                   ++ cfgdir 
-                   ++ "failed. We abort.")
-       liftIO $ 
-         do (runCommand "ghci" >>= waitForProcess >> return ()) `C.catch` (\ (_:: C.SomeException) -> return ())
-            putStrLn "Bye, have a nice day!"
-            return []
-  | otherwise = snd `liftM` evalRWST m TCTROState { config    = cfg }  TCTState
+runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
   where (TCT m) | showVersion cfg = 
                     do vs <- fromConfig version
                        putPretty $ text $ "The Tyrolean Complexity Tool, Version " ++ vs
@@ -508,34 +510,35 @@ data ReturnCode = SigTerm
 -- | This runs TcT with the given configuration. 
 -- Use 'defaultConfig' for running TcT with the default configuration.
 tct :: Config -> IO ()
-tct conf = do
-  ecfg <- getConfigDir
-  case ecfg of 
-    Left e -> putErrorMsg e >> exitWith exitFail
-    Right dir -> do 
-      let dyreConf = 
-            Dyre.defaultParams 
-              { Dyre.projectName = "tct"
-              , Dyre.configCheck = recompile conf
-              , Dyre.realMain    = realMain
-              , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
-              , Dyre.configDir   = Just $ return dir
-              , Dyre.cacheDir    = Just $ return dir
-              , Dyre.statusOut   = hPutStrLn stderr
-              , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] } 
-      Dyre.wrapMain dyreConf conf
-    
+tct conf = 
+  do r <- runErroneous $ 
+        do dir <- getConfigDir
+           conf' <- parseArguments conf
+           if interactive conf'
+            then runInteractive conf'
+            else let dyreConf = 
+                       Dyre.defaultParams { Dyre.projectName = "tct"
+                                          , Dyre.configCheck = recompile conf'
+                                          , Dyre.realMain    = realMain
+                                          , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                          , Dyre.configDir   = Just $ return dir
+                                          , Dyre.cacheDir    = Just $ return dir
+                                          , Dyre.statusOut   = hPutStrLn stderr
+                                          , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] }
+                 in liftIO $ Dyre.wrapMain dyreConf conf'
+     case r of 
+       Left e -> putErrorMsg e >> exitWith exitFail
+       Right () -> exitWith ExitSuccess
   where putErrorMsg = putError conf
         putWarnings = mapM_ (putWarning conf)
         
         getConfigDir = 
-          runErroneous $ do 
-            cfgDir <- configDir conf
-            liftIO $ maybeCreateConfigDir cfgDir >> hFlush stdout
-            return cfgDir
+          do cfgDir <- configDir conf
+             liftIO $ maybeCreateConfigDir cfgDir >> hFlush stdout
+             return cfgDir
         
-        worker mv = do
-          r <- runErroneous (parseArguments conf >>= runTct)
+        worker mv conf' = do
+          r <- runErroneous $ runTct conf'
           case r of 
             Left err -> do 
               _ <- tryPutMVar mv $ ExitError $ err
@@ -545,13 +548,13 @@ tct conf = do
               _ <- tryPutMVar mv ExitNormal
               return ()
           
-        realMain cfg 
-          | null (errorMsg cfg) = do
+        realMain conf'
+          | null (errorMsg conf') = do
               mv <- newEmptyMVar
               _ <- installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing -- hPutStrLn stderr "term" >> hFlush stderr >> 
               -- _ <- installHandler sigPIPE (Catch $ hPutStrLn stderr "pipe" >> hFlush stderr >> tryPutMVar mv SigPipe >>= hPutStrLn stderr . show) Nothing -- hPutStrLn stderr "pipe" >> hFlush stderr >> 
               pid <- forkIO $ C.mask $ \ recover -> 
-                      recover (worker mv) `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
+                      recover (worker mv conf') `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
               -- hPutStrLn stderr "waiting..." >> hFlush stderr
               e <- readMVar mv
               -- hPutStrLn stderr "received..." >> hFlush stderr              
@@ -565,7 +568,7 @@ tct conf = do
                 ExitError err -> putErrorMsg err >> exitWith exitFail
                 ExitNormal -> exitWith ExitSuccess
           | otherwise = do
-              putErrorMsg $ strMsg $ unlines $ errorMsg cfg
+              putErrorMsg $ strMsg $ unlines $ errorMsg conf'
               exitWith exitFail
               
 initialGhciFile :: IO String

@@ -695,7 +695,6 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Timeout 
 
 instance (Transformer t) => Transformer (Timeout t) where
     name (Timeout t _) = name t
-    continue _ = True
     description (Timeout t _) = description t
     type ArgumentsOf (Timeout t) = ArgumentsOf t
     type ProofOf (Timeout t) = TimeoutProof t

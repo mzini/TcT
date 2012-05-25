@@ -200,6 +200,7 @@ module Tct.Instances
     , linearPathAnalysis
     , UR.usableRules
     , DPSimp.removeTails
+    , DPSimp.trivial      
     , DPSimp.simpDPRHS      
     , DPSimp.simpKP
     , dpsimps
@@ -319,8 +320,8 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 dpsimps :: TheTransformer SomeTransformation
 dpsimps   = try DPSimp.removeTails 
             >>> try DPSimp.simpDPRHS 
-            >>> try DPSimp.simpKP            
             >>> try UR.usableRules
+            >>> try DPSimp.trivial            
 
 class IsDefaultOption a where
     defaultOptions :: a

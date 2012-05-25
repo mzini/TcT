@@ -31,6 +31,13 @@ module Tct.Method.DP.Simplification
        , simpDPRHSProcessor
        , SimpRHS
          
+         -- * Trivial DP Problems
+       , trivial
+       , TrivialProof (..)
+       , trivialProcessor
+       , Trivial
+         
+         
          -- * Knowledge Propagation
        , simpKP
        , SimpKPProof (..)         
@@ -57,16 +64,21 @@ import qualified Termlib.Term as Term
 import Termlib.Trs.PrettyPrint (pprintTrs,pprintNamedTrs)
 import Termlib.Utils hiding (block)
 import Data.Maybe (isJust, fromMaybe, listToMaybe)
+import Data.List (sortBy)
 
+import qualified Tct.Certificate as Cert
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args
 import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
 import Tct.Method.DP.Utils 
-import Tct.Method.DP.DependencyGraph
+import Tct.Method.DP.DependencyGraph hiding (Trivial)
 import qualified Data.Graph.Inductive.Graph as Graph
 
+
+----------------------------------------------------------------------
+-- Remove Tail
 
 data RemoveTail = RemoveTail
 data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
@@ -85,17 +97,15 @@ instance T.TransformationProof RemoveTail where
      $+$ text ""
      $+$ indent (pprintCWDG cwdg sig vars ppLabel)
      $+$ text ""
-     $+$ paragraph "The following rules are either leafs or part of trailing weak paths, and thus they can be removed:"
+     $+$ paragraph "The following rules are part of trailing weak paths, and thus they can be removed:"
      $+$ text ""
      $+$ indent (pprintTrs ppRule remls)
      where vars          = variables p                              
            sig           = signature p
            cwdg          = cgraph p
-           wdg           = graph p
            remls         = removables p
            ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
            ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
-                       | nonSelfCyclic wdg scc = text "Noncyclic, trivial, SCC"
                        | otherwise             = PP.empty
                where scc = lookupNodeLabel' cwdg n
                                           
@@ -103,16 +113,9 @@ instance T.TransformationProof RemoveTail where
 onlyWeaks :: CDGNode -> Bool
 onlyWeaks = not . any ((==) StrictDP . fst . snd) . theSCC
 
-nonSelfCyclic :: DG -> CDGNode -> Bool
-nonSelfCyclic wdg sn = case theSCC sn of 
-                         [(m,_)] -> not $ m `elem` successors wdg m 
-                         _   -> False
-
-
 instance T.Transformer RemoveTail where
   name RemoveTail        = "removetails"
-  description RemoveTail = [unwords [ "Recursively removes all nodes that are either"
-                                    , "leafs in the dependency-graph or from the given problem."
+  description RemoveTail = [unwords [ "Removes trailing paths that do not need to be oriented."
                                     , "Only applicable if the strict component is empty."]
                            ]
   
@@ -124,7 +127,7 @@ instance T.Transformer RemoveTail where
                    | otherwise      = return $ T.Progress proof (enumeration' [prob'])
         where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
                   where initials = [ n | (n,cn) <- withNodeLabels' cwdg $ leafs cwdg
-                                       , onlyWeaks cn || nonSelfCyclic wdg cn ]
+                                       , onlyWeaks cn ]
               ls = map (snd . snd) labTails
               computeTails []             lfs = lfs
               computeTails (n:ns) lfs | n `Set.member` lfs = computeTails ns lfs
@@ -132,7 +135,7 @@ instance T.Transformer RemoveTail where
                    where (lpreds, _, cn, lsucs) = Graph.context cwdg n
                          sucs  = map snd lsucs
                          preds = map snd lpreds
-                         lfs'  = if Set.fromList sucs `Set.isSubsetOf` lfs && (onlyWeaks cn || nonSelfCyclic wdg cn)
+                         lfs'  = if Set.fromList sucs `Set.isSubsetOf` lfs && (onlyWeaks cn)
                                   then Set.insert n lfs 
                                   else lfs 
                                     
@@ -154,9 +157,9 @@ instance T.Transformer RemoveTail where
 removeTailProcessor :: T.Transformation RemoveTail P.AnyProcessor
 removeTailProcessor = T.Transformation RemoveTail
 
--- | Removes trailing weak paths and and dangling rules. 
+-- | Removes trailing weak paths. 
 -- A dependency pair is on a trailing weak path if it is from the weak components and all sucessors in the dependency graph 
--- are on trailing weak paths. A rule is dangling if it has no successors in the dependency graph.
+-- are on trailing weak paths.
 --  
 -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
 -- not applicable when @strictTrs prob \= Trs.empty@.
@@ -293,10 +296,13 @@ instance T.Transformer SimpKP where
                    | isJust mres          = return $ T.Progress proof (enumeration' [prob'])
                    | otherwise            = return $ T.NoProgress proof
     where wdg   = estimatedDependencyGraph Edg prob
-          mres = listToMaybe [((n,rl),  [r | (_,(_,r),_) <- preds] ) 
-                             | (n,(StrictDP, rl)) <- lnodes wdg
-                             , let preds = lpredecessors wdg n
-                             , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
+          mres = listToMaybe $ sortBy strictOutDeg candidates
+          candidates = [ ((n,rl),  [r | (_,(_,r),_) <- preds] ) 
+                       | (n,(StrictDP, rl)) <- lnodes wdg
+                       , let preds = lpredecessors wdg n
+                       , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
+          ((n1, _), _) `strictOutDeg` ((n2, _), _) = length (strictSuccessors n1) `compare` length (strictSuccessors n2)
+                       where strictSuccessors n = [ n' | (n', (StrictDP,_),_) <- lsuccessors wdg n ]
           strs  = Prob.strictTrs prob
           sdps  = Prob.strictDPs prob
           wdps  = Prob.weakDPs prob
@@ -322,3 +328,61 @@ simpKPProcessor = T.Transformation SimpKP
 -- therefor its name.
 simpKP :: T.TheTransformer SimpKP
 simpKP = T.Transformation SimpKP `T.withArgs` ()
+
+
+----------------------------------------------------------------------
+-- Remove Tail
+
+data Trivial = Trivial
+data TrivialProof = TrivialProof { trivialCDG   :: CDG -- ^ Employed congruence graph.
+                                 , trivialSig   :: F.Signature
+                                 , trivialVars  :: V.Variables}
+                  | TrivialError DPError
+                  | TrivialFail
+                       
+instance T.TransformationProof Trivial where
+  answer _ = P.CertAnswer $ Cert.certified (Cert.constant, Cert.constant)
+  pprintTProof _ _ (TrivialError e) _ = pprint e
+  pprintTProof _ _ TrivialFail _ = text "The DP problem is not trivial."
+  pprintTProof _ _ p _ = 
+     text "We consider the the dependency graph"
+     $+$ text ""
+     $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+     $+$ text ""
+     $+$ paragraph "All SCCs are trivial."
+     where vars          = trivialVars p                              
+           sig           = trivialSig p
+           cwdg          = trivialCDG p
+           ppLabel _ _ = text "trivial"
+
+instance T.Transformer Trivial where
+  name Trivial        = "trivial"
+  description Trivial = [unwords [ "Checks wether the DP problem is trivial, i.e. the dependency graph contains no loops."
+                                 , "Only applicable if the strict component is empty."]
+                        ]
+  
+  type ArgumentsOf Trivial = Unit
+  type ProofOf Trivial = TrivialProof
+  arguments Trivial = Unit
+  transform _ prob | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ TrivialError $ ContainsStrictRule
+                   | cyclic    = return $ T.NoProgress proof
+                   | otherwise = return $ T.Progress proof (enumeration' [])
+        where cyclic = any (isCyclicNode cwdg) (nodes cwdg)
+              wdg   = estimatedDependencyGraph Edg prob
+              cwdg  = toCongruenceGraph wdg
+              sig   = Prob.signature prob
+              vars  = Prob.variables prob
+              proof = TrivialProof { trivialCDG = cwdg
+                                   , trivialSig = sig
+                                   , trivialVars = vars }
+                
+
+trivialProcessor :: T.Transformation Trivial P.AnyProcessor
+trivialProcessor = T.Transformation Trivial
+
+-- | Checks whether the DP problem is trivial, i.e., does not contain any cycles.
+--  
+-- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
+-- not applicable when @strictTrs prob \= Trs.empty@.
+trivial :: T.TheTransformer Trivial
+trivial = T.Transformation Trivial `T.withArgs` ()

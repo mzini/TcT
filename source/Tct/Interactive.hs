@@ -1052,8 +1052,10 @@ class Apply p where
   
 apply :: Apply p => p -> IO ()
 apply a = app `Ex.catch` 
-           \ (Ex.SomeException _) -> 
-             do pprint $ text "Exception raised. Aborting..."
+           \ (Ex.SomeException e) -> 
+             do pprint $ text $ show e 
+                pprint $ text ""
+                pprint $ text "Exception raised. Aborting..."
                 return ()
     where app = 
             do st <- getState  

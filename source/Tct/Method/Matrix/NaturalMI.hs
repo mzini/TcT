@@ -276,9 +276,9 @@ usableArgsWhereApplicable MNoDP   sig Prob.BasicTerms {} ua strat r = if ua then
 catchException :: P.SolverM m => m (S.ProofOf NaturalMI) -> m (S.ProofOf NaturalMI)
 catchException m = 
   do io <- P.mkIO m 
-     liftIO $ E.catchJust stackOverflow io (const $ return $ ExceptionRaised E.StackOverflow)
-  where stackOverflow E.StackOverflow = Just ()
-        stackOverflow _               = Nothing
+     liftIO $ E.catchJust notKill io (return . ExceptionRaised)
+  where notKill E.ThreadKilled = Nothing
+        notKill e = Just e
 
 
 orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)

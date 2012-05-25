@@ -896,7 +896,7 @@ try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
 try (TheTransformer t args) = TheTransformer (Try t) args
 
 -- | The transformer @t1 >>> t2@ first transforms using @t1@, resulting subproblems are 
--- transformed using @t2@. It succeeds if either @t1@ or @t2@ succeeds.
+-- transformed using @t2@. 
 infixr 6 >>>
 (>>>) :: (Transformer t1, Transformer t2) => TheTransformer t1 -> TheTransformer t2 -> TheTransformer SomeTransformation
 t1 >>> t2 = someTransformation inst 

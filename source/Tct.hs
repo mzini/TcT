@@ -44,7 +44,7 @@ import System.Exit
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 import Text.Regex (mkRegex, matchRegex)
-import System.Process (system, waitForProcess)
+import System.Process (system)
 import System.Posix.Signals (Handler(..), installHandler, sigTERM)
 import System.Posix.Files (ownerReadMode, ownerWriteMode, ownerExecuteMode, unionFileModes, setFileMode)
 import qualified Config.Dyre as Dyre
@@ -513,19 +513,16 @@ tct :: Config -> IO ()
 tct conf = 
   do r <- runErroneous $ 
         do dir <- getConfigDir
-           conf' <- parseArguments conf
-           if interactive conf'
-            then runInteractive conf'
-            else let dyreConf = 
-                       Dyre.defaultParams { Dyre.projectName = "tct"
-                                          , Dyre.configCheck = recompile conf'
-                                          , Dyre.realMain    = realMain
-                                          , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
-                                          , Dyre.configDir   = Just $ return dir
-                                          , Dyre.cacheDir    = Just $ return dir
-                                          , Dyre.statusOut   = hPutStrLn stderr
-                                          , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] }
-                 in liftIO $ Dyre.wrapMain dyreConf conf'
+           let dyreConf = 
+                 Dyre.defaultParams { Dyre.projectName = "tct"
+                                    , Dyre.configCheck = recompile conf
+                                    , Dyre.realMain    = \ cfg -> withHandledErrors $ realMain cfg
+                                    , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
+                                    , Dyre.configDir   = Just $ return dir
+                                    , Dyre.cacheDir    = Just $ return dir
+                                    , Dyre.statusOut   = hPutStrLn stderr
+                                    , Dyre.ghcOpts     = ["-threaded", "-package tct-" ++ V.version] }
+             in liftIO $ Dyre.wrapMain dyreConf conf
      case r of 
        Left e -> putErrorMsg e >> exitWith exitFail
        Right () -> exitWith ExitSuccess
@@ -537,8 +534,14 @@ tct conf =
              liftIO $ maybeCreateConfigDir cfgDir >> hFlush stdout
              return cfgDir
         
-        worker mv conf' = do
-          r <- runErroneous $ runTct conf'
+        withHandledErrors eio = do
+          r <- runErroneous eio
+          case r of 
+            Left err -> putErrorMsg err >> exitWith exitFail
+            Right ret -> exitWith ret
+            
+        worker mv conf'' = do
+          r <- runErroneous $ runTct conf''
           case r of 
             Left err -> do 
               _ <- tryPutMVar mv $ ExitError $ err
@@ -549,27 +552,25 @@ tct conf =
               return ()
           
         realMain conf'
-          | null (errorMsg conf') = do
-              mv <- newEmptyMVar
-              _ <- installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing -- hPutStrLn stderr "term" >> hFlush stderr >> 
-              -- _ <- installHandler sigPIPE (Catch $ hPutStrLn stderr "pipe" >> hFlush stderr >> tryPutMVar mv SigPipe >>= hPutStrLn stderr . show) Nothing -- hPutStrLn stderr "pipe" >> hFlush stderr >> 
-              pid <- forkIO $ C.mask $ \ recover -> 
-                      recover (worker mv conf') `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
-              -- hPutStrLn stderr "waiting..." >> hFlush stderr
-              e <- readMVar mv
-              -- hPutStrLn stderr "received..." >> hFlush stderr              
-              killThread pid
-              -- hPutStrLn stderr "killed..." >> hFlush stderr                            
-              hFlush stdout
-              hFlush stderr
+          | not (null (errorMsg conf')) = throwError $ UnknownError $ show $ unlines $ errorMsg conf'
+          | otherwise = do 
+            conf'' <- parseArguments conf'
+            if interactive conf''
+             then runInteractive conf'' >> return ExitSuccess
+             else do
+              mv <- liftIO $ newEmptyMVar
+              _ <- liftIO $ installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing -- hPutStrLn stderr "term" >> hFlush stderr >> 
+              pid <- liftIO $ forkIO $ C.mask $ \ recover -> 
+                      recover (worker mv conf'') `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
+              e <- liftIO $ readMVar mv
+              liftIO $ killThread pid
+              liftIO $ hFlush stdout
+              liftIO $ hFlush stderr
               case e of 
-                SigTerm -> exitWith exitFail
+                SigTerm -> return exitFail
                 -- SigPipe -> exitWith ExitSuccess
-                ExitError err -> putErrorMsg err >> exitWith exitFail
-                ExitNormal -> exitWith ExitSuccess
-          | otherwise = do
-              putErrorMsg $ strMsg $ unlines $ errorMsg conf'
-              exitWith exitFail
+                ExitError err -> throwError $ err
+                ExitNormal -> return ExitSuccess
               
 initialGhciFile :: IO String
 initialGhciFile = return $ content

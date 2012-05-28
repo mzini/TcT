@@ -40,7 +40,7 @@ import Termlib.FunctionSymbol hiding (lookup)
 import qualified Termlib.Signature as Sig
 import qualified Termlib.Trs as Trs
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
-import Termlib.Trs (Trs, RuleList (..), definedSymbols)
+import Termlib.Trs (Trs, definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
 import qualified Tct.Utils.Xml as Xml
@@ -57,8 +57,8 @@ markSymbol f = do fa <- getAttributes f
                   maybeFresh fa{symIsMarked = True}
 
 dependencyPairsOf :: Bool -> Prob.Problem -> Trs -> [String] -> F.SignatureMonad (Trs, [String])
-dependencyPairsOf useTuples prob trs names = do rs <- mapM mk $ zip (rules trs) names
-                                                return $ (Trs rs, drop (length rs) names)
+dependencyPairsOf useTuples prob trs names = do rs <- mapM mk $ zip (Trs.rules trs) names
+                                                return $ (Trs.fromRules rs, drop (length rs) names)
     where definedsFromTrs = definedSymbols (Prob.trsComponents prob)
           strat           = Prob.strategy prob
           mk (rule,i) = do lhs' <- mrk $ R.lhs rule

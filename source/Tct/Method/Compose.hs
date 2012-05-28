@@ -51,7 +51,7 @@ import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils (PrettyPrintable (..), paragraph)
-import Termlib.Trs (RuleList(..), union, (\\))
+import Termlib.Trs (union, (\\))
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Rule as Rule
 import Termlib.Problem (Problem (..), StartTerms (..))
@@ -260,7 +260,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   $+$ ppSubproof
              else paragraph "We have tried to orient orient following rules strictly:"
                   $+$ text ""
-                  $+$ pptrs "Strict Rules" (Trs stricts)
+                  $+$ pptrs "Strict Rules" (Trs.fromRules stricts)
             where compName = case compfn of 
                                  Add     -> "addition"
                                  Mult    -> "multiplication"

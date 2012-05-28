@@ -63,14 +63,13 @@ import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (RuleList(..))
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
 import Termlib.Term (properSubterms, functionSymbols)
 
-import Termlib.Trs.PrettyPrint (pprintTrs,pprintNamedTrs)
+import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Utils hiding (block)
-import Data.Maybe (isJust, fromMaybe, listToMaybe)
+import Data.Maybe (isJust, fromMaybe)
 import Data.List (sortBy)
 
 import qualified Tct.Certificate as Cert
@@ -81,6 +80,7 @@ import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
 import Tct.Method.DP.Utils 
 import Tct.Method.DP.DependencyGraph hiding (Trivial)
+
 import qualified Data.Graph.Inductive.Graph as Graph
 
 
@@ -137,7 +137,7 @@ instance T.Transformer RemoveTail where
         where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
                   where initials = [ n | (n,cn) <- withNodeLabels' cwdg $ leafs cwdg
                                        , onlyWeaks cn ]
-              ls = map (snd . snd) labTails
+              ls = Trs.fromRules $ map (snd . snd) labTails
               computeTails []             lfs = lfs
               computeTails (n:ns) lfs | n `Set.member` lfs = computeTails ns lfs
                                       | otherwise          = computeTails (ns++preds) lfs'
@@ -159,8 +159,8 @@ instance T.Transformer RemoveTail where
                               , cgraph     = cwdg
                               , signature = sig
                               , variables = vars }
-              prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ Trs ls
-                           , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ Trs ls }
+              prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ ls
+                           , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ ls }
                 
 
 removeTailProcessor :: T.Transformation RemoveTail P.AnyProcessor
@@ -197,7 +197,7 @@ instance T.TransformationProof SimpRHS where
        $+$ indent (pprint (dg, sig, vars))
        $+$ paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
        $+$ text ""
-       $+$ indent (pprint (Trs repls, sig, vars))
+       $+$ indent (pprint (Trs.fromRules repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p
@@ -256,42 +256,45 @@ simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 
 
 --------------------------------------------------------------------------------
---- Simplify DP-RHSs
+--- 'Knowledge propagation'
 
 data SimpKP = SimpKP
-data SimpKPProof = SimpKPProof { skpDG            :: DG -- ^ Employed DependencyGraph
-                               , skpRule          :: Maybe (NodeId,Rule) -- ^ Rule that can be moved into the weak component.
-                               , skpPres          :: [Rule]  -- ^ All predecessors of rule which can be moved into weak component.
-                               , skpSig           :: F.Signature
-                               , skpVars          :: V.Variables}                                
-                 | SimpKPErr DPError
+data SimpKPSelection = 
+  SimpKPSelection { skpNode :: NodeId -- ^ Node of selected rule in the dependency graph
+                  , skpRule :: Rule -- ^ Selected rule
+                  , skpPredecessors :: [(NodeId,Rule)]-- ^ Predecessors of rules 
+                  }
+  
+data SimpKPProof = 
+  SimpKPProof { skpDG            :: DG -- ^ Employed dependency graph
+              , skpSelections    :: [SimpKPSelection]
+              , skpSig           :: F.Signature
+              , skpVars          :: V.Variables}                                
+  | SimpKPErr DPError
                        
 instance T.TransformationProof SimpKP where
   answer = T.answerFromSubProof
   pprintTProof _ _ (SimpKPErr e) _ = pprint e
   pprintTProof _ _ p _ = 
-    case skpRule p of 
-      Nothing -> text "No rule found for knowledge propagation"
-      Just (i,rl) -> text "We consider the following dependency-graph" 
-                    $+$ text ""
-                    $+$ indent (pprint (dg, sig, vars))
-                    $+$ text ""
-                    $+$ paragraph "The number of applications of the rule"
-                    $+$ text ""
-                    $+$ indent (pprintNamedTrs sig vars rlname (Trs [rl]))
-                    $+$ text ""                  
-                    $+$ paragraph "is given by the number of applications of following rules"
-                    $+$ text ""
-                    $+$ indent (pprintNamedTrs sig vars prename (Trs (skpPres p)))
-                    $+$ text ""
-                    $+$ (text "We remove" <+> text rlname 
-                         <+> text "from and add" <+> text prename 
-                         <+> text "to the strict component.")
-                      where vars  = skpVars p                              
-                            sig   = skpSig p
-                            dg    = skpDG p
-                            rlname = "{" ++ show i ++ "}"
-                            prename = "Pre(" ++ rlname ++ ")"
+      text "We consider the (estimated) dependency graph" 
+      $+$ text ""
+      $+$ indent (pprint (dg, sig, vars))
+      $+$ text ""
+      $+$ if null sel 
+          then text "Knowledge propagation is not applicable."
+          else hcat [ let n = pprintNodeSet [skpNode s] 
+                      in text "- We remove" <+> n
+                         <+> text "and add"
+                         <+> text "Pre" <> parens n
+                         <+> text "=" 
+                         <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
+                         <+> text "to the strict component."
+                         $+$ text ""
+                    | s <- sel]
+    where vars  = skpVars p                              
+          sig   = skpSig p
+          dg    = skpDG p
+          sel   = skpSelections p
 
 instance T.Transformer SimpKP where 
   name _ = "simpKP"
@@ -306,27 +309,40 @@ instance T.Transformer SimpKP where
   transform _ prob 
      | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
-     | isJust mres               = return $ T.Progress proof (enumeration' [prob'])
+     | not $ null selected         = return $ T.Progress proof (enumeration' [prob'])
      | otherwise                 = return $ T.NoProgress proof
     where wdg   = estimatedDependencyGraph Edg prob
-          mres = listToMaybe $ sortBy strictOutDeg candidates
-          candidates = [ ((n,rl),  [r | (_,(_,r),_) <- preds] ) 
+          selected = select (sortBy invReach candidates) []
+            where select []     sel = sel
+                  select (c:cs) sel = select cs sel' 
+                    where sel' | any isPredecessor sel = sel
+                               | otherwise = c:sel
+                          isPredecessor s = skpNode s `elem` [ n | (n,_) <- skpPredecessors c]
+          s1 `invReach` s2 | s1tos2 && s2tos1 = EQ
+                           | s1tos2 = GT
+                           | s2tos1 = LT
+                           | otherwise = skpNode s1 `compare` skpNode s2
+             where s1tos2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
+                   s2tos1 = skpNode s1 `elem` reachablesBfs wdg [skpNode s2]
+                   
+          candidates = [ SimpKPSelection { skpNode = n
+                                         , skpRule = rl
+                                         , skpPredecessors = [ (m,rlm) | (m, (_,rlm), _) <- preds] }
                        | (n,(StrictDP, rl)) <- lnodes wdg
                        , let preds = lpredecessors wdg n
                        , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
-          ((n1, _), _) `strictOutDeg` ((n2, _), _) = length (strictSuccessors n1) `compare` length (strictSuccessors n2)
-                       where strictSuccessors n = [ n' | (n', (StrictDP,_),_) <- lsuccessors wdg n ]
           strs  = Prob.strictTrs prob
           sdps  = Prob.strictDPs prob
           wdps  = Prob.weakDPs prob
           proof = SimpKPProof { skpDG   = wdg
-                              , skpRule = mrl
-                              , skpPres = pres
+                              , skpSelections = selected
                               , skpSig  = Prob.signature prob
                               , skpVars = Prob.variables prob}
-          (mrl,pres) = maybe (Nothing,[]) (\ (nrl,rs) -> (Just nrl, rs)) mres
-          prob' = maybe prob (\ (_,rl) -> prob { Prob.strictDPs = (Trs pres `Trs.union` sdps) Trs.\\ Trs [rl]
-                                              , Prob.weakDPs   = (wdps Trs.\\ Trs pres) `Trs.union` Trs [rl]}) mrl
+          shiftStrict = Trs.fromRules [r | s <- selected
+                                          , (_,r) <- skpPredecessors s ]
+          shiftWeak   = Trs.fromRules [ skpRule s | s <- selected ]
+          prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak) `Trs.union` shiftStrict
+                       , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) Trs.\\ shiftStrict }
 
          
 
@@ -430,10 +446,9 @@ instance T.TransformationProof RemoveInapplicable where
              $+$ indent (pprint (wdg,sig,vars))
              $+$ text ""
              $+$ paragraph (show $ text "Left-hand sides of rules" 
-                                   <+> ls <+> text "are not (marked) basic terms."
+                                   <+> pprintNodeSet [n | (n,_) <- rs] <+> text "are not (marked) basic terms."
                                    <+> text "Since for each rule there are no incoming edges from different nodes,"
                                    <+> text "these rules can be removed.")
-               where ls = braces $ hcat $ punctuate (text ",") [text $ show i | (i,_) <- rs ]
            vars         = riVars p                              
            sig          = riSig p
            wdg          = riWDG p

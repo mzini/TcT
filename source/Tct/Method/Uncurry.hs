@@ -199,7 +199,7 @@ alterAttributes ar attribs = attribs{symArity = ar, symIdent=symIdent attribs ++
               | otherwise = "_" ++ show ar
 
 mkUncurrySystem :: AppSignature -> SignatureMonad Trs
-mkUncurrySystem asig = Trs.Trs `liftM` foldM mk [] (M.toList $ consts asig)
+mkUncurrySystem asig = Trs.fromRules `liftM` foldM mk [] (M.toList $ consts asig)
     where (asym,_) = app asig
           mk rs (_, (attribs, ar)) = do ais <- forM [0..ar] mkAi
                                         return $ (mkRules ais) ++ rs

@@ -39,7 +39,7 @@ import Tct.Processor.Args as A
 import Termlib.Problem hiding (Strategy, variables, strategy)
 import Termlib.Rule (Rule, rewrite)
 import Termlib.Term (immediateSubterms)
-import Termlib.Trs ((\\), RuleList(..), unions, fromRules)
+import Termlib.Trs ((\\), unions, fromRules, rules)
 import Termlib.Utils (PrettyPrintable(..), paragraph)
 
 import qualified Termlib.Problem as Prob
@@ -93,10 +93,10 @@ instance T.Transformer InnermostRuleRemoval where
         return $ case (Prob.strategy prob, null allRemovals) of 
                    (Innermost, True ) -> T.NoProgress proof
                    (Innermost, False) -> T.Progress proof (enumeration' [(\ trs -> trs \\ rs) `mapRules` prob]) 
-                                            where rs = Trs $ concatMap removed allRemovals
+                                            where rs = fromRules $ concatMap removed allRemovals
                    _                  -> T.NoProgress $ NotApplicable "Input problem is not restricted to innermost rewriting"
-        where Trs innerRules  = Prob.trsComponents prob
-              Trs allRules    = Prob.allComponents prob
+        where innerRules  = rules $ Prob.trsComponents prob
+              allRules    = rules $ Prob.allComponents prob
               allRemovals = catMaybes $ mkRemoval `map` innerRules
               mkRemoval cause = case [r | r <- allRules, removable cause r] of 
                                  []   -> Nothing

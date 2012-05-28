@@ -39,7 +39,7 @@ import qualified Termlib.Term as Term
 import qualified Termlib.Rule as R
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Trs as Trs
-import Termlib.Trs (Trs, RuleList(..))
+import Termlib.Trs (Trs)
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils hiding (block)
 
@@ -56,7 +56,7 @@ mkUsableRules :: Prob.Problem -> Trs -> Trs
 mkUsableRules prob trs = trs `restrictTo` Set.unions [decendants f | f <- ds
                                                                    , Rule _ r <- Trs.rules $ Prob.dpComponents prob
                                                                    , f `Set.member` Term.functionSymbols r ]
-  where Trs rs `restrictTo` roots = Trs $ [ rule | rule <- rs, let Right f = Term.root (R.lhs rule) in f `Set.member` roots ]
+  where trs' `restrictTo` roots = Trs.fromRules [ rule | rule <- Trs.rules trs', let Right f = Term.root (R.lhs rule) in f `Set.member` roots ]
         decendants f = reachable step [f] Set.empty
           where step f' = Set.fromList [ g | g <- ds
                                            , Rule l r <- Trs.rules trss

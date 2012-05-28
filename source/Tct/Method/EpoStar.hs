@@ -51,7 +51,7 @@ import Prelude hiding (and, or, not)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import Data.Typeable
 import Termlib.Term
-import Termlib.Trs (RuleList(..), Trs)
+import Termlib.Trs (Trs)
 import qualified Termlib.Trs as Trs
 import Termlib.FunctionSymbol (Symbol, arity, Signature)
 import Termlib.Utils (PrettyPrintable(..))
@@ -405,9 +405,10 @@ orient allowEcomp sign prec safe mu = memoized $ \ a -> case a of
 
 
 orientTrs :: P.SolverM m => Sig -> Bool -> Trs -> m (Maybe (SM.SafeMapping, (Prec.Precedence, ArgumentPermutation)))
-orientTrs sign b (Trs rs) = do P.MiniSat s <- P.satSolver
-                               liftIO $ Minisat.using s $ (run constraint)
-    where constraint = do (sm, smdecode) <- safeMapping sign
+orientTrs sign b trs = do P.MiniSat s <- P.satSolver
+                          liftIO $ Minisat.using s $ (run constraint)
+    where rs = Trs.rules trs
+          constraint = do (sm, smdecode) <- safeMapping sign
                           (prec, precdecode) <- precedence sign
                           (mu, mudecode) <- muMapping sign
                           let epo s t = orient b sign prec sm mu (Epo s t)

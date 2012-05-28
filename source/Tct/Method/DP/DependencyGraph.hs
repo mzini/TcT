@@ -49,6 +49,8 @@ module Tct.Method.DP.DependencyGraph
      -- | List version of @lookupNodeLabel@.
      , withNodeLabels'
      -- | List version of @lookupNodeLabel'@.
+     , inverse
+     -- | Returns the same graph with edges inversed.
      , successors
     -- | Returns the list of successors in a given node.
      , reachablesDfs
@@ -115,6 +117,8 @@ module Tct.Method.DP.DependencyGraph
       -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
     , pprintCWDG
       -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+    , pprintNodeSet      
+      -- | Default pretty printer for set of nodes.
     , toGraphViz
       -- | translates 'DG' into a GraphViz graph.
     , saveGraphViz
@@ -204,6 +208,10 @@ withNodeLabels gr ns = [(n,lookupNodeLabel gr n) | n <- ns]
 withNodeLabels' :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
 withNodeLabels' gr ns = [(n,lookupNodeLabel' gr n) | n <- ns]
 
+inverse :: DependencyGraph n e -> DependencyGraph n e
+inverse gr = Graph.mkGraph ns es
+  where ns = Graph.labNodes gr
+        es = [ (n2, n1, i) | (n1,n2,i) <- Graph.labEdges gr ]
 
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
@@ -353,8 +361,11 @@ etcap _ (Term.Var _)       = Hole
 etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
     where c = Fun f $ map (etcap lhss) ts
 
+pprintNodeSet :: [NodeId] -> Doc
+pprintNodeSet ns = braces $ hcat $ punctuate (text ",") [ text $ show n | n <- ns]
+  
 pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
-pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> (braces $ hcat $ punctuate (text ",") [text $ show i | i <- congruence cwdg n ])
+pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> pprintNodeSet (congruence cwdg n)
 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
 pprintCWDG cwdg sig vars ppLabel = printTree 45 ppNode ppLabel pTree

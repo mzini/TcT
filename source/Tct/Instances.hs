@@ -201,6 +201,7 @@ module Tct.Instances
     , UR.usableRules
     , DPSimp.removeTails
     , DPSimp.trivial      
+    , DPSimp.removeInapplicable      
     , DPSimp.simpDPRHS      
     , DPSimp.simpKP
     , dpsimps
@@ -319,6 +320,7 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: TheTransformer SomeTransformation
 dpsimps   = try DPSimp.removeTails 
+            >>> try (exhaustively DPSimp.removeInapplicable)
             >>> try DPSimp.simpDPRHS 
             >>> try UR.usableRules
             >>> try DPSimp.trivial            

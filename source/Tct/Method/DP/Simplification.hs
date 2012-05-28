@@ -37,6 +37,12 @@ module Tct.Method.DP.Simplification
        , trivialProcessor
        , Trivial
          
+         -- * Removing of InapplicableRules
+       , removeInapplicable
+       , RemoveInapplicableProof (..)
+       , removeInapplicableProcessor
+       , RemoveInapplicable
+
          
          -- * Knowledge Propagation
        , simpKP
@@ -60,6 +66,7 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (RuleList(..))
 import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
+import Termlib.Term (properSubterms, functionSymbols)
 
 import Termlib.Trs.PrettyPrint (pprintTrs,pprintNamedTrs)
 import Termlib.Utils hiding (block)
@@ -81,16 +88,16 @@ import qualified Data.Graph.Inductive.Graph as Graph
 -- Remove Tail
 
 data RemoveTail = RemoveTail
-data RemoveTailProof = RLProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
+data RemoveTailProof = RTProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
                                , cgraph     :: CDG -- ^ Employed congruence graph.
                                , graph      :: DG -- ^ Employed weak dependency graph.
                                , signature  :: F.Signature
                                , variables  :: V.Variables}
-                     | Error DPError
+                     | RTError DPError
                        
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
-  pprintTProof _ _ (Error e) _ = pprint e
+  pprintTProof _ _ (RTError e) _ = pprint e
   pprintTProof _ _ p _ | null remls = text "No dependency-pair could be removed"
                        | otherwise  = 
      text "We consider the the dependency graph"
@@ -122,9 +129,11 @@ instance T.Transformer RemoveTail where
   type ArgumentsOf RemoveTail = Unit
   type ProofOf RemoveTail = RemoveTailProof
   arguments RemoveTail = Unit
-  transform _ prob | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ Error $ ContainsStrictRule
-                   | null labTails  = return $ T.NoProgress proof
-                   | otherwise      = return $ T.Progress proof (enumeration' [prob'])
+  transform _ prob 
+     | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ RTError $ ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RTError $ NonDPProblemGiven
+     | null labTails  = return $ T.NoProgress proof
+     | otherwise      = return $ T.Progress proof (enumeration' [prob'])
         where labTails = concatMap mkPairs $ Set.toList $ computeTails initials Set.empty
                   where initials = [ n | (n,cn) <- withNodeLabels' cwdg $ leafs cwdg
                                        , onlyWeaks cn ]
@@ -145,7 +154,7 @@ instance T.Transformer RemoveTail where
               cwdg  = toCongruenceGraph wdg
               sig   = Prob.signature prob
               vars  = Prob.variables prob
-              proof = RLProof { removables = labTails
+              proof = RTProof { removables = labTails
                               , graph      = wdg
                               , cgraph     = cwdg
                               , signature = sig
@@ -204,9 +213,11 @@ instance T.Transformer SimpRHS where
                            , "Only applicable if the strict component is empty."
                            ]
                   ]
-  transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SRHSError ContainsStrictRule
-                   | progr            = return $ T.Progress proof (enumeration' [prob'])
-                   | otherwise        = return $ T.NoProgress proof
+  transform _ prob 
+     | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SRHSError ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SRHSError $ NonDPProblemGiven
+     | progr                     = return $ T.Progress proof (enumeration' [prob'])
+     | otherwise                 = return $ T.NoProgress proof
     where proof = SRHSProof { srhsReplacedRules = [rule | (_, _, rule, Just _) <- elims]
                             , srhsDG            = wdg
                             , srhsSig           = sig 
@@ -292,9 +303,11 @@ instance T.Transformer SimpKP where
                                 , "and there is no edge from the rule to itself."
                                 , "Only applicable if the strict component is empty."]
                        ]
-  transform _ prob | not (Trs.isEmpty strs) = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
-                   | isJust mres          = return $ T.Progress proof (enumeration' [prob'])
-                   | otherwise            = return $ T.NoProgress proof
+  transform _ prob 
+     | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
+     | isJust mres               = return $ T.Progress proof (enumeration' [prob'])
+     | otherwise                 = return $ T.NoProgress proof
     where wdg   = estimatedDependencyGraph Edg prob
           mres = listToMaybe $ sortBy strictOutDeg candidates
           candidates = [ ((n,rl),  [r | (_,(_,r),_) <- preds] ) 
@@ -331,7 +344,7 @@ simpKP = T.Transformation SimpKP `T.withArgs` ()
 
 
 ----------------------------------------------------------------------
--- Remove Tail
+-- Trivial
 
 data Trivial = Trivial
 data TrivialProof = TrivialProof { trivialCDG   :: CDG -- ^ Employed congruence graph.
@@ -345,7 +358,7 @@ instance T.TransformationProof Trivial where
   pprintTProof _ _ (TrivialError e) _ = pprint e
   pprintTProof _ _ TrivialFail _ = text "The DP problem is not trivial."
   pprintTProof _ _ p _ = 
-     text "We consider the the dependency graph"
+     text "We consider the dependency graph"
      $+$ text ""
      $+$ indent (pprintCWDG cwdg sig vars ppLabel)
      $+$ text ""
@@ -364,9 +377,11 @@ instance T.Transformer Trivial where
   type ArgumentsOf Trivial = Unit
   type ProofOf Trivial = TrivialProof
   arguments Trivial = Unit
-  transform _ prob | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ TrivialError $ ContainsStrictRule
-                   | cyclic    = return $ T.NoProgress proof
-                   | otherwise = return $ T.Progress proof (enumeration' [])
+  transform _ prob 
+     | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ TrivialError $ ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ TrivialError $ NonDPProblemGiven
+     | cyclic    = return $ T.NoProgress proof
+     | otherwise = return $ T.Progress proof (enumeration' [])
         where cyclic = any (isCyclicNode cwdg) (nodes cwdg)
               wdg   = estimatedDependencyGraph Edg prob
               cwdg  = toCongruenceGraph wdg
@@ -386,3 +401,81 @@ trivialProcessor = T.Transformation Trivial
 -- not applicable when @strictTrs prob \= Trs.empty@.
 trivial :: T.TheTransformer Trivial
 trivial = T.Transformation Trivial `T.withArgs` ()
+
+
+----------------------------------------------------------------------
+-- Inapplicable
+
+data RemoveInapplicableReason = NonBasic
+
+data RemoveInapplicable = RemoveInapplicable
+data RemoveInapplicableProof = 
+  RemoveInapplicableProof { riWDG   :: DG -- ^ Employed congruence graph.
+                          , riRemoveds :: [(RemoveInapplicableReason,[(NodeId,Rule)])] -- ^ Rules that can be removed
+                          , riSig   :: F.Signature
+                          , riVars  :: V.Variables}
+  | RemoveInapplicableError DPError
+  | RemoveInapplicableFail
+                       
+instance T.TransformationProof RemoveInapplicable where
+  answer = T.answerFromSubProof
+  pprintTProof _ _ (RemoveInapplicableError e) _ = pprint e
+  pprintTProof _ _ RemoveInapplicableFail _ = text "The DP problem could not be simplified."
+  pprintTProof _ _ p _ = hcat [pp reason rs | (reason,rs) <- riRemoveds p]
+     where pp NonBasic rs = 
+             text "Consider the dependency graph:"
+             $+$ text ""
+             $+$ indent (pprint (wdg,sig,vars))
+             $+$ text ""
+             $+$ paragraph (show $ text "Left-hand sides of rules" 
+                                   <+> ls <+> text "are not (marked) basic terms."
+                                   <+> text "Since for each rule there are no incoming edges from different nodes,"
+                                   <+> text "these rules can be removed.")
+               where ls = braces $ hcat $ punctuate (text ",") [text $ show i | (i,_) <- rs ]
+           vars         = riVars p                              
+           sig          = riSig p
+           wdg          = riWDG p
+
+instance T.Transformer RemoveInapplicable where
+  name RemoveInapplicable        = "removeInapplicable"
+  description RemoveInapplicable = [unwords [ "Removes rules that are not applicable in DP derivations."
+                                 , "Only applicable if the strict component is empty."]
+                        ]
+  
+  type ArgumentsOf RemoveInapplicable = Unit
+  type ProofOf RemoveInapplicable = RemoveInapplicableProof
+  arguments RemoveInapplicable = Unit
+  transform _ prob 
+     | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ RemoveInapplicableError $ ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RemoveInapplicableError $ NonDPProblemGiven
+     | Trs.isEmpty removedRules = return $ T.NoProgress RemoveInapplicableFail
+     | otherwise = return $ T.Progress proof (enumeration' [prob'])
+        where wdg   = estimatedDependencyGraph Edg prob
+              sig   = Prob.signature prob
+              vars  = Prob.variables prob
+              constrs = Prob.constrs $ Prob.startTerms prob
+              removedRules = Trs.unions [Trs.fromRules [r | (_,rs) <- removeds
+                                                          , (_,r) <- rs]]
+              removeds = [( NonBasic
+                          , [(n,r) | (n, (_,r)) <- lnodes wdg
+                                   , all ((==) n) $ predecessors wdg n
+                                   , any (\ a -> not $ functionSymbols a `Set.isSubsetOf` constrs) (properSubterms $ lhs r) 
+                            ])
+                         ]
+              prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ removedRules
+                           , Prob.weakDPs = Prob.weakDPs prob Trs.\\ removedRules }
+              proof = RemoveInapplicableProof { riWDG = wdg
+                                              , riSig = sig
+                                              , riRemoveds = removeds
+                                              , riVars = vars }
+                
+
+removeInapplicableProcessor :: T.Transformation RemoveInapplicable P.AnyProcessor
+removeInapplicableProcessor = T.Transformation RemoveInapplicable
+
+-- | Removes inapplicable rules in DP deriviations.
+--  
+-- Currently we check whether the left-hand side is non-basic, 
+-- and there exists no incoming edge except from the same rule.
+removeInapplicable :: T.TheTransformer RemoveInapplicable
+removeInapplicable = T.Transformation RemoveInapplicable `T.withArgs` ()

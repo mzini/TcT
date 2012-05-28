@@ -362,7 +362,7 @@ instance T.TransformationProof Trivial where
      $+$ text ""
      $+$ indent (pprintCWDG cwdg sig vars ppLabel)
      $+$ text ""
-     $+$ paragraph "All SCCs are trivial."
+     $+$ paragraph "All SCCs are trivial and dependency pairs can be removed."
      where vars          = trivialVars p                              
            sig           = trivialSig p
            cwdg          = trivialCDG p
@@ -381,7 +381,7 @@ instance T.Transformer Trivial where
      | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ TrivialError $ ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ TrivialError $ NonDPProblemGiven
      | cyclic    = return $ T.NoProgress proof
-     | otherwise = return $ T.Progress proof (enumeration' [])
+     | otherwise = return $ T.Progress proof (enumeration' [prob'])
         where cyclic = any (isCyclicNode cwdg) (nodes cwdg)
               wdg   = estimatedDependencyGraph Edg prob
               cwdg  = toCongruenceGraph wdg
@@ -390,6 +390,8 @@ instance T.Transformer Trivial where
               proof = TrivialProof { trivialCDG = cwdg
                                    , trivialSig = sig
                                    , trivialVars = vars }
+              prob' = prob { Prob.strictDPs = Trs.empty
+                           , Prob.weakDPs = Trs.empty }
                 
 
 trivialProcessor :: T.Transformation Trivial P.AnyProcessor

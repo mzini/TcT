@@ -891,7 +891,7 @@ instance U.PrettyPrintable ST where
                     | otherwise = 
               block  "Unselected Open Problems" [ (SN i, ppProb prob) | (i,(_,prob)) <- unselecteds]
               $+$ block  "Selected Open Problems"   [ (SN i, ppProb prob) | (i,(_,prob)) <- selecteds]
-            where ppProb prob = U.pprint prob
+            where ppProb prob = U.pprint prob $+$ text ""
                   opens = enumOpenFromTree pt
                   (unselecteds,selecteds) = partition (\ (_,(sn,_)) -> isUnselected st sn) opens
           

@@ -237,18 +237,18 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                     ubound p = Cert.upperBound $ certificate p                        
           _  -> P.MaybeAnswer
           
-      pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'composeCompose' since " 
+      pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'compose' since " 
                                                             ++ reason ++ ".")
-      pprintTProof t prob (tproof@(ComposeProof compfn split stricts rSubProof)) _ = 
+      pprintTProof _ prob (tproof@(ComposeProof compfn split stricts rSubProof)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
-                        ++ tName ++ " to orient following rules strictly. "
+                        ++ pName ++ " to orient following rules strictly. "
                         ++ "These rules were chosen according to '" ++ show split ++ "'.")
              $+$ text ""
              $+$ pptrs "DPs" rDPs
              $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ paragraph ("The induced complexity of " ++ tName ++ " on above rules is " 
+             $+$ paragraph ("The induced complexity of " ++ pName ++ " on above rules is " 
                             ++ show (pprint (P.answer rSubProof)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
@@ -269,7 +269,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   rTrs = Prob.strictTrs $ P.inputProblem $ rSubProof
                   sig = Prob.signature prob
                   vars = Prob.variables prob
-                  tName = "'" ++ T.instanceName t ++ "'"
+                  pName = "'" ++ P.instanceName (P.appliedProcessor rSubProof) ++ "'"
                   pptrs = pprintNamedTrs sig vars
                   ppSubproof = P.pprintProof rSubProof P.ProofOutput
                   

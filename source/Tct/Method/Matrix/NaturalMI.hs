@@ -208,27 +208,26 @@ instance S.Processor NaturalMI where
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
 
-    solvePartial inst oblrules problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
-                                       | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
+    solvePartial inst oblrules problem 
+          | Trs.isEmpty (Prob.strictTrs problem) = mkProof `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
+          | otherwise                            = mkProof `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
       where sig   = Prob.signature problem
             sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
             st    = Prob.startTerms problem
             strat = Prob.strategy problem
-            mkProof dps trs res@(Order ord) = 
+            mkProof res@(Order ord) = 
                P.PartialProof { P.ppInputProblem = problem
                               , P.ppResult       = res 
-                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
-                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
+                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents problem
+                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi $ Prob.trsComponents problem }
                   where mi = ordInter ord
-            mkProof _   _   res = 
+            mkProof res = 
                P.PartialProof { P.ppInputProblem = problem
                               , P.ppResult       = res
                               , P.ppRemovableDPs = []
                               , P.ppRemovableTrs = [] }
             sr    = Prob.strictComponents problem
             wr    = Prob.weakComponents problem
-            sdps  = Prob.strictDPs problem
-            strs  = Prob.strictTrs problem
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
@@ -334,9 +333,18 @@ partialDpConstraints oblrules = matrixConstraints (MRelative oblrules) MWithDP
 -- weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
 -- weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
+data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
+
+instance PropAtom Strict
+
+
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi strict && weakTrsConstraints absmi weak && dpChoice mdp st uaOn absmi && otherConstraints mk absmi
+matrixConstraints mrel mdp ua st strict weak sig mp = 
+  strictChoice mrel absmi strict 
+  && weakTrsConstraints absmi weak 
+  && dpChoice mdp st uaOn absmi 
+  && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
         d          = dim mp
         mk         = kind mp st
@@ -360,9 +368,14 @@ matrixConstraints mrel mdp ua st strict weak sig mp = strictChoice mrel absmi st
                                                                where ds = F.symbols sig Set.\\ cs
                                                                      mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
                                                                      filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
-        strictChoice MDirect              = strictTrsConstraints
-        strictChoice (MRelative oblrules) = relativeStricterTrsConstraints oblrules
---         strictChoice MWeightGap = strictOneConstraints
+        strictChoice MDirect mi              trs = strictTrsConstraints mi trs
+        strictChoice (MRelative oblrules) mi trs = -- relativeStricterTrsConstraints oblrules
+          bigAnd [interpretTerm mi (R.lhs r) .>=. (modify r $ interpretTerm mi (R.rhs r)) | r <- Trs.rules trs]
+          && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
+          where modify r inter = inter { constant = case constant inter of  
+                                            Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
+                strictVar = restrictvar . Strict
+
         dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u
         dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints
         dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints ua

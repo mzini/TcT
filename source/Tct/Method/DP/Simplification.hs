@@ -53,7 +53,8 @@ module Tct.Method.DP.Simplification
 where
 
 import qualified Data.Set as Set
-import Data.List (partition)
+import Data.List (partition, find)
+import Data.Maybe (catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
@@ -70,7 +71,6 @@ import Termlib.Term (properSubterms, functionSymbols)
 import Termlib.Trs.PrettyPrint (pprintTrs)
 import Termlib.Utils hiding (block)
 import Data.Maybe (isJust, fromMaybe)
-import Data.List (sortBy)
 
 import qualified Tct.Certificate as Cert
 import qualified Tct.Processor.Transformations as T
@@ -312,18 +312,19 @@ instance T.Transformer SimpKP where
      | not $ null selected         = return $ T.Progress proof (enumeration' [prob'])
      | otherwise                 = return $ T.NoProgress proof
     where wdg   = estimatedDependencyGraph Edg prob
-          selected = select (sortBy invReach candidates) []
+          selected = select (sort candidates) []
             where select []     sel = sel
                   select (c:cs) sel = select cs sel' 
-                    where sel' | any isPredecessor sel = sel
+                    where sel' | any (c `isPredecessorOf`) sel = sel
                                | otherwise = c:sel
-                          isPredecessor s = skpNode s `elem` [ n | (n,_) <- skpPredecessors c]
-          s1 `invReach` s2 | s1tos2 && s2tos1 = EQ
-                           | s1tos2 = GT
-                           | s2tos1 = LT
-                           | otherwise = skpNode s1 `compare` skpNode s2
-             where s1tos2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
-                   s2tos1 = skpNode s1 `elem` reachablesBfs wdg [skpNode s2]
+                          s1 `isPredecessorOf` s2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
+                  sort cs = reverse $ catMaybes [ find (\ c -> skpNode c == n) cs | n <- topsort wdg]
+          -- s1 `invReach` s2 | s1tos2 && s2tos1 = EQ
+          --                  | s1tos2 = GT
+          --                  | s2tos1 = LT
+          --                  | otherwise = skpNode s1 `compare` skpNode s2
+          --    where s1tos2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
+          --          s2tos1 = skpNode s1 `elem` reachablesBfs wdg [skpNode s2]
                    
           candidates = [ SimpKPSelection { skpNode = n
                                          , skpRule = rl

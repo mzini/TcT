@@ -51,6 +51,8 @@ module Tct.Method.DP.DependencyGraph
      -- | List version of @lookupNodeLabel'@.
      , inverse
      -- | Returns the same graph with edges inversed.
+     , topsort
+     -- | returns a topologically sorted set of nodes.
      , successors
     -- | Returns the list of successors in a given node.
      , reachablesDfs
@@ -131,6 +133,7 @@ where
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Graph.Inductive.Tree as GraphT
 import Data.Graph.Inductive.Query.DFS (dfs)
+import qualified Data.Graph.Inductive.Query.DFS as DFS
 import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 import Data.Graph.Inductive.Query.BFS (bfsn)
 
@@ -212,6 +215,9 @@ inverse :: DependencyGraph n e -> DependencyGraph n e
 inverse gr = Graph.mkGraph ns es
   where ns = Graph.labNodes gr
         es = [ (n2, n1, i) | (n1,n2,i) <- Graph.labEdges gr ]
+
+topsort :: DependencyGraph n e -> [NodeId]
+topsort = DFS.topsort
 
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc

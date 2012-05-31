@@ -45,6 +45,7 @@ import qualified Qlogic.NatSat as N
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.Semiring
 import qualified Qlogic.Semiring as SR
+import Qlogic.PropositionalFormula (PropAtom)
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -56,7 +57,7 @@ import qualified Termlib.Variable as V
 import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Natring ()
-import Tct.Encoding.Polynomial
+import Tct.Encoding.Polynomial as Poly
 import Tct.Encoding.UsablePositions hiding (empty, toXml)
 import Tct.Method.Poly.PolynomialInterpretation
 import Tct.Processor (Answer(..))
@@ -259,13 +260,26 @@ dpConstraints = polyConstraints PDirect PWithDP
 partialDpConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
 partialDpConstraints oblrules = polyConstraints (PRelative oblrules) PWithDP
 
+data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
+instance PropAtom Strict
+
 polyConstraints :: Eq l => PolyRelativity -> PolyDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-polyConstraints prel pdp ua st strict weak sig proc = strictChoice prel absi strict && weakTrsConstraints absi weak && dpChoice pdp st uaOn absi
+polyConstraints prel pdp ua st strict weak sig proc = 
+  orientationConstraint prel
+  && dpChoice pdp st uaOn absi
   where absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
         pk   = kind proc st
         uaOn = isUargsOn proc
-        strictChoice PDirect              = strictTrsConstraints
-        strictChoice (PRelative oblrules) = relativeStricterTrsConstraints oblrules
+        orientationConstraint PDirect = 
+          strictTrsConstraints absi strict 
+          && weakTrsConstraints absi weak
+        orientationConstraint (PRelative oblrules) = 
+          bigAnd [interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ strict `Trs.union` weak]
+          && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
+          where strictVar = restrictvar . Strict
+                modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
+                       
+
         dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
         dpChoice PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints
         dpChoice PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua

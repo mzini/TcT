@@ -334,15 +334,13 @@ partialDpConstraints oblrules = matrixConstraints (MRelative oblrules) MWithDP
 -- weightGapConstraints = matrixConstraints MWeightGap MNoDP
 
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
-
 instance PropAtom Strict
 
 
 matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
                   -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
 matrixConstraints mrel mdp ua st strict weak sig mp = 
-  strictChoice mrel absmi strict 
-  && weakTrsConstraints absmi weak 
+  orientationConstraints mrel 
   && dpChoice mdp st uaOn absmi 
   && otherConstraints mk absmi
   where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
@@ -368,13 +366,14 @@ matrixConstraints mrel mdp ua st strict weak sig mp =
                                                                where ds = F.symbols sig Set.\\ cs
                                                                      mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
                                                                      filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
-        strictChoice MDirect mi              trs = strictTrsConstraints mi trs
-        strictChoice (MRelative oblrules) mi trs = -- relativeStricterTrsConstraints oblrules
-          bigAnd [interpretTerm mi (R.lhs r) .>=. (modify r $ interpretTerm mi (R.rhs r)) | r <- Trs.rules trs]
-          && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
-          where modify r inter = inter { constant = case constant inter of  
-                                            Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
-                strictVar = restrictvar . Strict
+        orientationConstraints MDirect = strictTrsConstraints absmi strict && weakTrsConstraints absmi weak 
+
+        orientationConstraints (MRelative oblrules) = 
+           bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules $ strict `Trs.union` weak]
+           && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
+           where modify r inter = inter { constant = case constant inter of  
+                                             Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
+                 strictVar = restrictvar . Strict
 
         dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u
         dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints

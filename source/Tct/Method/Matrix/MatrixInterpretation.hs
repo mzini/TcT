@@ -136,19 +136,6 @@ instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (LInter a) whe
    pprint = pprintLI "" 0 mVar
      where mVar (V.Canon v) = char 'x' <> int v
            mVar (V.User v)  = char 'y' <> int v
---   pprint (LI ms vec) = foldr handleLine empty [1..d]
---     where handleLine i doc               = Map.foldWithKey (handleMatrix i) (vLine i) ms $$ doc
---           handleMatrix i v m doc         = mLine i m <+> mVar i v <+> doc
---           colWidths m                    = map (\j -> (maximum . liftVector (map prettyLength) . col j) m) [1..d]
---           mLine i m                      = brackets $ foldr mCell empty (liftVector (`zip` (colWidths m)) (row i m))
---           mCell (cell, l) doc            = text (replicate (l - prettyLength cell) ' ') <> pprint cell <+> doc
---           mVar i (V.Canon v) | i == 1    = char 'x' <> int v <+> char '+'
---           mVar _ (V.Canon v) | otherwise = text $ replicate (length (show v) + 3) ' '
---           mVar i (V.User v)  | i == 1    = char 'y' <> int v <+> char '+'
---           mVar _ (V.User v)  | otherwise = text $ replicate (length (show v) + 3) ' '
---           vLine i                        = brackets $ pprint (vEntry i vec)
---           prettyLength                   = length . show . pprint
---           d                              = vecdim vec
 
 instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (LInter a, V.Variables) where
    pprint (li, var) = pprintLI "" 0 mVar li
@@ -186,15 +173,6 @@ pprintLI name indend ppVar (LI ms vec) = vcat [ text (whenBaseLine i (alignRight
           alignRight pad str = replicate diff ' ' ++ str
             where diff = pad - length str
 
--- pprint' :: PrettyPrintable a => LInter a -> Doc
--- pprint' (LI ms v) = Map.foldWithKey pArg (pVector v) ms
---     where pArg (V.Canon i) m doc  = pMatrix m <> char 'x' <> int i <+> char '+' <+> doc
---           pArg (V.User i) m doc   = pMatrix m <> char 'y' <> int i <+> char '+' <+> doc
---           pVector                 = vcat . liftVector (map (brackets . pprint))
---           pMatrix (Matrix m)      = (vcat (map (const lbrack) m)) <> pMatrix' m <> vcat (map (const rbrack) m)
---           pMatrix' m | any (liftVector null) m = empty
---           pMatrix' m | otherwise               = (vcat (map (liftVector (pprint . head)) m)) <+>
---                                                    pMatrix' (map (liftVector_ tail) m)
 
 instance Semiring a => Interpretation (MatrixInter a) (LInter a) where
   interpretFun mi f lis = addAll $ zipWith handleArg [1..] lis

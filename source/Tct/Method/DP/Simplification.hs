@@ -46,6 +46,7 @@ module Tct.Method.DP.Simplification
          
          -- * Knowledge Propagation
        , simpKP
+       , simpKPOn
        , SimpKPProof (..)         
        , simpKPProcessor
        , SimpKP
@@ -75,11 +76,13 @@ import Data.Maybe (isJust, fromMaybe)
 import qualified Tct.Certificate as Cert
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
-import Tct.Processor.Args
+import Tct.Processor.Args as A
+import Tct.Processor.Args.Instances
 import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
 import Tct.Method.DP.Utils 
 import Tct.Method.DP.DependencyGraph hiding (Trivial)
+import Tct.Method.RuleSelector as RS
 
 import qualified Data.Graph.Inductive.Graph as Graph
 
@@ -298,20 +301,26 @@ instance T.TransformationProof SimpKP where
 
 instance T.Transformer SimpKP where 
   name _ = "simpKP"
-  type ArgumentsOf SimpKP = Unit
+  type ArgumentsOf SimpKP = Arg (Assoc (RS.RuleSelector ()))
   type ProofOf SimpKP     = SimpKPProof
-  arguments _ = Unit
+  arguments _ =       
+    opt { A.name         = "select" 
+        , A.defaultValue = RS.selDPs
+        , A.description  = "Determines which rules to select. Per default all dependency pairs are selected for knowledge propagation."
+        }
+
   description SimpKP = [unwords [ "Moves a strict dependency into the weak component"
                                 , "if all predecessors in the dependency graph are strict" 
                                 , "and there is no edge from the rule to itself."
                                 , "Only applicable if the strict component is empty."]
                        ]
-  transform _ prob 
+  transform inst prob 
      | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
      | not $ null selected         = return $ T.Progress proof (enumeration' [prob'])
      | otherwise                 = return $ T.NoProgress proof
     where wdg   = estimatedDependencyGraph Edg prob
+          selector = T.transformationArgs inst
           selected = select (sort candidates) []
             where select []     sel = sel
                   select (c:cs) sel = select cs sel' 
@@ -325,11 +334,13 @@ instance T.Transformer SimpKP where
           --                  | otherwise = skpNode s1 `compare` skpNode s2
           --    where s1tos2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
           --          s2tos1 = skpNode s1 `elem` reachablesBfs wdg [skpNode s2]
-                   
+                  
+          initialDPs = fst $ RS.rules $ RS.rsSelect (RS.selectFirstAlternative selector) () prob
           candidates = [ SimpKPSelection { skpNode = n
                                          , skpRule = rl
                                          , skpPredecessors = [ (m,rlm) | (m, (_,rlm), _) <- preds] }
                        | (n,(StrictDP, rl)) <- lnodes wdg
+                       , Trs.member initialDPs rl 
                        , let preds = lpredecessors wdg n
                        , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
           strs  = Prob.strictTrs prob
@@ -357,7 +368,10 @@ simpKPProcessor = T.Transformation SimpKP
 -- This processor is inspired by Knowledge Propagation used in AProVE, 
 -- therefor its name.
 simpKP :: T.TheTransformer SimpKP
-simpKP = T.Transformation SimpKP `T.withArgs` ()
+simpKP = T.Transformation SimpKP `T.withArgs` RS.selDPs
+
+simpKPOn :: RS.RuleSelector () -> T.TheTransformer SimpKP
+simpKPOn rs = T.Transformation SimpKP `T.withArgs` rs
 
 
 ----------------------------------------------------------------------

@@ -82,9 +82,6 @@ progress proof = maybe True P.succeeded (cpProofA proof)
                  && not (Trs.isEmpty sdps)
    where sdps = Prob.strictDPs $ cpProbB proof
          
-instance AssocArgument (RuleSelector ()) where 
-    assoc _ = [] -- TODO extend
-
 
 instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
     type ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
@@ -171,10 +168,9 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                         (rss,rsw) = foldl separate ([],[]) rsel
                             where separate (stricts,weaks) (DG.StrictDP,r) = (r : stricts,weaks)
                                   separate (stricts,weaks) (DG.WeakDP,r)   = (stricts,r : weaks)
-                        selected = closeBySuccessor $ rsSelect s () prob
+                        selected = closeBySuccessor $ fst $ rules $ rsSelect (selectFirstAlternative s) () prob
                         closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
-                            where initials = [ n | (n, (_, r)) <- allLabeledNodes, dps `Trs.member` r ]
-                                  dps = Prob.sdp rs `Trs.union` Prob.wdp rs
+                            where initials = [ n | (n, (_, r)) <- allLabeledNodes, rs `Trs.member` r ]
 
               unselectedLabeledNodes = DG.withNodeLabels' wdg $ Set.toList $ Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
               (cutWeakDPs, uncutWeakDPs) = List.partition isCut [ (n,r) | (n,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
@@ -242,8 +238,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
 -- | This is the default 'RuleSelector' used with 'composeRC'.
 composeRCselect :: RuleSelector a
 composeRCselect = selFromWDG "below first cut in WDG" fn
-    where fn _ dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
-                                      , Prob.wdp = Trs.fromRules [r | (DG.WeakDP,r) <- selectedRules ] }
+    where fn _ dg = P.SelectDP (Trs.fromRules [r | (_,r) <- selectedRules ])
               where dgclosure = trc dg
                     reachables = Gr.suc dgclosure 
                     n `pathTo` m = m `elem` reachables n

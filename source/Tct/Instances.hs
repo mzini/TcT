@@ -181,14 +181,17 @@ module Tct.Instances
     , RS.selDPs
     , RS.selStricts
     , RS.selWeaks
+    , RS.selAnyOf      
+    , RS.selAllOf      
     , RS.selFromWDG
     , RS.selFromCWDG
     , RS.selFirstCongruence
     , RS.selFirstStrictCongruence
-    , RS.selCombine 
-    , RS.selInverse
-    , RS.selUnion
-    , RS.selInter
+    , RS.selAnyWDGLeafs            
+    , RS.selAnyCWDGLeafs      
+    , RS.selNeg 
+    , RS.selAnd
+    , RS.selOr
       
       -- ** Weak Dependency Pairs
     , DP.dependencyPairs
@@ -204,6 +207,7 @@ module Tct.Instances
     , DPSimp.removeInapplicable      
     , DPSimp.simpDPRHS      
     , DPSimp.simpKP
+    , DPSimp.simpKPOn
     , dpsimps
     , DG.Approximation(..)
 

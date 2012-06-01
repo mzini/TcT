@@ -22,18 +22,16 @@ This module defines the processor for matrix.
 module Tct.Method.Matrix.NaturalMI where
 
 import Control.Monad (liftM)
-import Control.Monad.Error (liftIO)
-import qualified Control.Exception as E
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
 import Text.PrettyPrint.HughesPJ
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Qlogic.MiniSat (MiniSatLiteral)
 import Qlogic.Boolean
 import Qlogic.Diophantine
 import Qlogic.Formula (Formula(..))
-import Qlogic.MiniSat
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 import qualified Qlogic.Assign as A
@@ -135,99 +133,88 @@ instance ComplexityProof MatrixOrder where
     toXml (MatrixOrder ord knd _ uarg) = 
       Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
+type MatrixOptions = Arg (EnumOf NaturalMIKind) :+: Arg (Maybe Nat) :+: Arg Nat :+: Arg Nat  :+: Arg (Maybe Nat)  :+: Arg (Maybe Nat) :+: Arg Bool
+matrixOptions :: MatrixOptions
+matrixOptions = 
+  opt { A.name        = "cert"
+      , A.description = unwords [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
+                                , "the interpretation of the considered starting terms relative to their size."
+                                , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
+                                , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
+                                , "half below the diagonal are zero. Such matrix interpretations induce polynomial derivational-complexity." 
+                                , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
+                                , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
+                                , "the flag 'degree' is set, are used)."
+                                , "If 'nothing' is given, then matrix interpretations of all function symbols are unrestricted."
+                                , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
+                                , "The default value is 'automaton'."
+                                ]
+      , A.defaultValue = Automaton}
+  :+:
+  opt { A.name        = "degree"
+      , A.description = unwords [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
+                                , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
+                                , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
+                                , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
+                                , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
+                                ]
+      , A.defaultValue = Nothing}
+  :+:
+  opt { A.name        = "dim"
+      , A.description = unwords [ "This argument specifies the dimension of the vectors and square-matrices appearing"
+                                , " in the matrix interpretation."]
+      , A.defaultValue = Nat 2 }
+  :+:
+  opt { A.name        = "bound"
+      , A.description = unwords [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
+                                , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
+                                , "when searching for compatible matrix interpretations."]
+      , A.defaultValue = Nat 3 }
+  :+:
+  opt { A.name        = "bits"
+      , A.description = unwords [ "This argument plays the same role as 'bound',"
+                                , "but instead of an upper-bound the number of bits is specified."
+                                , "This argument overrides the argument 'bound'."]
+      , A.defaultValue = Nothing }
+  :+:
+  opt { A.name = "cbits"
+      , A.description = unwords [ "This argument specifies the number of bits used for intermediate results, "
+                                , "as for instance coefficients of matrices obtained by interpreting"
+                                , "left- and right-hand sides."]
+      , A.defaultValue = Nothing }
+  :+:
+  opt { A.name = "uargs"
+      , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
+                                , "in order to relax the monotonicity constraints on the interpretation."]
+      , A.defaultValue = True }
 
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"
 
     description NaturalMI = [ "This processor orients the problem using matrix interpretation over natural numbers." ]
 
-    type ArgumentsOf NaturalMI = (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
-    arguments NaturalMI = opt { A.name        = "cert"
-                              , A.description = unwords [ "This argument specifies restrictions on the matrix interpretation which induce polynomial growth of"
-                                                        , "the interpretation of the considered starting terms relative to their size."
-                                                        , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
-                                                        , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
-                                                        , "half below the diagonal are zero. Such matrix interpretations induce polynomial derivational-complexity." 
-                                                        , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
-                                                        , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
-                                                        , "the flag 'degree' is set, are used)."
-                                                        , "If 'nothing' is given, then matrix interpretations of all function symbols are unrestricted."
-                                                        , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
-                                                        , "The default value is 'automaton'."
-                                                        ]
-                              , A.defaultValue = Automaton}
-                          :+:
-                          opt { A.name        = "degree"
-                              , A.description = unwords [ "This argument ensures that the complexity induced by the searched matrix interpretation is bounded by a"
-                                                        , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
-                                                        , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
-                                                        , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
-                                                        , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
-                                                        ]
-                              , A.defaultValue = Nothing}
-                          :+:
-                          opt { A.name        = "dim"
-                              , A.description = unwords [ "This argument specifies the dimension of the vectors and square-matrices appearing"
-                                                        , " in the matrix interpretation."]
-                              , A.defaultValue = Nat 2 }
-                          :+:
-                          opt { A.name        = "bound"
-                              , A.description = unwords [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
-                                                        , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
-                                                        , "when searching for compatible matrix interpretations."]
-                              , A.defaultValue = Nat 3 }
-                          :+:
-                          opt { A.name        = "bits"
-                              , A.description = unwords [ "This argument plays the same role as 'bound',"
-                                                        , "but instead of an upper-bound the number of bits is specified."
-                                                        , "This argument overrides the argument 'bound'."]
-                              , A.defaultValue = Nothing }
-                          :+:
-                          opt { A.name = "cbits"
-                              , A.description = unwords [ "This argument specifies the number of bits used for intermediate results, "
-                                                        , "as for instance coefficients of matrices obtained by interpreting"
-                                                        , "left- and right-hand sides."]
-                              , A.defaultValue = Nothing }
-                          :+:
-                          opt { A.name = "uargs"
-                              , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
-                                                        , "in order to relax the monotonicity constraints on the interpretation."]
-                              , A.defaultValue = True }
+    type ArgumentsOf NaturalMI = MatrixOptions
+    arguments NaturalMI = matrixOptions
 
     instanceName inst = "matrix interpretation of dimension " ++ show (dim $ S.processorArgs inst)
 
     type ProofOf NaturalMI = OrientationProof MatrixOrder
 
-    solve inst problem 
-       | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
-       | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
-      where sig   = Prob.signature problem
-            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
-            st    = Prob.startTerms problem
-            strat = Prob.strategy problem
-            sr    = Prob.strictComponents problem
-            wr    = Prob.weakComponents problem
-
-    solvePartial inst oblrules problem 
-          | Trs.isEmpty (Prob.strictTrs problem) = mkProof `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
-          | otherwise                            = mkProof `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
-      where sig   = Prob.signature problem
-            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
-            st    = Prob.startTerms problem
-            strat = Prob.strategy problem
-            mkProof res@(Order ord) = 
-               P.PartialProof { P.ppInputProblem = problem
+    solve inst prob = orient rs prob (S.processorArgs inst)
+       where rs = P.BigAnd [ P.SelectDP (Prob.strictDPs prob)
+                           , P.SelectTrs (Prob.strictTrs prob) ]
+    solvePartial inst rs prob = mkProof `liftM` orient rs prob (S.processorArgs inst)
+      where mkProof res@(Order ord) = 
+               P.PartialProof { P.ppInputProblem = prob
                               , P.ppResult       = res 
-                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents problem
-                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi $ Prob.trsComponents problem }
+                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents prob
+                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi $ Prob.trsComponents prob }
                   where mi = ordInter ord
             mkProof res = 
-               P.PartialProof { P.ppInputProblem = problem
+               P.PartialProof { P.ppInputProblem = prob
                               , P.ppResult       = res
                               , P.ppRemovableDPs = []
                               , P.ppRemovableTrs = [] }
-            sr    = Prob.strictComponents problem
-            wr    = Prob.weakComponents problem
 
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
@@ -261,124 +248,84 @@ dim (_ :+: _ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
 isUargsOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
 isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
 
-usableArgsWhereApplicable :: MatrixDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> UsablePositions
-usableArgsWhereApplicable MWithDP sig _                     ua strat r = (if ua then restrictToSignature compSig (usableArgs strat r) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
-  where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
-        nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable MNoDP   sig Prob.TermAlgebra {}     _  _     _ = fullWithSignature sig
-usableArgsWhereApplicable MNoDP   sig Prob.BasicTerms {} ua strat r = if ua then usableArgs strat r else fullWithSignature sig
-
--- uastrat :: Domains (S.ArgumentsOf NaturalMI) -> UArgStrategy
--- uastrat (_ :+: _ :+: _ :+: _ :+: _ :+: uas) = uas
+data MatrixDP = MWithDP | MNoDP deriving (Show,Eq)
 
 
-catchException :: P.SolverM m => m (S.ProofOf NaturalMI) -> m (S.ProofOf NaturalMI)
-catchException m = 
-  do io <- P.mkIO m 
-     liftIO $ E.catchJust notKill io (return . ExceptionRaised)
-  where notKill E.ThreadKilled = Nothing
-        notKill e = Just e
+kindConstraints :: Eq l => MatrixKind -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int  
+kindConstraints UnrestrictedMatrix _ = top
+kindConstraints (TriangularMatrix Nothing) _ = top
+kindConstraints (TriangularMatrix (Just deg)) absmi = diagOnesConstraints deg absmi
+kindConstraints (ConstructorBased _  Nothing) _ = top
+kindConstraints (ConstructorBased cs (Just deg)) absmi = diagOnesConstraints deg absmi'
+  where absmi' = absmi{interpretations = filterCs $ interpretations absmi}
+        filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
+kindConstraints (EdaMatrix Nothing) absmi = edaConstraints absmi
+kindConstraints (EdaMatrix (Just deg)) absmi = idaConstraints deg absmi
+kindConstraints (ConstructorEda cs mdeg) absmi = 
+  rcConstraints (absmi' ds) 
+  && maybe (edaConstraints (absmi' cs)) (\ deg -> idaConstraints deg (absmi' cs)) mdeg
+  where ds = F.symbols (signature absmi) Set.\\ cs
+        absmi' fs = absmi{interpretations = filterFs fs $ interpretations absmi}
+        filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
 
 
-orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientRelative strat st strict weak sig mp = orientMatrix relativeConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientDp strat st strict weak sig mp = orientMatrix dpConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartialDp oblrules strat st strict weak sig mp = orientMatrix (partialDpConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable MWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientPartialRelative oblrules strat st strict weak sig mp = orientMatrix (partialConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable MNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-
-orientMatrix :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula MiniSatLiteral DioVar Int)
-             -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orientMatrix f ua st dps trs sig mp = 
+solveConstraint :: P.SolverM m => 
+                   UsablePositions 
+                   -> Prob.StartTerms 
+                   -> F.Signature 
+                   -> Domains (S.ArgumentsOf NaturalMI) 
+                   -> DioFormula MiniSatLiteral DioVar Int  
+                   -> m (OrientationProof MatrixOrder)
+solveConstraint ua st sig mp constraints = 
   catchException $ 
-    do theMI <- P.minisatValue addAct mi
+    do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= SatSolver.addFormula
+           mi = abstractInterpretation (kind mp st) (dim mp) sig :: MatrixInter (N.Size -> Int) 
+       theMI <- P.minisatValue fml mi
        return $ case theMI of
-                  Nothing -> Incompatible -- useful for debug: Order $ MatrixOrder (MI 1 sig Map.empty) mk ua
-                  Just mv -> Order $ MatrixOrder (fmap (\x -> x n) mv) mk (mikind mp) ua
-    where addAct :: MiniSat ()
-          addAct  = toFormula (liftM N.bound cb) (N.bound n) (f ua st dps trs sig mp) >>= SatSolver.addFormula
-          mi      = abstractInterpretation mk d sig :: MatrixInter (N.Size -> Int)
-          n       = bound mp
-          cb      = cbits mp
-          d       = dim mp
-          mk      = kind mp st
+                  Nothing -> Incompatible
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) (kind mp st) (mikind mp) ua
+                  
+orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orient rs prob mp = 
+  solveConstraint ua st sig mp $ 
+    orientationConstraints 
+    && dpChoice mdp st uaOn
+    && kindConstraints mk absmi
 
-data MatrixDP = MWithDP | MNoDP deriving Show
-data MatrixRelativity = MDirect | MRelative [R.Rule] deriving Show
+    where ua = usableArgsWhereApplicable (mdp == MWithDP) sig st uaOn strat allrules
+          mk = kind mp st
+          uaOn = isUargsOn mp
+          d = dim mp
+          mdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
+                 then MWithDP
+                 else MNoDP     
+          sig   = Prob.signature prob
+          st    = Prob.startTerms prob
+          strat = Prob.strategy prob
+          allrules = Prob.allComponents prob  
 
-partialConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-partialConstraints oblrules = matrixConstraints (MRelative oblrules) MNoDP
+          absmi = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
+                  
+          orientationConstraints = 
+           bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules allrules]
+           && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
+           && orientSelected rs
+           where modify r inter = inter { constant = case constant inter of  
+                                             Vector [] -> error "NaturalMI: zero-length vector in modify"
+                                             Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
+                 strictVar = restrictvar . Strict
+                 orientSelected (P.SelectDP trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                 orientSelected (P.SelectTrs trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                 orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
+                 orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 
-relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-relativeConstraints = matrixConstraints MDirect MNoDP
-
-dpConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-dpConstraints = matrixConstraints MDirect MWithDP
-
-partialDpConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-partialDpConstraints oblrules = matrixConstraints (MRelative oblrules) MWithDP
-
-
--- TODO: rename derivationGraph
--- weightGapConstraints :: Eq l => Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> S.TheProcessor NaturalMI -> DioFormula l DioVar Int
--- weightGapConstraints = matrixConstraints MWeightGap MNoDP
+          dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u absmi
+          dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints  absmi
+          dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints ua absmi
+          dpChoice MNoDP   Prob.BasicTerms {}  False = monotoneConstraints absmi
 
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
 instance PropAtom Strict
-
-
-matrixConstraints :: Eq l => MatrixRelativity -> MatrixDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature
-                  -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-matrixConstraints mrel mdp ua st strict weak sig mp = 
-  orientationConstraints mrel 
-  && dpChoice mdp st uaOn absmi 
-  && otherConstraints mk absmi
-  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
-        d          = dim mp
-        mk         = kind mp st
-        uaOn       = isUargsOn mp
-        otherConstraints UnrestrictedMatrix _                = top
-        otherConstraints (TriangularMatrix Nothing) _        = top -- triConstraints mi -- AS: triConstraints already enforced by presence of RestrictVars
-        otherConstraints (TriangularMatrix (Just deg)) mi    = diagOnesConstraints deg mi -- triConstraints mi && -- AS: triConstraints already enforced by presence of RestrictVars
-        otherConstraints (ConstructorBased _  Nothing) _     = top -- triConstraints mi' -- AS: triConstraints already enforced by presence of RestrictVars
-                                                                   -- where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                                   --       filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        otherConstraints (ConstructorBased cs (Just deg)) mi = diagOnesConstraints deg mi' -- triConstraints mi' && -- AS: triConstraints already enforced by presence of RestrictVars
-                                                               where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                                     filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        otherConstraints (EdaMatrix Nothing) mi              = edaConstraints mi
-        otherConstraints (EdaMatrix (Just deg)) mi           = idaConstraints deg mi
-        otherConstraints (ConstructorEda cs Nothing) mi      = rcConstraints (mi' ds) && edaConstraints (mi' cs)
-                                                               where ds = F.symbols sig Set.\\ cs
-                                                                     mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
-                                                                     filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
-        otherConstraints (ConstructorEda cs (Just deg)) mi   = rcConstraints (mi' ds) && idaConstraints deg (mi' cs)
-                                                               where ds = F.symbols sig Set.\\ cs
-                                                                     mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
-                                                                     filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
-        orientationConstraints MDirect = strictTrsConstraints absmi strict && weakTrsConstraints absmi weak 
-
-        orientationConstraints (MRelative oblrules) = 
-           bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules $ strict `Trs.union` weak]
-           && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
-           where modify r inter = inter { constant = case constant inter of  
-                                             Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
-                 strictVar = restrictvar . Strict
-
-        dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u
-        dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints
-        dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints ua
-        dpChoice MNoDP   Prob.BasicTerms {}  False = monotoneConstraints
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations

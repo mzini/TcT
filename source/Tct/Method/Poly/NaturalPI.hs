@@ -155,33 +155,20 @@ instance S.Processor NaturalPI where
 
   type ProofOf NaturalPI = OrientationProof PolynomialOrder
 
-  solve inst problem | Trs.isEmpty (Prob.strictTrs problem) = orientDp strat st sr wr sig' (S.processorArgs inst)
-                     | otherwise                            = orientRelative strat st sr wr sig' (S.processorArgs inst)
-    where sig   = Prob.signature problem
-          sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
-          st    = Prob.startTerms problem
-          strat = Prob.strategy problem
-          sr    = Prob.strictComponents problem
-          wr    = Prob.weakComponents problem
-
-  solvePartial inst oblrules problem | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' (S.processorArgs inst)
-                                     | otherwise                            = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' (S.processorArgs inst)
-      where sig   = Prob.signature problem
-            sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
-            st    = Prob.startTerms problem
-            strat = Prob.strategy problem
-            mkProof dps trs res@(Order (PolynomialOrder mi _ _)) = P.PartialProof { P.ppInputProblem = problem
-                                                                                  , P.ppResult       = res 
-                                                                                  , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
-                                                                                  , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
-            mkProof _   _   res                                  = P.PartialProof { P.ppInputProblem = problem
-                                                                                  , P.ppResult       = res
-                                                                                  , P.ppRemovableDPs = []
-                                                                                  , P.ppRemovableTrs = [] }
-            sr    = Prob.strictComponents problem
-            wr    = Prob.weakComponents problem
-            sdps  = Prob.strictDPs problem
-            strs  = Prob.strictTrs problem
+  solve inst prob = orient rs prob (S.processorArgs inst)
+       where rs = P.BigAnd [ P.SelectDP (Prob.strictDPs prob)
+                           , P.SelectTrs (Prob.strictTrs prob) ]
+  solvePartial inst rs prob = mkProof `liftM` orient rs prob (S.processorArgs inst)
+       where mkProof res@(Order (PolynomialOrder mi _ _)) = 
+               P.PartialProof { P.ppInputProblem = prob
+                              , P.ppResult       = res 
+                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents prob
+                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi $ Prob.trsComponents prob }
+             mkProof res = 
+               P.PartialProof { P.ppInputProblem = prob
+                              , P.ppResult       = res
+                              , P.ppRemovableDPs = []
+                              , P.ppRemovableTrs = [] }
 
 polyProcessor :: S.StdProcessor NaturalPI
 polyProcessor = S.StdProcessor NaturalPI
@@ -208,77 +195,60 @@ cbits (_ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
 isUargsOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
 isUargsOn (_ :+: _ :+: _ :+: _ :+: ua) = ua
 
-usableArgsWhereApplicable :: PolyDP -> F.Signature -> Prob.StartTerms -> Bool -> Prob.Strategy -> Trs.Trs -> UsablePositions
-usableArgsWhereApplicable PWithDP sig _                     ua strat r = (if ua then restrictToSignature compSig (usableArgs strat r) else fullWithSignature compSig) `union` emptyWithSignature nonCompSig
-  where compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
-        nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
-usableArgsWhereApplicable PNoDP   sig Prob.TermAlgebra {}    _  _     _ = fullWithSignature sig
-usableArgsWhereApplicable PNoDP   sig (Prob.BasicTerms _ _) ua strat r = if ua then usableArgs strat r else fullWithSignature sig
 
-orientRelative :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orientRelative strat st strict weak sig mp = orientPoly relativeConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
 
-orientDp :: P.SolverM m => Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orientDp strat st strict weak sig mp = orientPoly dpConstraints ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientPartialRelative :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orientPartialRelative oblrules strat st strict weak sig mp = orientPoly (partialConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PNoDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientPartialDp :: P.SolverM m => [R.Rule] -> Prob.Strategy -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orientPartialDp oblrules strat st strict weak sig mp = orientPoly (partialDpConstraints oblrules) ua st strict weak sig mp
-  where ua = usableArgsWhereApplicable PWithDP sig st (isUargsOn mp) strat (strict `Trs.union` weak)
-
-orientPoly :: P.SolverM m => (UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula MiniSatLiteral DioVar Int)
-             -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orientPoly f ua st strict weak sig inst = do thePI <- P.minisatValue addAct i
-                                             return $ case thePI of
-                                                        Nothing -> Incompatible
-                                                        Just pv -> let pint = fmap (\x -> x n) pv in
-                                                                   Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua
-  where addAct :: MiniSat ()
-        addAct = toFormula (liftM N.bound cb) (N.bound n) (f ua st strict weak sig inst) >>= SatSolver.addFormula
-        i      = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
-        n      = bound inst
+solveConstraint :: P.SolverM m => 
+                    UsablePositions 
+                    -> Prob.StartTerms 
+                    -> F.Signature 
+                    -> Domains (S.ArgumentsOf NaturalPI) 
+                    -> DioFormula MiniSatLiteral DioVar Int
+                    -> m (S.ProofOf NaturalPI)
+solveConstraint ua st sig inst constraints = 
+  catchException $ do 
+    let fml = toFormula (liftM N.bound cb) (N.bound n) constraints >>= SatSolver.addFormula
+        i = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
+    thePI <- P.minisatValue fml i
+    return $ case thePI of
+      Nothing -> Incompatible
+      Just pv -> let pint = fmap (\x -> x n) pv in
+                 Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua
+  where n      = bound inst
         cb     = cbits inst
         pk     = kind inst st
 
-data PolyDP = PWithDP | PNoDP deriving Show
-data PolyRelativity = PDirect | PRelative [R.Rule] deriving Show
 
-partialConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-partialConstraints oblrules = polyConstraints (PRelative oblrules) PNoDP
-
-relativeConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-relativeConstraints = polyConstraints PDirect PNoDP
-
-dpConstraints :: Eq l => UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-dpConstraints = polyConstraints PDirect PWithDP
-
-partialDpConstraints :: Eq l => [R.Rule] -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-partialDpConstraints oblrules = polyConstraints (PRelative oblrules) PWithDP
-
+data PolyDP = PWithDP | PNoDP deriving (Show, Eq)
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
 instance PropAtom Strict
 
-polyConstraints :: Eq l => PolyRelativity -> PolyDP -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalPI) -> DioFormula l DioVar Int
-polyConstraints prel pdp ua st strict weak sig proc = 
-  orientationConstraint prel
-  && dpChoice pdp st uaOn absi
-  where absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
-        pk   = kind proc st
-        uaOn = isUargsOn proc
-        orientationConstraint PDirect = 
-          strictTrsConstraints absi strict 
-          && weakTrsConstraints absi weak
-        orientationConstraint (PRelative oblrules) = 
-          bigAnd [interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ strict `Trs.union` weak]
-          && bigAnd [strictVar r .>. SR.zero | r <- oblrules]
+orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
+orient rs prob args = 
+  solveConstraint ua st sig args $
+    orientationConstraint
+    && dpChoice pdp st uaOn absi
+
+  where ua = usableArgsWhereApplicable (pdp == PWithDP) sig st uaOn strat allrules
+        absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
+        pdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
+                 then PWithDP
+                 else PNoDP     
+        sig   = Prob.signature prob
+        st    = Prob.startTerms prob
+        strat = Prob.strategy prob
+        allrules = Prob.allComponents prob  
+        pk   = kind args st
+        uaOn = isUargsOn args
+        orientationConstraint = 
+          bigAnd [interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ allrules]
+          && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
+          && orientSelected rs
           where strictVar = restrictvar . Strict
                 modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
-                       
+                orientSelected (P.SelectDP trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                orientSelected (P.SelectTrs trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
+                orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 
         dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
         dpChoice PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints

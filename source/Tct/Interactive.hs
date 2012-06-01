@@ -465,8 +465,11 @@ module Tct.Interactive
       -- 'wdgs' that draws weak dependency graphs, but also shows
       -- congruence classes.
     , uargs      
-      -- | This action displays the argument positions of the selected problems.
+      -- | This action displays the usable argument positions of the selected problems.
 
+    , selectedRules
+      -- | This action displays the application of a rule-selector.
+      
       
       -- ** Selecting and Unselecting Problems #Select#      
       -- | Sometimes it is convenient to consider a sublist of the list
@@ -714,6 +717,7 @@ import Tct.Method.Combinator (open, OpenProof (..), sequentially, OneOf(..), One
 import Text.PrettyPrint.HughesPJ
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Encoding.UsablePositions as UA
+import qualified Tct.Method.RuleSelector as RS
 
 import Data.Maybe (fromMaybe, isJust)
 import Data.Typeable (cast)
@@ -1341,15 +1345,15 @@ proof = do st <- getState
           $+$ nb "Use 'load <filename>' to load a new problem."
         ppTree pt = pprint pt
 
-pprintIth :: U.PrettyPrintable p => String -> (Int,p) -> IO ()
-pprintIth nm (i,p) = pprint (text nm <+> text (show i) <> text ":"
-                             $+$ indent (U.pprint p))
+pprintIth :: String -> (p -> Doc) -> (Int,p) -> IO ()
+pprintIth nm pp (i,p) = pprint (text nm <+> text (show i) <> text ":"
+                                $+$ indent (pp p))
      
 
 problems :: IO [Problem]
 problems = 
   do ps <- problems'
-     mapM_ (pprintIth "Problem")  $ zip [1..] ps
+     mapM_ (pprintIth "Problem" U.pprint)  $ zip [1..] ps
      return ps
 
 wdgs' :: IO [DG.DG]
@@ -1370,7 +1374,7 @@ wdgs = do probs <- problems'
                     | prob <- probs ]
           fn <- getCurrentDirectory          
           _ <- forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
-          mapM_ (pprintIth "Weak Dependency Graph of Problem") $ zip [1..] dgs
+          mapM_ (pprintIth "Weak Dependency Graph of Problem" U.pprint) $ zip [1..] dgs
           putStrLn $ "\nsee also '" ++ fn ++ "/dg.svg'.\n"
           return [dg | (dg,_,_) <- dgs]
 
@@ -1378,14 +1382,38 @@ cwdgs :: IO [DG.CDG]
 cwdgs = (zip [1..] `liftM` problems') >>= mapM f                            
   where f (i,prob) = 
           do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob
-             pprintIth "Congruence Graph of Problem" (i,(dg,Prob.signature prob,Prob.variables prob))
+             pprintIth "Congruence Graph of Problem" U.pprint (i,(dg,Prob.signature prob,Prob.variables prob))
              return dg
 
 uargs :: IO [UA.UsablePositions]
 uargs = (zip [1..] `liftM` problems') >>= mapM f
-    where f (i,prob) = pprintIth "Usable Arguments with Repect to Problem" (i, (ua, sig)) >> return ua
+    where f (i,prob) = pprintIth "Usable Arguments with Repect to Problem" U.pprint (i, (ua, sig)) >> return ua
             where ua = UA.usableArgs (Prob.strategy prob) (Prob.allComponents prob)
                   sig = Prob.signature prob
+
+
+selectedRules :: a -> RS.RuleSelector a -> IO [P.SelectorExpression]
+selectedRules a rs = do
+  probs <- problems'
+  let ss = [ (RS.rsSelect rs a prob,prob) | prob <- probs ]
+  mapM_ (pprintIth "Selected Rules for Problem" pp) $ zip [1..] ss
+  return [ sexp | (sexp,_) <- ss]  
+  where pp (se, prob) = ppse se
+                        $+$ text ""
+                        $+$ DG.pprintLabeledRules "DPs" sig vars ldps
+                        $+$ DG.pprintLabeledRules "Rules" sig vars ltrs
+          where (dps,trs) = RS.rules se
+                ldps = zip [(1::Int)..] $ Trs.rules dps
+                ltrs = zip [length ldps + 1..] $ Trs.rules trs
+                sig = Prob.signature prob
+                vars = Prob.variables prob
+                
+                ppse (P.SelectDP rules) = pprules rules ldps
+                ppse (P.SelectTrs rules) = pprules rules ltrs
+                ppse (P.BigOr ss) = ppop "or" ss
+                ppse (P.BigAnd ss) = ppop "and" ss                
+                ppop n ss = parens $ text n <+> fsep [ ppse s | s <- ss]
+                pprules rules lrules = braces $ hcat $ punctuate (text ",") [text $ show l | (l,r) <- lrules, Trs.member rules r ]
 
 termFromString :: String -> Problem -> IO (Term, Problem)
 termFromString str prob = do pprint term

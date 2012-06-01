@@ -16,13 +16,18 @@
 module Tct.Processor.Orderings 
     (
       OrientationProof (..)
+      , catchException
     )
 where
+
+import qualified Control.Exception as E
+import Control.Monad.Error (liftIO)
 
 import Termlib.Utils (paragraph)  
 import Text.PrettyPrint.HughesPJ
 import Tct.Certificate (constant, certified)
-import Tct.Processor (Answer (..), ComplexityProof(..))
+import Tct.Processor (Answer (..), ComplexityProof(..), SolverM(..))
+
 import Tct.Utils.PPrint (indent)
 import qualified Control.Exception as C
 import qualified Tct.Utils.Xml as Xml
@@ -53,3 +58,12 @@ instance ComplexityProof o => ComplexityProof (OrientationProof o) where
             toXml' Empty = Xml.elt "empty" [] []    
             toXml' (Inapplicable r) = Xml.elt "inapplicable" [] [Xml.text r]    
             toXml' (ExceptionRaised e) = Xml.elt "exceptionRaised" [] [Xml.text $ show e]
+            
+            
+catchException :: SolverM m => m (OrientationProof o) -> m (OrientationProof o)
+catchException m = 
+  do io <- mkIO m 
+     liftIO $ E.catchJust notKill io (return . ExceptionRaised)
+  where notKill E.ThreadKilled = Nothing
+        notKill e = Just e
+    

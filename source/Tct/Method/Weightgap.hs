@@ -21,6 +21,7 @@ This module defines the weight gap processor.
 
 module Tct.Method.Weightgap where
 
+import Control.Monad (liftM)
 import Prelude hiding ((&&), (||))
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Text.PrettyPrint.HughesPJ as PP
@@ -36,7 +37,6 @@ import Termlib.Problem (Problem(..), StartTerms(..), strictComponents)
 import Termlib.Rule (Rule(..))
 import Termlib.Trs (Trs)
 import Termlib.Utils hiding (enum)
-import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
@@ -55,7 +55,6 @@ import Tct.Method.Matrix.MatrixInterpretation hiding (signature)
 import Tct.Method.Matrix.NaturalMI
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
-import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Transformations as T
 
 data WeightGap = WeightGap
@@ -126,7 +125,7 @@ instance T.Transformer WeightGap where
              maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]
 
-  type ArgumentsOf WeightGap = (Arg (EnumOf WgOn)) :+: (Arg (EnumOf NaturalMIKind)) :+: (Arg (Maybe Nat)) :+: (Arg Nat) :+: (Arg Nat)  :+: (Arg (Maybe Nat))  :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+  type ArgumentsOf WeightGap = (Arg (EnumOf WgOn)) :+: MatrixOptions
   type ProofOf WeightGap = WeightGapProof
   arguments WeightGap =   opt { A.name        = "on"
                               , A.description = unlines [ "This flag determine which rules have to be strictly oriented by the the matrix interpretation for"
@@ -135,135 +134,73 @@ instance T.Transformer WeightGap where
                                                         , "The default value is 'trs'."
                                                         ]
                               , A.defaultValue = WgOnTrs}
-                          :+:
-                          opt { A.name        = "cert"
-                              , A.description = unlines [ "This argument specifies restrictions on the matrix-interpretation for the weight gap condition which induce polynomial growth of"
-                                                        , "the interpretation of the considered starting terms relative to their size."
-                                                        , "Here 'algebraic' refers to simple algebraic restrictions on matrices (in the current implementation,"
-                                                        , "they are simply restricted to triangular shape, i.e. matrices where coefficients in the lower-left"
-                                                        , "half below the diagonal are zero. Such matrix-interpretations induce polynomial derivational-complexity." 
-                                                        , "If 'automaton' is given as argument, then criteria from the theory of weighted automata are used instead"
-                                                        , "(in the current implementation, the negations of the criteria EDA, and possibly IDA(n), in the case that"
-                                                        , "the flag 'degree' is set, are used)."
-                                                        , "If 'nothing' is given, then matrix-interpretations of all function symbols are unrestricted."
-                                                        , "Note that matrix interpretations produced with this option do not induce polynomial complexities in general."
-                                                        , "The default value is 'automaton'."
-                                                        ]
-                              , A.defaultValue = Automaton}
-                          :+:
-                          opt { A.name        = "degree"
-                              , A.description = unlines [ "This argument ensures that the complexity induced by the searched matrix interpretation for the weight gap condition is bounded by a"
-                                                        , "polynomial of the given degree. Its internal effect is dictated by the value the argument 'cert' is set to."
-                                                        , "If it is set to 'algebraic', this restricts the number of non-zero entries in the diagonals of the matrices."
-                                                        , "If it is set to 'automaton', this set the paramter 'n' in the criterion 'not IDA(n)'."
-                                                        , "Finally, if it is set to 'unrestricted', the effect of setting the 'degree' argument is unspecified."
-                                                        ]
-                              , A.defaultValue = Nothing}
-                          :+:
-                          opt { A.name        = "dim"
-                              , A.description = unlines [ "This argument specifies the dimension of the vectors and square-matrices appearing"
-                                                        , " in the matrix-interpretation for the weight gap condition."]
-                              , A.defaultValue = Nat 2 }
-                          :+:
-                          opt { A.name        = "bound"
-                              , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
-                                                        , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
-                                                        , "when searching for compatible matrix interpretations for the weight gap condition."]
-                              , A.defaultValue = Nat 3 }
-                          :+:
-                          opt { A.name        = "bits"
-                              , A.description = unlines [ "This argument plays the same role as 'bound',"
-                                                        , "but instead of an upper-bound the number of bits is specified."
-                                                        , "This argument overrides the argument 'bound'."]
-                              , A.defaultValue = Nothing }
-                          :+:
-                          opt { A.name = "cbits"
-                              , A.description = unlines [ "This argument specifies the number of bits used for intermediate results,"
-                                                        , "computed for the matrix interpretation of the weight gap condition."]
-                              , A.defaultValue = Nothing }
-                          :+:
-                          opt { A.name = "uargs"
-                              , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
-                                                        , "in order to relax the monotonicity constraints on the interpretation."]
-                              , A.defaultValue = True }
---                           :+:
---                           opt { A.name = "uargs"
---                               , A.description = unlines [ "This argument specifies the approximation used for calculating the usable argument"
---                                                         , "positions for the weight gap condition."
---                                                         , "Here 'byFunctions' refers to just looking at defined function symbols, while 'byCap' refers"
---                                                         , "to using a tcap-like function." ]
---                               , A.defaultValue = UArgByCap }
+                          :+: matrixOptions
+  transform inst prob 
+     | Trs.isEmpty $ strictComponents prob = 
+          return $ T.NoProgress $ WeightGapProof { wgInputProblem = prob
+                                                 , wgProof        = Empty
+                                                 , wgRemovableDps = []
+                                                 , wgRemovableTrs = []
+                                                 , wgConstGrowth  = Nothing }
+     | otherwise = mkProof `liftM` orientWG (Prob.sanitise prob) targs
+           where targs@(wgon :+: _) = T.transformationArgs inst
+                 mkProof p@(Order ord) 
+                   | Trs.isEmpty remdps && Trs.isEmpty remtrs = T.NoProgress wgpr
+                   | otherwise = T.Progress wgpr (enumeration' [prob'])
+                   where wgpr   = WeightGapProof { wgInputProblem = prob
+                                                 , wgProof        = p
+                                                 , wgRemovableDps = Trs.toRules remdps
+                                                 , wgRemovableTrs = Trs.toRules remtrs
+                                                 , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
+                         mi = ordInter ord
+                         remdps = strictRules mi $ strictDPs prob
+                         remtrs = strictRules mi $ strictTrs prob
+                         prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps
+                                       , strictTrs = strictTrs prob Trs.\\ remtrs
+                                       , weakDPs   = weakDPs prob `Trs.union` remdps
+                                       , weakTrs   = weakTrs prob `Trs.union` remtrs }
+                 mkProof p = T.NoProgress WeightGapProof { wgInputProblem = prob
+                                                         , wgProof        = p
+                                                         , wgRemovableDps = []
+                                                         , wgRemovableTrs = []
+                                                         , wgConstGrowth  = Nothing }
+                 
 
-  transform inst prob | Trs.isEmpty $ strictComponents prob = return $ T.NoProgress $ WeightGapProof { wgInputProblem = prob
-                                                                                                     , wgProof        = Empty
-                                                                                                     , wgRemovableDps = []
-                                                                                                     , wgRemovableTrs = []
-                                                                                                     , wgConstGrowth  = Nothing }
-                      | otherwise = do let wgon :+: wgKind :+: wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs = T.transformationArgs inst
-                                       let (sr, wr) = (Prob.strictComponents prob, Prob.weakComponents prob)
-                                       let uarg' = case startTerms prob of
-                                                     TermAlgebra _  -> fullWithSignature (signature prob)
-                                                     BasicTerms _ _ -> if wgUargs then usableArgs (strategy prob) (sr `Trs.union` wr) else fullWithSignature (signature prob)
-                                       p <- orientMatrix (weightGapConstraints wgon (strictTrs prob)) uarg' (st' wgon) sr wr (signature prob) (wgKind' wgon wgKind :+: wgDeg' wgon wgDeg :+: wgDim :+: wgBound :+: wgBits :+: wgCbits :+: wgUargs)
-                                       return $ mkProof wgon p
-                                         where st' wgon | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = startTerms prob
-                                                        | otherwise                                     = toTA $ startTerms prob
-                                                  where toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
-                                                        toTA st                 = st
-                                               wgDeg' wgon wgDeg | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgDeg
-                                                                 | otherwise                                       = Just 1
-                                               wgKind' wgon wgKind | Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs = wgKind
-                                                                   | otherwise                                       = case wgKind of
-                                                                                                                         Unrestricted -> Algebraic
-                                                                                                                         _ -> wgKind
-                                               mkProof wgon p@(Order ord) = case Trs.isEmpty remdps && Trs.isEmpty remtrs of
-                                                                                               True  -> T.NoProgress wgpr
-                                                                                               False -> T.Progress wgpr (enumeration' [prob'])
-                                                  where wgpr   = WeightGapProof { wgInputProblem = prob
-                                                                                , wgProof        = p
-                                                                                , wgRemovableDps = Trs.toRules remdps
-                                                                                , wgRemovableTrs = Trs.toRules remtrs
-                                                                                , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
-                                                        mi = ordInter ord
-                                                        remdps = strictRules mi $ strictDPs prob
-                                                        remtrs = strictRules mi $ strictTrs prob
-                                                        prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps
-                                                                      , strictTrs = strictTrs prob Trs.\\ remtrs
-                                                                      , weakDPs   = weakDPs prob `Trs.union` remdps
-                                                                      , weakTrs   = weakTrs prob `Trs.union` remtrs }
-                                               mkProof _ p = T.NoProgress WeightGapProof { wgInputProblem = prob
-                                                                                            , wgProof        = p
-                                                                                            , wgRemovableDps = []
-                                                                                            , wgRemovableTrs = []
-                                                                                            , wgConstGrowth  = Nothing }
+orientWG :: P.SolverM m => Problem -> Domains (T.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
+orientWG prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
+    solveConstraint ua st sig mp $ 
+      strictWGConstraints sr absmi 
+      && wgonConstraints wgon 
+      && weakTrsConstraints absmi wr
+      && slmiSafeRedpairConstraints sig ua absmi 
+      && uargMonotoneConstraints ua absmi 
+      && kindConstraints knd absmi
+      
+  where mp = miKnd :+: deg :+: as
+        absmi      = abstractInterpretation knd (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
+        miKnd | Trs.isEmpty sr || wgon == WgOnTrs = wgKind
+              | wgKind == Unrestricted = Algebraic
+              | otherwise = wgKind
+        deg | Trs.isEmpty sr || wgon == WgOnTrs = wgDeg
+            | otherwise = Just 1
+        sig = Prob.signature prob
+        st | Trs.isEmpty sr || wgon == WgOnTrs = startTerms prob
+           | otherwise = toTA $ startTerms prob
+          where toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
+                toTA st'                 = st'
+        ua = case Prob.startTerms prob of
+              BasicTerms {} 
+                | isUargsOn wgp -> usableArgs (strategy prob) allrules
+              _ -> fullWithSignature (signature prob)
+        knd = kind mp st
 
-weightGapConstraints :: Eq l => WgOn -> Trs.Trs -> UsablePositions -> Prob.StartTerms -> Trs.Trs -> Trs.Trs -> F.Signature -> Domains (S.ArgumentsOf NaturalMI) -> DioFormula l DioVar Int
-weightGapConstraints wgon nondup uarg st strict weak sig mp = strictWGConstraints strict absmi && wgonConstraints wgon && weakTrsConstraints absmi weak && otherConstraints
-  where absmi      = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
-        d          = dim mp
-        mk         = kind mp st
         wgonConstraints WgOnTrs = strictTrsConstraints absmi nondup
-        wgonConstraints WgOnAny = if Trs.isEmpty strict then top else strictOneConstraints absmi strict
-        otherConstraints = slmiSafeRedpairConstraints sig uarg absmi && uargMonotoneConstraints uarg absmi && mkConstraints mk absmi
-        mkConstraints UnrestrictedMatrix _ = top
-        mkConstraints (TriangularMatrix Nothing) mi = triConstraints mi
-        mkConstraints (TriangularMatrix (Just deg)) mi = triConstraints mi && diagOnesConstraints deg mi
-        mkConstraints (ConstructorBased cs Nothing) mi = triConstraints mi'
-                                                         where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                               filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        mkConstraints (ConstructorBased cs (Just deg)) mi = triConstraints mi' && diagOnesConstraints deg mi'
-                                                            where mi' = mi{interpretations = filterCs $ interpretations mi}
-                                                                  filterCs = Map.filterWithKey (\f _ -> f `Set.member` cs)
-        mkConstraints (EdaMatrix Nothing) mi = edaConstraints mi
-        mkConstraints (EdaMatrix (Just deg)) mi = idaConstraints deg mi
-        mkConstraints (ConstructorEda cs Nothing) mi = rcConstraints (mi' ds) && edaConstraints (mi' cs)
-                                                       where ds = F.symbols sig Set.\\ cs
-                                                             mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
-                                                             filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
-        mkConstraints (ConstructorEda cs (Just deg)) mi = rcConstraints (mi' ds) && idaConstraints deg (mi' cs)
-                                                          where ds = F.symbols sig Set.\\ cs
-                                                                mi' fs = mi{interpretations = filterFs fs $ interpretations mi}
-                                                                filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
+        wgonConstraints WgOnAny | Trs.isEmpty sr = top 
+                                | otherwise      = strictOneConstraints absmi sr
+        sr = Prob.strictComponents prob
+        wr = Prob.weakComponents prob
+        nondup = Prob.strictTrs prob
+        allrules = Prob.allComponents prob
 
 strictWGConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs -> MatrixInter a -> b
 strictWGConstraints trs mi = trsConstraints f mi trs

@@ -42,6 +42,7 @@ module Tct.Encoding.UsablePositions
   , emptyWithSignature
   , fullWithSignature
   , restrictToSignature
+  , usableArgsWhereApplicable
   , toXml
   )
 where
@@ -174,3 +175,12 @@ usableReplacementMap trs up = unions [ snd $ uArgs l r | Rule l r <- Trs.rules t
                     f                = case root t of
                                          Left  _  -> error "Tct.Encoding.UsablePositions.isBlockedProperSubtermOf: root t called for a variable t"
                                          Right f' -> f'
+
+usableArgsWhereApplicable :: Bool -> F.Signature -> StartTerms -> Bool -> Strategy -> Trs.Trs -> UsablePositions
+usableArgsWhereApplicable True sig _ ua strat r = ua' `union` emptyWithSignature nonCompSig
+  where ua' | ua = restrictToSignature compSig (usableArgs strat r) 
+            | otherwise = fullWithSignature compSig
+        compSig    = F.restrictToSymbols sig $ Set.filter (F.isCompound sig) $ F.symbols sig
+        nonCompSig = F.restrictToSymbols sig $ Set.filter (not . F.isCompound sig) $ F.symbols sig
+usableArgsWhereApplicable _ sig TermAlgebra {} _  _ _ = fullWithSignature sig
+usableArgsWhereApplicable _ sig BasicTerms {} ua strat r = if ua then usableArgs strat r else fullWithSignature sig

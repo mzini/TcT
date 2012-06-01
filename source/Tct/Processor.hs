@@ -38,6 +38,7 @@ module Tct.Processor
     , isTimeout
     , Proof (..)
       -- ** Partial Proofs
+    , SelectorExpression (..)
     , PartialProof (..)
     , progressed
       
@@ -103,6 +104,7 @@ import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
+import Termlib.Trs (Trs)
 
 import Tct.Proof
 import qualified Tct.Utils.Xml as Xml
@@ -111,6 +113,14 @@ import qualified Tct.Processor.Parse as Parse
 
 -- | Representation of a SAT-solver. Currently, only 'minisat' (cf. <http://minisat.se>) is supported.
 data SatSolver = MiniSat FilePath
+
+-- | These expressions determine which rules to orient for partial application, 
+--   c.f. solvePartial
+data SelectorExpression = 
+  SelectDP Trs
+  | SelectTrs Trs  
+  | BigAnd [SelectorExpression]
+  | BigOr [SelectorExpression]    
 
 -- * The Solver Monad
 
@@ -136,7 +146,7 @@ class MonadIO m => SolverM m where
   solve = solve_
   
   -- | This method can be used to wrap method 'solvePartial_' from 'Processor'  
-  solvePartial :: (Processor proc) => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
+  solvePartial :: (Processor proc) => InstanceOf proc -> SelectorExpression -> Problem -> m (PartialProof (ProofOf proc))
   solvePartial = solvePartial_
 
 -- Basic Solver Monad Implementation
@@ -188,9 +198,9 @@ class (ComplexityProof (ProofOf proc)) => Processor proc where
   solve_          :: SolverM m => InstanceOf proc -> Problem -> m (ProofOf proc)
     
   -- | Similar to 'solve_', but constructs a 'PartialProof'. At least all rules
-  -- in the additional paramter of type '[Rule]' should be /removed/. Per default, 
+  -- in the additional paramter of type 'SelectorExpression' should be /removed/. Per default, 
   -- this method returns 'PartialInapplicable'. 
-  solvePartial_   :: SolverM m => InstanceOf proc -> [Rule] -> Problem -> m (PartialProof (ProofOf proc))
+  solvePartial_   :: SolverM m => InstanceOf proc -> SelectorExpression -> Problem -> m (PartialProof (ProofOf proc))
   solvePartial_   _ _ prob = return $ PartialInapplicable prob
 
 type ProcessorParser a = CharParser AnyProcessor a 

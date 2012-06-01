@@ -41,7 +41,6 @@ import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
-import Termlib.Rule (Rule)
 import Tct.Processor.Parse
 
 -- | This datatype defines a specific instance of a standard processor 
@@ -74,9 +73,9 @@ class (P.ComplexityProof (ProofOf proc)) => Processor proc where
     solve        :: P.SolverM m => TheProcessor proc -> Problem -> m (ProofOf proc)
     
     -- | Similar to 'solve', but constructs a 'P.PartialProof'. At least all rules
-    -- in the additional paramter of type '[Rule]' should be /removed/. Per default, 
+    -- in the additional paramter of type 'P.SelectorExpression' should be /removed/. Per default, 
     -- this method returns 'P.PartialInapplicable'. 
-    solvePartial :: P.SolverM m => TheProcessor proc -> [Rule] -> Problem -> m (P.PartialProof (ProofOf proc))
+    solvePartial :: P.SolverM m => TheProcessor proc -> P.SelectorExpression -> Problem -> m (P.PartialProof (ProofOf proc))
     solvePartial _ _ prob = return $ P.PartialInapplicable prob
 
 

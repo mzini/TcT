@@ -45,7 +45,7 @@ where
 
 import Control.Monad (liftM)
 import Data.Set (Set, (\\))
-import Data.Maybe (isJust, catMaybes)
+import Data.Maybe (isJust, catMaybes, fromMaybe)
 import Data.List (partition)
 import qualified Data.Set as Set
 import qualified Data.IntSet as IntSet
@@ -89,7 +89,6 @@ import qualified Tct.Encoding.UsableRules as UREnc
 import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
-
 
 --------------------------------------------------------------------------------
 --- proof object
@@ -358,8 +357,8 @@ data PopArg = Gt Term Term
               deriving (Eq, Ord, Show)
 
 
-orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Maybe [Rule] -> Problem -> m (OrientationProof PopStarOrder)
-orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv 
+orientProblem :: P.SolverM m => S.TheProcessor PopStar -> Maybe P.SelectorExpression -> Problem -> m (OrientationProof PopStarOrder)
+orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv 
                                     
     where knd = kind $ S.processor inst
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
@@ -371,13 +370,9 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
           quasiConstrs = quasiConstructorsFor prob
           quasiDefineds = Trs.definedSymbols allrules \\ quasiConstrs
           
-          stricts  = Prob.strictComponents prob
-          weaks    = Prob.weakComponents prob
           allrules = Prob.allComponents prob
-          -- dps      = Prob.dpComponents prob
           sig      = Prob.signature prob
           
-
           slv | isDP      = solveDP 
               | otherwise = solveDirect
           
@@ -418,32 +413,24 @@ orientProblem inst mOrientStrict prob = maybe Incompatible Order `liftM` slv
               do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
                  return $ makeResult `liftM` r
           
-          form = fm maybeOrientable 
-                 && validPrecedence
+          form = validPrecedence -- fm maybeOrientable 
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
-                 && orientRulesConstraint
-
+                 && orderingConstraints allrules allrules
+                 && orientAllWeak
+                 && orientAtleastOne
+                 && orientSelectedStrict (fromMaybe selectStricts mruleselect)
+                       where selectStricts = P.BigAnd [ P.SelectDP $ Prob.strictDPs prob
+                                                      , P.SelectTrs $ Prob.strictTrs prob ]
+                 
           usable = return . UREnc.usable prob
           
-          orientRulesConstraint = 
-            case mOrientStrict of 
-              Nothing 
-                -> bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
-                  && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ weaks]
-                  && orderingConstraints allrules weaks
-              Just sr
-                -> let rest = allrules Trs.\\ Trs.fromRules sr
-                  in bigAnd [not (usable r) || atom (strictlyOriented r) | r <- sr]
-                     && bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- Trs.toRules rest]
-                     && bigOr [ atom (strictlyOriented r) | r <- Trs.toRules stricts]
-                     && orderingConstraints allrules rest
-          maybeOrientable = allowMR || allowAF || isDP || (all maybeOrientableRule $ rules allrules)
-            where maybeOrientableRule r = 
-                      case rtl of 
-                        Left  _   -> False 
-                        Right sym -> sym `Set.member` quasiDefineds --> cardinality rtl (rhs r) <= 1
-                      where rtl = root (lhs r)
+          orientAtleastOne = bigOr [ atom (strictlyOriented r) | r <- Trs.toRules $ Prob.strictComponents prob]
+          orientAllWeak = bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ allrules]
+          orientSelectedStrict (P.SelectDP rs) = bigAnd [ atom (strictlyOriented r) | r <- rules rs]
+          orientSelectedStrict (P.SelectTrs rs) = bigAnd [ atom (strictlyOriented r) | r <- rules rs]
+          orientSelectedStrict (P.BigAnd es) = bigAnd [ orientSelectedStrict e | e <- es]
+          orientSelectedStrict (P.BigOr es) = bigOr [ orientSelectedStrict e | e <- es]          
           
           validArgumentFiltering = 
             return $ AFEnc.validSafeArgumentFiltering fs sig

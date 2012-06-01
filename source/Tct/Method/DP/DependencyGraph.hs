@@ -127,6 +127,8 @@ module Tct.Method.DP.DependencyGraph
       -- | output 'DG' as Svg.
     , graphvizShowDG
       -- | show a 'DG' in a GraphViz canvas.
+    -- * Misc
+    , pprintLabeledRules
     )
 where
 

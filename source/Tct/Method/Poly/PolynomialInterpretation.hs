@@ -41,6 +41,7 @@ module Tct.Method.Poly.PolynomialInterpretation
        where
 
 import Data.Typeable
+import Tct.Utils.PPrint (Align(..), columns)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -50,7 +51,7 @@ import qualified Qlogic.NatSat as N
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 
-import Termlib.Utils
+import Termlib.Utils hiding (columns)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
@@ -109,26 +110,33 @@ instance Functor (Monomial V.Variable) where
   fmap f (Mono n vs) = Mono (f n) vs
 
 instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (PolyInter a) where
-  pprint (PI sig ints) = (text "Interpretation Functions:" $$ (nest 1 $ printInters ints))
-    where printInters = vcat . map (uncurry printInter) . Map.assocs
-          printInter f p = fHead <+> nest (length (show fHead) + 1) (pprint p)
-            where fHead = brackets (pprint (f,sig)) <> fargs <+> char '='
-                  fargs = parens $ hsep $ punctuate comma $ map (\i -> char 'x' <> int i) [1..a]
-                  a = F.arity sig f
+  pprint (PI sig ints) = columns [ (AlignRight, as), (AlignLeft, bs) ]
+    where (as,bs) = unzip $ concatMap ppInter $ Map.toList ints
+          ppInter (f,p) = [( brackets (pprint (f,sig)) <> fargs <+> char '=' <> text " ", pprint p)
+                         , (text " ", text " ")
+                        ]
+            where fargs = parens $ hsep $ punctuate comma $ map (\i -> char 'x' <> int i) [1..a]
+                  a = F.arity sig f                       
 
-instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (Polynomial V.Variable a) where
-  pprint (Poly xs) = hcat $ punctuate (text " + ") $ map pprint xs
 
-instance (Num a, PrettyPrintable a, Eq a) => PrettyPrintable (Monomial V.Variable a) where
-  pprint (Mono n []) = pprint n
-  pprint (Mono n vs) | n == 0 = empty
-                     | n == 1 = ppvars
-                     | otherwise = pprint n <> char '*' <> ppvars
-     where ppvars = hcat (punctuate (char '*') $ map pprint vs)
+instance (Eq a, Num a, PrettyPrintable a) => PrettyPrintable (VPolynomial a) where 
+  pprint p = pprintPolynomial p ppVar 
+     where ppVar (V.Canon v) = char 'x' <> int v
+           ppVar (V.User v)  = char 'y' <> int v
 
-instance PrettyPrintable (Power V.Variable) where
-  pprint (Pow (V.Canon v) e) = char 'x' <> int v <> if e == 1 then empty else char '^' <> int e
-  pprint (Pow (V.User  v) e) = char 'y' <> int v <> if e == 1 then empty else char '^' <> int e
+instance (Eq a, Num a, PrettyPrintable a) => PrettyPrintable (VPolynomial a, V.Variables) where 
+  pprint (p,var) = pprintPolynomial p ppVar 
+     where ppVar v = text $ V.variableName v var
+
+pprintPolynomial :: (Eq a, Num a, PrettyPrintable a) => Polynomial t a -> (t -> Doc) -> Doc
+pprintPolynomial (Poly ms) ppVar = hcat $ punctuate (text " + ") $ [ppMono  m |  m <- ms]
+  where ppMono(Mono n []) = pprint n
+        ppMono (Mono n pows) | n == 0 = empty
+                             | n == 1 = ppPows pows
+                             | otherwise = pprint n <> char '*' <> ppPows pows
+        ppPows pows = hcat $ punctuate (char '*') $ map ppPow pows
+        ppPow (Pow v e) | e == 1     = ppVar v
+                        | otherwise = ppVar v <> char '^' <> int e
 
 instance Show SimplePolyShape where
   show StronglyLinear = "strongly linear"

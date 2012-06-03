@@ -21,12 +21,15 @@ module Tct.Utils.PPrint
        , enum
        , block
        , block'
+       , Align (..)
+       , columns
        )
        where
 
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..), underline)
 import Tct.Utils.Enum
+import Data.List (transpose)
 
 -- | Pretty print string as heading.
 heading :: String -> Doc
@@ -51,6 +54,36 @@ block h ds = heading h $+$ enum ds
 -- | Like 'block', but expects a list instead of an enumeration.
 block' :: (PrettyPrintable t) => String -> [t] -> Doc
 block' h ds = block h (enumeration' ds)
+
+data Align = AlignLeft | AlignRight | AlignCenter deriving (Show, Eq)
+
+columns :: [(Align, [Doc])] -> Doc
+columns cols = vcat [ pprow row | row <- rows]
+    where rows      = transpose [ [ (al,len,c) | c <- cs ] | (al,len,cs) <- cols']
+          -- rows'     = [ [(al, h, c) | (al,c) <- r ] 
+          --             | r <- rows
+          --             , let h = maximum $ 0 : [length c | (_, c) <- r]]
+          cols'     = [ (al,len,cs') 
+                      | (al,cs) <- cols 
+                      , let cs' = [ lines $ show c | c <- cs ++ take (numrows - length cs) (repeat empty)]
+                            len = maximum $ concat [ map length c | c <- cs']]
+          numrows = maximum $ 0 : [length cs | (_,cs) <- cols ] 
+          pprow row = vcat [ hcat [ text $ pad al len c | (al, len, c) <- rl]  
+                           | rl <- transpose [ [(al, len, s) | s <- ls ++ take (height - length ls) (repeat "")] | (al, len, ls) <- row]]
+            where height = maximum $ 0 : [length ls | (_, _, ls) <- row]
+                  pad AlignLeft len s = s ++ ws (len - length s)
+                  pad AlignRight len s = ws (len - length s) ++ s
+                  pad AlignCenter len s = ws l ++ s ++ ws r 
+                    where diff = len - length s
+                          l = floor $ fromIntegral diff / (2.0 :: Double)
+                          r = diff - l
+                  ws n = take n (repeat ' ')
+              -- where rowLines  = [[ pad len l | l <- ls ++ take (h - length ls) (repeat "")]  | (len,ls) <- cs]
+              --       cs = [ (len, lines (show e)) | (len,e) <- row ]
+              --       h  = maximum $ 1 : [length ls | (_,ls) <- cs]
+              --       pad len s = s ++ take (len - length s) (repeat ' ')
+          -- 
+          -- cols'   = [ (i, cs ++ take (numrows - length cs) (repeat empty)) | (i,cs) <- cols]
 
 
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeOperators #-}
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tct.Method.DP.Simplification
@@ -47,6 +49,7 @@ module Tct.Method.DP.Simplification
          -- * Knowledge Propagation
        , simpKP
        , simpKPOn
+       , withKPOn
        , SimpKPProof (..)         
        , simpKPProcessor
        , SimpKP
@@ -59,7 +62,6 @@ import Data.Maybe (catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
-
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
@@ -69,7 +71,7 @@ import Termlib.Rule (Rule (..))
 import qualified Termlib.Term as Term
 import Termlib.Term (properSubterms, functionSymbols)
 
-import Termlib.Trs.PrettyPrint (pprintTrs)
+import Termlib.Trs.PrettyPrint (pprintNamedTrs, pprintTrs)
 import Termlib.Utils hiding (block)
 import Data.Maybe (isJust, fromMaybe)
 
@@ -261,53 +263,115 @@ simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 --------------------------------------------------------------------------------
 --- 'Knowledge propagation'
 
-data SimpKP = SimpKP
+data SimpKP p = SimpKP
 data SimpKPSelection = 
   SimpKPSelection { skpNode :: NodeId -- ^ Node of selected rule in the dependency graph
                   , skpRule :: Rule -- ^ Selected rule
                   , skpPredecessors :: [(NodeId,Rule)]-- ^ Predecessors of rules 
                   }
   
-data SimpKPProof = 
-  SimpKPProof { skpDG            :: DG -- ^ Employed dependency graph
+data SimpKPProof p = 
+  SimpKPProof { skpDG            :: DG
               , skpSelections    :: [SimpKPSelection]
               , skpSig           :: F.Signature
               , skpVars          :: V.Variables}                                
+  | SimpKPPProof { skpDG           :: DG
+                 , skpSig           :: F.Signature
+                 , skpPProof        :: P.PartialProof (P.ProofOf p)
+                 , skpPProc         :: P.InstanceOf p                   
+                 , skpSelections    :: [SimpKPSelection]
+                 , skpVars          :: V.Variables}                                
+                   
   | SimpKPErr DPError
                        
-instance T.TransformationProof SimpKP where
-  answer = T.answerFromSubProof
+instance P.Processor p => T.TransformationProof (SimpKP p) where
+  answer proof = 
+    case T.transformationProof proof of
+      SimpKPErr _ -> P.MaybeAnswer 
+      SimpKPProof {} -> T.answerFromSubProof proof
+      tproof@SimpKPPProof{} ->  
+        case u1 `Cert.add` u2 of 
+          Cert.Unknown -> P.MaybeAnswer
+          u -> P.CertAnswer $ Cert.certified ( Cert.constant, u)
+        where ub p = Cert.upperBound $ P.certificate p
+              u1 = ub $ skpPProof tproof
+              u2 = ub $ T.answerFromSubProof proof
+
   pprintTProof _ _ (SimpKPErr e) _ = pprint e
-  pprintTProof _ _ p _ = 
+  pprintTProof _ _ p@(SimpKPProof {}) _ 
+     | null sel = text "Knowledge propagation is not applicable on selected rules."
+     | otherwise = 
       text "We consider the (estimated) dependency graph" 
       $+$ text ""
       $+$ indent (pprint (dg, sig, vars))
-      $+$ text ""
-      $+$ if null sel 
-          then text "Knowledge propagation is not applicable."
-          else hcat [ let n = pprintNodeSet [skpNode s] 
-                      in text "- We remove" <+> n
-                         <+> text "and add"
-                         <+> text "Pre" <> parens n
-                         <+> text "=" 
-                         <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
-                         <+> text "to the strict component."
-                         $+$ text ""
-                    | s <- sel]
+      $+$ hcat [ let n = pprintNodeSet [skpNode s]
+                 in text "- We remove" <+> n
+                    <+> text "and add"
+                    <+> text "Pre" <> parens n
+                    <+> text "=" 
+                    <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
+                    <+> text "to the strict component."
+                    $+$ text ""
+                | s <- sel]
     where vars  = skpVars p                              
           sig   = skpSig p
           dg    = skpDG p
           sel   = skpSelections p
+  pprintTProof _ _ p@(SimpKPPProof {}) _ = 
+      ppSub 
+      $+$ text ""
+      $+$ text "We consider the (estimated) dependency graph" 
+      $+$ text ""
+      $+$ indent (pprint (dg, sig, vars))
+      $+$ text ""
+      $+$ ppPropagates (Set.fromList [ n | (n,_) <- ldps]) sel
 
-instance T.Transformer SimpKP where 
+    where vars  = skpVars p                              
+          sig   = skpSig p
+          dg    = skpDG p
+          sel   = skpSelections p
+          pproof = skpPProof p
+          pName = "'" ++ P.instanceName (skpPProc p) ++ "'"
+          dps = Trs.fromRules $ P.ppRemovableDPs pproof
+          ldps = [(n,r) | (n, (_, r)) <- lnodes dg, Trs.member dps r]
+          trs = Trs.fromRules $ P.ppRemovableTrs pproof
+            
+          ppSub | not $ P.progressed pproof = paragraph $ "Application of processor " ++ pName ++ " failed."
+                | otherwise =                 
+             paragraph ("We use the processor " 
+                        ++ pName ++ " to orient following rules strictly. ")
+             $+$ text ""
+             $+$ pprintLabeledRules "DPs" sig vars ldps
+             $+$ pprintNamedTrs sig vars "Trs" trs
+             $+$ paragraph ("The induced complexity of " ++ pName ++ " on above rules is " 
+                            ++ show (pprint (P.answer pproof)) ++ ".")
+             $+$ text ""
+             $+$ block' "Sub-proof" [P.pprintProof pproof P.ProofOutput]
+
+          ppPropagates _ [] = text ""
+          ppPropagates sofar ss =
+            text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
+                                    ++ "These cover all predecessors of " ++ (sns newnodes) ++ ", their complexity is equally bounded.")
+            $+$ ppPropagates (sofar `Set.union` newnodes) ss'
+            where sns = show . pprintNodeSet . Set.toList
+                  (new,ss') = partition predsCovered ss
+                  predsCovered s = all (\ (n,_) -> n `Set.member` sofar) $ skpPredecessors s
+                  newnodes = Set.fromList [skpNode s | s <- new]
+            
+
+instance (P.Processor p) => T.Transformer (SimpKP p) where 
   name _ = "simpKP"
-  type ArgumentsOf SimpKP = Arg (Assoc (RS.RuleSelector ()))
-  type ProofOf SimpKP     = SimpKPProof
+  type ArgumentsOf (SimpKP p) = Arg (Assoc (RS.ExpressionSelector)) :+: Arg (Maybe (Proc p))
+  type ProofOf (SimpKP p)     = SimpKPProof p
   arguments _ =       
     opt { A.name         = "select" 
-        , A.defaultValue = RS.selDPs
+        , A.defaultValue = RS.selAllOf RS.selDPs
         , A.description  = "Determines which rules to select. Per default all dependency pairs are selected for knowledge propagation."
         }
+    :+: opt { A.name = "relative-processor"
+            , A.defaultValue = Nothing
+            , A.description = "If given, used to orient predecessors of selected rules."
+            }
 
   description SimpKP = [unwords [ "Moves a strict dependency into the weak component"
                                 , "if all predecessors in the dependency graph are strict" 
@@ -317,48 +381,96 @@ instance T.Transformer SimpKP where
   transform inst prob 
      | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
-     | not $ null selected         = return $ T.Progress proof (enumeration' [prob'])
-     | otherwise                 = return $ T.NoProgress proof
+     | otherwise = transform' mpinst
     where wdg   = estimatedDependencyGraph Edg prob
-          selector = T.transformationArgs inst
-          selected = select (sort candidates) []
-            where select []     sel = sel
-                  select (c:cs) sel = select cs sel' 
-                    where sel' | any (c `isPredecessorOf`) sel = sel
-                               | otherwise = c:sel
-                          s1 `isPredecessorOf` s2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
-                  sort cs = reverse $ catMaybes [ find (\ c -> skpNode c == n) cs | n <- topsort wdg]
-          -- s1 `invReach` s2 | s1tos2 && s2tos1 = EQ
-          --                  | s1tos2 = GT
-          --                  | s2tos1 = LT
-          --                  | otherwise = skpNode s1 `compare` skpNode s2
-          --    where s1tos2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
-          --          s2tos1 = skpNode s1 `elem` reachablesBfs wdg [skpNode s2]
-                  
-          initialDPs = fst $ RS.rules $ RS.rsSelect (RS.selectFirstAlternative selector) () prob
-          candidates = [ SimpKPSelection { skpNode = n
-                                         , skpRule = rl
-                                         , skpPredecessors = [ (m,rlm) | (m, (_,rlm), _) <- preds] }
-                       | (n,(StrictDP, rl)) <- lnodes wdg
-                       , Trs.member initialDPs rl 
-                       , let preds = lpredecessors wdg n
-                       , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
+          selector :+: mpinst = T.transformationArgs inst
           strs  = Prob.strictTrs prob
           sdps  = Prob.strictDPs prob
           wdps  = Prob.weakDPs prob
-          proof = SimpKPProof { skpDG   = wdg
-                              , skpSelections = selected
-                              , skpSig  = Prob.signature prob
-                              , skpVars = Prob.variables prob}
-          shiftStrict = Trs.fromRules [r | s <- selected
-                                          , (_,r) <- skpPredecessors s ]
-          shiftWeak   = Trs.fromRules [ skpRule s | s <- selected ]
-          prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak) `Trs.union` shiftStrict
-                       , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) Trs.\\ shiftStrict }
+
+          mkSel n rl preds = SimpKPSelection { skpNode = n
+                                             , skpRule = rl
+                                             , skpPredecessors = [ (m,rlm) | (m, (_,rlm), _) <- preds] }
+
+          transform' Nothing | null selected = return $ T.NoProgress proof
+                             | otherwise     = return $ T.Progress proof (enumeration' [prob'])
+               where selected = select (sort candidates) []
+                     select []     sel = sel
+                     select (c:cs) sel = select cs sel' 
+                       where sel' | any (c `isPredecessorOf`) sel = sel
+                                  | otherwise = c:sel
+                             s1 `isPredecessorOf` s2 = skpNode s2 `elem` reachablesBfs wdg [skpNode s1]
+                     sort cs = reverse $ catMaybes [ find (\ c -> skpNode c == n) cs | n <- topsort wdg]
+                  
+                     initialDPs = fst $ RS.rules $ RS.rsSelect (RS.selFirstAlternative selector) prob
+                     candidates = [ mkSel n rl preds
+                                  | (n,(StrictDP, rl)) <- lnodes wdg
+                                  , Trs.member initialDPs rl 
+                                  , let preds = lpredecessors wdg n
+                                  , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
+                     proof :: T.ProofOf (SimpKP p)
+                     proof = SimpKPProof { skpDG   = wdg
+                                         , skpSelections = selected
+                                         , skpSig  = Prob.signature prob 
+                                         , skpVars = Prob.variables prob}
+                     shiftStrict = Trs.fromRules [r | s <- selected , (_,r) <- skpPredecessors s ]
+                     shiftWeak   = Trs.fromRules [ skpRule s | s <- selected ]
+                     prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak) `Trs.union` shiftStrict
+                                  , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) Trs.\\ shiftStrict }
+          transform' (Just pinst) = do
+                pp <- P.solvePartial pinst (withPredecessors $ RS.rsSelect selector prob) prob
+                return $ mkProof pinst pp
+            where withPredecessors (P.SelectDP d) = P.BigOr [ P.SelectDP d, oneOfPreds]
+                       where oneOfPreds = 
+                               case lookupNode wdg (StrictDP, d) of 
+                                  Just n -> P.BigOr [ P.SelectDP d, withPreds n (Set.singleton n)]
+                                  Nothing -> P.BigAnd []
+                  withPredecessors (P.SelectTrs _) = P.BigAnd []
+                  withPredecessors (P.BigOr ss) = P.BigOr [withPredecessors s | s <- ss]
+                  withPredecessors (P.BigAnd ss) = P.BigAnd [withPredecessors s | s <- ss]
+
+                  withPreds n seen = bigAnd [ if n' `Set.member` seen 
+                                               then P.SelectDP r'
+                                               else P.BigOr [P.SelectDP r', withPreds n' (n' `Set.insert` seen) ] 
+                                            | (n',r') <- preds ]
+                    where preds = snub [ (n', r') | (n',(_,r'),_) <- lpredecessors wdg n]
+                          bigAnd [a] = a
+                          bigAnd as  = P.BigAnd as
+
+
+                  mkProof :: P.Processor p => P.InstanceOf p -> P.PartialProof (P.ProofOf p) -> T.Result (SimpKP p)
+                  mkProof proc p | progressed = T.Progress proof (enumeration' [prob'])
+                                 | otherwise  = T.NoProgress proof 
+                     where proof = SimpKPPProof { skpDG         = wdg
+                                                , skpSelections = propagated
+                                                , skpSig        = Prob.signature prob
+                                                , skpPProof     = p
+                                                , skpPProc      = proc
+                                                , skpVars       = Prob.variables prob}
+
+                           (known, propagated) = propagate (Trs.fromRules $ P.ppRemovableDPs p) []
+                           propagate seen props
+                                | null newp = (seen, props)
+                                | otherwise = propagate (newr `Trs.union` seen) (newp ++ props)
+                             where newr = Trs.fromRules [ skpRule s | s <- newp]
+                                   newp = [ mkSel n rl preds
+                                          | (n,(_, rl)) <- lnodes wdg
+                                          , not (Trs.member seen rl)
+                                          , let preds = lpredecessors wdg n
+                                          , all (\ (_,(_,rl'),_) -> Trs.member seen rl') preds]
+
+                           shiftWeak = sdps `Trs.intersect` known
+                           progressed = not (Trs.isEmpty shiftWeak)
+                           prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak)
+                                        , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) }
+                    
+
+
+          
 
          
 
-simpKPProcessor :: T.Transformation SimpKP P.AnyProcessor
+simpKPProcessor :: T.Transformation (SimpKP P.AnyProcessor) P.AnyProcessor
 simpKPProcessor = T.Transformation SimpKP
 
 -- | Moves a strict dependency into the weak component
@@ -367,11 +479,15 @@ simpKPProcessor = T.Transformation SimpKP
 -- Only applicable if the strict component is empty.
 -- This processor is inspired by Knowledge Propagation used in AProVE, 
 -- therefor its name.
-simpKP :: T.TheTransformer SimpKP
-simpKP = T.Transformation SimpKP `T.withArgs` RS.selDPs
+simpKP :: T.TheTransformer (SimpKP P.AnyProcessor)
+simpKP = T.Transformation SimpKP `T.withArgs` (RS.selAllOf RS.selDPs :+: Nothing)
 
-simpKPOn :: RS.RuleSelector () -> T.TheTransformer SimpKP
-simpKPOn rs = T.Transformation SimpKP `T.withArgs` rs
+simpKPOn :: RS.ExpressionSelector -> T.TheTransformer (SimpKP P.AnyProcessor)
+simpKPOn rs = T.Transformation SimpKP `T.withArgs` (rs :+: Nothing)
+
+
+withKPOn :: P.Processor p => P.InstanceOf p -> RS.ExpressionSelector -> T.TheTransformer (SimpKP p)
+inst `withKPOn` rs = T.Transformation SimpKP `T.withArgs` (rs :+: Just inst)
 
 
 ----------------------------------------------------------------------

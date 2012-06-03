@@ -418,17 +418,17 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                  && validUsableRules
                  && orderingConstraints allrules allrules
                  && orientAllWeak
-                 && orientAtleastOne
+                 -- && orientAtleastOne
                  && orientSelectedStrict (fromMaybe selectStricts mruleselect)
-                       where selectStricts = P.BigAnd [ P.SelectDP $ Prob.strictDPs prob
-                                                      , P.SelectTrs $ Prob.strictTrs prob ]
+                       where selectStricts = P.BigAnd $ [ P.SelectDP d | d <- Trs.rules $ Prob.strictDPs prob]
+                                                        ++ [ P.SelectTrs d | d <- Trs.rules $ Prob.strictTrs prob]
                  
           usable = return . UREnc.usable prob
           
-          orientAtleastOne = bigOr [ atom (strictlyOriented r) | r <- Trs.toRules $ Prob.strictComponents prob]
+          -- orientAtleastOne = bigOr [ atom (strictlyOriented r) | r <- Trs.toRules $ Prob.strictComponents prob]
           orientAllWeak = bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ allrules]
-          orientSelectedStrict (P.SelectDP rs) = bigAnd [ atom (strictlyOriented r) | r <- rules rs]
-          orientSelectedStrict (P.SelectTrs rs) = bigAnd [ atom (strictlyOriented r) | r <- rules rs]
+          orientSelectedStrict (P.SelectDP r) = atom (strictlyOriented r)
+          orientSelectedStrict (P.SelectTrs r) = atom (strictlyOriented r)
           orientSelectedStrict (P.BigAnd es) = bigAnd [ orientSelectedStrict e | e <- es]
           orientSelectedStrict (P.BigOr es) = bigOr [ orientSelectedStrict e | e <- es]          
           

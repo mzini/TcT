@@ -22,10 +22,8 @@ This module provides the /compose/ transformation.
 module Tct.Method.Compose 
        (
          compose
-       , composeStatic
        , composeDynamic
        , ComposeBound (..)
-       , Partitioning (..)
          -- * Proof Object
        , ComposeProof (..)
        , progress
@@ -68,25 +66,12 @@ data ComposeBound = Add  -- ^ obtain bound by addition
   deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 
 
-data Partitioning = Static (RuleSelector ComposeBound) -- ^ Select rules statically according to a 'RuleSelector'.
-                  | Dynamic  -- ^ Selection of the rules is determined by the applied processor.
- deriving (Typeable)
-
-instance Show Partitioning where
-    show Dynamic    = "dynamically selecting rules"
-    show (Static s) = "statically selecting rules by '" ++ show s ++ "'"
-
-instance AssocArgument Partitioning where 
-    assoc _ = [ ("dynamic",    Dynamic) ] --TODO extend
-
 -- Compose Processor ala Zankl/Korp and Waldmann
-
 data Compose p = ComposeProc
-
-data ComposeProof p = ComposeProof { proofBound        :: ComposeBound 
-                                   , proofPartitioning :: Partitioning 
+data ComposeProof p = ComposeProof { proofBound          :: ComposeBound 
+                                   , proofSelector       :: ExpressionSelector
                                    , proofOrientedStrict :: [Rule.Rule]
-                                   , proofSubProof     :: (P.Proof p) }
+                                   , proofSubProof       :: (P.Proof p) }
                     | Inapplicable String
 
 
@@ -99,7 +84,7 @@ progress p@(ComposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subpro
 
 
 instance (P.Processor p) => T.Transformer (Compose p) where
-    type ArgumentsOf (Compose p) = Arg (Assoc Partitioning) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
+    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
     type ProofOf (Compose p)     = ComposeProof p
 
     name _              = "compose"
@@ -122,11 +107,10 @@ instance (P.Processor p) => T.Transformer (Compose p) where
       ]
     arguments _ = 
       opt { A.name         = "split" 
-          , A.defaultValue = Dynamic
+          , A.defaultValue = selAnyOf selStricts
           , A.description  = unwords 
                              [ "This argument of type 'Compose.Partitioning' determines strict rules of"
-                             , "problem (A). Usually, this should be set to 'Dynamic', in which case"
-                             , "the given processor determines selection of rules dynamically."
+                             , "problem (A). The default is to orient some strict rule."
                              ]
           }
       :+: 
@@ -152,17 +136,18 @@ instance (P.Processor p) => T.Transformer (Compose p) where
         Just reason -> return $ T.NoProgress $ Inapplicable reason
         Nothing -> mkProof `liftM` P.solvePartial inst1 selector prob
 
-        where split :+: compfn :+: inst1 = T.transformationArgs inst
+        where rs :+: compfn :+: inst1 = T.transformationArgs inst
     
-              selector = 
-                case split of 
-                  Dynamic -> P.BigAnd [P.SelectDP forcedDps, P.SelectTrs forcedTrs]
-                  Static rs -> P.BigAnd [rsSelect rs compfn prob, P.SelectDP forcedDps, P.SelectTrs forcedTrs]
+              selector = P.BigAnd [ rsSelect rs prob, selectForcedRules ]
                     
+              selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- Trs.rules forcedDps ] 
+                                               ++ [P.SelectTrs r | r <- Trs.rules forcedTrs ]
+                                    
               (forcedDps, forcedTrs) = 
                 case compfn of 
                   Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
-                    where fsi f = Trs.fromRules [ rule | rule <- Trs.rules (f prob), not (Rule.isNonSizeIncreasing rule)]
+                    where fsi f = Trs.fromRules [ rule | rule <- Trs.rules (f prob)
+                                                       , not (Rule.isNonSizeIncreasing rule)]
                   _       -> (Trs.empty,Trs.empty)
                                                                              
               mreason 
@@ -203,8 +188,8 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                                           , strictDPs  = sDps }                  
                                   
                       tproof = ComposeProof { proofBound = compfn 
-                                            , proofPartitioning = split 
-                                            , proofOrientedStrict = Trs.rules sTrs ++ Trs.rules sDps 
+                                            , proofSelector = rs 
+                                            , proofOrientedStrict = Trs.rules rTrs ++ Trs.rules rDps 
                                             , proofSubProof = P.Proof { P.inputProblem = rProb
                                                                       , P.appliedProcessor = inst1
                                                                       , P.result = P.ppResult pp }
@@ -290,13 +275,10 @@ composeProcessor = T.Transformation ComposeProc
 -- The processor closely follows the ideas presented in
 -- /Complexity Bounds From Relative Termination Proofs/
 -- (<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>).
-compose :: (P.Processor p1) => Partitioning -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
+compose :: (P.Processor p1) => ExpressionSelector -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
 compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: sub)
 
--- | @composeDynamic == compose Dynamic@.
+-- | @composeDynamic == compose (selAnyOf selStricts)@.
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-composeDynamic = compose Dynamic
--- | @composeStatic rs = compose (Static rs)@.
-composeStatic :: (P.Processor p1) => (RuleSelector ComposeBound) -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-composeStatic rs = compose (Static rs)
+composeDynamic = compose (selAnyOf selStricts)
 

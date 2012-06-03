@@ -50,7 +50,7 @@ import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
-import Termlib.Utils (PrettyPrintable (..), snub, paragraph)
+import Termlib.Utils (PrettyPrintable (..), paragraph, snub)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
 import Termlib.Rule (Rule(..))
@@ -60,12 +60,10 @@ import Tct.Method.DP.DependencyGraph
 import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
-import qualified Data.Graph.Inductive.Graph as Gr
-import Data.Graph.Inductive.Query.TransClos (trc)
 import Data.Typeable ()
 
 data ComposeRC p1 p2 = ComposeRC
-data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: RuleSelector ()
+data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: ExpressionSelector
                                            , cpUnselected   :: Trs.Trs
                                            , cpSelected     :: Trs.Trs 
                                            , cpProofA       :: Maybe (P.Proof p1) 
@@ -84,7 +82,7 @@ progress proof = maybe True P.succeeded (cpProofA proof)
          
 
 instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
-    type ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (RuleSelector ())) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
+    type ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (ExpressionSelector)) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
     type ProofOf (ComposeRC p1 p2)     = ComposeRCProof p1 p2
 
     name _ = "compose-rc"
@@ -124,6 +122,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
     
     transform inst prob 
          | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
+         | not (Trs.isEmpty $ Prob.strictTrs prob) = return $ T.NoProgress $ ComposeRCInapplicable "strict rules of input problem are empty" 
+         | Trs.isEmpty initialDPs  = return $ T.NoProgress $ ComposeRCInapplicable "no was rules selected" 
          | otherwise = 
              do mProofA <- mapply mProcA probA
                 mProofB <- case maybe True P.succeeded mProofA of 
@@ -162,13 +162,14 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                            | F.isCompound sig f = [ Rule l ti | ti <- ts ]
                        flattenRule (Rule l r) = [ Rule l r ]
               
+              initialDPs = fst $ rules $ rsSelect (selFirstAlternative s) prob
               (selectedNodes, selectedStrictDPs, selectedWeakDPs) = 
                   (Set.fromList ns, Trs.fromRules rss, Trs.fromRules rsw)
                   where (ns,rsel) = unzip selected 
                         (rss,rsw) = foldl separate ([],[]) rsel
                             where separate (stricts,weaks) (DG.StrictDP,r) = (r : stricts,weaks)
                                   separate (stricts,weaks) (DG.WeakDP,r)   = (stricts,r : weaks)
-                        selected = closeBySuccessor $ fst $ rules $ rsSelect (selectFirstAlternative s) () prob
+                        selected = closeBySuccessor $ initialDPs
                         closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
                             where initials = [ n | (n, (_, r)) <- allLabeledNodes, rs `Trs.member` r ]
 
@@ -185,7 +186,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
 instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
-    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Compose RC is inapplicable since" <+> text reason
+    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Compose RC is inapplicable since" <+> text reason <> text "."
     pprintTProof _ prob tproof _ = 
       paragraph "We measure the number of applications of following selected rules relative to the remaining rules."
       $+$ text ""
@@ -215,7 +216,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
                                                 ++ show (pprint (P.answer p)) ++ ".")
                                  $+$ indent (P.pprintProof p P.ProofOutput) 
                | otherwise     = paragraph ("Unfortnuately TcT could not construct a certificate for Problem ("
-                                            ++ show n ++ "). We abort.")
+                                            ++ show n ++ ").")
+                                 $+$ indent (P.pprintProof p P.ProofOutput)                                  
 
     answer proof = 
       case tproof of 
@@ -236,20 +238,26 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
 
 
 -- | This is the default 'RuleSelector' used with 'composeRC'.
-composeRCselect :: RuleSelector a
-composeRCselect = selFromWDG "below first cut in WDG" fn
-    where fn _ dg = P.SelectDP (Trs.fromRules [r | (_,r) <- selectedRules ])
-              where dgclosure = trc dg
-                    reachables = Gr.suc dgclosure 
-                    n `pathTo` m = m `elem` reachables n
-                    nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, m `pathTo` n ]
+composeRCselect :: ExpressionSelector
+-- composeRCselect = selAllOf $ selFromCWDG "below first cut in CWDG" fn
+--   where fn cwdg = 
+--           case DG.roots cwdg of 
+--             (r:_) -> selBelow cwdg r
+--             _ -> Prob.emptyRuleset
+--         selBelow cwdg r = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ rl | (DG.StrictDP, rl) <- rs ]
+--                                             , Prob.wdp = Trs.fromRules [ rl | (DG.WeakDP, rl) <- rs ] }
+--           where rs = DG.allRulesFromNodes cwdg strictSuccs
+--                 strictSuccs = [ n | n <- DG.successors cwdg r
+--                                   , any (\ (s,_) -> s == DG.StrictDP) $ DG.allRulesFromNodes cwdg $ DG.reachablesDfs cwdg [n] ]
+composeRCselect = selAllOf $ selFromWDG "below first cut in WDG" fn
+    where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
+                                    , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
+              where nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, n `elem` DG.reachablesBfs dg [m] ]
                     cutEdges n =    Set.fromList [ i | (_,_,i) <- DG.lsuccessors dg n, not (i `Set.member` nonCutEdges n) ]
                     admitCuts = [ n | n <- DG.nodes dg , not (Set.null $ cutEdges n) && not (Set.null $ nonCutEdges n) ]
-                    highestCuts = snub $ concatMap (DG.congruence cdg) $ DG.roots cdg
-                        where cdg = DG.toCongruenceGraph $ DG.subGraph dg admitCuts
---                    highestCuts = [ n | n <- admitCuts , not (any (\ m -> m /= n && m `pathTo` n) admitCuts) ]
-                    selectedNodes = intersects [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
-                        where intersects = foldl Set.union Set.empty
+                    highestCuts = snub $ concatMap (DG.congruence subcdg) $ DG.roots subcdg
+                    subcdg = DG.toCongruenceGraph $ DG.subGraph dg admitCuts
+                    selectedNodes = Set.unions [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
 
 
@@ -268,7 +276,7 @@ composeRCProcessor = T.Transformation ComposeRC
 -- processors that are applied on the two individual subproblems. The
 -- transformation results into the systems which could not be oriented
 -- by those processors.
-composeRC :: RuleSelector () -> T.TheTransformer (ComposeRC P.AnyProcessor P.AnyProcessor)
+composeRC :: ExpressionSelector -> T.TheTransformer (ComposeRC P.AnyProcessor P.AnyProcessor)
 composeRC s = T.Transformation ComposeRC `T.withArgs` (s :+: Nothing :+: Nothing)
 
 -- | Specify a processor to solve Problem A immediately. 

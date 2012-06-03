@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {- | 
 Module      :  Tct.Encoding.AbstractInterpretation
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -17,11 +18,16 @@ Portability :  unportable
 module Tct.Encoding.AbstractInterpretation where
 
 import Prelude hiding ((&&))
+import Tct.Utils.PPrint (Align(..), columns)
 import Qlogic.Boolean
+import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Variable as V
 import qualified Termlib.Rule as R
 import qualified Termlib.Term as T
 import qualified Termlib.Trs as Trs
 import Qlogic.Semiring
+import Text.PrettyPrint.HughesPJ
+import Termlib.Utils hiding (columns)
 
 class Algebra a c | a -> c where
   interpretTerm :: a -> T.Term -> c
@@ -65,3 +71,21 @@ relativeStricterTrsConstraints oblrules a trs = weakTrsConstraints a nonobltrs &
 
 strictOneConstraints :: (Algebra a c, AbstrOrd c b) => a -> Trs.Trs -> b
 strictOneConstraints = orientOneConstraints (.>.)
+
+pprintOrientRules :: (PrettyPrintable (c, V.Variables), AbstrOrd c Bool, Algebra a c) => a -> F.Signature -> V.Variables -> Trs.Trs -> Doc
+pprintOrientRules inter sig vars trs = 
+  columns [ (AlignRight, as)
+          , (AlignLeft, bs)
+          , (AlignLeft, cs)]
+  where (as, bs, cs) = unzip3 $ concatMap ppOrientRl (Trs.rules trs)
+        ppOrientRl r = [ (ppIntTerm (R.lhs r) <+> text "", text "=" , pprint (il, vars))
+                       , (empty                          , text ord , pprint (ir, vars))
+                       , (empty                          , text "=" , ppIntTerm (R.rhs r))
+                       , nl]
+          where il = interpretTerm inter (R.lhs r)
+                ir = interpretTerm inter (R.rhs r)
+                nl = (text " ", text " ", text " ")
+                ord | il .>. ir = "> "
+                    | il .>=. ir = ">= "
+                    | otherwise  = " "
+                ppIntTerm t = brackets $ pprint (t, sig, vars)

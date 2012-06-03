@@ -40,6 +40,7 @@ import qualified Qlogic.SatSolver as SatSolver
 import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
+
 import qualified Tct.Utils.Xml as Xml
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -47,6 +48,7 @@ import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Variable as V
 
+import qualified Tct.Method.RuleSelector as RS
 import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix hiding (maxMatrix)
@@ -80,7 +82,8 @@ instance Show NaturalMIKind where
 data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
                                , param    :: MatrixKind
                                , miKind   :: NaturalMIKind
-                               , uargs    :: UsablePositions } deriving Show
+                               , uargs    :: UsablePositions 
+                               , input    :: Prob.Problem } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
@@ -95,11 +98,19 @@ instance ComplexityProof MatrixOrder where
     pprintProof order _ = (if uargs order == fullWithSignature (signature $ ordInter order)
                             then empty
                             else paragraph "The following argument positions are usable:")
-                                 $+$ indent (pprint (uargs order, signature $ ordInter order))
+                                 $+$ indent (pprint (uargs order, sig))
                                  $+$ text ""
                             $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
                             $+$ text ""
-                            $+$ indent(pprint (ordInter order))
+                            $+$ indent (pprint inter)
+                            $+$ text ""
+                            $+$ paragraph "This order satisfies following ordering constraints"
+                            $+$ text ""                            
+                            $+$ indent (vcat [ ppOrient Prob.strictDPs
+                                             , ppOrient Prob.weakDPs
+                                             , ppOrient Prob.strictTrs                                            
+                                             , ppOrient Prob.weakTrs ])
+
         where ppknd UnrestrictedMatrix            = "unrestricted matrix interpretation."
               ppknd (TriangularMatrix Nothing)    = "triangular matrix interpretation."
               ppknd (TriangularMatrix (Just n))   = "triangular matrix interpretation. Note that " 
@@ -114,6 +125,12 @@ instance ComplexityProof MatrixOrder where
               ppknd (ConstructorEda _ Nothing)    = "constructor-based matrix interpretation satisfying not(EDA)."
               ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
 
+              inter = ordInter order
+              prob = input order
+              sig = Prob.signature prob
+              vars = Prob.variables prob
+              ppOrient f = pprintOrientRules inter sig vars (f prob)
+    
     answer order = CertAnswer $ certified (unknown, ub)
        
       where m = ordInter order
@@ -130,7 +147,7 @@ instance ComplexityProof MatrixOrder where
                    EdaMatrix (Just n) -> poly $ Just n
                    ConstructorEda _ Nothing -> poly $ Just $ dimension m
                    ConstructorEda _ (Just n) -> poly $ Just $ n                   
-    toXml (MatrixOrder ord knd _ uarg) = 
+    toXml (MatrixOrder ord knd _ uarg _) = 
       Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
 type MatrixOptions = Arg (EnumOf NaturalMIKind) :+: Arg (Maybe Nat) :+: Arg Nat :+: Arg Nat  :+: Arg (Maybe Nat)  :+: Arg (Maybe Nat) :+: Arg Bool
@@ -201,8 +218,7 @@ instance S.Processor NaturalMI where
     type ProofOf NaturalMI = OrientationProof MatrixOrder
 
     solve inst prob = orient rs prob (S.processorArgs inst)
-       where rs = P.BigAnd [ P.SelectDP (Prob.strictDPs prob)
-                           , P.SelectTrs (Prob.strictTrs prob) ]
+       where rs = RS.rsSelect (RS.selAllOf RS.selStricts) prob
     solvePartial inst rs prob = mkProof `liftM` orient rs prob (S.processorArgs inst)
       where mkProof res@(Order ord) = 
                P.PartialProof { P.ppInputProblem = prob
@@ -270,24 +286,25 @@ kindConstraints (ConstructorEda cs mdeg) absmi =
 
 
 solveConstraint :: P.SolverM m => 
-                   UsablePositions 
+                   Prob.Problem
+                   -> UsablePositions 
                    -> Prob.StartTerms 
                    -> F.Signature 
                    -> Domains (S.ArgumentsOf NaturalMI) 
                    -> DioFormula MiniSatLiteral DioVar Int  
                    -> m (OrientationProof MatrixOrder)
-solveConstraint ua st sig mp constraints = 
+solveConstraint prob ua st sig mp constraints = 
   catchException $ 
     do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= SatSolver.addFormula
            mi = abstractInterpretation (kind mp st) (dim mp) sig :: MatrixInter (N.Size -> Int) 
        theMI <- P.minisatValue fml mi
        return $ case theMI of
                   Nothing -> Incompatible
-                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) (kind mp st) (mikind mp) ua
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) (kind mp st) (mikind mp) ua prob
                   
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orient rs prob mp = 
-  solveConstraint ua st sig mp $ 
+  solveConstraint prob ua st sig mp $ 
     orientationConstraints 
     && dpChoice mdp st uaOn
     && kindConstraints mk absmi
@@ -308,14 +325,14 @@ orient rs prob mp =
                   
           orientationConstraints = 
            bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules allrules]
-           && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
+           -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
            && orientSelected rs
            where modify r inter = inter { constant = case constant inter of  
                                              Vector [] -> error "NaturalMI: zero-length vector in modify"
                                              Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
                  strictVar = restrictvar . Strict
-                 orientSelected (P.SelectDP trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
-                 orientSelected (P.SelectTrs trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                 orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
+                 orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
                  orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
                  orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 

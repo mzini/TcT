@@ -54,6 +54,7 @@ import qualified Termlib.Trs as Trs
 import Termlib.Utils
 import qualified Termlib.Variable as V
 
+import qualified Tct.Method.RuleSelector as RS
 import Tct.Certificate (poly, expo, certified, unknown)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Natring ()
@@ -73,22 +74,36 @@ import qualified Tct.Processor.Standard as S
 data PolynomialOrder = 
   PolynomialOrder { ordInter :: PolyInter Int
                   , param    :: PIKind
-                  , uargs    :: UsablePositions } deriving Show
+                  , uargs    :: UsablePositions 
+                  , input    :: Prob.Problem} deriving Show
 
 data NaturalPI = NaturalPI deriving (Typeable, Show)
 
 instance P.ComplexityProof PolynomialOrder where
   pprintProof order _ = 
-      (if uargs order == fullWithSignature (signature $ ordInter order)
+      (if uargs order == fullWithSignature sig
        then empty
        else (paragraph "The following argument positions are usable:"
-             $+$ indent (pprint (uargs order, signature $ ordInter order))))
+             $+$ indent (pprint (uargs order, sig))))
       $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
-      $+$ pprint (ordInter order)
+      $+$ pprint inter
+      $+$ text ""
+      $+$ paragraph "This order satisfies following ordering constraints"
+      $+$ text ""
+      $+$ indent (vcat [ ppOrient Prob.strictDPs
+                       , ppOrient Prob.weakDPs
+                       , ppOrient Prob.strictTrs
+                       , ppOrient Prob.weakTrs ])
     where ppknd (UnrestrictedPoly   shp) = ppshp shp
           ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
           ppshp (SimpleShape s) = show s ++ " polynomial interpretation."
           ppshp (CustomShape _) = "polynomial interpretation." 
+
+          inter = ordInter order
+          prob = input order
+          sig = Prob.signature prob
+          vars = Prob.variables prob
+          ppOrient f = pprintOrientRules inter sig vars (f prob)
 
   answer order = CertAnswer $ certified (unknown, ub)
     where ub = case knd of 
@@ -156,10 +171,9 @@ instance S.Processor NaturalPI where
   type ProofOf NaturalPI = OrientationProof PolynomialOrder
 
   solve inst prob = orient rs prob (S.processorArgs inst)
-       where rs = P.BigAnd [ P.SelectDP (Prob.strictDPs prob)
-                           , P.SelectTrs (Prob.strictTrs prob) ]
+       where rs = RS.rsSelect (RS.selAllOf RS.selStricts) prob  
   solvePartial inst rs prob = mkProof `liftM` orient rs prob (S.processorArgs inst)
-       where mkProof res@(Order (PolynomialOrder mi _ _)) = 
+       where mkProof res@(Order (PolynomialOrder mi _ _ _)) = 
                P.PartialProof { P.ppInputProblem = prob
                               , P.ppResult       = res 
                               , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents prob
@@ -198,13 +212,14 @@ isUargsOn (_ :+: _ :+: _ :+: _ :+: ua) = ua
 
 
 solveConstraint :: P.SolverM m => 
-                    UsablePositions 
+                    Prob.Problem
+                    -> UsablePositions 
                     -> Prob.StartTerms 
                     -> F.Signature 
                     -> Domains (S.ArgumentsOf NaturalPI) 
                     -> DioFormula MiniSatLiteral DioVar Int
                     -> m (S.ProofOf NaturalPI)
-solveConstraint ua st sig inst constraints = 
+solveConstraint prob ua st sig inst constraints = 
   catchException $ do 
     let fml = toFormula (liftM N.bound cb) (N.bound n) constraints >>= SatSolver.addFormula
         i = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
@@ -212,7 +227,7 @@ solveConstraint ua st sig inst constraints =
     return $ case thePI of
       Nothing -> Incompatible
       Just pv -> let pint = fmap (\x -> x n) pv in
-                 Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua
+                 Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua prob
   where n      = bound inst
         cb     = cbits inst
         pk     = kind inst st
@@ -224,7 +239,7 @@ instance PropAtom Strict
 
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orient rs prob args = 
-  solveConstraint ua st sig args $
+  solveConstraint prob ua st sig args $
     orientationConstraint
     && dpChoice pdp st uaOn absi
 
@@ -241,12 +256,12 @@ orient rs prob args =
         uaOn = isUargsOn args
         orientationConstraint = 
           bigAnd [interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ allrules]
-          && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
+          -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
           && orientSelected rs
           where strictVar = restrictvar . Strict
                 modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
-                orientSelected (P.SelectDP trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
-                orientSelected (P.SelectTrs trs) = bigAnd [ strictVar r .>. SR.zero | r <- Trs.rules trs]
+                orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
+                orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
                 orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
                 orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 

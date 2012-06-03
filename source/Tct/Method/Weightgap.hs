@@ -168,7 +168,7 @@ instance T.Transformer WeightGap where
 
 orientWG :: P.SolverM m => Problem -> Domains (T.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
 orientWG prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
-    solveConstraint ua st sig mp $ 
+    solveConstraint prob ua st sig mp $ 
       strictWGConstraints sr absmi 
       && wgonConstraints wgon 
       && weakTrsConstraints absmi wr

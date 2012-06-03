@@ -1392,28 +1392,32 @@ uargs = (zip [1..] `liftM` problems') >>= mapM f
                   sig = Prob.signature prob
 
 
-selectedRules :: a -> RS.RuleSelector a -> IO [P.SelectorExpression]
-selectedRules a rs = do
+selectedRules :: RS.ExpressionSelector -> IO [P.SelectorExpression]
+selectedRules rs = do
   probs <- problems'
-  let ss = [ (RS.rsSelect rs a prob,prob) | prob <- probs ]
+  let ss = [ (RS.rsSelect rs prob,prob) | prob <- probs ]
   mapM_ (pprintIth "Selected Rules for Problem" pp) $ zip [1..] ss
   return [ sexp | (sexp,_) <- ss]  
   where pp (se, prob) = ppse se
                         $+$ text ""
-                        $+$ DG.pprintLabeledRules "DPs" sig vars ldps
-                        $+$ DG.pprintLabeledRules "Rules" sig vars ltrs
+                        $+$ DG.pprintLabeledRules "DPs" sig vars [(l,r) | (r,l) <- ldps]
+                        $+$ DG.pprintLabeledRules "Rules" sig vars [(l,r) | (r,l) <- ltrs]
           where (dps,trs) = RS.rules se
-                ldps = zip [(1::Int)..] $ Trs.rules dps
-                ltrs = zip [length ldps + 1..] $ Trs.rules trs
+                ldps = zip (Trs.rules dps) [(1::Int)..]
+                ltrs = zip (Trs.rules trs) [length ldps + 1..]
                 sig = Prob.signature prob
                 vars = Prob.variables prob
                 
-                ppse (P.SelectDP rules) = pprules rules ldps
-                ppse (P.SelectTrs rules) = pprules rules ltrs
+                ppse (P.SelectDP r) = pprule r ldps
+                ppse (P.SelectTrs r) = pprule r ltrs
                 ppse (P.BigOr ss) = ppop "or" ss
                 ppse (P.BigAnd ss) = ppop "and" ss                
                 ppop n ss = parens $ text n <+> fsep [ ppse s | s <- ss]
-                pprules rules lrules = braces $ hcat $ punctuate (text ",") [text $ show l | (l,r) <- lrules, Trs.member rules r ]
+                pprule r lrules = 
+                  case lookup r lrules of 
+                    Just n -> text "<" <> text (show n) <> text ">"
+                    Nothing -> braces $ U.pprint (r,sig,vars)
+
 
 termFromString :: String -> Problem -> IO (Term, Problem)
 termFromString str prob = do pprint term

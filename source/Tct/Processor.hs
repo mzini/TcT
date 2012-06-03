@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS_HADDOCK prune #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -104,7 +105,6 @@ import Termlib.Problem
 import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
-import Termlib.Trs (Trs)
 
 import Tct.Proof
 import qualified Tct.Utils.Xml as Xml
@@ -117,11 +117,11 @@ data SatSolver = MiniSat FilePath
 -- | These expressions determine which rules to orient for partial application, 
 --   c.f. solvePartial
 data SelectorExpression = 
-  SelectDP Trs
-  | SelectTrs Trs  
+  SelectDP Rule
+  | SelectTrs Rule  
   | BigAnd [SelectorExpression]
   | BigOr [SelectorExpression]    
-
+ deriving (Show, Typeable)
 -- * The Solver Monad
 
 -- | The interface for a /solver monad/, i.e., the monad under within 

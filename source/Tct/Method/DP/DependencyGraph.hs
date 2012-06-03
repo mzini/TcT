@@ -45,6 +45,11 @@ module Tct.Method.DP.DependencyGraph
      , lookupNodeLabel'
      -- | Returns the label of the given node, if present. 
      -- Otherwise an exception is raised
+     , lookupNode
+     -- | Returns the node with given label.       
+     , lookupNode'
+     -- | Returns the node with given label.       
+     -- Otherwise an exception is raised
      , withNodeLabels
      -- | List version of @lookupNodeLabel@.
      , withNodeLabels'
@@ -212,6 +217,12 @@ withNodeLabels gr ns = [(n,lookupNodeLabel gr n) | n <- ns]
 
 withNodeLabels' :: DependencyGraph n e -> [NodeId] -> [(NodeId, n)]
 withNodeLabels' gr ns = [(n,lookupNodeLabel' gr n) | n <- ns]
+
+lookupNode :: Eq n => DependencyGraph n e -> n -> Maybe NodeId
+lookupNode gr n = lookup n [(n',i) | (i,n') <- Graph.labNodes gr]
+
+lookupNode' :: Eq n => DependencyGraph n e -> n -> NodeId
+lookupNode' gr n = fromJust $ lookupNode gr n
 
 inverse :: DependencyGraph n e -> DependencyGraph n e
 inverse gr = Graph.mkGraph ns es

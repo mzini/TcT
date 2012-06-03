@@ -1,8 +1,10 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
 
 --------------------------------------------------------------------------------
 -- | 
@@ -94,11 +96,9 @@ module Tct.Instances
     , Combinators.iteProgress      
     , step
     , upto
-    , withProblem
     , named
       
       -- ** Combinators Guiding the Proof Search
-    , TimesOut (..)
     , Combinators.before 
     , Combinators.orBetter
     , Combinators.orFaster
@@ -165,10 +165,8 @@ module Tct.Instances
       -- ** Compose
     , Compose.compose
     , Compose.composeDynamic
-    , Compose.composeStatic
     , ComposeRC.composeRC
     , Compose.ComposeBound (..)
-    , Compose.Partitioning (..)
     , ComposeRC.composeRCselect
     , ComposeRC.solveAWith
     , ComposeRC.solveBWith
@@ -176,23 +174,31 @@ module Tct.Instances
     -- | A 'Compose.RuleSelector' is used to select 
     -- rules from a problem. Various combinators 
     -- are implemented.
-    , RS.RuleSelector      
+    , RS.RuleSelector (..)
+    , RS.RuleSetSelector
+    , RS.ExpressionSelector
+      
+      -- * Primitives
     , RS.selRules
     , RS.selDPs
     , RS.selStricts
     , RS.selWeaks
-    , RS.selAnyOf      
-    , RS.selAllOf      
+      -- * Constructors
     , RS.selFromWDG
     , RS.selFromCWDG
+      -- * Combinators
+    , RS.selInverse
+    , RS.selCombine
+    , RS.selUnion
+    , RS.selInter
+      -- * Rule-selectors based on dependency graphs
     , RS.selFirstCongruence
     , RS.selFirstStrictCongruence
-    , RS.selAnyWDGLeafs            
-    , RS.selAnyCWDGLeafs      
-    , RS.selNeg 
+      -- * Boolean Selectors
+    , RS.selAnyOf
+    , RS.selAllOf
     , RS.selAnd
     , RS.selOr
-      
       -- ** Weak Dependency Pairs
     , DP.dependencyPairs
     , DP.dependencyTuples
@@ -208,6 +214,7 @@ module Tct.Instances
     , DPSimp.simpDPRHS      
     , DPSimp.simpKP
     , DPSimp.simpKPOn
+    , DPSimp.withKPOn
     , dpsimps
     , DG.Approximation(..)
 
@@ -215,14 +222,18 @@ module Tct.Instances
     -- * Default Options
     , IsDefaultOption (..)
       
-      -- * Existential Quantification
+      -- * Operations on Processors and Transformations
+    , TimesOut (..)
+    , WithProblem (..)
+    , withWDG
+    , withCWDG
+    , EQuantified (..)
     , some 
     , solveBy
-    , EQuantified (..)
     )
 where
+  
 import Control.Monad (liftM)
-import Termlib.Problem (Problem)
 import Termlib.Variable (Variable)
 import qualified Tct.Method.Combinator as Combinators
 import qualified Tct.Method.PopStar as PopStar
@@ -258,9 +269,10 @@ import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations hiding (withArgs, Timeout)
 import qualified Tct.Processor.Transformations as T
 
-
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
+
+import Termlib.Problem (Problem)
 
 -- TODO doc
 pathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
@@ -270,23 +282,6 @@ pathAnalysis = PathAnalysis.pathAnalysis False
 linearPathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
 linearPathAnalysis = PathAnalysis.pathAnalysis True
 
-
--- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
-named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf P.SomeProcessor
-named n inst = some $ proc `S.withArgs` ()
-  where proc = Custom.fromAction d (\ () -> P.solve inst)
-        d    = Custom.Description { Custom.as    = n
-                                  , Custom.descr = []
-                                  , Custom.args  = Unit }
-
--- | The instance @withProblem mkproc@ allows the creation of a processor 
--- depending on the problem it should handle.
-withProblem :: P.Processor proc => (Problem -> P.InstanceOf proc) -> P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))
-withProblem f = proc `S.withArgs` ()
-  where proc = Custom.fromAction d (\ () prob -> P.solve (f prob) prob )
-        d    = Custom.Description { Custom.as    = "Inspecting Problem..."
-                                  , Custom.descr = []
-                                  , Custom.args  = Unit }
 
 -- | @
 -- step [l..u] trans proc
@@ -420,29 +415,6 @@ poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
 poly p = NaturalPI.polyProcessor `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
 
 
-
-
--- * existential quantification 
-
--- | This class establishes a mapping between types and their existential 
--- quantified counterparts.
-class EQuantified a where 
-    type EQuantifiedOf a
-    equantify :: a -> (EQuantifiedOf a)
-
-instance Transformer t => EQuantified (T.TheTransformer t) where
-    type EQuantifiedOf (T.TheTransformer t) = T.TheTransformer SomeTransformation
-    equantify t = T.someTransformation t
-
-instance P.Processor p => EQuantified (P.InstanceOf p) where
-    type EQuantifiedOf (P.InstanceOf p) = P.InstanceOf P.SomeProcessor
-    equantify p = P.someInstance p
-
--- | Wrap an object by existential quantification.
-some :: EQuantified a => a -> EQuantifiedOf a
-some = equantify
-
-
 -- * Competition Strategy 
 
 
@@ -522,15 +494,68 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
 
 
-class TimesOut a where
-  type Timeout a
-  timeout :: Int -> a -> Timeout a -- ^ Lifts a processor or transformation to one that times out after given number of seconds
-  
-instance P.Processor p => TimesOut (P.InstanceOf p) where
-  type Timeout (P.InstanceOf p) = P.InstanceOf (S.StdProcessor (Timeout.Timeout p))
-  timeout = Timeout.timeout
-  
 
-instance T.Transformer t => TimesOut (TheTransformer t) where
-  type Timeout (TheTransformer t) = (TheTransformer (T.Timeout t))
+-- * existential quantification 
+
+-- | This class establishes a mapping between types and their existential 
+-- quantified counterparts.
+class EQuantified inp outp | inp -> outp where 
+    equantify :: inp -> outp
+
+instance Transformer t => EQuantified (T.TheTransformer t) (T.TheTransformer SomeTransformation) where
+    equantify t = T.someTransformation t
+
+instance P.Processor p => EQuantified (P.InstanceOf p) (P.InstanceOf P.SomeProcessor) where
+    equantify p = P.someInstance p
+
+-- | Wrap an object by existential quantification.
+some :: EQuantified inp outp => inp -> outp
+some = equantify
+
+-- * Operations that work on processors and transformations
+-- ** timeout
+
+class TimesOut inp outp | inp -> outp where
+  timeout :: Int -> inp -> outp -- ^ Lifts a processor or transformation to one that times out after given number of seconds
+  
+instance (P.Processor p, outp ~ P.InstanceOf (S.StdProcessor (Timeout.Timeout p))) => TimesOut (P.InstanceOf p) outp  where
+  timeout = Timeout.timeout
+
+instance T.Transformer t => TimesOut (TheTransformer t) (TheTransformer (T.Timeout t)) where
   timeout = T.timeout
+
+-- ** With Problem
+
+class WithProblem inp outp | inp -> outp where
+   withProblem :: (Problem -> inp) -> outp
+   
+instance T.Transformer t => WithProblem (T.TheTransformer t) (T.TheTransformer (Custom.Custom Unit t (T.Result t))) where
+  withProblem f = T.TheTransformer { T.transformationArgs = ()
+                                   , T.transformation = Custom.Custom {Custom.description = d, Custom.code = \ () prob -> T.transform (f prob) prob}}
+    where d = Custom.Description { Custom.as    = "Inspecting Problem..."
+                                 , Custom.descr = []
+                                 , Custom.args  = Unit }  
+
+instance (P.Processor proc, outp ~ P.InstanceOf (S.StdProcessor (Custom.Custom Unit () (P.ProofOf proc)))) => WithProblem (P.InstanceOf proc) outp where
+   withProblem f = proc `S.withArgs` ()
+     where proc = Custom.fromAction d (\ () prob -> P.solve (f prob) prob )
+           d    = Custom.Description { Custom.as    = "Inspecting Problem..."
+                                     , Custom.descr = []
+                                     , Custom.args  = Unit }
+
+withWDG :: WithProblem inp outp => (DG.DG -> inp) -> outp
+withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.Edg prob)
+
+withCWDG :: WithProblem inp outp => (DG.CDG -> inp) -> outp
+withCWDG f = withProblem $ \ prob -> f (DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob)
+
+
+-- * Named
+
+-- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
+named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf P.SomeProcessor
+named n inst = some $ proc `S.withArgs` ()
+  where proc = Custom.fromAction d (\ () -> P.solve inst)
+        d    = Custom.Description { Custom.as    = n
+                                  , Custom.descr = []
+                                  , Custom.args  = Unit }

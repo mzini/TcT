@@ -91,6 +91,7 @@ module Tct.Configuration (
     
   , Description (..)
   , Custom.fromInstance
+  , Custom.asProcessor    
   , Custom.fromAction
     
   -- | 

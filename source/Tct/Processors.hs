@@ -847,7 +847,7 @@ Currently we only take subset-inclusions of the different components into accoun
 
 
 -}
-simpKP :: T.Transformation SimpKP P.AnyProcessor
+simpKP :: T.Transformation (SimpKP P.AnyProcessor) P.AnyProcessor
 simpKP = simpKPProcessor
 
 {- |

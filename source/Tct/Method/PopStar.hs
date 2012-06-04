@@ -446,8 +446,10 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
             where fs = Set.toList $ Trs.functionSymbols allrules
           
           validPrecedence = 
-            liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (natToInt `liftM` bnd)
-          
+            liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) ((maybeDecrease . natToInt) `liftM` bnd)
+            where maybeDecrease | allowAF = \ b -> max 0 (b - 1)
+                                | otherwise = id
+                    
           validUsableRules = 
             liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
               where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i

@@ -68,12 +68,11 @@ import Termlib.Rule (lhs, rhs, Rule)
 -- import Termlib.Signature (runSignature)
 import Termlib.Term
 import Termlib.Trs (Trs, rules)
-import Termlib.Utils (PrettyPrintable(..), ($++$), block, paragraph)
+import Termlib.Utils (PrettyPrintable(..), ($++$), paragraph)
 import qualified Termlib.ArgumentFiltering as AF
 import qualified Termlib.Precedence as Prec
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
-import Termlib.Trs.PrettyPrint (pprintTrs)
 
 import Tct.Certificate (poly, expo, certified, unknown)
 import qualified Tct.Processor.Standard as S
@@ -89,7 +88,7 @@ import qualified Tct.Encoding.UsableRules as UREnc
 import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
-
+import Tct.Utils.PPrint (columns, Align (..), indent)
 --------------------------------------------------------------------------------
 --- proof object
 
@@ -124,23 +123,31 @@ instance ComplexityProof PopStarOrder where
                                          $++$ pparam af
                                          $++$ paragraph "Usable defined function symbols are a subset of:"
                                          $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us]))
-                        $++$ paragraph ("For your convenience, here are the oriented rules in predicative " 
-                                        ++ "notation, possibly applying argument filtering:")
-                        $++$ pparam ppProblem
+                        $++$ paragraph ("For your convenience, here are the satisfied ordering constraints:")
+                        $++$ indent ppOrient
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam   = nest 1 . pprint
             recdepth = maximum (0 : Map.elems (Prec.recursionDepth rs prec))
             (PrecEnc.RS rs) = popRecursives order
             prec            = popPrecedence order
             inst = popInstance order
-            ppProblem = ppTrs     "Strict DPs"   strictDPs
-                        $+$ ppTrs "Weak DPs  "   weakDPs
-                        $+$ ppTrs "Strict Trs"   (restrictUsables . strictTrs)
-                        $+$ ppTrs "Weak Trs  "   (restrictUsables . weakTrs)
-            
-            ppTrs n sel = block n $ pprintTrs (\ rl -> fsep [pp (lhs rl), arr rl, pp (rhs rl)]) (rules $ sel prob)
-              where arr rl | Trs.member sr rl = text "->"
-                           | otherwise        = text "-->="
+            ppOrient =   columns [ (AlignRight, as)
+                                 , (AlignLeft, bs)
+                                 , (AlignLeft, cs)]
+              where (as,bs,cs) = unzip3 $ concatMap ppOrientRl trs
+                    trs = Trs.rules (Prob.dpComponents prob) ++ Trs.rules (restrictUsables (Prob.trsComponents prob))
+                    ppOrientRl rl = 
+                      case maf of 
+                        Just _ ->  [ (ppPi (lhs rl), text " = ", pp (lhs rl))
+                                   , (text ""     , arr rl  , pp (lhs rl))
+                                   , (text ""     , text " = ", ppPi (rhs rl)) 
+                                   , nl]
+                        Nothing -> [ (pp (lhs rl)  , arr rl  , pp (rhs rl)) 
+                                  , nl ]
+                    nl = (text " ", text " ", text " ")
+                    arr rl | Trs.member sr rl = text " > "
+                           | otherwise        = text " >= "
+                    ppPi t = text "pi" <> parens (pprint (t,sig,vars))                            
                     pp (Var x) = pprint (x,vars)
                     pp (Fun f ts) = 
                       case AF.filtering f af of 
@@ -281,10 +288,9 @@ instance S.Processor PopStar where
                                         , P.ppRemovableDPs  = sdps
                                         , P.ppRemovableTrs  = strs }
               where (sdps, strs) = partition marked sr
-                    sr = 
-                      case proof of 
-                        (Order p) -> Trs.toRules $ popStrictlyOriented p
-                        _         -> []
+                    sr = case proof of 
+                           (Order p) -> Trs.toRules $ popStrictlyOriented p
+                           _         -> []
                     marked r = 
                       case root (lhs r) of 
                         Right f -> isMarked sig f
@@ -417,7 +423,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
                  && orderingConstraints allrules allrules
-                 && orientAllWeak
+                 && orientAllUsableWeak
                  -- && orientAtleastOne
                  && orientSelectedStrict (fromMaybe selectStricts mruleselect)
                        where selectStricts = P.BigAnd $ [ P.SelectDP d | d <- Trs.rules $ Prob.strictDPs prob]
@@ -426,7 +432,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           usable = return . UREnc.usable prob
           
           -- orientAtleastOne = bigOr [ atom (strictlyOriented r) | r <- Trs.toRules $ Prob.strictComponents prob]
-          orientAllWeak = bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ allrules]
+          orientAllUsableWeak = bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ allrules]
           orientSelectedStrict (P.SelectDP r) = atom (strictlyOriented r)
           orientSelectedStrict (P.SelectTrs r) = atom (strictlyOriented r)
           orientSelectedStrict (P.BigAnd es) = bigAnd [ orientSelectedStrict e | e <- es]

@@ -106,10 +106,7 @@ instance ComplexityProof MatrixOrder where
                             $+$ text ""
                             $+$ paragraph "This order satisfies following ordering constraints"
                             $+$ text ""                            
-                            $+$ indent (vcat [ ppOrient Prob.strictDPs
-                                             , ppOrient Prob.weakDPs
-                                             , ppOrient Prob.strictTrs                                            
-                                             , ppOrient Prob.weakTrs ])
+                            $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))
 
         where ppknd UnrestrictedMatrix            = "unrestricted matrix interpretation."
               ppknd (TriangularMatrix Nothing)    = "triangular matrix interpretation."

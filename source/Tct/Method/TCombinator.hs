@@ -119,6 +119,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
         case r1 of 
           Progress tproof _ -> 
             pprintTProof t1 prob tproof mde
+            $+$ text ""
             $+$ ppOverviews False
           NoProgress tproof 
             | subProgress -> ppOverviews False

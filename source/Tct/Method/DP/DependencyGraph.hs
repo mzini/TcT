@@ -387,13 +387,16 @@ pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
 pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> pprintNodeSet (congruence cwdg n)
 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
-pprintCWDG cwdg sig vars ppLabel = printTree 45 ppNode ppLabel pTree
-                                   $+$ text ""
-                                   $+$ text "Here dependency-pairs are as follows:"
-                                   $+$ text ""
-                                   $+$ pprintLabeledRules "Strict DPs" sig vars (rs StrictDP)
-                                   $+$ pprintLabeledRules "Weak DPs" sig vars (rs WeakDP)
-    where ppNode _ n    = printNodeId n
+pprintCWDG cwdg sig vars ppLabel | isEmpty = text "empty"
+                                 | otherwise = 
+    printTree 45 ppNode ppLabel pTree
+    $+$ text ""
+    $+$ text "Here dependency-pairs are as follows:"
+    $+$ text ""
+    $+$ pprintLabeledRules "Strict DPs" sig vars (rs StrictDP)
+    $+$ pprintLabeledRules "Weak DPs" sig vars (rs WeakDP)
+    where isEmpty = null $ allRulesFromNodes cwdg (nodes cwdg)
+          ppNode _ n    = printNodeId n
           pTree = PPTree { pptRoots = sortBy compareLabel $ roots cwdg
                          , pptSuc = sortBy compareLabel . snub . successors cwdg}
           compareLabel n1 n2 = congruence cwdg n1 `compare` congruence cwdg n2

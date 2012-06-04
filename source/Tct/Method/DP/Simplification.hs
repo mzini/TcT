@@ -275,7 +275,7 @@ data SimpKPProof p =
               , skpSelections    :: [SimpKPSelection]
               , skpSig           :: F.Signature
               , skpVars          :: V.Variables}                                
-  | SimpKPPProof { skpDG           :: DG
+  | SimpKPPProof { skpDG            :: DG
                  , skpSig           :: F.Signature
                  , skpPProof        :: P.PartialProof (P.ProofOf p)
                  , skpPProc         :: P.InstanceOf p                   
@@ -320,22 +320,35 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
   pprintTProof _ _ p@(SimpKPPProof {}) _ = 
       ppSub 
       $+$ text ""
-      $+$ text "We consider the (estimated) dependency graph" 
+      $+$ paragraph (show $ text "Processor" 
+                            <+> text pName 
+                            <+> text "induces the complexity certificate "
+                            <+> pprint ans
+                            <+> text "on application of rules" 
+                            <+> pprintNodeSet (Set.toList orientedNodes) <> text "."
+                            <+> text "Here rules are labeled according to the (estimated) dependency graph")
       $+$ text ""
       $+$ indent (pprint (dg, sig, vars))
       $+$ text ""
-      $+$ ppPropagates (Set.fromList [ n | (n,_) <- ldps]) sel
-
+      $+$ ppPropagates orientedNodes sel
+      $+$ text ""
+      $+$ paragraph (show $ text "Overall, we obtain that"
+                            <+> text "the number of applications of rules" 
+                            <+> pprintNodeSet (Set.toList knownNodes)
+                            <+> text "is given by"
+                            <+> pprint ans <> text ".")
     where vars  = skpVars p                              
           sig   = skpSig p
           dg    = skpDG p
           sel   = skpSelections p
           pproof = skpPProof p
+          ans = P.answer pproof
           pName = "'" ++ P.instanceName (skpPProc p) ++ "'"
           dps = Trs.fromRules $ P.ppRemovableDPs pproof
           ldps = [(n,r) | (n, (_, r)) <- lnodes dg, Trs.member dps r]
           trs = Trs.fromRules $ P.ppRemovableTrs pproof
-            
+          orientedNodes = Set.fromList [ n | (n,_) <- ldps]
+          knownNodes = orientedNodes `Set.union` Set.fromList [ skpNode s | s <- sel]
           ppSub | not $ P.progressed pproof = paragraph $ "Application of processor " ++ pName ++ " failed."
                 | otherwise =                 
              paragraph ("We use the processor " 
@@ -343,8 +356,6 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
              $+$ text ""
              $+$ pprintLabeledRules "DPs" sig vars ldps
              $+$ pprintNamedTrs sig vars "Trs" trs
-             $+$ paragraph ("The induced complexity of " ++ pName ++ " on above rules is " 
-                            ++ show (pprint (P.answer pproof)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [P.pprintProof pproof P.ProofOutput]
 

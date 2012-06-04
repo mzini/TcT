@@ -19,7 +19,7 @@
     <!--   href="cpfHTML.xsl" type="text/xsl" -->
     <!-- </xsl:processing-instruction> -->
 
-    <xsl:element name="certificationProblem">
+    <certificationProblem>
       <xsl:attribute name="xsi:noNamespaceSchemaLocation">cpf.xsd</xsl:attribute>
 
       <input>
@@ -28,39 +28,44 @@
 
       <cpfVersion>2.1</cpfVersion>
 
-      <xsl:element name="proof">
+      <proof>
 	<xsl:apply-templates select="proofNode"/>
-      </xsl:element>
+      </proof>
 
-      <xsl:element name="origin">
-	<xsl:element name="proofOrigin">
-	  <xsl:element name="tool">
-	    <xsl:element name="name">TCT</xsl:element>
-	    <xsl:element name="version"><xsl:value-of select="version"/></xsl:element>
-	  </xsl:element>
-	</xsl:element>
-      </xsl:element>
-    </xsl:element>      
+      <origin>
+	<proofOrigin>
+	  <tool>
+	    <name>TCT</name>
+	    <version><xsl:value-of select="version"/></version>
+	  </tool>
+	</proofOrigin>
+      </origin>
+    </certificationProblem>      
   </xsl:template>
 
   <xsl:template match="complexityInput">
-    <xsl:element name="complexityInput">
-      <xsl:element name="trsInput">
-	<xsl:element name="trs">
+    <complexityInput>
+      <trsInput>
+	<trs>
 	  <xsl:copy-of select="relation/strictTrs/rules"/>
-	</xsl:element>
-	<xsl:copy-of select="strategy"/>
+	</trs>
+	<xsl:apply-templates select="strategy"/>
 	<xsl:if test="relation/weakTrs/rules">
-	  <xsl:element name="relativeRules">
+	  <relativeRules>
 	    <xsl:copy-of select="relation/weakTrs/rules"/>
-	  </xsl:element>
+	  </relativeRules>
 	</xsl:if>
-      </xsl:element>
+      </trsInput>
       <xsl:copy-of select="complexityMeasure/*"/>
       <xsl:copy-of select="answer/certified/upperbound/*"/>
-    </xsl:element>
+    </complexityInput>
   </xsl:template>
 
+  <xsl:template match="strategy">
+    <xsl:if test="innermost">
+      <strategy><innermost/></strategy>
+    </xsl:if>
+  </xsl:template>
 
   <!-- proofs  -->
   <xsl:template match="proofNode">
@@ -74,29 +79,27 @@
       </xsl:when>
 
       <xsl:when test="proofDetail/empty">
-	<xsl:element name="complexityProof">
-	  <xsl:element name="rIsEmpty"/>
-	</xsl:element>
+	<complexityProof><rIsEmpty/></complexityProof>
       </xsl:when>
 
       <xsl:when test="proofDetails/order/compatible">
-	<xsl:element name="complexityProof">
-	  <xsl:element name="ruleShifting">
-	    <xsl:element name="orderingConstraintProof">
-	      <xsl:element name="redPair">
+	<complexityProof>
+	  <ruleShifting>
+	    <orderingConstraintProof>
+	      <redPair>
 		<xsl:apply-templates select="order/compatible" mode="inCompose"/>
-	      </xsl:element>
-	    </xsl:element>
+	      </redPair>
+	    </orderingConstraintProof>
 	    
-	    <xsl:element name="trs">
+	    <trs>
 	      <xsl:copy-of select="complexityInput/relation/strictTrs/rules"/>
-	    </xsl:element>
+	    </trs>
 
-	    <xsl:element name="complexityProof">
-	      <xsl:element name="rIsEmpty"/>
-	    </xsl:element>
-	  </xsl:element>
-	</xsl:element>
+	    <complexityProof>
+	      <rIsEmpty/>
+	    </complexityProof>
+	  </ruleShifting>
+	</complexityProof>
 		
       </xsl:when>
       <xsl:when test="proofDetail/transformation">
@@ -119,10 +122,10 @@
 	  <xsl:when test="transformationProof/compose">
 	    <xsl:choose>
 	      <xsl:when test="transformationProof/compose/composeBy = 'addition'">
-		<xsl:element name="complexityProof">
-		  <xsl:element name="ruleShifting">
-		    <xsl:element name="orderingConstraintProof">
-		      <xsl:element name="redPair">
+		<complexityProof>
+		  <ruleShifting>
+		    <orderingConstraintProof>
+		      <redPair>
 			<xsl:choose>
 			  <xsl:when test="transformationProof/compose/rSubProof/proofNode/proofDetail/order/compatible">
 			    <xsl:apply-templates select="transformationProof/compose/rSubProof/proofNode/proofDetail/order/compatible" mode="inCompose"/>
@@ -133,25 +136,16 @@
 			    </xsl:call-template>
 			  </xsl:otherwise>
 			</xsl:choose>
-		      </xsl:element>
-		    </xsl:element>
+		      </redPair>
+		    </orderingConstraintProof>
 		    
-		    <xsl:element name="trs">
+		    <trs>
 		      <xsl:copy-of select="transformationProof/compose/rSubProof/proofNode/complexityInput/relation/strictTrs/rules"/>
-		    </xsl:element>
+		    </trs>
 
-		    <!-- <xsl:choose> -->
-		    <!--   <xsl:when test="count(subProofs) = 1"> -->
 		    <xsl:apply-templates select="subProofs/proofNode"/>
-		    <!--   </xsl:when> -->
-		    <!--   <xsl:otherwise> -->
-		    <!-- 	<xsl:element name="complexityProof"> -->
-		    <!-- 	  <xsl:element name="rIsEmpty"/> -->
-		    <!-- 	</xsl:element> -->
-		    <!--   </xsl:otherwise> -->
-		    <!-- </xsl:choose> -->
-		  </xsl:element>
-		</xsl:element>
+		  </ruleShifting>
+		</complexityProof>
 	      </xsl:when>
 	      <xsl:otherwise>
 		<xsl:call-template name="notCPF">
@@ -181,29 +175,29 @@
   <!-- helpers -->
 
   <xsl:template match="compatible" mode="inCompose">
-    <xsl:element name="interpretation">
+    <interpretation>
       <xsl:apply-templates select="interpretation/type"/>
       <xsl:copy-of select="interpretation/interpret"/>
-    </xsl:element>
+    </interpretation>
   </xsl:template>
 
   <xsl:template match="type">
-    <xsl:element name="type">
+    <type>
       <xsl:choose>
 
 	<xsl:when test="matrixInterpretation">
-	  <xsl:element name="matrixInterpretation">
+	  <matrixInterpretation>
 	    <xsl:copy-of select="matrixInterpretation/domain"/>
 	    <xsl:copy-of select="matrixInterpretation/dimension"/>
 	    <xsl:copy-of select="matrixInterpretation/strictDimension"/>
-	  </xsl:element>
+	  </matrixInterpretation>
 	</xsl:when>
 
 	<xsl:when test="polynomialInterpretation">
-	  <xsl:element name="polynomial">
+	  <polynomial>
 	    <xsl:copy-of select="polynomialInterpretation/domain"/>
 	    <xsl:copy-of select="polynomialInterpretation/degree"/>
-	  </xsl:element>
+	  </polynomial>
 	</xsl:when>
 
 	<xsl:otherwise>
@@ -212,6 +206,6 @@
 	  </xsl:call-template>
 	</xsl:otherwise>
       </xsl:choose>
-    </xsl:element>
+    </type>
   </xsl:template>
 </xsl:stylesheet>

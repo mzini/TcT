@@ -97,6 +97,7 @@ Library
    Tct.Method.Timeout
    Tct.Method.RuleSelector
    Tct.Method.Combinator
+   Tct.Method.TCombinator
    Tct.Method.InnermostRuleRemoval
    Tct.Method.ToInnermost
    Tct.Method.PopStar

@@ -143,12 +143,12 @@ module Tct.Instances
       
       -- ** Combinators     
       -- | Following Combinators work on transformations.
-    , T.try
-    , (T.>>>)
-    , (T.<>)      
-    , (T.<||>)            
-    , exhaustively
-    , T.idtrans
+    , TCombinator.try
+    , (TCombinator.>>>)
+    , (TCombinator.<>)      
+    , (TCombinator.<||>)            
+    , TCombinator.exhaustively
+    , TCombinator.idtrans
       
       -- ** Innermost Rule Removal
     , IRR.irr
@@ -266,8 +266,10 @@ import qualified Tct.Method.Timeout as Timeout
 import Tct.Processor (solveBy)
 import Tct.Processor.Args ((:+:)(..), Unit(..))
 import Tct.Processor.Args.Instances (nat)
-import Tct.Processor.Transformations hiding (withArgs, Timeout)
+import Tct.Processor.Transformations ((>>|), (>>||))
 import qualified Tct.Processor.Transformations as T
+import qualified Tct.Method.TCombinator as TCombinator
+import Tct.Method.TCombinator ((>>>),(<>),try, exhaustively)
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
@@ -275,11 +277,11 @@ import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
 import Termlib.Problem (Problem)
 
 -- TODO doc
-pathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
+pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
 pathAnalysis = PathAnalysis.pathAnalysis False
 
 -- TODO doc
-linearPathAnalysis :: TheTransformer PathAnalysis.PathAnalysis
+linearPathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
 linearPathAnalysis = PathAnalysis.pathAnalysis True
 
 
@@ -297,10 +299,10 @@ linearPathAnalysis = PathAnalysis.pathAnalysis True
 -- @
 -- .
 -- The resulting processor can be infinite.
-step :: (Transformer t1, P.Processor a) =>
-       [t] -> (t -> TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
+step :: (T.Transformer t1, P.Processor a) =>
+       [t] -> (t -> T.TheTransformer t1) -> (t -> P.InstanceOf a) -> P.InstanceOf P.SomeProcessor
 step []     _ _ = some Combinators.empty
-step (i:is) t p = some $ p i `Combinators.before` (t i >>| empty `Combinators.before` step is t p)
+step (i:is) t p = some $ p i `Combinators.before` (t i T.>>| empty `Combinators.before` step is t p)
 
 
 -- | @
@@ -317,7 +319,7 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 
 
 -- | Fast simplifications based on dependency graph analysis.
-dpsimps :: TheTransformer SomeTransformation
+dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps   = try DPSimp.removeTails 
             >>> try (exhaustively DPSimp.removeInapplicable)
             >>> try DPSimp.simpDPRHS 
@@ -436,7 +438,7 @@ quartic = dos { dim = 4, degree = Nothing}
 quintic :: MatrixOptions
 quintic = dos { dim = 5, degree = Nothing}
 
-te :: Transformer t => TheTransformer t -> TheTransformer (Try SomeTransformation)
+te :: T.Transformer t => T.TheTransformer t -> T.TheTransformer (TCombinator.Try T.SomeTransformation)
 te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor
@@ -502,7 +504,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
 class EQuantified inp outp | inp -> outp where 
     equantify :: inp -> outp
 
-instance Transformer t => EQuantified (T.TheTransformer t) (T.TheTransformer SomeTransformation) where
+instance T.Transformer t => EQuantified (T.TheTransformer t) (T.TheTransformer T.SomeTransformation) where
     equantify t = T.someTransformation t
 
 instance P.Processor p => EQuantified (P.InstanceOf p) (P.InstanceOf P.SomeProcessor) where
@@ -521,22 +523,18 @@ class TimesOut inp outp | inp -> outp where
 instance (P.Processor p, outp ~ P.InstanceOf (S.StdProcessor (Timeout.Timeout p))) => TimesOut (P.InstanceOf p) outp  where
   timeout = Timeout.timeout
 
-instance T.Transformer t => TimesOut (TheTransformer t) (TheTransformer (T.Timeout t)) where
-  timeout = T.timeout
+instance T.Transformer t => TimesOut (T.TheTransformer t) (T.TheTransformer (TCombinator.Timeout t)) where
+  timeout = TCombinator.timeout
 
 -- ** With Problem
 
 class WithProblem inp outp | inp -> outp where
    withProblem :: (Problem -> inp) -> outp
    
-instance T.Transformer t => WithProblem (T.TheTransformer t) (T.TheTransformer (Custom.Custom Unit t (T.Result t))) where
-  withProblem f = T.TheTransformer { T.transformationArgs = ()
-                                   , T.transformation = Custom.Custom {Custom.description = d, Custom.code = \ () prob -> T.transform (f prob) prob}}
-    where d = Custom.Description { Custom.as    = "Inspecting Problem..."
-                                 , Custom.descr = []
-                                 , Custom.args  = Unit }  
+instance T.Transformer t => WithProblem (T.TheTransformer t) (T.TheTransformer (TCombinator.WithProblem t)) where
+  withProblem = TCombinator.withProblem
 
-instance (P.Processor proc, outp ~ P.InstanceOf (S.StdProcessor (Custom.Custom Unit () (P.ProofOf proc)))) => WithProblem (P.InstanceOf proc) outp where
+instance (P.Processor proc, outp ~ P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))) => WithProblem (P.InstanceOf proc) outp where
    withProblem f = proc `S.withArgs` ()
      where proc = Custom.fromAction d (\ () prob -> P.solve (f prob) prob )
            d    = Custom.Description { Custom.as    = "Inspecting Problem..."

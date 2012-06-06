@@ -284,23 +284,23 @@ kindConstraints (ConstructorEda cs mdeg) absmi =
 solveConstraint :: P.SolverM m => 
                    Prob.Problem
                    -> UsablePositions 
-                   -> Prob.StartTerms 
+                   -> MatrixKind
                    -> F.Signature 
                    -> Domains (S.ArgumentsOf NaturalMI) 
                    -> DioFormula MiniSatLiteral DioVar Int  
                    -> m (OrientationProof MatrixOrder)
-solveConstraint prob ua st sig mp constraints = 
+solveConstraint prob ua mk sig mp constraints = 
   catchException $ 
     do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= SatSolver.addFormula
-           mi = abstractInterpretation (kind mp st) (dim mp) sig :: MatrixInter (N.Size -> Int) 
+           mi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int) 
        theMI <- P.minisatValue fml mi
        return $ case theMI of
                   Nothing -> Incompatible
-                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) (kind mp st) (mikind mp) ua prob
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob
                   
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orient rs prob mp = 
-  solveConstraint prob ua st sig mp $ 
+  solveConstraint prob ua mk sig mp $ 
     orientationConstraints 
     && dpChoice mdp st uaOn
     && kindConstraints mk absmi

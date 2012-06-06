@@ -138,16 +138,16 @@ instance S.Processor WeightGap where
                            
 orientWG :: P.SolverM m => P.SelectorExpression -> Problem -> Domains (S.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
 orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
-    solveConstraint prob ua st sig mp $ 
+    solveConstraint prob ua mk sig mp $ 
       strictWGConstraints sr absmi 
       && wgonConstraints wgon 
       && weakTrsConstraints absmi wr
       && slmiSafeRedpairConstraints sig ua absmi 
       && uargMonotoneConstraints ua absmi 
-      && kindConstraints knd absmi
+      && kindConstraints mk absmi
       
   where mp = miKnd :+: deg :+: as
-        absmi      = abstractInterpretation knd (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
+        absmi      = abstractInterpretation mk (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
         miKnd | Trs.isEmpty strs || wgon == WgOnTrs = wgKind
               | wgKind == Unrestricted = Algebraic
               | otherwise = wgKind
@@ -162,8 +162,9 @@ orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
               BasicTerms {} 
                 | isUargsOn wgp -> usableArgs (strategy prob) allrules
               _ -> fullWithSignature (signature prob)
-        knd = kind mp st
 
+        mk = kind mp st
+        
         wgonConstraints WgOnTrs = strictTrsConstraints absmi strs
         wgonConstraints WgOnAny | Trs.isEmpty sr = top 
                                 | otherwise      = strictOneConstraints absmi sr

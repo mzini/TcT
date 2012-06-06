@@ -359,8 +359,8 @@ arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $
 
 
 -- | This processor implements the weightgap principle.   
-weightgap :: MatrixOptions -> T.TheTransformer Weightgap.WeightGap
-weightgap m = T.Transformation Weightgap.WeightGap `T.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+weightgap :: MatrixOptions -> P.InstanceOf (S.StdProcessor Weightgap.WeightGap)
+weightgap m = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
 
 -- * defaultPoly
 
@@ -450,11 +450,12 @@ dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail str
             insidewg    = matrices False NaturalMI.Algebraic
             matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                           `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
-            wgs         = weightgap lin 
-                          <> weightgap quad
-                          <> weightgap cubic
-                          <> weightgap quartic
-                          <> weightgap quintic
+            wgs         = wg lin
+                          <> wg quad
+                          <> wg cubic
+                          <> wg quartic
+                          <> wg quintic
+            wg = Compose.composeDynamic Compose.Add . weightgap
             strategy    = try IRR.irr 
                           >>| try Uncurry.uncurry 
                           >>| (direct 
@@ -484,12 +485,13 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    dpsimps'  = try DPSimp.removeTails 
                                >>> try DPSimp.simpDPRHS 
                                >>> try DPSimp.simpKP                   
-                   wgAll     = weightgap lin 
-                               <> weightgap quad
-                               <> weightgap cubic
-                   wgUsables = weightgap lin {on = Weightgap.WgOnTrs} 
-                               <> weightgap quad {on = Weightgap.WgOnTrs} 
-                               <> weightgap cubic {on = Weightgap.WgOnTrs}
+                   wgAll     = wg lin 
+                               <> wg quad
+                               <> wg cubic
+                   wgUsables = wg lin {on = Weightgap.WgOnTrs} 
+                               <> wg quad {on = Weightgap.WgOnTrs} 
+                               <> wg cubic {on = Weightgap.WgOnTrs}
+                   wg = Compose.composeDynamic Compose.Add . weightgap                               
                    -- composeMult = compose splitWithoutLeafs Mult elim 
                    -- elim     = P.someInstance (try dpsimp >>| directs `Combinators.before` insideDP) -- arrr
                    

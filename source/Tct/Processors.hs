@@ -141,8 +141,6 @@ builtInProcessors =
     P.<|>
     S.StdProcessor composeRC
     P.<|>
-    S.StdProcessor weightgap
-    P.<|>
     S.StdProcessor compose
     P.<|>
     S.StdProcessor dependencyPairs
@@ -702,8 +700,8 @@ in order to relax the monotonicity constraints on the interpretation.
 
 
 -}
-weightgap :: T.Transformation WeightGap P.AnyProcessor
-weightgap = weightgapProcessor
+weightgapProcessor :: S.StdProcessor WeightGap
+weightgapProcessor = S.StdProcessor WeightGap
 
 {- |
 This transformation implements techniques for splitting the

@@ -49,13 +49,14 @@ import Tct.Encoding.UsablePositions
 import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import Tct.Processor.Orderings
-import Tct.Utils.Enum (enumeration')
 import Tct.Utils.PPrint ()
 import Tct.Method.Matrix.MatrixInterpretation hiding (signature)
 import Tct.Method.Matrix.NaturalMI
+
+import qualified Tct.Method.RuleSelector as RS
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
-import qualified Tct.Processor.Transformations as T
+import qualified Tct.Processor.Standard as S
 
 data WeightGap = WeightGap
 
@@ -67,60 +68,39 @@ instance Show WgOn where
   show WgOnTrs = "trs"
   show WgOnAny = "any"
 
-data WeightGapProof = WeightGapProof { wgInputProblem :: Problem
-                                     , wgProof :: OrientationProof MatrixOrder
-                                     , wgRemovableDps :: [Rule]
-                                     , wgRemovableTrs :: [Rule]
-                                     , wgConstGrowth :: Maybe Bool
-                                     }
+data WeightGapProof = 
+  WeightGapProof { wgProof :: OrientationProof MatrixOrder
+                 , wgConstGrowth :: Maybe Bool
+                 }
 
 instance PrettyPrintable WeightGapProof where
-  pprint (WeightGapProof _ e@Empty _ _ _) = P.pprintProof e P.ProofOutput
-  pprint wgp 
-      | P.succeeded p = paragraph ("The weightgap principle applies.")
+  pprint (WeightGapProof e@Empty _) = P.pprintProof e P.ProofOutput
+  pprint (WeightGapProof p growth)
+      | P.succeeded p = paragraph (show $ text "We have found the following" 
+                                           <+> text intertitle <> text ":")
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
-                        $+$ text ""
-                        $+$ paragraph ("This " ++ intertitle ++ " orients following rules strictly:")
-
-                        $+$ pptrs "DPs" sDPs
-                        $+$ pptrs "Trs" sTrs
-                        $+$ text ""
-                        $+$ paragraph "The rules moved into the corresponging weak component."
       | otherwise     = text "The weightgap principle does not apply."
-    where ip = wgInputProblem wgp
-          p  = wgProof wgp
-          sDPs = Trs.fromRules $ wgRemovableDps wgp
-          sTrs = Trs.fromRules $ wgRemovableTrs wgp
-          pptrs = pprintNamedTrs sig vars
-          sig  = signature ip
-          vars = variables ip
-          intertitle = case wgConstGrowth wgp of
+    where intertitle = case growth of
                          Just False -> "nonconstant growth matrix-interpretation"
                          Just True  -> "constant growth matrix-interpretation"
                          Nothing    -> "matrix-interpretation"
 
-instance T.TransformationProof WeightGap where 
-  answer proof = case T.subProofs proof of 
-                     [(_,subproof)] -> mkAnswer (P.answer wgproof) (P.answer subproof)
-                     _              -> P.MaybeAnswer
-    where wgproof = wgProof $ T.transformationProof proof
-          mkAnswer (P.CertAnswer tc) (P.CertAnswer c) = P.CertAnswer $ certified (unknown, add (upperBound tc) (upperBound c))
-          mkAnswer _                 a                = a
-                       
-  pprintTProof _ _ p _ = pprint p
+instance P.ComplexityProof WeightGapProof where 
+  answer = P.answer . wgProof
+  pprintProof order _ = pprint order
 
-
-instance T.Transformer WeightGap where
+instance S.Processor WeightGap where
   name WeightGap = "weightgap"
-  instanceName (T.TheTransformer _ as) = show $ text "weightgap" 
-                                                <+> case wgon of { WgOnTrs -> text "on strict TRS" ; _ -> PP.empty}
-                                                <+> text "of dimension" <+> text (show wgDim)
-                                                <> maybet wgDeg (\ deg -> text ", maximal degree" <+> pprint deg)
-                                                <> maybet wgBits (\ bnd -> text ", bits" <+> pprint bnd)
-                                                <> maybet wgCbits (\ cbs -> text ", cbits" <+> pprint cbs)
-                                                <> (if ua then PP.empty else text ", without usable arguments")
-      where  wgon :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = as
+  instanceName inst = 
+    show $ text "weightgap" 
+           <+> case wgon of { WgOnTrs -> text "on strict TRS" ; _ -> PP.empty}
+           <+> text "of dimension" <+> text (show wgDim)
+           <> maybet wgDeg (\ deg -> text ", maximal degree" <+> pprint deg)
+           <> maybet wgBits (\ bnd -> text ", bits" <+> pprint bnd)
+           <> maybet wgCbits (\ cbs -> text ", cbits" <+> pprint cbs)
+           <> (if ua then PP.empty else text ", without usable arguments")
+      where  wgon :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = S.processorArgs inst
              maybet Nothing  _ = PP.empty
              maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]
@@ -135,39 +115,29 @@ instance T.Transformer WeightGap where
                                                         ]
                               , A.defaultValue = WgOnTrs}
                           :+: matrixOptions
-  transform inst prob 
-     | Trs.isEmpty $ strictComponents prob = 
-          return $ T.NoProgress $ WeightGapProof { wgInputProblem = prob
-                                                 , wgProof        = Empty
-                                                 , wgRemovableDps = []
-                                                 , wgRemovableTrs = []
-                                                 , wgConstGrowth  = Nothing }
-     | otherwise = mkProof `liftM` orientWG (Prob.sanitise prob) targs
-           where targs@(wgon :+: _) = T.transformationArgs inst
-                 mkProof p@(Order ord) 
-                   | Trs.isEmpty remdps && Trs.isEmpty remtrs = T.NoProgress wgpr
-                   | otherwise = T.Progress wgpr (enumeration' [prob'])
-                   where wgpr   = WeightGapProof { wgInputProblem = prob
-                                                 , wgProof        = p
-                                                 , wgRemovableDps = Trs.toRules remdps
-                                                 , wgRemovableTrs = Trs.toRules remtrs
-                                                 , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
-                         mi = ordInter ord
-                         remdps = strictRules mi $ strictDPs prob
-                         remtrs = strictRules mi $ strictTrs prob
-                         prob'  = prob { strictDPs = strictDPs prob Trs.\\ remdps
-                                       , strictTrs = strictTrs prob Trs.\\ remtrs
-                                       , weakDPs   = weakDPs prob `Trs.union` remdps
-                                       , weakTrs   = weakTrs prob `Trs.union` remtrs }
-                 mkProof p = T.NoProgress WeightGapProof { wgInputProblem = prob
-                                                         , wgProof        = p
-                                                         , wgRemovableDps = []
-                                                         , wgRemovableTrs = []
-                                                         , wgConstGrowth  = Nothing }
-                 
-
-orientWG :: P.SolverM m => Problem -> Domains (T.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
-orientWG prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
+                          
+  solve inst prob = mkProof `liftM` orientWG rs (Prob.sanitise prob) wargs
+    where rs = RS.rsSelect (RS.selAllOf RS.selStricts) prob
+          wargs@(wgon :+: _) = S.processorArgs inst
+          mkProof p = WeightGapProof { wgProof = p
+                                     , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
+  solvePartial inst rs prob = mkProof `liftM` orientWG rs (Prob.sanitise prob) wargs
+    where wargs@(wgon :+: _) = S.processorArgs inst
+          mkProof p = 
+            P.PartialProof { P.ppInputProblem = prob
+                           , P.ppResult       = WeightGapProof { wgProof = p
+                                                               , wgConstGrowth  = Just $ Trs.isEmpty (strictTrs prob) || wgon == WgOnTrs }
+                           , P.ppRemovableDPs = rdps
+                           , P.ppRemovableTrs = rtrs }
+                   where (rdps,rtrs) = 
+                           case p of 
+                             (Order ord) -> let mi = ordInter ord 
+                                            in ( Trs.toRules $ strictRules mi $ Prob.dpComponents prob
+                                               , Trs.toRules $ strictRules mi $ Prob.trsComponents prob)
+                             _ -> ([], [])
+                           
+orientWG :: P.SolverM m => P.SelectorExpression -> Problem -> Domains (S.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
+orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
     solveConstraint prob ua st sig mp $ 
       strictWGConstraints sr absmi 
       && wgonConstraints wgon 
@@ -178,13 +148,13 @@ orientWG prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
       
   where mp = miKnd :+: deg :+: as
         absmi      = abstractInterpretation knd (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
-        miKnd | Trs.isEmpty sr || wgon == WgOnTrs = wgKind
+        miKnd | Trs.isEmpty strs || wgon == WgOnTrs = wgKind
               | wgKind == Unrestricted = Algebraic
               | otherwise = wgKind
-        deg | Trs.isEmpty sr || wgon == WgOnTrs = wgDeg
+        deg | Trs.isEmpty strs || wgon == WgOnTrs = wgDeg
             | otherwise = Just 1
         sig = Prob.signature prob
-        st | Trs.isEmpty sr || wgon == WgOnTrs = startTerms prob
+        st | Trs.isEmpty strs || wgon == WgOnTrs = startTerms prob
            | otherwise = toTA $ startTerms prob
           where toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
                 toTA st'                 = st'
@@ -194,22 +164,22 @@ orientWG prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
               _ -> fullWithSignature (signature prob)
         knd = kind mp st
 
-        wgonConstraints WgOnTrs = strictTrsConstraints absmi nondup
+        wgonConstraints WgOnTrs = strictTrsConstraints absmi strs
         wgonConstraints WgOnAny | Trs.isEmpty sr = top 
                                 | otherwise      = strictOneConstraints absmi sr
         sr = Prob.strictComponents prob
         wr = Prob.weakComponents prob
-        nondup = Prob.strictTrs prob
+        strs = Prob.strictTrs prob
         allrules = Prob.allComponents prob
 
 strictWGConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs -> MatrixInter a -> b
 strictWGConstraints trs mi = trsConstraints f mi trs
-  where f li ri = bigAnd (zipWith coeffConstraint (Map.elems $ coefficients li) (Map.elems $ coefficients ri))
-        coeffConstraint lm rm = row 1 lm .>=. row 1 rm
+  where f li ri = bigAnd [ maybe bot (\ lm -> row 1 lm .>=. row 1 rm) (Map.lookup v $ coefficients li)
+                         | (v,rm) <- Map.toList $ coefficients ri]
 
-nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Rule -> MatrixInter a -> b
-nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficients $ interpretTerm mi $ R.lhs r) (Map.elems $ coefficients $ interpretTerm mi $ R.rhs r)
-  where coeffConstraint lm rm = row 1 lm .>=. row 1 rm
+-- nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Rule -> MatrixInter a -> b
+-- nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficients $ interpretTerm mi $ R.lhs r) (Map.elems $ coefficients $ interpretTerm mi $ R.rhs r)
+--   where coeffConstraint lm rm = row 1 lm .>=. row 1 rm
 
-weightgapProcessor :: T.Transformation WeightGap P.AnyProcessor
-weightgapProcessor = T.Transformation WeightGap
+weightgapProcessor :: S.StdProcessor WeightGap
+weightgapProcessor = S.StdProcessor WeightGap

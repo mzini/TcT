@@ -52,7 +52,7 @@ data MatrixInter a = MI { dimension :: Int
                         , signature :: F.Signature
                         , interpretations :: Map.Map F.Symbol (LInter a)}
                         deriving Show
-data LInter a = LI {coefficients :: Map.Map V.Variable (Matrix a)
+data LInter a = LI { coefficients :: Map.Map V.Variable (Matrix a)
                    , constant :: (Vector a)}
                    deriving Show
 data MIVar = MIVar { restrict :: Bool

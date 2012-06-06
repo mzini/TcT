@@ -233,8 +233,6 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ paragraph( "The overall complexity is obtained by " ++ compName ++ ".")
         else if null stricts 
              then paragraph "We fail to orient any rules."
-                  $+$ text ""
-                  $+$ ppSubproof
              else paragraph "We have tried to orient orient following rules strictly:"
                   $+$ text ""
                   $+$ pptrs "Strict Rules" (Trs.fromRules stricts)

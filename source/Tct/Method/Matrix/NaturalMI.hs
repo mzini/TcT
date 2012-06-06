@@ -126,7 +126,6 @@ instance ComplexityProof MatrixOrder where
               prob = input order
               sig = Prob.signature prob
               vars = Prob.variables prob
-              ppOrient f = pprintOrientRules inter sig vars (f prob)
     
     answer order = CertAnswer $ certified (unknown, ub)
        

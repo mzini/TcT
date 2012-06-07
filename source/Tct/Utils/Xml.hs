@@ -157,9 +157,9 @@ proofDocument prob rulelist proof ans =
             where attribs = [ (Xml.N "xmlns:xsi", Xml.AttValue [Left "http://www.w3.org/2001/XMLSchema-instance"])
                             -- , (Xml.N "xsi", Xml.AttValue [Left "http://cl-informatik.uibk.ac.at/software/tct/include/tctpf.xsd"])
                             ]
-                  inpt     = elt "input" [] [ elt "trs" [] [ rule r sig vs | (r,False) <- rulelist ]
+                  inpt     = elt "input" [] [ elt "trs" [] [elt "rules" [] [ rule r sig vs | (r,False) <- rulelist ]]
                                             , elt "strategy" [] [strategy $ Prob.strategy prob]                                              
-                                            , elt "relativeRules" [] [ rule r sig vs | (r,True) <- rulelist ]
+                                            , elt "relativeRules" [] [ elt "rules" [] [rule r sig vs | (r,True) <- rulelist ]]
                                             , elt "complexityMeasure" [] [startTerms (Prob.startTerms prob) sig]
                                             , elt "answer" [] [answer ans]]
                   version  = elt "version" [] [text $ Version.version]

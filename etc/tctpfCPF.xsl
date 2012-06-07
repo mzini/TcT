@@ -29,7 +29,7 @@
      <origin>
        <proofOrigin>
 	 <tool>
-	   <name>TCT</name>
+	   <name>TcT</name>
 	   <version><xsl:value-of select="version"/></version>
 	 </tool>
        </proofOrigin>
@@ -46,10 +46,8 @@
 	 <xsl:if test="innermost">
 	   <strategy><innermost/></strategy>
 	 </xsl:if>
-	 <xsl:if test="count(relativeRules/*) > 0">
-	   <relativeRules>
-	     <xsl:copy-of select="relativeRules"/>
-	   </relativeRules>
+	 <xsl:if test="count(relativeRules/rules) > 0">
+	   <xsl:copy-of select="relativeRules"/>
 	 </xsl:if>
 	 </trsInput>
 	 <xsl:copy-of select="complexityMeasure/*"/>

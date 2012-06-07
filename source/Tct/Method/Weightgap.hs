@@ -148,7 +148,7 @@ orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
       
   where sig = Prob.signature prob
         mp = miKnd :+: deg :+: as
-        absmi      = abstractInterpretation mk (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
+        absmi = abstractInterpretation mk (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
                 
         miKnd | Trs.isEmpty strs || wgon == WgOnTrs = wgKind
               | wgKind == Unrestricted = Algebraic

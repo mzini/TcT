@@ -12,7 +12,7 @@
 	</xsl:when>
 	<!-- tct -->
 	<xsl:when test="/tctOutput">
-	  <xsl:apply-templates select="/tctOutput/proofNode/complexityInput/answer"/>
+	  <xsl:apply-templates select="/tctOutput/input/answer"/>
 	</xsl:when>
 
 

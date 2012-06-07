@@ -922,7 +922,7 @@ load' file =
          do putStrLn ("Unable to load '" ++ file ++ "'. Reason is:")
             pprint err
             return ()
-       Right (prob,warns) -> 
+       Right (prob,_,warns) -> 
          do ppwarns warns
             modifyState (\ _ -> ST { unselected = []
                                   , proofTree = Just $ Open prob} )

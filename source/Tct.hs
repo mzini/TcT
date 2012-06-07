@@ -429,7 +429,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
                            matches reg str = isJust $ matchRegex (mkRegex reg) str ;
                        putPretty $ text "" $+$ vcat [pprint proc $$ (text "") | proc <- sortBy ord procs]
                 | otherwise                   = 
-                    do prob <- readProblem
+                    do (prob,rulelist) <- readProblem
                        procs <- fromConfig processors
                        getProc <- fromConfig makeProcessor
                        proc <- liftEIO $ getProc prob procs
@@ -441,7 +441,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
                          case outputMode cfg of 
                            OnlyAnswer    -> putPretty (pprint ans)
                            WithXml       ->
-                             putXmlProof (toXml proof)
+                             putXmlProof prob rulelist proof ans
                            WithProof mde -> 
                              putPretty $ 
                              pprint ans
@@ -449,16 +449,20 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
                              $+$ pprintProof proof mde
                              $+$ text "" 
                              $+$ if succeeded proof 
-                                 then text "Hurray, we answered"  <+> pprint (answer proof)
+                                 then text "Hurray, we answered"  <+> pprint ans
                                  else text "Arrrr.."
                  
         readProblem = do file <- fromConfig problemFile 
                          maybeAT <- fromConfig answerType 
                          parsedResult <- liftIO $ ProblemParser.problemFromFile file
                          case parsedResult of
-                           Left err                              -> throwError $ ProblemParseError err
-                           Right (prob, warns) | wellFormed prob -> mapM_  (warn . ProblemParseWarning) warns >> overwriteAnswerType maybeAT prob
-                                               | otherwise       -> throwError $ ProblemNotWellformed prob
+                           Left err -> throwError $ ProblemParseError err
+                           Right (prob, rl, warns) 
+                                | wellFormed prob -> 
+                                    do mapM_  (warn . ProblemParseWarning) warns
+                                       prob' <- overwriteAnswerType maybeAT prob
+                                       return (prob', rl)
+                                | otherwise -> throwError $ ProblemNotWellformed prob
 
 
         process proc prob  = do gs <- fromConfig getSolver

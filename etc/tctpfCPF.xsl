@@ -14,58 +14,49 @@
    </xsl:element>
  </xsl:template>
  
-  <xsl:template match="/tctOutput">
-    <!-- <xsl:processing-instruction name="xml-stylesheet"> -->
-    <!--   href="cpfHTML.xsl" type="text/xsl" -->
-    <!-- </xsl:processing-instruction> -->
 
-    <certificationProblem>
-      <xsl:attribute name="xsi:noNamespaceSchemaLocation">cpf.xsd</xsl:attribute>
+ <xsl:template match="/tctOutput">
+   <certificationProblem>
+     <xsl:attribute name="xsi:noNamespaceSchemaLocation">cpf.xsd</xsl:attribute>
+     <xsl:apply-templates select="input"/>
 
-      <input>
-	<xsl:apply-templates select="proofNode/complexityInput"/>
-      </input>
+     <cpfVersion>2.1</cpfVersion>
 
-      <cpfVersion>2.1</cpfVersion>
+     <proof>
+       <xsl:apply-templates select="proofNode"/>
+     </proof>
 
-      <proof>
-	<xsl:apply-templates select="proofNode"/>
-      </proof>
+     <origin>
+       <proofOrigin>
+	 <tool>
+	   <name>TCT</name>
+	   <version><xsl:value-of select="version"/></version>
+	 </tool>
+       </proofOrigin>
+     </origin>
+   </certificationProblem>      
+ </xsl:template>
 
-      <origin>
-	<proofOrigin>
-	  <tool>
-	    <name>TCT</name>
-	    <version><xsl:value-of select="version"/></version>
-	  </tool>
-	</proofOrigin>
-      </origin>
-    </certificationProblem>      
-  </xsl:template>
 
-  <xsl:template match="complexityInput">
-    <complexityInput>
-      <trsInput>
-	<trs>
-	  <xsl:copy-of select="relation/strictTrs/rules"/>
-	</trs>
-	<xsl:apply-templates select="strategy"/>
-	<xsl:if test="relation/weakTrs/rules">
-	  <relativeRules>
-	    <xsl:copy-of select="relation/weakTrs/rules"/>
-	  </relativeRules>
-	</xsl:if>
-      </trsInput>
-      <xsl:copy-of select="complexityMeasure/*"/>
-      <xsl:copy-of select="answer/certified/upperbound/*"/>
-    </complexityInput>
-  </xsl:template>
-
-  <xsl:template match="strategy">
-    <xsl:if test="innermost">
-      <strategy><innermost/></strategy>
-    </xsl:if>
-  </xsl:template>
+ <xsl:template match="input">
+   <input>
+     <complexityInput>
+       <trsInput>
+	 <xsl:copy-of select="trs"/>
+	 <xsl:if test="innermost">
+	   <strategy><innermost/></strategy>
+	 </xsl:if>
+	 <xsl:if test="count(relativeRules/*) > 0">
+	   <relativeRules>
+	     <xsl:copy-of select="relativeRules"/>
+	   </relativeRules>
+	 </xsl:if>
+	 </trsInput>
+	 <xsl:copy-of select="complexityMeasure/*"/>
+	 <xsl:copy-of select="answer/certified/upperbound/*"/>
+       </complexityInput>
+     </input>
+ </xsl:template>
 
   <!-- proofs  -->
   <xsl:template match="proofNode">

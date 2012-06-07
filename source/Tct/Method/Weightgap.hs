@@ -146,28 +146,33 @@ orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
       && uargMonotoneConstraints ua absmi 
       && kindConstraints mk absmi
       
-  where mp = miKnd :+: deg :+: as
+  where sig = Prob.signature prob
+        mp = miKnd :+: deg :+: as
         absmi      = abstractInterpretation mk (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
+                
         miKnd | Trs.isEmpty strs || wgon == WgOnTrs = wgKind
               | wgKind == Unrestricted = Algebraic
               | otherwise = wgKind
+                            
         deg | Trs.isEmpty strs || wgon == WgOnTrs = wgDeg
             | otherwise = Just 1
-        sig = Prob.signature prob
-        st | Trs.isEmpty strs || wgon == WgOnTrs = startTerms prob
-           | otherwise = toTA $ startTerms prob
-          where toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
-                toTA st'                 = st'
+        
         ua = case Prob.startTerms prob of
               BasicTerms {} 
                 | isUargsOn wgp -> usableArgs (strategy prob) allrules
               _ -> fullWithSignature (signature prob)
-
+              
         mk = kind mp st
-        
+           where st | Trs.isEmpty strs || wgon == WgOnTrs = startTerms prob
+                    | otherwise = toTA $ startTerms prob
+                 toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
+                 toTA st'                 = st'
+
         wgonConstraints WgOnTrs = strictTrsConstraints absmi strs
-        wgonConstraints WgOnAny | Trs.isEmpty sr = top 
-                                | otherwise      = strictOneConstraints absmi sr
+        wgonConstraints WgOnAny 
+          | Trs.isEmpty sr = top 
+          | otherwise      = strictOneConstraints absmi sr
+                                                   
         sr = Prob.strictComponents prob
         wr = Prob.weakComponents prob
         strs = Prob.strictTrs prob

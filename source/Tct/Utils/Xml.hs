@@ -40,7 +40,7 @@ import qualified Text.XML.HaXml.Pretty as XmlPP
 import qualified Data.Set as Set
 import qualified Tct.Certificate as C
 import qualified Tct.Proof as Proof
-import Tct.Main.Version (version)
+import qualified Tct.Main.Version as Version
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Term as T
@@ -147,21 +147,29 @@ complexityProblem prob ans =
           vs  = Prob.variables prob
           
           
-proofDocument :: XmlContent -> Xml.Document ()
-proofDocument cnt = 
+proofDocument :: Proof.ComplexityProof proof => Prob.Problem -> [(R.Rule, Bool)] -> proof -> Proof.Answer -> Xml.Document ()
+proofDocument prob rulelist proof ans = 
   Xml.Document prolog symtab el misc
     where prolog = Xml.Prolog (Just xmlversion) [Xml.PI ("xml-stylesheet", style)] Nothing []
             where xmlversion = Xml.XMLDecl "1.0" Nothing Nothing
                   style = "type=\"text/xsl\" href=\"tctpfHTML.xsl\""
-          el = Xml.Elem (Xml.N "tctOutput") attribs [vs, cnt]
+          el = Xml.Elem (Xml.N "tctOutput") attribs [inpt, Proof.toXml proof, version ]
             where attribs = [ (Xml.N "xmlns:xsi", Xml.AttValue [Left "http://www.w3.org/2001/XMLSchema-instance"])
                             -- , (Xml.N "xsi", Xml.AttValue [Left "http://cl-informatik.uibk.ac.at/software/tct/include/tctpf.xsd"])
                             ]
-                  vs = elt "version" [] [text $ version]
+                  inpt     = elt "input" [] [ elt "trs" [] [ rule r sig vs | (r,False) <- rulelist ]
+                                            , elt "strategy" [] [strategy $ Prob.strategy prob]                                              
+                                            , elt "relativeRules" [] [ rule r sig vs | (r,True) <- rulelist ]
+                                            , elt "complexityMeasure" [] [startTerms (Prob.startTerms prob) sig]
+                                            , elt "answer" [] [answer ans]]
+                  version  = elt "version" [] [text $ Version.version]
+                  
+                  vs = Prob.variables prob
+                  sig = Prob.signature prob
           misc = []
           symtab = []
 
           
-putXmlProof :: XmlContent -> IO ()
-putXmlProof cnt = putStrLn $ show $ doc
-  where doc = XmlPP.document $ proofDocument cnt
+putXmlProof :: Proof.ComplexityProof proof => Prob.Problem -> [(R.Rule, Bool)] -> proof -> Proof.Answer -> IO ()
+putXmlProof prob rulelist proof ans = putStrLn $ show $ doc
+  where doc = XmlPP.document $ proofDocument prob rulelist proof ans

@@ -43,10 +43,10 @@
      <complexityInput>
        <trsInput>
 	 <xsl:copy-of select="trs"/>
-	 <xsl:if test="innermost">
+	 <xsl:if test="strategy/innermost">
 	   <strategy><innermost/></strategy>
 	 </xsl:if>
-	 <xsl:if test="count(relativeRules/rules) > 0">
+	 <xsl:if test="count(relativeRules/rules/*) > 0">
 	   <xsl:copy-of select="relativeRules"/>
 	 </xsl:if>
 	 </trsInput>

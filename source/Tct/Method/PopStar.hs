@@ -139,7 +139,7 @@ instance ComplexityProof PopStarOrder where
                     ppOrientRl rl = 
                       case maf of 
                         Just _ ->  [ (ppPi (lhs rl), text " = ", pp (lhs rl))
-                                   , (text ""     , arr rl  , pp (lhs rl))
+                                   , (text ""     , arr rl  , pp (rhs rl))
                                    , (text ""     , text " = ", ppPi (rhs rl)) 
                                    , nl]
                         Nothing -> [ (pp (lhs rl)  , arr rl  , pp (rhs rl)) 

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -28,7 +29,7 @@ import Text.PrettyPrint.HughesPJ
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Qlogic.MiniSat (MiniSatLiteral)
+import Qlogic.MiniSat (MiniSatLiteral, MiniSat)
 import Qlogic.Boolean
 import Qlogic.Diophantine
 import Qlogic.Formula (Formula(..))
@@ -41,6 +42,7 @@ import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
 
+import Termlib.Term (Term)
 import qualified Tct.Utils.Xml as Xml
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -298,6 +300,14 @@ solveConstraint prob ua mk sig mp constraints =
                   Nothing -> Incompatible
                   Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob
                   
+formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
+formula fml = run $ toFormula Nothing 3 fml
+  where run :: MiniSat  r -> IO (Either SatSolver.SatError r)
+        run = SatSolver.runSolver
+
+gt :: MatrixInter (DioPoly DioVar Int) -> Term -> Term -> DioFormula MiniSatLiteral DioVar Int 
+gt mi l r = interpretTerm mi l .>. interpretTerm mi r
+
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orient rs prob mp = 
   solveConstraint prob ua mk sig mp $ 
@@ -322,15 +332,11 @@ orient rs prob mp =
           orientationConstraints = 
            bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules allrules]
            -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
-           && orientSelected rs
+           && RS.onSelectedRequire rs (\ _ r -> strictVar r .>. SR.zero)
            where modify r inter = inter { constant = case constant inter of  
                                              Vector [] -> error "NaturalMI: zero-length vector in modify"
                                              Vector (v:vs) -> Vector (v `SR.plus` strictVar r : vs)}
                  strictVar = restrictvar . Strict
-                 orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
-                 orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
-                 orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
-                 orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 
           dpChoice MWithDP _                   u     = safeRedpairConstraints sig ua u absmi
           dpChoice MNoDP   Prob.TermAlgebra {} _     = monotoneConstraints  absmi

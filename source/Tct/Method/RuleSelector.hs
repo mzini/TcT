@@ -49,17 +49,20 @@ module Tct.Method.RuleSelector
         -- * Misc
        , selFirstAlternative         
        , rules
+       , onSelectedRequire
        ) where
 
 import Data.Typeable (Typeable)
 import Data.List (intersperse)
 import Tct.Processor (SelectorExpression(..))
 import Tct.Method.DP.DependencyGraph
+import Qlogic.Boolean (bigAnd, bigOr, Boolean)
 import Data.Graph.Inductive.Query.BFS (bfsn)
 import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Processor.Args.Instances
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
+import Termlib.Rule (Rule)
 import Termlib.Problem (Problem)
 
 -- | This datatype is used to select a subset of rules recorded in a problem.
@@ -233,3 +236,8 @@ rules e =
           where (dpss, trss) = unzip [rules sel | sel <- ss] 
 
 
+onSelectedRequire :: Boolean a => SelectorExpression -> (Bool -> Rule -> a) -> a
+onSelectedRequire (SelectDP r) f = f True r
+onSelectedRequire (SelectTrs r) f = f False r
+onSelectedRequire (BigAnd es) f = bigAnd [ onSelectedRequire e f | e <- es]
+onSelectedRequire (BigOr es) f = bigOr [ onSelectedRequire e f | e <- es]          

@@ -30,19 +30,17 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Qlogic.Boolean
+import Qlogic.PropositionalFormula
 import Qlogic.Diophantine hiding (add)
 import Qlogic.Semiring
 
-import Termlib.Problem (Problem(..), StartTerms(..), strictComponents)
-import Termlib.Rule (Rule(..))
+import Termlib.Problem (Problem(..), StartTerms(..))
 import Termlib.Trs (Trs)
 import Termlib.Utils hiding (enum)
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
-import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 
-import Tct.Certificate (add, certified, unknown, upperBound)
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Matrix
 import Tct.Encoding.UsablePositions
@@ -80,7 +78,7 @@ instance PrettyPrintable WeightGapProof where
                                            <+> text intertitle <> text ":")
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
-      | otherwise     = text "The weightgap principle does not apply."
+      | otherwise     = text "The wei  ghtgap principle does not apply."
     where intertitle = case growth of
                          Just False -> "nonconstant growth matrix-interpretation"
                          Just True  -> "constant growth matrix-interpretation"
@@ -136,11 +134,34 @@ instance S.Processor WeightGap where
                                                , Trs.toRules $ strictRules mi $ Prob.trsComponents prob)
                              _ -> ([], [])
                            
+
+data Orientation = OrientStrict R.Rule
+                 deriving (Eq, Ord, Show, Typeable)
+instance PropAtom Orientation
+
+orientWGConstraints :: (Eq l) => MatrixInter (DioPoly DioVar Int) -> Trs -> DioFormula l DioVar Int
+orientWGConstraints absmi sr = bigAnd [ ruleConstraint rl | rl <- Trs.toRules sr ]
+  where ruleConstraint rl = wgConstraint 
+                            && (dioAtom (OrientStrict rl) --> orientConstraint)
+          where li = interpretTerm absmi (R.lhs rl)
+                ri = interpretTerm absmi (R.rhs rl)
+                d  = dimension absmi 
+                
+                wgConstraint = 
+                  bigAnd [ maybe bot (\ lm -> row 1 lm .>=. row 1 rm) (Map.lookup v $ coefficients li)
+                         | (v,rm) <- Map.toList $ coefficients ri]
+                orientConstraint = 
+                  bigAnd [ maybe bot (\ lm -> bigAnd [ row j lm .>=. row j rm | j <- [2..d] ]) 
+                             (Map.lookup v $ coefficients li)
+                         | (v,rm) <- Map.toList $ coefficients ri]
+                  && constant li .>. constant ri
+
+
 orientWG :: P.SolverM m => P.SelectorExpression -> Problem -> Domains (S.ArgumentsOf WeightGap) -> m (OrientationProof MatrixOrder)
 orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) = 
     solveConstraint prob ua mk sig mp $ 
-      strictWGConstraints sr absmi 
-      && wgonConstraints wgon 
+      RS.onSelectedRequire rs' (\ _ rl -> dioAtom (OrientStrict rl))
+      && orientWGConstraints absmi sr
       && weakTrsConstraints absmi wr
       && slmiSafeRedpairConstraints sig ua absmi 
       && uargMonotoneConstraints ua absmi 
@@ -148,8 +169,12 @@ orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
       
   where sig = Prob.signature prob
         mp = miKnd :+: deg :+: as
-        absmi = abstractInterpretation mk (dim mp) sig :: MatrixInter (DioPoly DioVar Int)
-                
+        absmi = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
+        d = dim mp        
+        
+        rs' | wgon == WgOnTrs = RS.BigAnd $ rs : [  RS.SelectTrs r | r <- Trs.rules strs]
+            | otherwise = rs
+
         miKnd | Trs.isEmpty strs || wgon == WgOnTrs = wgKind
               | wgKind == Unrestricted = Algebraic
               | otherwise = wgKind
@@ -166,26 +191,13 @@ orientWG rs prob (wgon :+: wgp@(wgKind :+: wgDeg :+: as)) =
            where st | Trs.isEmpty strs || wgon == WgOnTrs = startTerms prob
                     | otherwise = toTA $ startTerms prob
                  toTA (BasicTerms ds cs) = TermAlgebra $ ds `Set.union` cs
-                 toTA st'                 = st'
+                 toTA st'                = st'
 
-        wgonConstraints WgOnTrs = strictTrsConstraints absmi strs
-        wgonConstraints WgOnAny 
-          | Trs.isEmpty sr = top 
-          | otherwise      = strictOneConstraints absmi sr
-                                                   
         sr = Prob.strictComponents prob
         wr = Prob.weakComponents prob
         strs = Prob.strictTrs prob
         allrules = Prob.allComponents prob
 
-strictWGConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Trs -> MatrixInter a -> b
-strictWGConstraints trs mi = trsConstraints f mi trs
-  where f li ri = bigAnd [ maybe bot (\ lm -> row 1 lm .>=. row 1 rm) (Map.lookup v $ coefficients li)
-                         | (v,rm) <- Map.toList $ coefficients ri]
-
--- nondupConstraints :: (AbstrOrdSemiring a b, MIEntry a) => Rule -> MatrixInter a -> b
--- nondupConstraints r mi = bigAnd $ zipWith coeffConstraint (Map.elems $ coefficients $ interpretTerm mi $ R.lhs r) (Map.elems $ coefficients $ interpretTerm mi $ R.rhs r)
---   where coeffConstraint lm rm = row 1 lm .>=. row 1 rm
 
 weightgapProcessor :: S.StdProcessor WeightGap
 weightgapProcessor = S.StdProcessor WeightGap

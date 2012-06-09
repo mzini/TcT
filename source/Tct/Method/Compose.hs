@@ -230,7 +230,16 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""
+             $+$ text "The strictly oriented rules"
+             $+$ text ""
+             $+$ pptrs "DPs" rDPs
+             $+$ pptrs "Trs" rTrs
+             $+$ text ""                                    
+             $+$ if compfn == Add 
+                  then text "are moved into the corresponding weak components."
+                  else text "are removed."
              $+$ paragraph( "The overall complexity is obtained by " ++ compName ++ ".")
+
         else if null stricts 
              then paragraph "We fail to orient any rules."
              else paragraph "We have tried to orient orient following rules strictly:"

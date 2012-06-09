@@ -66,7 +66,7 @@ import Tct.Method.Matrix.NaturalMI
 import Tct.Method.Poly.NaturalPI
 import Tct.Method.PopStar hiding (popstar, lmpo)
 import Tct.Method.Uncurry hiding (uncurry)
-import Tct.Method.Weightgap 
+import Tct.Method.Weightgap
 import Tct.Method.Timeout hiding (timeout)
 import Tct.Method.Mpo hiding (mpo)
 
@@ -134,6 +134,8 @@ builtInProcessors =
     poly
     P.<|>
     timeout
+    P.<|> 
+    weightgap
     P.<|>
     S.StdProcessor irr
     P.<|>
@@ -700,8 +702,8 @@ in order to relax the monotonicity constraints on the interpretation.
 
 
 -}
-weightgapProcessor :: S.StdProcessor WeightGap
-weightgapProcessor = S.StdProcessor WeightGap
+weightgap :: S.StdProcessor WeightGap
+weightgap = S.StdProcessor WeightGap
 
 {- |
 This transformation implements techniques for splitting the

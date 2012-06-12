@@ -74,11 +74,11 @@ data WeightGapProof =
 instance PrettyPrintable WeightGapProof where
   pprint (WeightGapProof e@Empty _) = P.pprintProof e P.ProofOutput
   pprint (WeightGapProof p growth)
-      | P.succeeded p = paragraph (show $ text "We have found the following" 
-                                           <+> text intertitle <> text ":")
+      | P.succeeded p = paragraph (show $ text "The weightgap principle applies"
+                                          <+> parens (text "using a" <+> text intertitle))
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
-      | otherwise     = text "The wei  ghtgap principle does not apply."
+      | otherwise     = text "The weightgap principle does not apply."
     where intertitle = case growth of
                          Just False -> "nonconstant growth matrix-interpretation"
                          Just True  -> "constant growth matrix-interpretation"
@@ -92,13 +92,13 @@ instance S.Processor WeightGap where
   name WeightGap = "weightgap"
   instanceName inst = 
     show $ text "weightgap" 
-           <+> case wgon of { WgOnTrs -> text "on strict TRS" ; _ -> PP.empty}
-           <+> text "of dimension" <+> text (show wgDim)
+           -- <+> case wgon of { WgOnTrs -> text "on strict TRS" ; _ -> PP.empty}
+           <+> text "of dimension" <+> pprint wgDim
            <> maybet wgDeg (\ deg -> text ", maximal degree" <+> pprint deg)
            <> maybet wgBits (\ bnd -> text ", bits" <+> pprint bnd)
            <> maybet wgCbits (\ cbs -> text ", cbits" <+> pprint cbs)
            <> (if ua then PP.empty else text ", without usable arguments")
-      where  wgon :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = S.processorArgs inst
+      where  _ :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = S.processorArgs inst
              maybet Nothing  _ = PP.empty
              maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]

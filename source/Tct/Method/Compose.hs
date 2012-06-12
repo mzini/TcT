@@ -88,9 +88,9 @@ instance (P.Processor p) => T.Transformer (Compose p) where
     type ProofOf (Compose p)     = ComposeProof p
 
     name _              = "compose"
-    instanceName inst   = show $ text "compose" <+> parens (ppsplit <> text "," <+> ppCompFn)
-        where split :+: compFn :+: _ = T.transformationArgs inst
-              ppsplit = text $ show split 
+    instanceName inst   = show $ text "compose" <+> parens ppCompFn
+        where _ :+: compFn :+: _ = T.transformationArgs inst
+              -- ppsplit = text $ show split 
               ppCompFn = case compFn of 
                            Add  -> text "addition"
                            Mult -> text "multiplication"
@@ -225,7 +225,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ pptrs "DPs" rDPs
              $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ paragraph ("The induced complexity of " ++ pName ++ " on above rules is " 
+             $+$ paragraph ("The induced complexity on above rules is " 
                             ++ show (pprint (P.answer rSubProof)) ++ ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]

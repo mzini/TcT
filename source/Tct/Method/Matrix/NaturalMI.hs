@@ -117,7 +117,7 @@ instance ComplexityProof MatrixOrder where
                                                     ++ show n ++ " non-zero entries."
               ppknd (ConstructorBased _ Nothing)  = "constructor-restricted matrix interpretation."
               ppknd (ConstructorBased _ (Just n)) = "constructor-restricted matrix interpretation. Note that " 
-                                                    ++ "the diagonal of the component-wise maxima of interpretation-entries contains no more than "              
+                                                    ++ "the diagonal of the component-wise maxima of interpretation-entries (of constructors) contains no more than "              
                                                     ++ show n ++ " non-zero entries."
               ppknd (EdaMatrix Nothing)           = "matrix interpretation satisfying not(EDA)."
               ppknd (EdaMatrix (Just n))          = "matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."

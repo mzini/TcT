@@ -544,10 +544,10 @@ instance (P.Processor proc, outp ~ P.InstanceOf (S.StdProcessor (Custom.Custom U
                                      , Custom.args  = Unit }
 
 withWDG :: WithProblem inp outp => (DG.DG -> inp) -> outp
-withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.Edg prob)
+withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.defaultApproximation prob)
 
 withCWDG :: WithProblem inp outp => (DG.CDG -> inp) -> outp
-withCWDG f = withProblem $ \ prob -> f (DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob)
+withCWDG f = withProblem $ \ prob -> f (DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.defaultApproximation prob)
 
 
 -- * Named

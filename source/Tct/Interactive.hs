@@ -1359,7 +1359,7 @@ problems =
 wdgs' :: IO [DG.DG]
 wdgs' = 
   do probs <- problems'
-     let dgs = [ (DG.estimatedDependencyGraph DG.Edg prob
+     let dgs = [ (DG.estimatedDependencyGraph DG.defaultApproximation prob
                  , Prob.signature prob 
                  , Prob.variables prob) 
                | prob <- probs ]
@@ -1368,7 +1368,7 @@ wdgs' =
           
 wdgs :: IO [DG.DG]   
 wdgs = do probs <- problems'
-          let dgs = [ (DG.estimatedDependencyGraph DG.Edg prob
+          let dgs = [ (DG.estimatedDependencyGraph DG.defaultApproximation prob
                        , Prob.signature prob 
                        , Prob.variables prob) 
                     | prob <- probs ]
@@ -1381,7 +1381,7 @@ wdgs = do probs <- problems'
 cwdgs :: IO [DG.CDG]
 cwdgs = (zip [1..] `liftM` problems') >>= mapM f                            
   where f (i,prob) = 
-          do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.Edg prob
+          do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.defaultApproximation prob
              pprintIth "Congruence Graph of Problem" U.pprint (i,(dg,Prob.signature prob,Prob.variables prob))
              return dg
 

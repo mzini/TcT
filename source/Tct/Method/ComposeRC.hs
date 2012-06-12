@@ -132,7 +132,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                 return $ mkProof mProofA mProofB
 
         where s :+: mProcA :+: mProcB = T.transformationArgs inst 
-              wdg = estimatedDependencyGraph Edg prob
+              wdg = estimatedDependencyGraph DG.defaultApproximation prob
               allLabeledNodes = lnodes wdg
               sig = Prob.signature prob
 

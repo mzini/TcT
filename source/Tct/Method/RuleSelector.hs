@@ -156,14 +156,14 @@ selWeaks = RuleSelector { rsName = "weak-rules" , rsSelect = fn }
 selFromWDG :: String -> (DG -> Prob.Ruleset) -> RuleSetSelector
 selFromWDG n f = RuleSelector { rsName = n
                               , rsSelect = \ prob -> f (dg prob) }
-    where dg = estimatedDependencyGraph Edg
+    where dg = estimatedDependencyGraph DG.defaultApproximation
 
 -- | Select from the congruence dependency graph, using the given function.
 -- The first parameter should specify a short name for the rule-selector.          
 selFromCWDG :: String -> (CDG -> Prob.Ruleset) -> RuleSetSelector
 selFromCWDG n f = RuleSelector { rsName = n
                                , rsSelect = \ prob -> f (dg prob) }
-    where dg = toCongruenceGraph . estimatedDependencyGraph Edg
+    where dg = toCongruenceGraph . estimatedDependencyGraph DG.defaultApproximation
 
 restrictToCongruences :: Prob.Ruleset -> [NodeId] -> CDG -> Prob.Ruleset
 restrictToCongruences rs ns cdg = rs { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- rr]

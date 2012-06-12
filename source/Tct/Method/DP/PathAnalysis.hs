@@ -89,7 +89,7 @@ instance T.Transformer PathAnalysis where
         where lin = T.transformationArgs inst
               res | progressed = T.Progress p (enumeration [(thePath pth, prob') | (pth,prob') <- pathsToProbs ])
                   | otherwise  = T.NoProgress p
-              edg  = estimatedDependencyGraph Edg prob
+              edg  = estimatedDependencyGraph defaultApproximation prob
               cedg = toCongruenceGraph edg
               rts  = roots cedg
               lfs  = leafs cedg

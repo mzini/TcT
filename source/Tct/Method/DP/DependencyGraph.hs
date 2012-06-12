@@ -20,121 +20,122 @@
 
 
 module Tct.Method.DP.DependencyGraph 
-    (
-     -- * Unified Graph Interface
-     -- ** Datatypes
-     DependencyGraph
-     -- | @DependencyGraph n e@ is a Graph with node-labels @n@ and 
-     -- edge-labels 'e'
-    , Strictness (..)
-    , NodeId
-     -- | A node in the dependency graph. Most operations work on @NodeId@s. 
-     -- Use @lookupNodeLabel@ to get the label of the node
+    -- (
+    --  -- * Unified Graph Interface
+    --  -- ** Datatypes
+    --  DependencyGraph
+    --  -- | @DependencyGraph n e@ is a Graph with node-labels @n@ and 
+    --  -- edge-labels 'e'
+    -- , Strictness (..)
+    -- , NodeId
+    --  -- | A node in the dependency graph. Most operations work on @NodeId@s. 
+    --  -- Use @lookupNodeLabel@ to get the label of the node
 
-     -- ** Operations
-    , nodes
-    -- | Returns the set of nodes. 
-    , lnodes
-    -- | Returns the set of nodes together with their labels. 
-     , roots 
-     -- | Returns the list of nodes without predecessor.
-     , leafs
-     -- | Returns the list of nodes without successor.
-     , lookupNodeLabel
-     -- | Returns the label of the given node, if present.
-     , lookupNodeLabel'
-     -- | Returns the label of the given node, if present. 
-     -- Otherwise an exception is raised
-     , lookupNode
-     -- | Returns the node with given label.       
-     , lookupNode'
-     -- | Returns the node with given label.       
-     -- Otherwise an exception is raised
-     , withNodeLabels
-     -- | List version of @lookupNodeLabel@.
-     , withNodeLabels'
-     -- | List version of @lookupNodeLabel'@.
-     , inverse
-     -- | Returns the same graph with edges inversed.
-     , topsort
-     -- | returns a topologically sorted set of nodes.
-     , successors
-    -- | Returns the list of successors in a given node.
-     , reachablesDfs
-    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- the successor relation with respect to @ns@ in a depth-first manner
-     , reachablesBfs
-    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- the successor relation with respect to @ns@ in a breath-first manner
-     , lsuccessors
-    -- | Returns the list of successors in a given node, including their labels.
-     , predecessors
-    -- | Returns the list of predecessors in a given node.
-     , lpredecessors
-    -- | Returns the list of predecessors in a given node, including their labels.
-    , isEdgeTo
-    -- | @isEdgeTo dg n1 n2@ checks wheter @n2@ is a successor of @n1@ in 
-    -- the dependency graph @dg@
-    , isLEdgeTo
-    -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
-    -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
-    -- labeled by @l@.
-    , subGraph
-    -- | Computes the subgraph based on the given nodes.
-    -- * Dependency Graph
-    -- ** Datatype 
-    , DG
-    -- | The dependency graph.
-    , DGNode
-    -- | Nodes of the DG are labeled by rules and their strictness-annotation.
-    , Approximation (..)
+    --  -- ** Operations
+    -- , nodes
+    -- -- | Returns the set of nodes. 
+    -- , lnodes
+    -- -- | Returns the set of nodes together with their labels. 
+    --  , roots 
+    --  -- | Returns the list of nodes without predecessor.
+    --  , leafs
+    --  -- | Returns the list of nodes without successor.
+    --  , lookupNodeLabel
+    --  -- | Returns the label of the given node, if present.
+    --  , lookupNodeLabel'
+    --  -- | Returns the label of the given node, if present. 
+    --  -- Otherwise an exception is raised
+    --  , lookupNode
+    --  -- | Returns the node with given label.       
+    --  , lookupNode'
+    --  -- | Returns the node with given label.       
+    --  -- Otherwise an exception is raised
+    --  , withNodeLabels
+    --  -- | List version of @lookupNodeLabel@.
+    --  , withNodeLabels'
+    --  -- | List version of @lookupNodeLabel'@.
+    --  , inverse
+    --  -- | Returns the same graph with edges inversed.
+    --  , topsort
+    --  -- | returns a topologically sorted set of nodes.
+    --  , successors
+    -- -- | Returns the list of successors in a given node.
+    --  , reachablesDfs
+    -- -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- -- the successor relation with respect to @ns@ in a depth-first manner
+    --  , reachablesBfs
+    -- -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- -- the successor relation with respect to @ns@ in a breath-first manner
+    --  , lsuccessors
+    -- -- | Returns the list of successors in a given node, including their labels.
+    --  , predecessors
+    -- -- | Returns the list of predecessors in a given node.
+    --  , lpredecessors
+    -- -- | Returns the list of predecessors in a given node, including their labels.
+    -- , isEdgeTo
+    -- -- | @isEdgeTo dg n1 n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- -- the dependency graph @dg@
+    -- , isLEdgeTo
+    -- -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
+    -- -- labeled by @l@.
+    -- , subGraph
+    -- -- | Computes the subgraph based on the given nodes.
+    -- -- * Dependency Graph
+    -- -- ** Datatype 
+    -- , DG
+    -- -- | The dependency graph.
+    -- , DGNode
+    -- -- | Nodes of the DG are labeled by rules and their strictness-annotation.
+    -- , Approximation (..)
+    -- , defaultApproximation   
 
-    -- ** Operations
-    , estimatedDependencyGraph
-    -- | @estimatedDependencyGraph approx prob@ 
-    -- returns the estimated dependency-graph of a given problem @prob@ with 
-    -- respect to the approximation @approx@.
+    -- -- ** Operations
+    -- , estimatedDependencyGraph
+    -- -- | @estimatedDependencyGraph approx prob@ 
+    -- -- returns the estimated dependency-graph of a given problem @prob@ with 
+    -- -- respect to the approximation @approx@.
      
-    -- * Congruence Graph
-    -- ** Datatype 
-    , CDG
-    -- | The congruence dependency graph.
-    , CDGNode (..)
+    -- -- * Congruence Graph
+    -- -- ** Datatype 
+    -- , CDG
+    -- -- | The congruence dependency graph.
+    -- , CDGNode (..)
 
-    -- ** Operations
-    ,  toCongruenceGraph
-    -- | Computes the congruence graph of a given dependency graph.
-    , allRulesFromNode 
-    -- | Returns the list of annotated rules of the given node.
-    , allRulesFromNodes
-    -- | List version of @allRulesFromNode@.
-    , congruence
-    -- | @congruence cdg n@ 
-    -- returns the nodes from the original dependency graph (i.e., the one 
-    -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
-    , isCyclicNode
-    -- | @isCyclicNode cdg n@ 
-    -- returns @True@ iff there is an edge from a node in @congruence cdg n@
-    -- to @congruence cdg n@ in the original dependency graph (i.e., the one 
-    -- given to @toCongruenceGraph@).
+    -- -- ** Operations
+    -- ,  toCongruenceGraph
+    -- -- | Computes the congruence graph of a given dependency graph.
+    -- , allRulesFromNode 
+    -- -- | Returns the list of annotated rules of the given node.
+    -- , allRulesFromNodes
+    -- -- | List version of @allRulesFromNode@.
+    -- , congruence
+    -- -- | @congruence cdg n@ 
+    -- -- returns the nodes from the original dependency graph (i.e., the one 
+    -- -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
+    -- , isCyclicNode
+    -- -- | @isCyclicNode cdg n@ 
+    -- -- returns @True@ iff there is an edge from a node in @congruence cdg n@
+    -- -- to @congruence cdg n@ in the original dependency graph (i.e., the one 
+    -- -- given to @toCongruenceGraph@).
 
-    -- ** Utilities
-    , pprintCWDGNode
-      -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
-      -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
-    , pprintCWDG
-      -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
-    , pprintNodeSet      
-      -- | Default pretty printer for set of nodes.
-    , toGraphViz
-      -- | translates 'DG' into a GraphViz graph.
-    , saveGraphViz
-      -- | output 'DG' as Svg.
-    , graphvizShowDG
-      -- | show a 'DG' in a GraphViz canvas.
-    -- * Misc
-    , pprintLabeledRules
-    )
+    -- -- ** Utilities
+    -- , pprintCWDGNode
+    --   -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
+    --   -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
+    -- , pprintCWDG
+    --   -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+    -- , pprintNodeSet      
+    --   -- | Default pretty printer for set of nodes.
+    -- , toGraphViz
+    --   -- | translates 'DG' into a GraphViz graph.
+    -- , saveGraphViz
+    --   -- | output 'DG' as Svg.
+    -- , graphvizShowDG
+    --   -- | show a 'DG' in a GraphViz canvas.
+    -- -- * Misc
+    -- , pprintLabeledRules
+    -- )
 where
 
 import qualified Data.Graph.Inductive.Graph as Graph
@@ -154,11 +155,14 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List (delete, sortBy)
 import qualified Data.List as List
 import Control.Monad (liftM)
--- import Control.Monad.Trans (liftIO)
+import Control.Monad.Trans (lift)
 import Data.Typeable 
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, catMaybes)
+import qualified Data.Map as Map
 
+import qualified Termlib.Substitution as Sub
 import qualified Termlib.FunctionSymbol as F
+import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import Termlib.Problem (Problem)
@@ -263,34 +267,75 @@ subGraph g ns = Graph.delNodes (nodes g List.\\ ns) g
 -- Estimated Dependency Graph
 --------------------------------------------------------------------------------
 
-data Approximation = Edg -- ^ EDG*** approximation
+data Approximation = EdgStar -- ^ EDG* approximation
                    | Trivial -- ^ Fully connected graph
+                   | ICapStar -- ^ Generalised EDG*
                    deriving (Bounded, Ord, Eq, Typeable, Enum) 
+                            
 instance Show Approximation where 
-    show Edg     = "edg"
+    show EdgStar     = "edgstar"
     show Trivial = "trivial"
+    show ICapStar = "icapstar"    
+    
+defaultApproximation :: Approximation    
+defaultApproximation = ICapStar
 
 estimatedDependencyGraph :: Approximation -> Problem -> DG
 estimatedDependencyGraph approx prob = Graph.mkGraph ns es
     where ns = zip [1..] ([(StrictDP, r) | r <- Trs.rules $ Prob.strictDPs prob] 
                           ++ [(WeakDP, r) | r <- Trs.rules $ Prob.weakDPs prob])
-          es = [ (n1, n2, i) | (n1,(_,l1)) <- ns
-                             , (n2,(_,l2)) <- ns
-                             , i <- R.rhs l1 `edgesTo` R.lhs l2] 
-          (Term.Var _)      `edgesTo` _ = []
-          s@(Term.Fun f ss) `edgesTo` t = [ i | (i,si) <- zip [1..] ss', si `edgeToP` t] 
-              where ss' | F.isCompound sig f = ss
-                        | otherwise          = [s]
-          (Term.Var _) `edgeToP` _    = False
-          s            `edgeToP` t | approx == Edg = match (etcap lhss s) t 
-                                                    && (any Term.isVariable rhss 
-                                                       || match (etcap rhss t) s)
-                                   | otherwise    = True
+          es = [ (n1, n2, i) | (n1,(_,r1)) <- ns
+                             , (n2,(_,r2)) <- ns
+                             , i <- r1 `edgesTo` r2] 
+          r1 `edgesTo` r2 = 
+            case R.rhs r1 of 
+              (Term.Var _) -> []
+              t@(Term.Fun f ts) -> [ i | (i,ti) <- zip [1..] ts'
+                                       , (s,ti) `edgeTo` (u,v)] 
+                where s = R.lhs r1
+                      ts' | F.isCompound sig f = ts
+                          | otherwise          = [t]
+                      u = R.lhs r2
+                      v = R.rhs r2
+          (s,t) `edgeTo` (u,_) =                     
+              case approx of 
+                EdgStar -> matchEdg (etcapEdg lhss t) u 
+                          && (any Term.isVariable rhss 
+                             || matchEdg (etcapEdg rhss u) t)
+                          
+                ICapStar -> fst $ flip Sig.runSignature vs $ do
+                  [s',t'] <- rename [s,t]
+                  [u'] <- rename [u]
+                  let unifyNF t1 t2 = 
+                       case Sub.unify t1 t2 of 
+                         Just delta -> isQNF (Sub.apply delta s') && isQNF (Sub.apply delta u')
+                         Nothing -> False
+                  tcap <- icap lhss qs [s',u'] t'
+                  case unifyNF tcap u' of 
+                    False -> return $ False
+                    True -> do 
+                      ucap <- icap rhss qs [] u'
+                      return $ unifyNF ucap t'
+                     
+                  where qs = case Prob.strategy prob of 
+                               Prob.Innermost -> lhss
+                               _              -> []
+                        isQNF v = all not [ v `Sub.matches` l | l <- qs]
+                            
+              -- EdgStar -> fst $ Sig.runSignature (s `matchEdgStar` t) vs
+              -- s `matchEdgStar` t = 
+              --   do s' <- renCap strat lhss s
+              --      t' <- renCap strat rhss t
+              --      return $ s' `Sub.isUnifiable` t 
+              --               && s `Sub.isUnifiable` t'
+
+                        
+                _    -> True
           sig = Prob.signature prob
+          vs = Prob.variables prob
           rs = Prob.trsComponents prob
           lhss = Trs.lhss rs
           rhss = Trs.rhss rs
-
 
 
 --------------------------------------------------------------------------------
@@ -340,46 +385,109 @@ instance PrettyPrintable (DG, F.Signature, V.Variables) where
           arr i = text "-->_" <> text (show i)
 
 -- utilities
-
+-- edg transformation
 data GroundContext = Hole | Fun F.Symbol [GroundContext]
-  deriving Eq
+  deriving (Eq,Show)
 
-match :: GroundContext -> Term -> Bool
-match c t = State.evalState match' ([(c, t)], [])
-    where match' = do (eqs, mergeqs) <- State.get
-                      if null eqs 
-                       then return $ State.evalState matchmerge mergeqs 
-                       else case head eqs of
-                             (Hole, _)                                          -> State.put (tail eqs, mergeqs) >> match'
-                             (Fun f ss, Term.Fun g ts) | f /= g                 -> return False
-                                                       | length ss /= length ts -> return False
-                                                       | otherwise              -> State.put (zip ss ts ++ tail eqs, mergeqs) >> match'
-                             (c', Term.Var x)                                   -> State.put (tail eqs, (c', x) : mergeqs) >> match'
-          matchmerge = do eqs <- State.get
-                          if null eqs 
-                           then return True 
-                           else do let (c', x) = head eqs
-                                       eqs' = tail eqs
-                                   case List.find ((== x) . snd) eqs' of
-                                     Nothing     -> State.put eqs' >> matchmerge
-                                     Just (d, y) -> case merge c' d of
-                                                     Nothing -> return False
-                                                     Just e  -> State.put ((e, x) : delete (d, y) eqs') >> matchmerge
-          merge Hole c'                                        = Just c'
-          merge c' Hole                                        = Just c'
-          merge (Fun f ss) (Fun g ts) | f /= g                 = Nothing
-                                      | length ss /= length ts = Nothing
-                                      | any (== Nothing) cs    = Nothing 
-                                      | otherwise              = Just $ Fun f cs'
+-- deleteAll :: Eq a => a -> [a] -> [a]
+-- deleteAll _ [] = []
+-- deleteAll a (b:bs) | a == b = deleteAll a bs
+--                    | otherwise = b : deleteAll a bs
+                                 
+matchEdg :: GroundContext -> Term -> Bool
+matchEdg c t = match' [(c, t)] []
+    where match' [] mergeqs = matchmergeEdg mergeqs
+          match' ((Hole,_) : eqs) mergeqs = match' eqs mergeqs
+          match' ((c', Term.Var x) : eqs) mergeqs = match' eqs ((c',x) : mergeqs)
+          match' ((Fun f ss, Term.Fun g ts) : eqs) mergeqs
+            | f /= g || length ss /= length ts = False
+            | otherwise = match' (zip ss ts ++ eqs) mergeqs
+
+matchmergeEdg :: [(GroundContext, V.Variable)] -> Bool
+matchmergeEdg [] = True
+matchmergeEdg ((c,x):eqs) = 
+  case List.find ((== x) . snd) eqs of
+    Nothing     -> matchmergeEdg eqs
+    Just (d, y) -> case merge c d of
+                  Nothing -> False
+                  Just e  -> matchmergeEdg ((e, x) : delete (d, y) eqs)
+  where merge Hole c' = Just c'
+        merge c' Hole = Just c'
+        merge (Fun f ss) (Fun g ts) 
+          | f /= g                 = Nothing
+          | length ss /= length ts = Nothing
+          | any (== Nothing) cs    = Nothing 
+          | otherwise              = Just $ Fun f cs'
               where cs  = zipWith merge ss ts
                     cs' = map fromJust cs
 
 
-etcap :: [Term] -> Term -> GroundContext
-etcap _ (Term.Var _)       = Hole
-etcap lhss (Term.Fun f ts) = if any (match c) lhss then Hole else c
-    where c = Fun f $ map (etcap lhss) ts
+etcapEdg :: [Term] -> Term -> GroundContext
+etcapEdg _ (Term.Var _)       = Hole
+etcapEdg lhss (Term.Fun f ts) = if any (matchEdg c) lhss then Hole else c
+    where c = Fun f $ map (etcapEdg lhss) ts
 
+rename :: [Term] -> V.VariableMonad [Term]
+rename ss = State.evalStateT (mapM rename' ss) Map.empty
+  where rename' v@(Term.Var _) = Term.Var `liftM` var v
+        rename' (Term.Fun f ts) = Term.Fun f `liftM` mapM rename' ts
+        freshVar = lift $ V.fresh "fresh"
+        var v  = do
+          m <- State.get 
+          case Map.lookup v m of
+            Just v' -> return v'
+            Nothing -> do 
+              v' <- freshVar
+              State.put (Map.insert v v' m)
+              return v'          
+
+-- renCap :: Prob.Strategy -> [Term] -> Term -> V.VariableMonad Term
+-- renCap strat lhss t = State.evalStateT (cap' t) Map.empty
+--   where cap' v@(Term.Var _) = var v
+--         cap' (Term.Fun f ts) 
+--           | replaceP f = freshVar
+--           | otherwise = Term.Fun f `liftM` mapM cap' ts
+
+--         replaceP f = any fOrVar [Term.root l | l <- lhss]
+--           where fOrVar (Left _) = True
+--                 fOrVar (Right g) | f == g = True
+--                                  | otherwise = False
+
+--         var v | strat /= Prob.Innermost = freshVar
+--               | otherwise = do
+--                 m <- State.get 
+--                 case Map.lookup v m of
+--                   Just v' -> return $ v'
+--                   Nothing -> do 
+--                          v' <- freshVar
+--                          State.put (Map.insert v v' m)
+--                          return v'
+                         
+--         freshVar = lift $ Term.Var `liftM` V.fresh "fresh"
+                
+icap :: [Term] -> [Term] -> [Term] -> Term -> V.VariableMonad Term          
+icap rs qs ss u = icap' u
+  where icap' t = 
+          case t of 
+            (Term.Var _) 
+              | all (`elem` qs) rs
+                && or [ t `Term.isSubtermOf` s | s <- ss] -> return t
+              | otherwise -> freshVar
+            (Term.Fun f ts) -> do 
+              t' <- Term.Fun f `liftM` mapM icap' ts
+              let matches = catMaybes [ (,) l `liftM` Sub.unify t' l | l <- rs]
+              if and [ any (not . isQNF) [ s | s <- [Sub.apply delta s | s <- ss] 
+                                                   ++ Term.immediateSubterms (Sub.apply delta l) ]
+                     | (l,delta) <- matches]
+               then return t'  
+               else freshVar
+                    
+        freshVar = Term.Var `liftM` V.fresh "fresh"
+        isQNF t = all not [ t `Sub.matches` q | q <- qs]
+
+----------------------------------------------------------------------
+--- pretty printing          
+        
 pprintNodeSet :: [NodeId] -> Doc
 pprintNodeSet ns = braces $ hcat $ punctuate (text ",") [ text $ show n | n <- ns]
   

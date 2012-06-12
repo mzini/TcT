@@ -155,7 +155,7 @@ instance T.Transformer RemoveTail where
                                     
                     
               mkPairs n = theSCC $ lookupNodeLabel' cwdg n
-              wdg   = estimatedDependencyGraph Edg prob
+              wdg   = estimatedDependencyGraph defaultApproximation prob
               cwdg  = toCongruenceGraph wdg
               sig   = Prob.signature prob
               vars  = Prob.variables prob
@@ -229,7 +229,7 @@ instance T.Transformer SimpRHS where
                             , srhsVars          = Prob.variables prob }
           strs  = Prob.strictTrs prob
           (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
-          wdg   = estimatedDependencyGraph Edg prob
+          wdg   = estimatedDependencyGraph defaultApproximation prob
           progr = any (\ (_,_,_,mr) -> isJust mr) elims
           elims = [(n, s, rule, elim n rule) | (n,(s,rule)) <- lnodes wdg]
             where elim n (Rule l r@(Term.Fun f rs)) 
@@ -304,6 +304,7 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
       text "We consider the (estimated) dependency graph" 
       $+$ text ""
       $+$ indent (pprint (dg, sig, vars))
+      $+$ paragraph "We estimate the application of rules based on the application of their predecessors as follows:"
       $+$ hcat [ let n = pprintNodeSet [skpNode s]
                  in text "- We remove" <+> n
                     <+> text "and add"
@@ -393,7 +394,7 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
      | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
      | otherwise = transform' mpinst
-    where wdg   = estimatedDependencyGraph Edg prob
+    where wdg   = estimatedDependencyGraph defaultApproximation prob
           selector :+: mpinst = T.transformationArgs inst
           strs  = Prob.strictTrs prob
           sdps  = Prob.strictDPs prob
@@ -541,7 +542,7 @@ instance T.Transformer Trivial where
      | cyclic    = return $ T.NoProgress proof
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
         where cyclic = any (isCyclicNode cwdg) (nodes cwdg)
-              wdg   = estimatedDependencyGraph Edg prob
+              wdg   = estimatedDependencyGraph defaultApproximation prob
               cwdg  = toCongruenceGraph wdg
               sig   = Prob.signature prob
               vars  = Prob.variables prob
@@ -609,7 +610,7 @@ instance T.Transformer RemoveInapplicable where
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RemoveInapplicableError $ NonDPProblemGiven
      | Trs.isEmpty removedRules = return $ T.NoProgress RemoveInapplicableFail
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
-        where wdg   = estimatedDependencyGraph Edg prob
+        where wdg   = estimatedDependencyGraph defaultApproximation prob
               sig   = Prob.signature prob
               vars  = Prob.variables prob
               constrs = Prob.constrs $ Prob.startTerms prob

@@ -310,17 +310,16 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
                        case Sub.unify t1 t2 of 
                          Just delta -> isQNF (Sub.apply delta s') && isQNF (Sub.apply delta u')
                          Nothing -> False
+                      qs = case Prob.strategy prob of 
+                               Prob.Innermost -> lhss
+                               _              -> []
+                      isQNF v = all not [ v `Sub.matches` l | l <- qs]                         
                   tcap <- icap lhss qs [s',u'] t'
                   case unifyNF tcap u' of 
                     False -> return $ False
                     True -> do 
-                      ucap <- icap rhss qs [] u'
+                      ucap <- icap rhss [] [] u'
                       return $ unifyNF ucap t'
-                     
-                  where qs = case Prob.strategy prob of 
-                               Prob.Innermost -> lhss
-                               _              -> []
-                        isQNF v = all not [ v `Sub.matches` l | l <- qs]
                             
               -- EdgStar -> fst $ Sig.runSignature (s `matchEdgStar` t) vs
               -- s `matchEdgStar` t = 

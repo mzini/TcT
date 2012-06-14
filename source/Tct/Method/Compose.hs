@@ -219,27 +219,23 @@ instance P.Processor p => T.TransformationProof (Compose p) where
       pprintTProof _ prob (tproof@(ComposeProof compfn split stricts rSubProof)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
-                        ++ pName ++ " to orient following rules strictly. "
-                        ++ "These rules were chosen according to '" ++ show split ++ "'.")
+                        ++ pName ++ " to orient following rules strictly.")
+                        -- ++ "These rules were chosen according to '" ++ show split ++ "'.")
              $+$ text ""
              $+$ pptrs "DPs" rDPs
              $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ paragraph ("The induced complexity on above rules is " 
-                            ++ show (pprint (P.answer rSubProof)) ++ ".")
+             $+$ paragraph ("The induced complexity on above rules (modulo remaining rules) is " 
+                            ++ show (pprint (P.answer rSubProof)) ++ ". These rules"
+                            ++ if compfn == Add 
+                                then "are moved into the corresponding weak component(s)."
+                                else "are removed. "
+                            ++ "The overall complexity is obtained by " ++ compName ++ ".")         
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""
-             $+$ text "The strictly oriented rules"
-             $+$ text ""
-             $+$ pptrs "DPs" rDPs
-             $+$ pptrs "Trs" rTrs
-             $+$ text ""                                    
-             $+$ if compfn == Add 
-                  then text "are moved into the corresponding weak components."
-                  else text "are removed."
-             $+$ paragraph( "The overall complexity is obtained by " ++ compName ++ ".")
-
+             $+$ text "We return to the main proof."
+             
         else if null stricts 
              then paragraph "We fail to orient any rules."
              else paragraph "We have tried to orient orient following rules strictly:"
@@ -255,7 +251,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   vars = Prob.variables prob
                   pName = "'" ++ P.instanceName (P.appliedProcessor rSubProof) ++ "'"
                   pptrs = pprintNamedTrs sig vars
-                  ppSubproof = P.pprintProof rSubProof P.ProofOutput
+                  ppSubproof = P.pprintProof (P.result rSubProof) P.ProofOutput
                   
       tproofToXml tinst _ proof = 
         ( "compose"

@@ -193,9 +193,9 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
       $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
       $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
       $+$ text ""
-      $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
-                     ++ show (cpRuleSelector tproof) ++ ","
-                     ++ " and closed under successors in the dependency graph.")
+      -- $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
+      --                ++ show (cpRuleSelector tproof) ++ "',"
+      --                ++ " and closed under successors in the dependency graph.")
       $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
       $+$ text ""
       $+$ block' "Problem (A)" [pprint (cpProbA tproof)]
@@ -210,14 +210,15 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
              pptrs = pprintNamedTrs sig vars
              maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
              maybePrintSub Nothing  _ = empty
-             maybePrintSub (Just p) n 
-               | P.succeeded p = text ""
-                                 $+$ paragraph ("TcT answers on problem (" ++ n ++ ") " 
-                                                ++ show (pprint (P.answer p)) ++ ".")
-                                 $+$ indent (P.pprintProof p P.ProofOutput) 
-               | otherwise     = paragraph ("Unfortnuately TcT could not construct a certificate for Problem ("
-                                            ++ show n ++ ").")
-                                 $+$ indent (P.pprintProof p P.ProofOutput)                                  
+             maybePrintSub (Just p) n = 
+               case P.succeeded p of 
+                 True -> text ""
+                         $+$ paragraph ("TcT answers on problem (" ++ n ++ ") " 
+                                        ++ show (pprint (P.answer p)) ++ ".")
+                 False -> paragraph ("Unfortnuately TcT could not construct a certificate for Problem ("
+                                     ++ show n ++ "). We abort.")
+               $+$ text ""
+               $+$ block' "Sub-proof" [P.pprintProof p P.ProofOutput]
 
     answer proof = 
       case tproof of 

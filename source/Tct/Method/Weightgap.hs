@@ -75,7 +75,7 @@ instance PrettyPrintable WeightGapProof where
   pprint (WeightGapProof e@Empty _) = P.pprintProof e P.ProofOutput
   pprint (WeightGapProof p growth)
       | P.succeeded p = paragraph (show $ text "The weightgap principle applies"
-                                          <+> parens (text "using a" <+> text intertitle))
+                                          <+> parens (text "using the following" <+> text intertitle))
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
       | otherwise     = text "The weightgap principle does not apply."

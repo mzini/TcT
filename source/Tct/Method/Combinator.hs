@@ -95,9 +95,9 @@ data TrivialProof = Succeeded
 
 instance P.ComplexityProof TrivialProof where 
     answer Succeeded     = P.yesAnswer
-    answer Failed        = P.NoAnswer
+    answer Failed        = P.MaybeAnswer
     answer (Empty True)  = P.CertAnswer $ certified (constant,constant)
-    answer (Empty False) = P.NoAnswer
+    answer (Empty False) = P.MaybeAnswer
     pprintProof Succeeded     _ = text "Success"
     pprintProof Failed        _ = text "Fail"
     pprintProof (Empty True)  _ = text "Empty rules are trivially bounded"

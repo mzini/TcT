@@ -165,6 +165,7 @@ module Tct.Instances
       -- ** Compose
     , Compose.compose
     , Compose.composeDynamic
+    , Compose.greedy      
     , ComposeRC.composeRC
     , Compose.ComposeBound (..)
     , ComposeRC.composeRCselect
@@ -443,8 +444,11 @@ te = try . exhaustively
 
 dc2011 :: P.InstanceOf P.SomeProcessor
 dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
-      where matrices simple c | simple = empty `Combinators.before` fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} | i <- [1..bound]]
-                              | otherwise = empty `Combinators.before` fastest [ matrix defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} | (i,j) <- zip [1..bound] [1..]]
+      where matrices simple c 
+              | simple = empty `Combinators.before` fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} 
+                                                            | i <- [1..bound]]
+              | otherwise = empty `Combinators.before` fastest [ matrix defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} 
+                                                               | (i,j) <- zip [1..bound] [1..]]
             bound       = 6
             direct      = matrices False NaturalMI.Algebraic
             insidewg    = matrices False NaturalMI.Algebraic

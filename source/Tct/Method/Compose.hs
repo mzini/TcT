@@ -30,6 +30,7 @@ module Tct.Method.Compose
          -- * Processor
        , composeProcessor
        , Compose
+       , greedy
        )
        where
 
@@ -84,7 +85,7 @@ progress p@(ComposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subpro
 
 
 instance (P.Processor p) => T.Transformer (Compose p) where
-    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg (Proc p)
+    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg Bool :+: Arg (Proc p)
     type ProofOf (Compose p)     = ComposeProof p
 
     name _              = "compose"
@@ -127,6 +128,13 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                             ] 
           }
       :+: 
+      opt { A.name = "greedy"
+          , A.defaultValue = False
+          , A.description = unwords 
+                            [ "Search to orient as many rules as possible by itterating the given subprocessor."
+                            ] 
+          }
+      :+: 
       arg { A.name = "subprocessor"
           , A.description = unlines [ "The processor applied on subproblem (A)."]
           }
@@ -134,18 +142,33 @@ instance (P.Processor p) => T.Transformer (Compose p) where
     transform inst prob = 
       case mreason of 
         Just reason -> return $ T.NoProgress $ Inapplicable reason
-        Nothing -> mkProof `liftM` P.solvePartial inst1 selector prob
-
-        where rs :+: compfn :+: inst1 = T.transformationArgs inst
+        Nothing -> do 
+          pp <- P.solvePartial inst1 (P.BigAnd [ rsSelect rs prob, selectForcedRules ]) prob
+          if P.failed pp || not greedy
+           then return $ mkProof pp
+           else mkProof `liftM` solveGreedy pp
+                
+        where rs :+: compfn :+: greedy :+: inst1 = T.transformationArgs inst
     
-              selector = P.BigAnd [ rsSelect rs prob, selectForcedRules ]
-                    
+              solveGreedy pp = do 
+                let selector = P.BigAnd $ 
+                               P.BigOr ([P.SelectDP r | r <- Trs.rules $ Prob.dpComponents prob
+                                                      , not $ r `elem` P.ppRemovableDPs pp ] 
+                                        ++ [P.SelectDP r | r <- Trs.rules $ Prob.trsComponents prob
+                                                         , not $ r `elem` P.ppRemovableTrs pp ] )
+                               : [P.SelectDP r | r <- P.ppRemovableDPs pp ] 
+                                 ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
+                pp' <- P.solvePartial inst1 selector prob
+                if P.succeeded pp' 
+                 then solveGreedy pp' 
+                 else return pp
+
               selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- Trs.rules forcedDps ] 
                                                ++ [P.SelectTrs r | r <- Trs.rules forcedTrs ]
                                     
               (forcedDps, forcedTrs) = 
                 case compfn of 
-                  Compose -> (fsi Prob.strictDPs, fsi Prob.strictTrs)
+                  Compose -> (fsi Prob.dpComponents, fsi Prob.trsComponents)
                     where fsi f = Trs.fromRules [ rule | rule <- Trs.rules (f prob)
                                                        , not (Rule.isNonSizeIncreasing rule)]
                   _       -> (Trs.empty,Trs.empty)
@@ -153,15 +176,15 @@ instance (P.Processor p) => T.Transformer (Compose p) where
               mreason 
                 | compfn /= Add 
                   && Trs.isDuplicating (Prob.allComponents prob) = Just "some rule is duplicating"
-                | compfn /= Add 
-                  &&  not (Trs.isNonSizeIncreasing $ Prob.weakComponents prob) = Just "some weak rule is size increasing"
+                -- | compfn /= Add 
+                --   &&  not (Trs.isNonSizeIncreasing $ Prob.weakComponents prob) = Just "some weak rule is size increasing"
                 | otherwise = 
                   case compfn of 
                     Add              -> Nothing
-                    Mult | sizeinc   -> Just "some strict rule is size increasing"
+                    Mult | sizeinc   -> Just "some rule is size increasing"
                          | otherwise -> Nothing
                     Compose          -> Nothing
-                where sizeinc = not $ Trs.isNonSizeIncreasing $ Prob.strictComponents prob
+                where sizeinc = not $ Trs.isNonSizeIncreasing $ Prob.allComponents prob
                                  
               mkProof pp 
                 | progress tproof = T.Progress tproof  (enumeration'  [sProb])
@@ -279,9 +302,12 @@ composeProcessor = T.Transformation ComposeProc
 -- /Complexity Bounds From Relative Termination Proofs/
 -- (<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>).
 compose :: (P.Processor p1) => ExpressionSelector -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: sub)
+compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: sub)
 
 -- | @composeDynamic == compose (selAnyOf selStricts)@.
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
 composeDynamic = compose (selAnyOf selStricts)
 
+greedy :: (P.Processor p1) => T.TheTransformer (Compose p1) -> T.TheTransformer (Compose p1)
+greedy tinst = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: True :+: sub)
+  where split :+: compfn :+: _ :+: sub = T.transformationArgs tinst

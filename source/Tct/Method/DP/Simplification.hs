@@ -103,15 +103,18 @@ data RemoveTailProof = RTProof { removables :: [(NodeId, DGNode)] -- ^ Tail Node
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
   pprintTProof _ _ (RTError e) _ = pprint e
-  pprintTProof _ _ p _ | null remls = text "No dependency-pair could be removed"
+  pprintTProof _ _ p _ | null remls = text "No weak dependency pair could be removed."
                        | otherwise  = 
-     text "We consider the the dependency graph"
+     text "We consider the (approximated) congruence graph"
      $+$ text ""
      $+$ indent (pprintCWDG cwdg sig vars ppLabel)
      $+$ text ""
-     $+$ paragraph "The following rules are part of trailing weak paths, and thus they can be removed:"
+     $+$ paragraph "and the following set of dependency pairs."
      $+$ text ""
      $+$ indent (pprintTrs ppRule remls)
+     $+$ text ""
+     $+$ paragraph ("The problem can be simplified by removing these pairs, "
+                    ++ "as they only occur in suffixes of paths through the dependency graph.")
      where vars          = variables p                              
            sig           = signature p
            cwdg          = cgraph p
@@ -321,23 +324,26 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
   pprintTProof _ _ p@(SimpKPPProof {}) _ = 
       ppSub 
       $+$ text ""
-      $+$ paragraph (show $ text "Processor" 
-                            <+> text pName 
-                            <+> text "induces the complexity certificate "
-                            <+> pprint ans
-                            <+> text "on application of rules" 
-                            <+> pprintNodeSet (Set.toList orientedNodes) <> text "."
-                            <+> text "Here rules are labeled according to the (estimated) dependency graph")
-      $+$ text ""
-      $+$ indent (pprint (dg, sig, vars))
-      $+$ text ""
-      $+$ ppPropagates orientedNodes sel
-      $+$ text ""
-      $+$ paragraph (show $ text "Overall, we obtain that"
-                            <+> text "the number of applications of rules" 
-                            <+> pprintNodeSet (Set.toList knownNodes)
-                            <+> text "is given by"
-                            <+> pprint ans <> text ".")
+      $+$ if null sel
+           then paragraph "The strictly oriented rules are moved into the corresponding weak component(s)."
+           else paragraph (show $ text "Processor" 
+                                   <+> text pName 
+                                   <+> text "induces the complexity certificate "
+                                   <+> pprint ans
+                                   <+> text "on application of rules" 
+                                   <+> pprintNodeSet (Set.toList orientedNodes) <> text "."
+                                   <+> text "Here rules are labeled according to the (estimated) dependency graph")
+                $+$ text ""
+                $+$ indent (pprint (dg, sig, vars))
+                $+$ text ""
+                $+$ ppPropagates orientedNodes sel
+                $+$ text ""
+                $+$ paragraph (show $ text "Overall, we obtain that"
+                                  <+> text "the number of applications of rules" 
+                                  <+> pprintNodeSet (Set.toList knownNodes)
+                                  <+> text "is given by"
+                                  <+> pprint ans <> text "."
+                                  <+> text "The rules are shifted into the corresponding weak component(s).")
     where vars  = skpVars p                              
           sig   = skpSig p
           dg    = skpDG p
@@ -360,7 +366,7 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
              $+$ text ""
              $+$ block' "Sub-proof" [P.pprintProof pproof P.ProofOutput]
 
-          ppPropagates _ [] = text ""
+          ppPropagates _ [] = PP.empty
           ppPropagates sofar ss =
             text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
                                     ++ "These cover all predecessors of " ++ (sns newnodes) ++ ", their complexity is equally bounded.")

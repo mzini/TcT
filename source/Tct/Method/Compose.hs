@@ -164,15 +164,15 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                       selector = P.BigAnd $ [ P.BigOr $ [P.SelectDP r | r <- remainingDPs] ++ [P.SelectTrs r | r <- remainingTrs] ]
                                             ++ [P.SelectDP r | r <- P.ppRemovableDPs pp ] ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
                 
-              selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- Trs.rules forcedDps ] 
-                                               ++ [P.SelectTrs r | r <- Trs.rules forcedTrs ]
+              selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- forcedDps ] 
+                                               ++ [P.SelectTrs r | r <- forcedTrs ]
                                     
               (forcedDps, forcedTrs) = 
                 case compfn of 
                   Compose -> (fsi Prob.dpComponents, fsi Prob.trsComponents)
-                    where fsi f = Trs.fromRules [ rule | rule <- Trs.rules (f prob)
-                                                       , not (Rule.isNonSizeIncreasing rule)]
-                  _       -> (Trs.empty,Trs.empty)
+                    where fsi f = [ rule | rule <- Trs.rules (f prob)
+                                         , not (Rule.isNonSizeIncreasing rule)]
+                  _       -> ([],[])
                                                                              
               mreason 
                 | compfn /= Add 
@@ -240,7 +240,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
           
       pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'compose' since " 
                                                             ++ reason ++ ".")
-      pprintTProof _ prob (tproof@(ComposeProof compfn split stricts rSubProof)) _ = 
+      pprintTProof _ prob (tproof@(ComposeProof compfn _ stricts rSubProof)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
                         ++ pName ++ " to orient following rules strictly.")
@@ -254,7 +254,11 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                             ++ if compfn == Add 
                                 then "are moved into the corresponding weak component(s)."
                                 else "are removed. "
-                            ++ "The overall complexity is obtained by " ++ compName ++ ".")         
+                            ++ "The overall complexity is obtained by " ++ compName ++ "."
+                            ++ case compfn of
+                                 Add -> ""
+                                 Mult -> " Note that all rules are non-size increasing."
+                                 Compose -> " Note that all strictly oriented rules are non-size increasing.")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""

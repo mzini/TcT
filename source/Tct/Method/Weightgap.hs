@@ -78,6 +78,8 @@ instance PrettyPrintable WeightGapProof where
                                           <+> parens (text "using the following" <+> text intertitle))
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
+                        $+$ text ""
+                        $+$ text "The on-oriented rules are covered by the weightgap condition."
       | otherwise     = text "The weightgap principle does not apply."
     where intertitle = case growth of
                          Just False -> "nonconstant growth matrix-interpretation"

@@ -37,6 +37,7 @@ module Tct.Method.Compose
 import Control.Monad (liftM)
 import Data.Typeable (Typeable)
 import Text.PrettyPrint.HughesPJ
+import qualified Text.PrettyPrint.HughesPJ as PP
 import Data.Typeable ()
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
@@ -249,16 +250,17 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ pptrs "DPs" rDPs
              $+$ pptrs "Trs" rTrs
              $+$ text ""
-             $+$ paragraph ("The induced complexity on above rules (modulo remaining rules) is " 
-                            ++ show (pprint (P.answer rSubProof)) ++ ". These rules "
-                            ++ if compfn == Add 
-                                then "are moved into the corresponding weak component(s)."
-                                else "are removed. "
-                            ++ "The overall complexity is obtained by " ++ compName ++ "."
-                            ++ case compfn of
-                                 Add -> ""
-                                 Mult -> " Note that all rules are non-size increasing."
-                                 Compose -> " Note that all strictly oriented rules are non-size increasing.")
+             $+$ paragraph ( show $ 
+                             text "The induced complexity on above rules (modulo remaining rules) is" 
+                             <+> pprint (P.answer rSubProof) <+> text "." 
+                             <+> if compfn == Add 
+                                  then text "These rules are moved into the corresponding weak component(s)."
+                                  else text "These rules are removed from the problem."
+                             <+> case compfn of
+                                   Add -> PP.empty 
+                                   Mult -> text "Note that all rules are non-size increasing."
+                                   Compose -> text " Note that all strictly oriented rules are non-size increasing."
+                             <+> text "The overall complexity is obtained by" <+> text compName <+> text ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]
              $+$ text ""
@@ -266,7 +268,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              
         else if null stricts 
              then paragraph "We fail to orient any rules."
-             else paragraph "We have tried to orient orient following rules strictly:"
+             else paragraph "We failed to orient at least the following rules strictly:"
                   $+$ text ""
                   $+$ pptrs "Strict Rules" (Trs.fromRules stricts)
             where compName = case compfn of 

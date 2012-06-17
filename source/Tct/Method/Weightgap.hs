@@ -79,7 +79,7 @@ instance PrettyPrintable WeightGapProof where
                         $+$ text ""
                         $+$ P.pprintProof p P.ProofOutput
                         $+$ text ""
-                        $+$ text "The on-oriented rules are covered by the weightgap condition."
+                        $+$ text "Further, it can be verified that all rules not oriented are covered by the weightgap condition."
       | otherwise     = text "The weightgap principle does not apply."
     where intertitle = case growth of
                          Just False -> "nonconstant growth matrix-interpretation"

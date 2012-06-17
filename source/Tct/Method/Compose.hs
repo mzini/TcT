@@ -144,25 +144,26 @@ instance (P.Processor p) => T.Transformer (Compose p) where
         Just reason -> return $ T.NoProgress $ Inapplicable reason
         Nothing -> do 
           pp <- P.solvePartial inst1 (P.BigAnd [ rsSelect rs prob, selectForcedRules ]) prob
-          if P.failed pp || not greedy
+          if P.failed (P.ppResult pp) || not grdy
            then return $ mkProof pp
            else mkProof `liftM` solveGreedy pp
                 
-        where rs :+: compfn :+: greedy :+: inst1 = T.transformationArgs inst
+        where rs :+: compfn :+: grdy :+: inst1 = T.transformationArgs inst
     
-              solveGreedy pp = do 
-                let selector = P.BigAnd $ 
-                               P.BigOr ([P.SelectDP r | r <- Trs.rules $ Prob.dpComponents prob
-                                                      , not $ r `elem` P.ppRemovableDPs pp ] 
-                                        ++ [P.SelectDP r | r <- Trs.rules $ Prob.trsComponents prob
-                                                         , not $ r `elem` P.ppRemovableTrs pp ] )
-                               : [P.SelectDP r | r <- P.ppRemovableDPs pp ] 
-                                 ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
-                pp' <- P.solvePartial inst1 selector prob
-                if P.succeeded pp' 
-                 then solveGreedy pp' 
-                 else return pp
-
+              solveGreedy pp 
+                | null (remainingDPs ++ remainingTrs) = return pp
+                | otherwise = do
+                  pp' <- P.solvePartial inst1 selector prob
+                  if P.succeeded $ P.ppResult pp' 
+                   then solveGreedy pp' 
+                   else return pp  
+                where remainingDPs = [r | r <- Trs.rules $ Prob.dpComponents prob
+                                        , not $ r `elem` P.ppRemovableDPs pp]
+                      remainingTrs = [r | r <- Trs.rules $ Prob.trsComponents prob
+                                        , not $ r `elem` P.ppRemovableTrs pp]
+                      selector = P.BigAnd $ [ P.BigOr $ [P.SelectDP r | r <- remainingDPs] ++ [P.SelectTrs r | r <- remainingTrs] ]
+                                            ++ [P.SelectDP r | r <- P.ppRemovableDPs pp ] ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
+                
               selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- Trs.rules forcedDps ] 
                                                ++ [P.SelectTrs r | r <- Trs.rules forcedTrs ]
                                     
@@ -249,7 +250,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
              $+$ pptrs "Trs" rTrs
              $+$ text ""
              $+$ paragraph ("The induced complexity on above rules (modulo remaining rules) is " 
-                            ++ show (pprint (P.answer rSubProof)) ++ ". These rules"
+                            ++ show (pprint (P.answer rSubProof)) ++ ". These rules "
                             ++ if compfn == Add 
                                 then "are moved into the corresponding weak component(s)."
                                 else "are removed. "

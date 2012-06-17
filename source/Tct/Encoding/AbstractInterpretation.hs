@@ -78,10 +78,11 @@ pprintOrientRules inter sig vars trs =
           , (AlignLeft, bs)
           , (AlignLeft, cs)]
   where (as, bs, cs) = unzip3 $ concatMap ppOrientRl (Trs.rules trs)
-        ppOrientRl r = [ (ppIntTerm (R.lhs r), text " = " , pprint (il, vars))
-                       , (empty              , text ord , pprint (ir, vars))
-                       , (empty              , text " = " , ppIntTerm (R.rhs r))
-                       , nl]
+        ppOrientRl r | '?' `elem` ord = []
+                     | otherwise = [ (ppIntTerm (R.lhs r), text " = " , pprint (il, vars))
+                                   , (empty              , text ord , pprint (ir, vars))
+                                   , (empty              , text " = " , ppIntTerm (R.rhs r))
+                                   , nl]
           where il = interpretTerm inter (R.lhs r)
                 ir = interpretTerm inter (R.rhs r)
                 nl = (text " ", text " ", text " ")

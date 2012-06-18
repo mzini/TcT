@@ -97,18 +97,18 @@ instance PrettyPrintable (MatrixOrder, Trs.Trs, V.Variables) where
               ppterm t = pprint (t, sig, var) <+> char '=' <+> pprint ((interpretTerm (ordInter order) t), var)
 
 instance ComplexityProof MatrixOrder where
-    pprintProof order _ = (if uargs order == fullWithSignature (signature $ ordInter order)
-                            then empty
-                            else paragraph "The following argument positions are usable:")
-                                 $+$ indent (pprint (uargs order, sig))
-                                 $+$ text ""
-                            $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
-                            $+$ text ""
-                            $+$ indent (pprint inter)
-                            $+$ text ""
-                            $+$ paragraph "This order satisfies following ordering constraints"
-                            $+$ text ""                            
-                            $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))
+    pprintProof order _ = if uargs order == fullWithSignature (signature $ ordInter order)
+                           then empty
+                           else paragraph "The following argument positions are usable:"
+                                $+$ indent (pprint (uargs order, sig))
+                                $+$ text ""
+                          $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
+                          $+$ text ""
+                          $+$ indent (pprint inter)
+                          $+$ text ""
+                          $+$ paragraph "This order satisfies following ordering constraints"
+                          $+$ text ""                            
+                          $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))
 
         where ppknd UnrestrictedMatrix            = "unrestricted matrix interpretation."
               ppknd (TriangularMatrix Nothing)    = "triangular matrix interpretation."

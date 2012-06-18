@@ -258,8 +258,8 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                                   else text "These rules are removed from the problem."
                              <+> case compfn of
                                    Add -> PP.empty 
-                                   Mult -> text "Note that all rules are non-size increasing."
-                                   Compose -> text " Note that all strictly oriented rules are non-size increasing."
+                                   Mult -> text "Note that no rule is size-increasing."
+                                   Compose -> text " Note that none of the weakly oriented rules is size-increasing."
                              <+> text "The overall complexity is obtained by" <+> text compName <+> text ".")
              $+$ text ""
              $+$ block' "Sub-proof" [ppSubproof]

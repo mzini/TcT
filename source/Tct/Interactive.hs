@@ -985,7 +985,7 @@ setIRC' :: IO ()
 setIRC' = setRC' >> setStrategy' Innermost
 
 setIDC' :: IO ()
-setIDC' = setDC' >> setStrategy' Full
+setIDC' = setDC' >> setStrategy' Innermost
         
                                   
 addRuleFromString' :: String -> IO ()

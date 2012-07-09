@@ -135,13 +135,26 @@
 		    <xsl:apply-templates select="subProofs/proofNode"/>
 		  </ruleShifting>
 		</complexityProof>
-	      </xsl:when>
+	      </xsl:when>	      
 	      <xsl:otherwise>
 		<xsl:call-template name="notCPF">
 		  <xsl:with-param name="reason">compose type not addition</xsl:with-param>
 		</xsl:call-template>
 	      </xsl:otherwise>
 	    </xsl:choose>
+	  </xsl:when>
+
+	  <xsl:when test="transformationProof/irr">
+	    <complexityProof>
+	      <removeNonApplicableRules>
+		<trs>
+		  <rules>
+		    <xsl:copy-of select="transformationProof/irr/removal/removed/rule"/>
+		  </rules>
+		</trs>
+		<xsl:apply-templates select="subProofs/proofNode"/>
+	      </removeNonApplicableRules>
+	    </complexityProof>
 	  </xsl:when>
 
 	  <xsl:otherwise>

@@ -60,6 +60,7 @@ module Tct.Instances
       -- Configuration parameters are collected in 'PolyOptions', supply 'defaultOptions'
       -- for using plynomial interpretations with default parameters.
     , poly
+    , polys
     , PolyOptions (..)
       -- | The shape of a polynomial influences the computed certificate, 
       -- but has also severe impacts on the time spend on proof search.
@@ -97,6 +98,7 @@ module Tct.Instances
     , step
     , upto
     , named
+    , bsearch
       
       -- ** Combinators Guiding the Proof Search
     , Combinators.before 
@@ -129,9 +131,13 @@ module Tct.Instances
       
       -- * Competition Strategies 
     , rc2011
-      -- | This processor reflects the runtime complexity strategy employed in the competition 2011.
+      -- | Runtime complexity strategy employed in the competition 2011.
     , dc2011
-      -- | This processor reflects the derivational complexity strategy employed in the competition 2011.
+      -- | Derivational complexity strategy employed in the competition 2011.
+    , rc2012
+      -- | Runtime complexity strategy employed in the competition 2012.
+    , dc2012
+      -- | Derivational complexity strategy employed in the competition 2012.
       
       -- * Transformations #MethodsTrans#
       -- | This section list all instances of 'Transformation'. A transformation 't' 
@@ -139,7 +145,9 @@ module Tct.Instances
       
       -- ** Lifting of Transformations to Processors
     , (T.>>|)    
-    , (T.>>||)      
+    , (>>!)          
+    , (T.>>||)
+    , (>>!!)                
       
       -- ** Combinators     
       -- | Following Combinators work on transformations.
@@ -148,6 +156,8 @@ module Tct.Instances
     , (TCombinator.<>)      
     , (TCombinator.<||>)            
     , TCombinator.exhaustively
+    , te
+    , when
     , TCombinator.idtrans
       
       -- ** Innermost Rule Removal
@@ -217,6 +227,8 @@ module Tct.Instances
     , DPSimp.simpKPOn
     , DPSimp.withKPOn
     , dpsimps
+    , toDP
+    , removeLeaf
     , DG.Approximation(..)
 
       
@@ -270,12 +282,17 @@ import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations ((>>|), (>>||))
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Method.TCombinator as TCombinator
-import Tct.Method.TCombinator ((>>>),(<>),try, exhaustively)
+import Tct.Method.TCombinator ((>>>),(<>),(<||>),try, exhaustively)
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
+import qualified Tct.Certificate as Cert
 
 import Termlib.Problem (Problem)
+import qualified Termlib.Problem as Prob
+import qualified Termlib.Trs as Trs
+
+import qualified Data.List as List
 
 -- TODO doc
 pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
@@ -285,6 +302,23 @@ pathAnalysis = PathAnalysis.pathAnalysis False
 linearPathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
 linearPathAnalysis = PathAnalysis.pathAnalysis True
 
+infixr 2 >>!
+infixr 2 >>!!
+
+-- | Similar to 'T.>>|' but checks if strict rules are empty
+(>>!) :: (P.Processor b, T.Transformer t) =>
+         T.TheTransformer t -> P.InstanceOf b -> P.InstanceOf P.SomeProcessor
+t >>! p = some $ t >>| (empty `Combinators.before` p )
+
+-- | Similar to 'T.>>||' but checks if strict rules are empty
+(>>!!) :: (P.Processor b, T.Transformer t) =>
+         T.TheTransformer t -> P.InstanceOf b -> P.InstanceOf P.SomeProcessor
+t >>!! p = some $ t >>|| empty `Combinators.before` p 
+
+-- | Transformation 'when b t' applies 't' only when 'b' holds
+when :: EQuantified inp (T.TheTransformer T.SomeTransformation) => Bool -> inp -> T.TheTransformer T.SomeTransformation
+when b t | b = some t
+         | otherwise = some TCombinator.idtrans
 
 -- | @
 -- step [l..u] trans proc
@@ -319,6 +353,33 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
     where subs = [ prc i | i <- [l..u] ]
 
 
+
+bsearch :: P.Processor proc => String -> (Maybe Int -> P.InstanceOf proc) -> P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))
+bsearch nm mkinst = bsearchProcessor `S.withArgs` ()
+  where bsearchProcessor = Custom.fromAction 
+                           Custom.Description { Custom.as = "bsearch-"++nm
+                                              , Custom.descr = []
+                                              , Custom.args = Unit }
+                           (const $ bsearch' mkinst)
+        bsearch' mk prob = 
+          do proof <- P.solve (mk Nothing) prob
+             case ub proof of 
+               Just 0 -> return proof
+               Just n -> search proof 0 (n - 1)
+               _      -> return proof
+            where search proof l u 
+                    | l > u = return proof
+                    | otherwise = 
+                      do let mean = floor $ fromIntegral (u + l) / (2 :: Double) 
+                         proof' <- P.solve (mk $ Just mean) prob
+                         case ub proof' of 
+                           Just n  -> search proof' l (n - 1)
+                           Nothing -> search proof (mean + 1) u
+                  ub proof = 
+                    case Cert.upperBound $ P.certificate proof of 
+                      Cert.Poly b -> b
+                      _           -> Nothing
+
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps   = try DPSimp.removeTails 
@@ -326,6 +387,33 @@ dpsimps   = try DPSimp.removeTails
             >>> try DPSimp.simpDPRHS 
             >>> try UR.usableRules
             >>> try DPSimp.trivial            
+-- | Tries dependency pairs with weightgap, otherwise uses dependency tuples. 
+-- Also employs simplifications, including (linear) path-analysis.
+toDP :: T.TheTransformer T.SomeTransformation
+toDP = try (timeout 5 dps <> dts) >>> simps
+  where dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
+        dts = DP.dependencyTuples
+        simps = te DPSimp.removeInapplicable
+                >>> te (DPSimp.simpKPOn RS.selStrictLeafs)
+                >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+                >>> try linearPathAnalysis 
+                >>> te DPSimp.simpKP
+                >>> try DPSimp.trivial                
+                >>> try DPSimp.simpDPRHS
+                >>> try UR.usableRules 
+        wgOnUsable = Compose.composeDynamic Compose.Add $ 
+                     weightgap defaultOptions { dim = 2
+                                              , degree = (Just 1)
+                                              , on = Weightgap.WgOnTrs }
+
+-- | removes leafs in the dependency graph, using knowledge-propagation
+-- and the given processor        
+removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
+removeLeaf p = 
+  p `DPSimp.withKPOn` RS.selAnyLeaf
+  >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+  >>> try UR.usableRules
+  >>> try DPSimp.trivial
 
 class IsDefaultOption a where
     defaultOptions :: a
@@ -378,6 +466,15 @@ instance IsDefaultOption PolyOptions where
                                , pcbits         = Just 3
                                , puseUsableArgs = True }
 
+-- | 'polys n' defines a suitable polynomial of degree 'n'
+polys :: Int -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)  
+polys 1 = poly linearPolynomial
+polys n = poly $ (customPolynomial inter) { pbits = 2, pcbits = Nothing }
+  where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs'] 
+                   | vs' <- List.subsequences vs
+                   , length vs <= n ]
+                   ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
+
 -- | Options for @simple@ polynomial interpretations.
 simplePolynomial :: PolyOptions
 simplePolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Simple }
@@ -418,27 +515,9 @@ poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
 poly p = NaturalPI.polyProcessor `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
 
 
--- * Competition Strategy 
+-- * Competition Strategies
 
-
-dos :: MatrixOptions
-dos   = defaultOptions { cbits = Just 4, bits = 3}
-
-lin :: MatrixOptions
-lin   = dos { dim = 1, degree = Just 1}
-
-quad :: MatrixOptions
-quad  = dos { dim = 2, degree = Nothing}
-
-cubic :: MatrixOptions
-cubic = dos { dim = 3, degree = Nothing}
-
-quartic :: MatrixOptions
-quartic = dos { dim = 4, degree = Nothing}
-
-quintic :: MatrixOptions
-quintic = dos { dim = 5, degree = Nothing}
-
+-- | Shorthand for 'try . exhaustively'
 te :: T.Transformer t => T.TheTransformer t -> T.TheTransformer (TCombinator.Try T.SomeTransformation)
 te = try . exhaustively
 
@@ -454,6 +533,14 @@ dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail str
             insidewg    = matrices False NaturalMI.Algebraic
             matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                           `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
+                          
+            dos   = defaultOptions { cbits = Just 4, bits = 3}
+            lin   = dos { dim = 1, degree = Just 1}
+            quad  = dos { dim = 2, degree = Nothing}
+            cubic = dos { dim = 3, degree = Nothing}
+            quartic = dos { dim = 4, degree = Nothing}
+            quintic = dos { dim = 5, degree = Nothing}
+                          
             wgs         = wg lin
                           <> wg quad
                           <> wg cubic
@@ -480,6 +567,11 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
           
           matchbounds = Timeout.timeout 5 (Bounds.bounds Bounds.Minimal Bounds.Match 
                                            `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match)
+                        
+          dos   = defaultOptions { cbits = Just 4, bits = 3}
+          lin   = dos { dim = 1, degree = Just 1}
+          quad  = dos { dim = 2, degree = Nothing}
+          cubic = dos { dim = 3, degree = Nothing}
           
           dp mkdp = mkdp
                      >>| UR.usableRules 
@@ -500,6 +592,200 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    -- elim     = P.someInstance (try dpsimp >>| directs `Combinators.before` insideDP) -- arrr
                    
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
+
+
+dc2012 :: P.InstanceOf P.SomeProcessor
+dc2012 = 
+  named "dc2012" $ 
+  ite (isDuplicating Strict) Combinators.fail $
+    try IRR.irr
+    >>| try Uncurry.uncurry
+    >>| dc2012' Combinators.best 
+  where dc2012' combinator = 
+          combinator [ some empty
+                     , some $ timeout 59 $ fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=NaturalMI.Algebraic} 
+                                                   | i <- [1..3] ]
+                     , some $ timeout 59 $ bsearch "matrix" (mmx 4)
+                     , some $ timeout 59 $ Combinators.iteProgress mxs (dc2012' fastest) empty
+                     , some $ timeout 59 $ del >>| dc2012' fastest
+                     , some $ timeout 10 matchbounds
+                     ]
+                      
+        matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
+                      `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
+
+        dos dimension degr = defaultOptions { cbits = Just (bits' + 1)
+                                            , bits = bits'
+                                            , cert = cert'
+                                            , dim = dim'
+                                            , degree = if dim' > deg' then Just deg' else Nothing }
+          where bits' | dimension <= 3 = 3
+                      | otherwise = 1
+                dim' = max 1 dimension
+                deg' = max 0 degr
+                cert' | deg' == 0 = NaturalMI.Algebraic
+                      | otherwise = NaturalMI.Automaton
+
+        whenNonTrivial t = withProblem $ \ prob ->
+          when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
+
+        wg dimension deg = Compose.composeDynamic Compose.Add $ weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
+                     
+        mx dimension deg = matrix $ dos dimension deg
+
+        mmx d Nothing  = mx d d
+        mmx d (Just i) = mx d i
+
+        mxs = te (cmp 1) 
+              >>> te (cmp 2)
+              >>> te (cmp 3) 
+              >>> te (cmp 4)
+              
+        cmp i = whenNonTrivial $ 
+                compAdd (mx i i)
+                <||> wg i i
+                <||> when (i < 4) (compAdd (mx (i + 1) i)
+                                   <||> wg (i+1) i)
+                <||> when (i < 3) (wg (i+2) 
+                                   i <||> compAdd (mx (i + 2) i))
+
+        del = whenNonTrivial $ 
+              compMul (mx 2 1) 
+              <> compMul (mx 3 2) 
+              <> compMul (mx 4 3)
+              <> compCom (mx 2 1) 
+              <> compCom (mx 3 2) 
+              <> compCom (mx 4 3)
+                
+        compAdd p = Compose.composeDynamic Compose.Add p
+        compMul p = Compose.greedy $ Compose.composeDynamic Compose.Mult p
+        compCom p = Compose.greedy $ Compose.composeDynamic Compose.Compose p        
+
+
+rc2012 :: P.InstanceOf P.SomeProcessor
+rc2012 = named "dc2012" $ 
+          withProblem $ \ prob -> 
+           case Prob.strategy prob of 
+             Prob.Innermost -> some rc2012RCi
+             _ -> some $ Combinators.iteProgress TOI.toInnermost rc2012RCi rc2012RC
+    
+  where wgOnUsable = Compose.composeDynamic Compose.Add $ 
+                     weightgap defaultOptions { dim = 2
+                                              , degree = (Just 1)
+                                              , on = Weightgap.WgOnTrs }
+                     
+        cleanTail = try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)                     
+          
+        matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
+                      `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
+                      
+        spopstar = PopStar.popstarSmallPS . Just                    
+
+        dos dimension degr = defaultOptions { cbits = Just (bits' + 1)
+                                            , bits = bits'
+                                            , cert = cert'
+                                            , dim = dim'
+                                            , degree = if dim' > deg' then Just deg' else Nothing }
+          where bits' | dimension <= 3 = 3
+                      | otherwise = 1
+                dim' = max 1 dimension
+                deg' = max 0 degr
+                cert' | deg' == 0 = NaturalMI.Algebraic
+                      | otherwise = NaturalMI.Automaton
+
+        wg dimension deg = Compose.composeDynamic Compose.Add $ weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
+                     
+        mx dimension deg = matrix $ dos dimension deg
+
+        whenNonTrivial t = withProblem $ \ prob ->
+          when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
+
+        isTrivialDP = 
+          te DPSimp.removeInapplicable
+          >>> te (DPSimp.simpKPOn RS.selStrictLeafs)
+          >>> try cleanTail 
+          >>> try DPSimp.trivial
+          >>| empty          
+
+        shiftLeafs = removeLeafs 0 <||> (removeLeafs 1 <> removeLeafs 2)
+        
+        removeLeafs 0 = exhaustively $ whenNonTrivial $ removeLeaf (mx 1 0)
+        removeLeafs i = removeLeaf (spopstar i) 
+                        <> (removeLeaf (mx i i) 
+                            <||> removeLeaf (mx (i + 1) i)
+                            <||> when (i == 2) (removeLeaf (polys 2)))
+
+        simps = te DPSimp.simpKP
+                >>> try DPSimp.removeTails
+                >>> try DPSimp.trivial
+                >>> try DPSimp.simpDPRHS
+                >>> try UR.usableRules 
+
+        basics = 
+          timeout 5 matchbounds 
+          `Combinators.orFaster` PopStar.popstarPS
+          `Combinators.orFaster` (te (Compose.composeDynamic Compose.Add (polys 3)
+                                      <||> Compose.composeDynamic Compose.Add (mx 3 3)
+                                      <||> Compose.composeDynamic Compose.Add (mx 4 3)                        
+                                      <||> Compose.composeDynamic Compose.Add (mx 4 4)) 
+                                  >>! PopStar.popstarPS)
+
+        directs = timeout 58 (te (compse 1)
+                              >>> te (compse 2)
+                              >>> te (compse 3)
+                              >>> te (compse 4)
+                              >>| empty)                           
+                  `Combinators.orBetter` timeout 5 matchbounds
+                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" PopStar.popstarSmallPS )
+                  `Combinators.orBetter` timeout 58 PopStar.popstarPS
+          
+          where compse i = withProblem $ \ prob ->
+                  when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
+                    Compose.composeDynamic Compose.Add (spopstar i) -- binary search auf grad
+                    <> (when (i == 2 || i == 3) (Compose.composeDynamic Compose.Add (polys i))
+                        <||> wg i i
+                        <||> Compose.composeDynamic Compose.Add (mx i i)
+                        <||> when (i < 4) (Compose.composeDynamic Compose.Add (mx (i + 1) i)))
+          
+        rc2012RC = 
+          Combinators.best [ some $ DP.dependencyPairs >>| isTrivialDP
+                           , some $ directs 
+                           , some $ Timeout.timeout 58 (dp >>| withProblem (rc2012DP 1))]
+          where dp = DP.dependencyPairs 
+                     >>> try UR.usableRules 
+                     >>> try wgOnUsable
+                     
+        rc2012RCi = 
+          try IRR.irr 
+          >>! Combinators.best [ some $ DP.dependencyTuples >>| isTrivialDP
+                               , some $ directs 
+                               , some $ timeout 58 rc2012DPi]
+          
+        rc2012DP i prob
+          | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi
+          | otherwise = some $ 
+                        te ( whenNonTrivial $ 
+                             when (i == 2 || i == 3) (cmp (polys i))
+                             <||> cmp (mx i i)
+                             <||> wg i i
+                             <||> when (i < 4) (cmp (mx (i+1) i) <||> wg (i + 1) i))
+                        >>| withProblem (rc2012DP (i + 1))
+                       
+          where cmp p = Compose.compose selStrictRule Compose.Add p
+                selStrictRule = RS.selAnyOf (RS.selStricts `RS.selInter` RS.selRules)
+
+        rc2012DPi = 
+          toDP >>!! te (withCWDG trans') >>! basics
+          where trans' cwdg 
+                  | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
+                  | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
+                removeFirstCongruence = 
+                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveBWith` proc >>> simps
+                  where proc = simps >>> te shiftLeafs >>! basics
+                cwdgDepth cwdg = maximum $ 0 : [ dp r | r <- DG.roots cwdg]
+                  where dp n = maximum $ 0 : [ 1 + dp m | m <- DG.successors cwdg n]
+
+                     
 
 
 

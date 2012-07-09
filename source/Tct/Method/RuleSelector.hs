@@ -47,6 +47,8 @@ module Tct.Method.RuleSelector
        , selAnd
        , selOr
         -- * Misc
+       , selAnyLeaf
+       , selStrictLeafs
        , selFirstAlternative         
        , rules
        , onSelectedRequire
@@ -183,6 +185,18 @@ selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from 
     where fn cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
               where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg
                                   , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
+
+selAnyLeaf :: ExpressionSelector
+selAnyLeaf = selAnyOf $ selFromCWDG "strict leaf in CWDG" sel
+  where sel cwdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- leafRules cwdg] }
+        leafRules cwdg = DG.allRulesFromNodes cwdg (DG.leafs cwdg)
+
+selStrictLeafs :: ExpressionSelector
+selStrictLeafs = selAllOf $ selFromWDG "all leaf rules from WDG" sel
+          where sel wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
+                  where stricts = [ (n,r) | (n,(DG.StrictDP,r)) <- DG.withNodeLabels' wdg (DG.nodes wdg)]
+                        rs = [ r | (n, r) <- stricts
+                                 , all (\ (m, (strictness, _)) -> n == m || strictness == DG.WeakDP) $ DG.withNodeLabels' wdg $ DG.reachablesDfs wdg [n] ]
 
 selAnyOf :: RuleSetSelector -> ExpressionSelector
 selAnyOf s = RuleSelector { rsName = "any " ++ rsName s

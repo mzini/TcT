@@ -69,6 +69,8 @@ import Tct.Method.Uncurry hiding (uncurry)
 import Tct.Method.Weightgap
 import Tct.Method.Timeout hiding (timeout)
 import Tct.Method.Mpo hiding (mpo)
+import qualified Tct.Instances as Inst
+import Tct.Method.Custom (asProcessor)
 
 -- generated: Fri Jan  6 13:08:14 JST 2012
 builtInProcessors :: P.AnyProcessor 
@@ -158,6 +160,16 @@ builtInProcessors =
     S.StdProcessor pathAnalysis
     P.<|>
     S.StdProcessor uncurry
+    P.<|>
+    Inst.rc2012 `asProcessor` "rc2012"
+    P.<|>
+    Inst.dc2012 `asProcessor` "dc2012"
+    P.<|>
+    Inst.certify2012 `asProcessor` "certify2012"
+    P.<|>
+    Inst.rc2011 `asProcessor` "rc2011"
+    P.<|>
+    Inst.dc2011 `asProcessor` "dc2011"
     P.<|>
     foldr (P.<|>) P.none Preds.predicateProcessors
 

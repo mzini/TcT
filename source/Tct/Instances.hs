@@ -138,6 +138,8 @@ module Tct.Instances
       -- | Runtime complexity strategy employed in the competition 2012.
     , dc2012
       -- | Derivational complexity strategy employed in the competition 2012.
+    , certify2012
+      -- | Strategy for certification employed in the competition 2012.
       
       -- * Transformations #MethodsTrans#
       -- | This section list all instances of 'Transformation'. A transformation 't' 
@@ -787,6 +789,27 @@ rc2012 = named "dc2012" $
 
                      
 
+certify2012 :: P.InstanceOf P.SomeProcessor
+certify2012 = some $ try IRR.irr >>| step [1..] (te . t) (const empty)
+  where t d = some $ Compose.composeDynamic Compose.Add (vmx d)
+                     -- <> composeDynamic Add (vps d)
+        vmx dim = matrix $ 
+                  defaultOptions { cbits = Just (bits + 1)
+                                 , bits = bits
+                                 , cert = NaturalMI.Triangular
+                                 , dim = dim
+                                 , useUsableArgs = False
+                                 , degree = Nothing }
+          where bits | dim <= 2 = 3
+                     | dim <= 4 = 2
+                     | otherwise = 1
+        vps 1 = poly linearPolynomial { puseUsableArgs = False }
+        vps n = poly (customPolynomial inter) { pbits = 2
+                                              , pcbits = Just 3
+                                              , puseUsableArgs = False }
+          where inter vs = [Poly.mono [(Poly.^^^) v 1 | v <- vs'] | vs' <- List.subsequences vs
+                                                   , length vs <= n]
+                           ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
 
 
 -- * existential quantification 

@@ -319,16 +319,6 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
   arguments _ = Unit
   
   transform tinst prob =
-    -- | not (parChoice t) = 
-    -- do r1 <- transform t1 prob
-    --    case r1 of 
-    --      Progress _ ps -> return $ Progress (ChoiceOne r1) ps
-    --      NoProgress _  -> 
-    --        do r2 <- transform t2 prob
-    --           return $ case r2 of 
-    --                     Progress _ ps -> Progress (ChoiceSeq r1 r2) ps
-    --                     NoProgress _  -> NoProgress (ChoiceSeq r1 r2)
-     -- | otherwise = 
          do rs <- P.evalList (parChoice t) (not . isProgress) [ Left `liftM` transform t1 prob
                                                   , Right `liftM` transform t2 prob]
             let toResult :: Either (Result t1) (Result t2) -> Result (t1 :<>: t2)

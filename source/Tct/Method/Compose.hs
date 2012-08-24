@@ -178,8 +178,6 @@ instance (P.Processor p) => T.Transformer (Compose p) where
               mreason 
                 | compfn /= Add 
                   && Trs.isDuplicating (Prob.allComponents prob) = Just "some rule is duplicating"
-                -- | compfn /= Add 
-                --   &&  not (Trs.isNonSizeIncreasing $ Prob.weakComponents prob) = Just "some weak rule is size increasing"
                 | otherwise = 
                   case compfn of 
                     Add              -> Nothing

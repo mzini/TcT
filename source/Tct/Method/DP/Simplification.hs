@@ -481,11 +481,6 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
                            progressed = not (Trs.isEmpty shiftWeak)
                            prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak)
                                         , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) }
-                    
-
-
-          
-
          
 
 simpKPProcessor :: T.Transformation (SimpKP P.AnyProcessor) P.AnyProcessor

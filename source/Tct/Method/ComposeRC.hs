@@ -193,9 +193,6 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
       $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
       $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
       $+$ text ""
-      -- $+$ paragraph ("These ruleset (A) was choosen by selecting function '" 
-      --                ++ show (cpRuleSelector tproof) ++ "',"
-      --                ++ " and closed under successors in the dependency graph.")
       $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
       $+$ text ""
       $+$ block' "Problem (A)" [pprint (cpProbA tproof)]

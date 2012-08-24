@@ -62,7 +62,7 @@ import Qlogic.PropositionalFormula
 import Qlogic.SatSolver ((:&:) (..), addFormula)
 import qualified Qlogic.SatSolver as S
 
-import Termlib.FunctionSymbol (Symbol, isMarked)
+import Termlib.FunctionSymbol (Symbol, isMarked, isCompound, arity)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
 import Termlib.Rule (lhs, rhs, Rule)
 -- import Termlib.Signature (runSignature)
@@ -80,7 +80,7 @@ import qualified Tct.Processor as P
 import Tct.Processor (ComplexityProof(..), Answer (..))
 import Tct.Processor.Orderings
 import Tct.Processor.Args
-import Tct.Processor.Args.Instances (nat, natToInt, Nat(..))
+import Tct.Processor.Args.Instances (nat, Nat(..))
 import qualified Tct.Processor.Args as A
 import Tct.Encoding.Relative hiding (trs)
 import qualified Tct.Encoding.ArgumentFiltering as AFEnc
@@ -89,8 +89,20 @@ import qualified Tct.Encoding.Precedence as PrecEnc
 -- import qualified Tct.Encoding.Relative as Rel
 import qualified Tct.Encoding.SafeMapping as SMEnc
 import Tct.Utils.PPrint (columns, Align (..), indent)
+
+
+allCompoundsMonadic :: Problem -> Bool
+allCompoundsMonadic prob = all ifCompoundMonadic [ root (rhs r) | r <- Trs.rules $ Prob.dpComponents prob]
+  where sig = Prob.signature prob
+        ifCompoundMonadic (Left _) = True
+        ifCompoundMonadic (Right f) 
+          | isCompound sig f = arity sig f <= 1
+          | otherwise = True
+
 --------------------------------------------------------------------------------
 --- proof object
+
+
 
 data OrdType = POP | SPOP | LMPO deriving (Typeable, Show, Eq)
 
@@ -185,11 +197,14 @@ instance ComplexityProof PopStarOrder where
             ub              = modifyUB $ maximum (0 : Map.elems (Prec.recursionDepth rs prec))
             (PrecEnc.RS rs) = popRecursives order
             prec            = popPrecedence order
-            modifyUB        = 
+            modifyUB d = 
               case popArgumentFiltering order of --TODO verify DP setting
-                Just af -> if hasProjection af then ((+) 1)  else id
-                Nothing -> id
-            sig = Prob.signature $ popInputProblem order
+                Just af | not $ hasProjection af -> d
+                        | allCompoundsMonadic prob -> max 1 d
+                        | otherwise -> max 1 (2 * d)
+                Nothing -> d
+            sig = Prob.signature prob
+            prob = popInputProblem order
             hasProjection af = AF.fold (\ sym filtering -> (||) (f sym filtering)) af False
               where f sym (AF.Projection _) | isMarked sig sym = True
                                             | otherwise        = False
@@ -438,17 +453,22 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           orientSelectedStrict (P.BigAnd es) = bigAnd [ orientSelectedStrict e | e <- es]
           orientSelectedStrict (P.BigOr es) = bigOr [ orientSelectedStrict e | e <- es]          
           
+          fs = Set.toList $ Trs.functionSymbols allrules
+          
+          nonCollapsingAf = bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
+          
           validArgumentFiltering = 
             return $ AFEnc.validSafeArgumentFiltering fs sig
                      && (case bnd of 
-                           Just (Nat 0) -> bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
+                           Just (Nat 0) -> nonCollapsingAf
                            _            -> top)
-            where fs = Set.toList $ Trs.functionSymbols allrules
           
           validPrecedence = 
-            liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds) ((maybeDecrease . natToInt) `liftM` bnd)
-            where maybeDecrease | allowAF = \ b -> max 0 (b - 1)
-                                | otherwise = id
+            liftSat (PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (adjustRecdepth `liftM` bnd))
+            where adjustRecdepth (Nat b) 
+                    | allCompoundsMonadic prob = b
+                    | allowAF = floor (fromIntegral b / 2 :: Double)
+                    | otherwise = b
                     
           validUsableRules = 
             liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
@@ -466,13 +486,16 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                                  , inFilterP     = if allowAF then AFEnc.isInFilter else const . const top
                                  , safeP         = \ f i -> not (defP f) || SMEnc.isSafeP f i
                                  , precGtP       = \ f g -> defP f && (not (defP g) || f `PrecEnc.precGt` g)
-                                 , precEqP       = \ f g -> (not (defP f) && not (defP g)) || (defP f && defP g && f `PrecEnc.precEq` g)
+                                 , precEqP       = \ f g -> not (compP f || compP g)
+                                                            && ((not (defP f) && not (defP g)) 
+                                                                || (defP f && defP g && f `PrecEnc.precEq` g))
                                  , allowMulRecP  = fm allowMR
                                  , allowPsP      = fm allowPS
                                  , weakSafeCompP = fm forceWSC
                                  , prodExtP      = fm forcePROD
                                  } 
                     defP f = fm $ f `Set.member` quasiDefineds
+                    compP f = fm $ isCompound sig f
                     -- markeds = Trs.definedSymbols dps
                     -- colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
                     --                                           then bot 

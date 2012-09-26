@@ -27,8 +27,6 @@ import Control.Concurrent (ThreadId, forkIO, myThreadId)
 import qualified Control.Exception as C
 import Text.PrettyPrint.HughesPJ
 import Control.Monad.RWS.Lazy hiding ((<>))
-import Data.UUID
-import System.UUID.V4
 import System.Locale 
 
 import Data.Time.Clock (getCurrentTime, picosecondsToDiffTime, UTCTime(..))
@@ -41,20 +39,19 @@ import Tct.Main.Debug
 import Tct.Processor as P
 
 -- add logging to solver monad
-data LoggingMsg = LoggingMsg UUID Message Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
+data LoggingMsg = LoggingMsg Message Int (Integer, ZonedTime) ThreadId (InstanceOf SomeProcessor) Problem 
 
 toSec :: Integer -> Double
 toSec i = fromInteger i / fromInteger ((10 :: Integer)^(12 :: Integer))
 
 instance PrettyPrintable LoggingMsg where 
-    pprint (LoggingMsg uid sig lv (cpuTime,time) thread inst prob) = 
+    pprint (LoggingMsg sig lv (cpuTime,time) thread inst prob) = 
         stars <+> ( heading 
                    $+$ properties 
                    $+$ text "" 
                    $+$ body 
                    $+$ text "")
         where heading = text (case sig of {SolveStart -> "START"; _ -> "FINISH"})
-                        <+> brackets ppId
                         <+> text "*" <> text (P.instanceName inst) <> text "*"
                         <+> text "@"
                         <+> text (show cpuTime_ms ++ "ms")
@@ -64,8 +61,6 @@ instance PrettyPrintable LoggingMsg where
               cpuTime_ms = round $ (fromInteger cpuTime  :: Double) / (10.0^(9 :: Int))
               stars = text [ '*' | _ <- [1..indent]] 
               indent = lv * 2 - 1 -- case sig of {SolveStart -> lv; _-> lv + 1}
-
-              ppId = text $ take 8 $ show $ uid
 
               timedoc = text ("<" ++ timestring ++ "." ++ picos ++ ">")
                   where picos = take 6 $ formatTime defaultTimeLocale "%q" time
@@ -95,7 +90,6 @@ instance PrettyPrintable LoggingMsg where
                                        , ("Start-Terms", case startTerms prob of 
                                                            TermAlgebra {} -> text $ "Terms"
                                                            BasicTerms {}  -> text $ "Basic")
-                                       , ("Id", ppId)
                                        , ("Clock", timedoc)]
 
 
@@ -111,11 +105,12 @@ data LSolverState st = LSolverState { subState  :: st
 
 
 initialState :: Handle -> st -> IO (LSolverState st)
-initialState h substate =  do t' <- getCurrentTime
-                              return $ LSolverState { subState = substate
-                                                    , level = 1
-                                                    , startTime = t' 
-                                                    , logHandle = h }
+initialState h substate =  
+  do t' <- getCurrentTime
+     return $ LSolverState { subState = substate
+                           , level = 1
+                           , startTime = t' 
+                           , logHandle = h }
 
 
 runLS :: Monad m => LoggingSolverM m r -> Chan (Maybe LoggingMsg) -> UTCTime -> Int -> m r
@@ -146,23 +141,22 @@ instance SolverM m => SolverM (LoggingSolverM m) where
                                                             hFlush handle
                                                             logThread
                                              Nothing -> putMVar mv ()
-                            run = const $ {- C.block $ -} runSolver (subState st) $ runLS m chan time (level st) -- MA:TODO:
+                            run = const $ runSolver (subState st) $ runLS m chan time (level st)
                         C.bracket (forkIO logThread) (const $ writeChan chan Nothing >> readMVar mv) run
                         
-    -- MA:TODO: check block/unblock
-    solve proc prob = do lv <- get 
-                         uid <- liftIO $ uuid
-                         put $ lv + 1
-                         sendMsg uid lv SolveStart
-                         r <- solve_ proc prob 
-                         sendMsg uid lv $ SolveFinish $ someProofNode proc prob r 
-                         return r
-        where sendMsg uid lv sig = do (chan, UTCTime day time) <- ask
-                                      liftIO $ do pid <- myThreadId
-                                                  cpuTime <- getCPUTime
-                                                  localtime <- utcToLocalZonedTime (UTCTime day (time + picosecondsToDiffTime cpuTime))
-                                                  let inst = (someInstance proc)
-                                                      msg = LoggingMsg uid sig lv (cpuTime, localtime) pid inst prob
-                                                  writeChan chan $ Just $ msg
-    -- MA:TODO provide logging
+    solve proc prob = 
+      do lv <- get 
+         put $ lv + 1
+         sendMsg lv SolveStart
+         r <- solve_ proc prob 
+         sendMsg lv $ SolveFinish $ someProofNode proc prob r 
+         return r
+        where sendMsg lv sig = 
+                do (chan, UTCTime day time) <- ask
+                   liftIO $ do pid <- myThreadId
+                               cpuTime <- getCPUTime
+                               localtime <- utcToLocalZonedTime (UTCTime day (time + picosecondsToDiffTime cpuTime))
+                               let inst = (someInstance proc)
+                                   msg = LoggingMsg sig lv (cpuTime, localtime) pid inst prob
+                               writeChan chan $ Just $ msg
     solvePartial = solvePartial_

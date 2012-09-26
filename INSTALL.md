@@ -13,7 +13,7 @@ Installation
 - The latest versions of packages 'parfold', 'qlogic' and 'termlib', available from 
   the [TcT subproject page](http://cl-informatik.uibk.ac.at/software/tct/projects/index.php).
   These packages are provided by the 
-  [TcT bundle](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-bundle-current.tar.gz).
+  [TcT bundle](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-current-bundle.tar.gz).
 
 Running
 -------
@@ -28,7 +28,7 @@ which contains all required packages not available on hackage.
 If you downloaded the bundle distribution, installation is as simple as:
 
     tar xvzf tct-bundle-current.tar.gz
-    cd tct-bundle
+    cd tct-<version>-bundle
     ./install.sh
 
 This will install TcT and its libraries under `~/.cabal`, the executable

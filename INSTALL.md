@@ -23,7 +23,7 @@ To run TcT, [Minisat version 2.2](http://minisat.se/MiniSat.html) is required.
 Installation
 ============
 The preferred way to install TcT is using the 
-[TcT bundle distribution](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-bundle-current.tar.gz), 
+[TcT bundle distribution](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-current-bundle.tar.gz), 
 which contains all required packages not available on hackage.
 If you downloaded the bundle distribution, installation is as simple as:
 

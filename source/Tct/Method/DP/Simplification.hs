@@ -27,6 +27,12 @@ module Tct.Method.DP.Simplification
        , removeTailProcessor
        , RemoveTail
          
+         -- * Remove Tails
+       , removeHeads
+       , RemoveHeadProof (..)
+       , removeHeadProcessor
+       , RemoveHead
+         
          -- * Simplify Dependency Pair Right-Hand-Sides
        , simpDPRHS
        , SimpRHSProof (..)
@@ -53,6 +59,9 @@ module Tct.Method.DP.Simplification
        , SimpKPProof (..)         
        , simpKPProcessor
        , SimpKP
+       , inline
+       , inlineProcessor
+       , Inline
        )
 where
 
@@ -67,8 +76,9 @@ import qualified Termlib.Signature as Sig
 import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
-import Termlib.Rule (Rule (..))
+import Termlib.Rule (Rule (..),)
 import qualified Termlib.Term as Term
+import qualified Termlib.Substitution as Subst
 import Termlib.Term (properSubterms, functionSymbols)
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs, pprintTrs)
@@ -88,6 +98,79 @@ import Tct.Method.RuleSelector as RS
 
 import qualified Data.Graph.Inductive.Graph as Graph
 
+
+
+----------------------------------------------------------------------
+-- Remove Head
+
+data RemoveHead = RemoveHead
+data RemoveHeadProof = RHProof { rhRemoveds   :: [(NodeId, DGNode)]
+                               , rhGraph     :: DG -- ^ Employed weak dependency graph.
+                               , rhSig       :: F.Signature
+                               , rhVars      :: V.Variables}
+                     | RHError DPError
+                       
+instance T.TransformationProof RemoveHead where
+  answer = T.answerFromSubProof
+  pprintTProof _ _ (RHError e) _ = pprint e
+  pprintTProof _ _ p _ | null rems = text "No dependency pair could be removed."
+                       | otherwise  = 
+     text "Consider the dependency graph"
+     $+$ text ""
+     $+$ indent (pprint (wdg, sig, vars))
+     $+$ text ""
+     $+$ paragraph ("Following roots of the dependency graph are removed, as the considered set of starting terms is closed under reduction with respect to these rules (modulo compound contexts).")
+     $+$ text ""
+     $+$ indent (pprintTrs ppRule [r | (_, (_, r)) <- rems])
+     $+$ text ""
+     where vars     = rhVars p                              
+           sig      = rhSig p
+           wdg      = rhGraph p
+           rems     = rhRemoveds p
+           ppRule r = pprint (r, sig, vars)
+
+instance T.Transformer RemoveHead where
+  name RemoveHead        = "removehead"
+  description RemoveHead = ["Removes roots from the dependency graph that lead to starting terms only."]
+  
+  type ArgumentsOf RemoveHead = Unit
+  type ProofOf RemoveHead = RemoveHeadProof
+  arguments RemoveHead = Unit
+  transform _ prob 
+     | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ RHError $ ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RHError $ NonDPProblemGiven
+     | null heads  = return $ T.NoProgress proof
+     | otherwise      = return $ T.Progress proof (enumeration' [prob'])
+        where wdg   = estimatedDependencyGraph defaultApproximation prob
+              sig   = Prob.signature prob
+              vars  = Prob.variables prob
+              st    = Prob.startTerms prob
+              ds    = Prob.defineds st
+              cs    = Prob.constrs st
+
+              heads = [(n,cn) | (n,cn@(_,rl)) <- withNodeLabels' wdg $ roots wdg
+                              , isBasicC $ rhs rl  ]
+              
+              isBasicC (Term.Var _) = True
+              isBasicC (Term.Fun f ts) 
+                   | F.isCompound sig f = all isBasicC ts
+                   | f `Set.member` ds  = Set.unions [Term.functionSymbols ti | ti <- ts ] `Set.isSubsetOf` cs
+                   | otherwise          = False
+
+              proof = RHProof { rhRemoveds = heads
+                              , rhGraph    = wdg
+                              , rhSig      = sig
+                              , rhVars     = vars }
+              prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ Trs.fromRules [ rl | (_,(StrictDP,rl)) <- heads]
+                           , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ Trs.fromRules [ rl | (_,(WeakDP,rl)) <- heads] }
+                
+
+removeHeadProcessor :: T.Transformation RemoveHead P.AnyProcessor
+removeHeadProcessor = T.Transformation RemoveHead
+
+-- | Removes unnecessary roots from the dependency graph.
+removeHeads :: T.TheTransformer RemoveHead
+removeHeads = T.Transformation RemoveHead `T.withArgs` ()
 
 ----------------------------------------------------------------------
 -- Remove Tail
@@ -640,3 +723,91 @@ removeInapplicableProcessor = T.Transformation RemoveInapplicable
 -- and there exists no incoming edge except from the same rule.
 removeInapplicable :: T.TheTransformer RemoveInapplicable
 removeInapplicable = T.Transformation RemoveInapplicable `T.withArgs` ()
+
+
+----------------------------------------------------------------------
+-- Inapplicable
+
+data Inline = Inline
+data InlineProof = InlineProof { ilSig :: F.Signature
+                               , ilVars :: V.Variables 
+                               , ilRewrites :: [(Rule, [Rule])]}
+                 | InlineProofError DPError
+                 | InlineProofInapplicable String
+                       
+instance T.TransformationProof Inline where
+  answer = T.answerFromSubProof
+  pprintTProof _ _ (InlineProofError e) _ = pprint e
+  pprintTProof _ _ (InlineProofInapplicable e) _ = text "No inlining can be performed:" <+> text e
+  pprintTProof _ _ p _ | null $ ilRewrites p = text "No dependency pair could be removed."
+                       | otherwise  = 
+     vcat [ text "We exhaustively inline calls in the right-hand side of" 
+            $+$ pprintTrs ppRule [ r | (r,_) <- ilRewrites p ] ]
+     where vars          = ilVars p
+           sig           = ilSig p                              
+           ppRule r = pprint (r, sig, vars)
+  
+  
+instance T.Transformer Inline where
+  name Inline        = "inline"
+  description Inline = [unwords [ ""] ]
+  
+  type ArgumentsOf Inline = Unit
+  type ProofOf Inline = InlineProof
+  arguments Inline = Unit
+  transform _ prob 
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ InlineProofError $ NonDPProblemGiven
+     | Prob.strategy prob /= Prob.Innermost = return $ T.NoProgress $ InlineProofInapplicable "Not an innermost problem."
+     | null rewrites = return $ T.NoProgress $ InlineProofInapplicable "No inlining possible."
+     | otherwise = return $ T.Progress proof (enumeration' [prob'])
+        where (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
+              vars  = Prob.variables prob
+              dps   = Trs.rules $ Prob.dpComponents prob
+              sdps  = Trs.rules $ Prob.strictDPs prob
+
+              rew t rl = do 
+                 sigma <- Subst.match t (lhs rl) Subst.empty
+                 return $ Subst.apply sigma (rhs rl)
+
+              rws t = case catMaybes [rew t dp | dp <- dps] of 
+                        [] -> [t]
+                        ts -> ts
+
+              rewrites' rl
+                   | progress = Just (rl, [rl { rhs = flatten r' } | r' <- rhss])
+                   | otherwise = Nothing
+                  where rs = case (rhs rl) of 
+                               Term.Fun c' ts 
+                                 | F.isCompound sig c' -> ts
+                               t              -> [t]
+                        progress = and [ rs' /= rs | rs' <- rhss]
+                        rhss = [rs' | rs' <- products $ map rws rs]
+              
+              rewrites = catMaybes [ rewrites' rl | rl <- sdps ] 
+
+              flatten rs = Term.Fun c $ concatMap f rs
+                  where f t@(Term.Fun c' ts) 
+                             | F.isCompound sig c' = ts
+                             | otherwise           = [t]
+                        f t = [t]
+
+              products [] = [[]]
+              products (xs:xss) = [ x:pxs | x <- xs, pxs <- products xss ]
+
+              replaceRules = Trs.fromRules . (concatMap f)
+                 where f rl = maybe [rl] id (lookup rl rewrites)
+
+              prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules sdps
+                                                     , Prob.signature = sig }
+              proof = InlineProof { ilSig = sig
+                                  , ilVars = vars
+                                  , ilRewrites = rewrites }
+                
+
+inlineProcessor :: T.Transformation Inline P.AnyProcessor
+inlineProcessor = T.Transformation Inline
+
+-- | Inlining of rules
+--  
+inline :: T.TheTransformer Inline
+inline = T.Transformation Inline `T.withArgs` ()

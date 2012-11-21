@@ -970,7 +970,7 @@ setStrategy' strat = resetInitialWith' (\ prob -> prob { strategy = strat})
 
 setRC' :: IO ()
 setRC' = resetInitialWith' f
-  where f prob = prob { startTerms = BasicTerms ds cs}
+  where f prob = prob { startTerms = BasicTerms ds cs, strategy = Full}
           where rs = Prob.allComponents prob
                 ds = Trs.definedSymbols rs
                 cs = Trs.constructors rs
@@ -1080,7 +1080,7 @@ apply a = app `Ex.catch`
                    anyChange = any changed [ fn' sn prob | (sn,prob) <- selected]
                    pt' = pt `modifyOpenWith` fn'
                    st' = st { proofTree = Just $ pt'}
-               pprintResult opens fn
+               -- pprintResult opens fn
                if anyChange
                 then putState st' 
                      >> if null (enumOpenFromTree pt')

@@ -107,7 +107,7 @@ instance PrettyPrintable DPProof where
                           $+$ ppTrs "Strict DPs" (strictDPs p)
                           $+$ ppTrs  "Weak DPs" (weakDPs p)
                           $+$ text ""
-                          $+$ paragraph "and replace the set of basic marked basic terms accordingly."
+                          $+$ paragraph "and mark the set of starting terms."
         where sig = newSignature p
               vars = newVariables p
               ppTrs = pprintNamedTrs sig vars

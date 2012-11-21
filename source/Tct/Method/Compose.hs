@@ -23,6 +23,7 @@ module Tct.Method.Compose
        (
          compose
        , composeDynamic
+       , composeStatic         
        , ComposeBound (..)
          -- * Proof Object
        , ComposeProof (..)
@@ -38,12 +39,12 @@ import Control.Monad (liftM)
 import Data.Typeable (Typeable)
 import Text.PrettyPrint.HughesPJ
 import qualified Text.PrettyPrint.HughesPJ as PP
-import Data.Typeable ()
+import Data.Maybe (fromMaybe)
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Transformations as T
 import Tct.Processor.Args
 import qualified Tct.Processor.Args as A
-import Tct.Utils.Enum (enumeration')
+import Tct.Utils.Enum (enumeration',enumeration,find)
 import qualified Tct.Utils.Xml as Xml
 import Tct.Utils.PPrint (block')
 import Tct.Processor.Args.Instances
@@ -74,6 +75,10 @@ data ComposeProof p = ComposeProof { proofBound          :: ComposeBound
                                    , proofSelector       :: ExpressionSelector
                                    , proofOrientedStrict :: [Rule.Rule]
                                    , proofSubProof       :: (P.Proof p) }
+                    | ComposeStaticProof { proofBound :: ComposeBound
+                                         , proofSelectedTrs :: Trs.Trs
+                                         , proofSelectedDPs :: Trs.Trs
+                                         , proofSubProblems :: (Problem, Problem)}
                     | Inapplicable String
 
 
@@ -82,11 +87,14 @@ progress Inapplicable {} = False
 progress p@(ComposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subproof
   where subproof = proofSubProof p
         stricts = Prob.strictComponents $ P.inputProblem $ subproof
+progress p@(ComposeStaticProof {}) = not (trivial sProb) && not (trivial rProb) 
+  where trivial = Trs.isEmpty . Prob.strictComponents
+        (sProb,rProb) = proofSubProblems p
 
 
 
 instance (P.Processor p) => T.Transformer (Compose p) where
-    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg Bool :+: Arg (Proc p)
+    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg Bool :+: Arg (Maybe (Proc p))
     type ProofOf (Compose p)     = ComposeProof p
 
     name _              = "compose"
@@ -136,37 +144,48 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                             ] 
           }
       :+: 
-      arg { A.name = "subprocessor"
+      opt { A.name = "subprocessor"
+          , A.defaultValue = Nothing
           , A.description = unlines [ "The processor applied on subproblem (A)."]
           }
 
     transform inst prob = 
-      case mreason of 
-        Just reason -> return $ T.NoProgress $ Inapplicable reason
-        Nothing -> do 
-          pp <- P.solvePartial inst1 (P.BigAnd [ rsSelect rs prob, selectForcedRules ]) prob
+      case (mreason, minst1) of 
+        (Just reason, _) -> return $ T.NoProgress $ Inapplicable reason
+        (_, Just inst1) -> do 
+          pp <- P.solvePartial inst1 sel prob
           if P.failed (P.ppResult pp) || not grdy
-           then return $ mkProof pp
-           else mkProof `liftM` solveGreedy pp
+           then return $ mkProof inst1 pp
+           else mkProof inst1 `liftM` solveGreedy inst1 pp
+        (_, Nothing) | progress tproof -> return $ T.Progress tproof (enumeration [('R', rProb), ('S',sProb)])
+                     | otherwise       -> return $ T.NoProgress tproof
+          where (rProb,sProb) = mkProb dps trs
+                (dps, trs) = rules sel
+                tproof = ComposeStaticProof { proofBound = compfn
+                                            , proofSelectedDPs = dps
+                                            , proofSelectedTrs = trs
+                                            , proofSubProblems = (rProb, sProb)}
                 
-        where rs :+: compfn :+: grdy :+: inst1 = T.transformationArgs inst
+        where rs :+: compfn :+: grdy :+: minst1 = T.transformationArgs inst
     
-              solveGreedy pp 
+              solveGreedy inst1 pp 
                 | null (remainingDPs ++ remainingTrs) = return pp
                 | otherwise = do
-                  pp' <- P.solvePartial inst1 selector prob
+                  pp' <- P.solvePartial inst1 sel' prob
                   if P.succeeded $ P.ppResult pp' 
-                   then solveGreedy pp' 
+                   then solveGreedy inst1 pp' 
                    else return pp  
                 where remainingDPs = [r | r <- Trs.rules $ Prob.dpComponents prob
                                         , not $ r `elem` P.ppRemovableDPs pp]
                       remainingTrs = [r | r <- Trs.rules $ Prob.trsComponents prob
                                         , not $ r `elem` P.ppRemovableTrs pp]
-                      selector = P.BigAnd $ [ P.BigOr $ [P.SelectDP r | r <- remainingDPs] ++ [P.SelectTrs r | r <- remainingTrs] ]
-                                            ++ [P.SelectDP r | r <- P.ppRemovableDPs pp ] ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
+                      sel' = P.BigAnd $ [ P.BigOr $ [P.SelectDP r | r <- remainingDPs] ++ [P.SelectTrs r | r <- remainingTrs] ]
+                                           ++ [P.SelectDP r | r <- P.ppRemovableDPs pp ] ++ [P.SelectTrs r | r <- P.ppRemovableTrs pp ]
                 
               selectForcedRules = P.BigAnd $ [P.SelectDP r | r <- forcedDps ] 
                                                ++ [P.SelectTrs r | r <- forcedTrs ]
+                                  
+              sel = P.BigAnd [ rsSelect rs prob, selectForcedRules ]
                                     
               (forcedDps, forcedTrs) = 
                 case compfn of 
@@ -186,11 +205,21 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                     Compose          -> Nothing
                 where sizeinc = not $ Trs.isNonSizeIncreasing $ Prob.allComponents prob
                                  
-              mkProof pp 
+              mkProof inst1 pp 
                 | progress tproof = T.Progress tproof  (enumeration'  [sProb])
                 | otherwise       = T.NoProgress tproof
-                where rDps = Trs.fromRules (P.ppRemovableDPs pp) `Trs.intersect` Prob.strictDPs prob
-                      rTrs = Trs.fromRules (P.ppRemovableTrs pp) `Trs.intersect` Prob.strictTrs prob
+                where (rProb, sProb) = mkProb (Trs.fromRules (P.ppRemovableDPs pp)) (Trs.fromRules (P.ppRemovableTrs pp))
+                      tproof = ComposeProof { proofBound = compfn 
+                                            , proofSelector = rs 
+                                            , proofOrientedStrict = Trs.rules (strictTrs rProb) ++ Trs.rules (strictDPs rProb)
+                                            , proofSubProof = P.Proof { P.inputProblem = rProb
+                                                                      , P.appliedProcessor = inst1
+                                                                      , P.result = P.ppResult pp }
+                                            }
+                  
+              mkProb dps trs = (rProb, sProb)
+                where rDps = dps `Trs.intersect` Prob.strictDPs prob
+                      rTrs = trs `Trs.intersect` Prob.strictTrs prob
                       sDps = Prob.strictDPs prob \\ rDps
                       sTrs = Prob.strictTrs prob \\ rTrs
                       
@@ -210,33 +239,38 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                                           , strictTrs  = sTrs
                                           , strictDPs  = sDps }                  
                                   
-                      tproof = ComposeProof { proofBound = compfn 
-                                            , proofSelector = rs 
-                                            , proofOrientedStrict = Trs.rules rTrs ++ Trs.rules rDps 
-                                            , proofSubProof = P.Proof { P.inputProblem = rProb
-                                                                      , P.appliedProcessor = inst1
-                                                                      , P.result = P.ppResult pp }
-                                            }
 
 instance P.Processor p => T.TransformationProof (Compose p) where
       answer proof = 
-        case T.subProofs proof  of 
-          [(_,sProof)] 
-            | success -> P.CertAnswer $ Cert.certified (Cert.constant, ub)
-              where tProof = T.transformationProof proof
-                    rProof = proofSubProof tProof
-                    
-                    success = progress tProof && P.succeeded sProof
-                    ub = 
-                      case proofBound tProof of 
-                        Add     -> rUb `Cert.add` sUb
-                        Mult    -> rUb `Cert.mult` sUb
-                        Compose -> rUb `Cert.mult` (sUb `Cert.compose` (Cert.poly (Just 1) `Cert.add` rUb))
-                    rUb = ubound rProof
-                    sUb = ubound sProof
-                    ubound p = Cert.upperBound $ certificate p                        
-          _  -> P.MaybeAnswer
-          
+        case tProof of 
+          ComposeStaticProof {} -> fromMaybe P.MaybeAnswer mans
+            where mans = do
+                    rProof <- find 'R' subproofs
+                    sProof <- find 'S' subproofs
+                    return $ P.CertAnswer $ cert rProof sProof
+          ComposeProof {} -> 
+            case subproofs of 
+              [(_,sProof)] 
+                | not success -> P.MaybeAnswer 
+                | otherwise   -> P.CertAnswer $ cert rProof sProof
+                where rProof = proofSubProof tProof
+                      success = progress tProof && P.succeeded sProof
+              _  -> P.MaybeAnswer
+          _ -> P.MaybeAnswer
+            
+        where tProof = T.transformationProof proof
+              subproofs = T.subProofs proof
+              cert :: (P.ComplexityProof p1, P.ComplexityProof p2) => p1 -> p2 -> Cert.Certificate
+              cert rProof sProof = Cert.certified (Cert.constant, ub)
+                where ub = case proofBound tProof of 
+                            Add     -> rUb `Cert.add` sUb
+                            Mult    -> rUb `Cert.mult` sUb
+                            Compose -> rUb `Cert.mult` (sUb `Cert.compose` (Cert.poly (Just 1) `Cert.add` rUb))
+                      rUb = ubound rProof
+                      sUb = ubound sProof
+                      ubound p = Cert.upperBound $ certificate p                        
+              
+
       pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'compose' since " 
                                                             ++ reason ++ ".")
       pprintTProof _ prob (tproof@(ComposeProof compfn _ stricts rSubProof)) _ = 
@@ -281,14 +315,35 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   pptrs = pprintNamedTrs sig vars
                   ppSubproof = P.pprintProof (P.result rSubProof) P.ProofOutput
                   
+      pprintTProof _ _ (tproof@(ComposeStaticProof compfn _ _ (rProb,sProb))) _ = 
+        if progress tproof 
+         then paragraph ("We analyse the complexity of following sub-problems (A) and (B):")
+             $+$ text ""
+             $+$ block' "Problem (A)" [pprint rProb]
+             $+$ text ""             
+             $+$ (case compfn of
+                     Add -> paragraph "Problem (B) is obtained from the input problem by shifting strict rules from (A) into the weak component:"
+                     Mult -> paragraph ("Observe that Problem (A) is non-size-increasing. "
+                                        ++ "Once the complexity of (A) has been assessed, it suffices "
+                                        ++ "to consider only rules whose complexity has not been estimated in (A) "
+                                        ++ "resulting in the following Problem (B). Overall the certificate is obtained by multiplication.")
+                     Compose -> paragraph ("Observe that weak rules from Problem (A) are non-size-increasing. "
+                                          ++ "Once the complexity of (A) has been assessed, it suffices "
+                                          ++ "to consider only rules whose complexity has not been estimated in (A) "
+                                          ++ "resulting in the following Problem (B). Overall the certificate is obtained by composition."))
+             $+$ block' "Problem (A)" [pprint rProb]
+             $+$ pprint sProb
+             
+         else text "No rule was selected."
+
       tproofToXml tinst _ proof = 
         ( "compose"
         , [ Xml.elt "composeBy" [] [Xml.text compName]
-          , Xml.elt "splitBy" [] [Xml.text $ show split]
-          , Xml.elt "rSubProof" [] 
-            [ case proof of 
-                 Inapplicable reason -> Xml.elt "inapplicable" [] [Xml.text reason]
-                 ComposeProof {} -> P.toXml $ proofSubProof proof]]
+          , Xml.elt "splitBy" [] [Xml.text $ show split]]
+          ++ case proof of 
+               Inapplicable reason -> [Xml.elt "rSubProof" [] [Xml.elt "inapplicable" [] [Xml.text reason]]]
+               ComposeProof {} -> [Xml.elt "rSubProof" [] [P.toXml $ proofSubProof proof]]
+               _ -> []
         )
         where split :+: compFn :+: _ = T.transformationArgs tinst
               compName = 
@@ -307,11 +362,15 @@ composeProcessor = T.Transformation ComposeProc
 -- /Complexity Bounds From Relative Termination Proofs/
 -- (<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>).
 compose :: (P.Processor p1) => ExpressionSelector -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: sub)
+compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: Just sub)
 
 -- | @composeDynamic == compose (selAnyOf selStricts)@.
 composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
 composeDynamic = compose (selAnyOf selStricts)
+
+-- | @composeStatic == compose (selAnyOf selStricts)@.
+composeStatic :: ExpressionSelector -> ComposeBound -> T.TheTransformer (Compose P.AnyProcessor)
+composeStatic split compfn = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: Nothing)
 
 greedy :: (P.Processor p1) => T.TheTransformer (Compose p1) -> T.TheTransformer (Compose p1)
 greedy tinst = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: True :+: sub)

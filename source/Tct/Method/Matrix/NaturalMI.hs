@@ -22,22 +22,24 @@ This module defines the processor for matrix.
 -}
 module Tct.Method.Matrix.NaturalMI where
 
-import Control.Monad (liftM)
+import Control.Monad (liftM,join)
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
 import Text.PrettyPrint.HughesPJ
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Qlogic.MiniSat (MiniSatLiteral, MiniSat)
+import Qlogic.MiniSat (MiniSatLiteral, MiniSat, MiniSatSolver)
 import Qlogic.Boolean
 import Qlogic.Diophantine
+import qualified Qlogic.Diophantine as Dio (propAtom)
 import Qlogic.Formula (Formula(..))
+import qualified Qlogic.MemoizedFormula as MForm
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 import qualified Qlogic.Assign as A
 import qualified Qlogic.NatSat as N
-import qualified Qlogic.SatSolver as SatSolver
+import Qlogic.SatSolver
 import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
@@ -49,6 +51,7 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Variable as V
+import qualified Termlib.ArgumentFiltering as AF
 
 import qualified Tct.Method.RuleSelector as RS
 import Tct.Certificate (poly, expo, certified, unknown)
@@ -58,6 +61,8 @@ import Tct.Encoding.Natring ()
 import Tct.Encoding.UsablePositions hiding (empty)
 import Tct.Method.Matrix.MatrixInterpretation as MI
 import Tct.Processor.Args
+import qualified Tct.Encoding.UsableRules as UREnc
+import qualified Tct.Encoding.ArgumentFiltering as AFEnc
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args.Instances
 import Tct.Processor.Args.Instances ()
@@ -66,6 +71,8 @@ import Tct.Utils.PPrint (indent)
 import qualified Tct.Processor as P
 import Tct.Processor (Answer(..), ComplexityProof(..))
 import qualified Tct.Processor.Standard as S
+
+import Debug.Trace 
 
 -- | This parameter defines the shape of the matrix interpretations, 
 -- and how the induced complexity is computed.
@@ -81,11 +88,14 @@ instance Show NaturalMIKind where
     show Automaton    = "automaton"
     show Unrestricted = "nothing"
 
-data MatrixOrder = MatrixOrder { ordInter :: MatrixInter Int
-                               , param    :: MatrixKind
-                               , miKind   :: NaturalMIKind
-                               , uargs    :: UsablePositions 
-                               , input    :: Prob.Problem } deriving Show
+data MatrixOrder = MatrixOrder { ordInter  :: MatrixInter Int
+                               , param     :: MatrixKind
+                               , miKind    :: NaturalMIKind
+                               , uargs     :: UsablePositions 
+                               , input     :: Prob.Problem 
+                               , argFilter :: Maybe AF.ArgumentFiltering
+                               , usymbols  :: [F.Symbol]
+                               } deriving Show
 
 data NaturalMI = NaturalMI deriving (Typeable, Show)
 
@@ -106,6 +116,14 @@ instance ComplexityProof MatrixOrder where
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
+                          $+$ (case maf of 
+                               Nothing -> empty
+                               Just af -> text "" 
+                                         $+$ paragraph "Further, following argument filtering is employed:"
+                                         $++$ (nest 1 . pprint $  af)
+                                         $++$ paragraph "Usable defined function symbols are a subset of:"
+                                         $++$ (nest 1 . pprint $ (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us])))
+                          $+$ text ""
                           $+$ paragraph "This order satisfies following ordering constraints"
                           $+$ text ""                            
                           $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))
@@ -125,9 +143,11 @@ instance ComplexityProof MatrixOrder where
               ppknd (ConstructorEda _ (Just n))   = "constructor-based matrix interpretation satisfying not(EDA) and not(IDA(" ++ show n ++ "))."
 
               inter = ordInter order
-              prob = input order
-              sig = Prob.signature prob
-              vars = Prob.variables prob
+              prob  = input order
+              sig   = Prob.signature prob
+              vars  = Prob.variables prob
+              maf   = argFilter order
+              us    = usymbols order
     
     answer order = CertAnswer $ certified (unknown, ub)
        
@@ -145,10 +165,11 @@ instance ComplexityProof MatrixOrder where
                    EdaMatrix (Just n) -> poly $ Just n
                    ConstructorEda _ Nothing -> poly $ Just $ dimension m
                    ConstructorEda _ (Just n) -> poly $ Just $ n                   
-    toXml (MatrixOrder ord knd _ uarg _) = 
+    -- TODO: include argfilter
+    toXml (MatrixOrder ord knd _ uarg _ _ _) = 
       Xml.elt "interpretation" [] (MI.toXml ord knd uarg)
 
-type MatrixOptions = Arg (EnumOf NaturalMIKind) :+: Arg (Maybe Nat) :+: Arg Nat :+: Arg Nat  :+: Arg (Maybe Nat)  :+: Arg (Maybe Nat) :+: Arg Bool
+type MatrixOptions = Arg (EnumOf NaturalMIKind) :+: Arg (Maybe Nat) :+: Arg Nat :+: Arg Nat  :+: Arg (Maybe Nat)  :+: Arg (Maybe Nat) :+: Arg Bool :+: Arg Bool
 matrixOptions :: MatrixOptions
 matrixOptions = 
   opt { A.name        = "cert"
@@ -202,6 +223,11 @@ matrixOptions =
       , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
                                 , "in order to relax the monotonicity constraints on the interpretation."]
       , A.defaultValue = True }
+  :+:
+  opt { A.name = "urules"
+      , A.description = unwords [ "This argument specifies whether usable rules modulo argument filtering is applied"
+                                , "in order to decreas the number of rules to orient. "]
+      , A.defaultValue = True }
 
 instance S.Processor NaturalMI where
     name NaturalMI = "matrix"
@@ -236,31 +262,34 @@ matrixProcessor = S.StdProcessor NaturalMI
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind
-kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
-kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
-kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
-kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
-kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> max 1 n) d)
-kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> max 1 n) d)
+kind (Unrestricted :+: _ :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) _                      = UnrestrictedMatrix
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
+kind (Algebraic    :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorBased cs (fmap (\ (Nat n) -> n) d)
+kind (Triangular   :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = TriangularMatrix (fmap (\ (Nat n) -> n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) (Prob.BasicTerms _ cs) = ConstructorEda cs (fmap (\ (Nat n) -> max 1 n) d)
+kind (Automaton    :+: d :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) Prob.TermAlgebra {}    = EdaMatrix (fmap (\ (Nat n) -> max 1 n) d)
 
 mikind :: Domains (S.ArgumentsOf NaturalMI) -> NaturalMIKind
-mikind (k :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) = k
+mikind (k :+: _ :+: _ :+: _ :+: _ :+: _ :+: _ :+: _) = k
 
 bound :: Domains (S.ArgumentsOf NaturalMI) -> N.Size
-bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
-                                                            Just (Nat b) -> N.Bits b
-                                                            Nothing      -> N.Bound bnd
+bound (_ :+: _ :+: _ :+: Nat bnd :+: mbits :+: _ :+: _ :+: _ ) = case mbits of
+                                                                   Just (Nat b) -> N.Bits b
+                                                                   Nothing      -> N.Bound bnd
 
 cbits :: Domains (S.ArgumentsOf NaturalMI) -> Maybe N.Size
-cbits (_ :+: _ :+: _ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
-                                                   return $ N.Bits n
+cbits (_ :+: _ :+: _ :+: _ :+: _ :+: b :+: _ :+: _) = do Nat n <- b
+                                                         return $ N.Bits n
 
 dim :: Domains (S.ArgumentsOf NaturalMI) -> Int
-dim (_ :+: _ :+: Nat d :+: _ :+: _ :+: _ :+: _) = d
+dim (_ :+: _ :+: Nat d :+: _ :+: _ :+: _ :+: _ :+: _) = d
 
 isUargsOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
-isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ua) = ua
+isUargsOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ua :+: _) = ua
+
+isUrulesOn :: Domains (S.ArgumentsOf NaturalMI) -> Bool
+isUrulesOn (_ :+: _ :+: _ :+: _ :+: _ :+: _ :+: _ :+: ur) = ur
 
 data MatrixDP = MWithDP | MNoDP deriving (Show,Eq)
 
@@ -283,6 +312,7 @@ kindConstraints (ConstructorEda cs mdeg) absmi =
         filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
 
 
+-- TODO: check in case of Weightgap
 solveConstraint :: P.SolverM m => 
                    Prob.Problem
                    -> UsablePositions 
@@ -293,31 +323,82 @@ solveConstraint :: P.SolverM m =>
                    -> m (OrientationProof MatrixOrder)
 solveConstraint prob ua mk sig mp constraints = 
   catchException $ 
-    do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= SatSolver.addFormula
+    do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= addFormula
            mi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int) 
        theMI <- P.minisatValue fml mi
        return $ case theMI of
                   Nothing -> Incompatible
-                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob Nothing []
                   
-formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
+formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatError (PropFormula MiniSatLiteral))
 formula fml = run $ toFormula Nothing 3 fml
-  where run :: MiniSat  r -> IO (Either SatSolver.SatError r)
-        run = SatSolver.runSolver
+  where run :: MiniSat  r -> IO (Either SatError r)
+        run = runSolver
 
 gt :: MatrixInter (DioPoly DioVar Int) -> Term -> Term -> DioFormula MiniSatLiteral DioVar Int 
 gt mi l r = interpretTerm mi l .>. interpretTerm mi r
 
-orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
-orient rs prob mp = 
-  solveConstraint prob ua mk sig mp $ 
-    orientationConstraints 
-    && dpChoice mdp st uaOn
-    && kindConstraints mk absmi
+solveConstraint' :: P.SolverM m => 
+                   Prob.Problem
+                   -> UsablePositions 
+                   -> MatrixKind
+                   -> F.Signature 
+                   -> Domains (S.ArgumentsOf NaturalMI) 
+                   -> MatrixDP
+                   -> Bool
+                   -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral
+                   -> DioFormula MiniSatLiteral DioVar Int
+                   -> m (OrientationProof MatrixOrder)
+solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
+    MWithDP -> solve initial mkOrder mform dform
+      where 
+        mkOrder (mv :&: af :&: us) =
+          MatrixOrder { ordInter  = fmap (\x -> x $ bound mp) mv
+                      , param     = mk 
+                      , miKind    = mikind mp 
+                      , uargs     = ua 
+                      , input     = prob 
+                      , argFilter = if allowAF then Just af else Nothing
+                      , usymbols  = us
+                      }
+        initial = absmi :&: AFEnc.initial sig :&: UREnc.initialUsables
+    MNoDP -> solve initial mkOrder mform dform
+      where
+        mkOrder (mv) =
+          MatrixOrder { ordInter  = fmap (\x -> x $ bound mp) mv
+                      , param     = mk
+                      , miKind    = mikind mp
+                      , uargs     = ua
+                      , input     = prob
+                      , argFilter = Nothing
+                      , usymbols  = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob
+                      }
+        initial = absmi
+    where 
+      absmi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int)
 
+      solve :: Decoder e a => P.SolverM m => e -> ( e -> MatrixOrder) -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral -> DioFormula MiniSatLiteral DioVar Int -> m (OrientationProof MatrixOrder)
+      solve initial mkOrder mform dform =
+        catchException $ do
+          let pform = do
+                pform1 <- MForm.toFormula mform
+                pform2 <- toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) dform
+                addFormula (pform1 && pform2)
+          mi <- P.minisatValue (pform) initial
+          return $ case  mi of
+            Nothing -> Incompatible
+            Just o -> Order $ mkOrder o
+
+
+orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
+orient rs prob mp = do
+    solveConstraint' prob ua mk sig mp mdp allowAF mform dform
     where ua = usableArgsWhereApplicable (mdp == MWithDP) sig st uaOn strat allrules
           mk = kind mp st
           uaOn = isUargsOn mp
+          allowUR = isUrulesOn mp && Prob.isDPProblem prob
+          allowAF = mdp == MWithDP && allowUR
+          -- TODO: applicable together with urArgs?
           d = dim mp
           mdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
                  then MWithDP
@@ -325,12 +406,27 @@ orient rs prob mp =
           sig   = Prob.signature prob
           st    = Prob.startTerms prob
           strat = Prob.strategy prob
+          trsrules = Prob.trsComponents prob  
+          dprules  = Prob.dpComponents prob  
           allrules = Prob.allComponents prob  
 
           absmi = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
+
+          --orientRules = bigAnd [not (usable r) || dioAtom (NotStrict r) || dioAtom (Strict r) | r <- Trs.rules allrules]
+          --orientationConstraints = weakOrientationConstraints && strictOrientationConstraints
+            --where
+              --weakOrientationConstraints = 
+                --bigAnd [dioAtom (NotStrict r) --> ((R.lhs r) `gte` (R.rhs r)) | r <- Trs.rules allrules]
+              --strictOrientationConstraints = 
+                --bigAnd [dioAtom (Strict r) --> ((R.lhs r) `gt` (R.rhs r)) | r <- Trs.rules allrules]
+              --gt  l r = interpretTerm absmi l .>. interpretTerm absmi r
+              --gte l r = interpretTerm absmi l .>=. interpretTerm absmi r
+
+          usable = if allowUR then UREnc.usablef Dio.propAtom prob else const top
                   
           orientationConstraints = 
-           bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules allrules]
+           bigAnd [usable (r) --> interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules trsrules]
+           && bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules dprules]
            -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
            && RS.onSelectedRequire rs (\ _ r -> strictVar r .>. SR.zero)
            where modify r inter = inter { constant = case constant inter of  
@@ -343,8 +439,50 @@ orient rs prob mp =
           dpChoice MNoDP   Prob.BasicTerms {}  True  = uargMonotoneConstraints ua absmi
           dpChoice MNoDP   Prob.BasicTerms {}  False = monotoneConstraints absmi
 
+          validUsableRules :: MForm.MemoFormula MatArg MiniSatSolver MiniSatLiteral
+          validUsableRules = MForm.liftSat $ MForm.toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered
+            where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
+                                   | otherwise = top
+
+
+          mform = validUsableRules
+          dform = (kind && dp && orientation && filtering)
+            where
+              kind        = kindConstraints mk absmi
+              dp          = dpChoice mdp st uaOn
+              orientation = orientationConstraints
+              filtering   = filteringConstraints allowAF prob absmi
+
+          
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
 instance PropAtom Strict
+
+data MatArg = Gt Term Term
+            | Gsq Term Term
+            | Eq Term Term
+              deriving (Eq, Ord, Show)
+
+filteringConstraints :: (Eq l, Ord l, Show a) => AbstrOrdSemiring a (DioFormula l DioVar Int) => Bool -> Prob.Problem -> MatrixInter a -> DioFormula l DioVar Int
+filteringConstraints allowAF prob absmi = 
+  if allowAF then bigAnd $ constraint allargs else top
+  where
+    args    = concatMap (\f -> zip (cycle [f]) [1..F.arity (Prob.signature prob) f])
+    allfs   = Set.toList $ Trs.functionSymbols $ Prob.allComponents prob
+    -- returns (Symbol i,j) for all symbols + arity - constants
+    allargs = args allfs
+
+    sig = Prob.signature prob
+
+    {-isNotZeroMatrix f i _ | trace ("notZero: " ++ show f ++ show i) False = undefined-}
+    isNotZeroMatrix f i absmi = fml
+      where
+        mx  = Map.lookup f (interpretations absmi) >>= \l -> Map.lookup (V.Canon i) (coefficients l)
+        fml = case mx of
+          Nothing -> error "Tct.Method.Matrix.NaturalMi.isInFilter: Undefined function index"
+          Just mx -> let entries = (\(n,m) -> [(i,j) | i <- [1 .. n], j <- [1 .. m]]) $ mdim mx in
+                    notZero mx entries
+        notZero mx es = bigOr $ map (\(i,j) -> entry i j mx .>. SR.zero) es
+    constraint allargs = map (\(f,i) -> ( Dio.propAtom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
@@ -426,7 +564,7 @@ data XdaVar = Gtwo Int Int Int Int
 instance PropAtom XdaVar
 
 dioAtom :: (PropAtom a, Eq l) => a -> DioFormula l DioVar Int
-dioAtom = A . PAtom . toDioVar
+dioAtom = A . PAtom . PA . toDioVar
 
 edaConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 edaConstraints mi = rConstraints mi && dConstraints mi && gtwoConstraints mi -- && goneConstraints mi
@@ -559,7 +697,7 @@ instance (AbstrOrd a b, MIEntry a) => AbstrOrd (LInter a) b where
   (LI lcoeffs lconst) .<=. (LI rcoeffs rconst) = bigAnd (Map.elems zipmaps) && lconst .<=. rconst
                                                  where zipmaps = Map.intersectionWith (.<=.) lcoeffs rcoeffs
 
-instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
+instance (Ord l, Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
   plus = N.mAddNO
   prod = N.mTimesNO
   zero = N.natToFormula 0
@@ -573,7 +711,7 @@ instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar 
   padFormTo n f = N.padBots (max n l - l) f
     where l = length f
 
-instance SatSolver.Decoder (MatrixInter (N.Size -> Int)) (N.PLVec DioVar) where
+instance Decoder (MatrixInter (N.Size -> Int)) (N.PLVec DioVar) where
   add (N.PLVec (DioVar y) k) mi = case cast y of
                                       Nothing -> mi
                                       Just x -> mi{interpretations = Map.adjust newli fun (interpretations mi)}

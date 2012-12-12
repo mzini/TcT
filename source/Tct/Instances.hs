@@ -436,6 +436,7 @@ data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind -- ^ define
                                    , cbits :: Maybe Int -- ^ number of bits used for intermediate results. The default is @Just 3@. If @Nothing@ is given then sizes of intermediate results are not restricted.
                                    , on :: Weightgap.WgOn -- ^ option solely for weightgap
                                    , useUsableArgs :: Bool -- ^ Defines whether monotonicity-constraints are weakened by taking usable argument positions into account. The default is @True@ 
+                                   , useUsableRules :: Bool -- ^ Defines wether usable rules modula argument filtering should be used. (only NaturalMI)
                                    }
 
 instance IsDefaultOption MatrixOptions where 
@@ -445,20 +446,22 @@ instance IsDefaultOption MatrixOptions where
                                    , bits   = 2
                                    , cbits  = Just $ 3
                                    , useUsableArgs = True
+                                   , useUsableRules = True
                                    , on            = Weightgap.WgOnAny }
 
 -- | This processor implements matrix interpretations.     
 matrix :: MatrixOptions -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
+matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
 
 -- | This processor implements arctic interpretations.
 arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
 arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
+-- TODO: check if urules are applicable
 -- | This processor implements the weightgap principle.   
 weightgap :: MatrixOptions -> P.InstanceOf (S.StdProcessor Weightgap.WeightGap)
-weightgap m = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: (useUsableArgs m))
+weightgap m = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
 
 -- * defaultPoly
 

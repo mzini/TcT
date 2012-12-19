@@ -72,8 +72,6 @@ import qualified Tct.Processor as P
 import Tct.Processor (Answer(..), ComplexityProof(..))
 import qualified Tct.Processor.Standard as S
 
-import Debug.Trace 
-
 -- | This parameter defines the shape of the matrix interpretations, 
 -- and how the induced complexity is computed.
 data NaturalMIKind = Algebraic -- ^ Count number of ones in diagonal to compute induced complexity function.
@@ -312,7 +310,6 @@ kindConstraints (ConstructorEda cs mdeg) absmi =
         filterFs fs = Map.filterWithKey (\f _ -> f `Set.member` fs)
 
 
--- TODO: check in case of Weightgap
 solveConstraint :: P.SolverM m => 
                    Prob.Problem
                    -> UsablePositions 
@@ -412,16 +409,6 @@ orient rs prob mp = do
 
           absmi = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
 
-          --orientRules = bigAnd [not (usable r) || dioAtom (NotStrict r) || dioAtom (Strict r) | r <- Trs.rules allrules]
-          --orientationConstraints = weakOrientationConstraints && strictOrientationConstraints
-            --where
-              --weakOrientationConstraints = 
-                --bigAnd [dioAtom (NotStrict r) --> ((R.lhs r) `gte` (R.rhs r)) | r <- Trs.rules allrules]
-              --strictOrientationConstraints = 
-                --bigAnd [dioAtom (Strict r) --> ((R.lhs r) `gt` (R.rhs r)) | r <- Trs.rules allrules]
-              --gt  l r = interpretTerm absmi l .>. interpretTerm absmi r
-              --gte l r = interpretTerm absmi l .>=. interpretTerm absmi r
-
           usable = if allowUR then UREnc.usablef Dio.propAtom prob else const top
                   
           orientationConstraints = 
@@ -468,12 +455,10 @@ filteringConstraints allowAF prob absmi =
   where
     args    = concatMap (\f -> zip (cycle [f]) [1..F.arity (Prob.signature prob) f])
     allfs   = Set.toList $ Trs.functionSymbols $ Prob.allComponents prob
-    -- returns (Symbol i,j) for all symbols + arity - constants
     allargs = args allfs
 
     sig = Prob.signature prob
 
-    {-isNotZeroMatrix f i _ | trace ("notZero: " ++ show f ++ show i) False = undefined-}
     isNotZeroMatrix f i absmi = fml
       where
         mx  = Map.lookup f (interpretations absmi) >>= \l -> Map.lookup (V.Canon i) (coefficients l)
@@ -482,7 +467,7 @@ filteringConstraints allowAF prob absmi =
           Just mx -> let entries = (\(n,m) -> [(i,j) | i <- [1 .. n], j <- [1 .. m]]) $ mdim mx in
                     notZero mx entries
         notZero mx es = bigOr $ map (\(i,j) -> entry i j mx .>. SR.zero) es
-    constraint allargs = map (\(f,i) -> ( Dio.propAtom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
+    constraint allargs = map (\(f,i) -> (Dio.propAtom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations

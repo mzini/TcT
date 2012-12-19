@@ -762,18 +762,18 @@ instance T.Transformer Inline where
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
         where (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
               vars  = Prob.variables prob
-              dps   = Trs.rules $ Prob.dpComponents prob
               sdps  = Trs.rules $ Prob.strictDPs prob
+              wdps  = Trs.rules $ Prob.weakDPs prob
 
               rew t rl = do 
                  sigma <- Subst.match t (lhs rl) Subst.empty
                  return $ Subst.apply sigma (rhs rl)
 
-              rws t = case catMaybes [rew t dp | dp <- dps] of 
-                        [] -> [t]
-                        ts -> ts
+              rws dps t = case catMaybes [rew t dp | dp <- dps] of 
+                           [] -> [t]
+                           ts -> ts
 
-              rewrites' rl
+              rewrites' dps rl
                    | progress = Just (rl, [rl { rhs = flatten r' } | r' <- rhss])
                    | otherwise = Nothing
                   where rs = case (rhs rl) of 
@@ -781,10 +781,11 @@ instance T.Transformer Inline where
                                  | F.isCompound sig c' -> ts
                                t              -> [t]
                         progress = and [ rs' /= rs | rs' <- rhss]
-                        rhss = [rs' | rs' <- products $ map rws rs]
+                        rhss = [rs' | rs' <- products $ map (rws dps) rs]
               
-              rewrites = catMaybes [ rewrites' rl | rl <- sdps ] 
-
+              rewritesStrict = catMaybes [ rewrites' (sdps ++ wdps) rl | rl <- sdps ] 
+              rewritesWeak   = catMaybes [ rewrites' wdps           rl | rl <- wdps ] 
+              rewrites = rewritesStrict ++ rewritesWeak
               flatten rs = Term.Fun c $ concatMap f rs
                   where f t@(Term.Fun c' ts) 
                              | F.isCompound sig c' = ts
@@ -794,10 +795,11 @@ instance T.Transformer Inline where
               products [] = [[]]
               products (xs:xss) = [ x:pxs | x <- xs, pxs <- products xss ]
 
-              replaceRules = Trs.fromRules . (concatMap f)
-                 where f rl = maybe [rl] id (lookup rl rewrites)
+              replaceRules rews = Trs.fromRules . (concatMap f)
+                 where f rl = maybe [rl] id (lookup rl rews)
 
-              prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules sdps
+              prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules rewritesStrict sdps 
+                                                     , Prob.weakDPs = replaceRules rewritesWeak wdps 
                                                      , Prob.signature = sig }
               proof = InlineProof { ilSig = sig
                                   , ilVars = vars

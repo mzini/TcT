@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {- | 
 Module      :  Tct.Encoding.UsableRules
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 
@@ -28,8 +29,6 @@ module Tct.Encoding.UsableRules
          -- usable.
        , initialUsables
          -- | Initial left-hand side roots symbols of usable rules.
-       , usablef
-         -- MS
        )
        where
 
@@ -55,25 +54,19 @@ data UsableAtom = UsableAtom Symbol
                      
 instance PropAtom UsableAtom 
 
-usablef :: Boolean b => (UsableAtom -> b) -> Problem -> Rule.Rule -> b
-usablef atomf prob | not (Prob.isDPProblem prob) = const top                      
-                   | otherwise                 = \ r -> usable' (root (Rule.lhs r))
-  where usable' (Right f) | f `Set.member` ds = top
-                          | otherwise         = atomf $ UsableAtom f
-        usable' _         = top
-        ds = case Prob.startTerms prob of 
-               st@Prob.BasicTerms {} -> Prob.defineds st
-               _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
-
-usable :: (Eq l, Ord l) => Problem -> Rule.Rule -> PropFormula l
+usable :: (NGBoolean b UsableAtom) => Problem -> Rule.Rule -> b
 usable prob | not (Prob.isDPProblem prob) = const top                      
             | otherwise                 = \ r -> usable' (root (Rule.lhs r))
-  where usable' (Right f) | f `Set.member` ds = top
-                          | otherwise         = propAtom $ UsableAtom f
-        usable' _         = top
-        ds = case Prob.startTerms prob of 
-               st@Prob.BasicTerms {} -> Prob.defineds st
-               _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
+  where 
+    usable' (Right f) 
+      | f `Set.member` ds = top
+      | otherwise         = atom $ UsableAtom f
+    usable' _         = top
+    ds = 
+      case Prob.startTerms prob of 
+        st@Prob.BasicTerms {} -> Prob.defineds st
+        _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
+
                   
 initialUsables :: [Symbol]
 initialUsables = []

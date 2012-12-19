@@ -32,7 +32,7 @@ import qualified Data.Set as Set
 import Qlogic.MiniSat (MiniSatLiteral, MiniSat, MiniSatSolver)
 import Qlogic.Boolean
 import Qlogic.Diophantine
-import qualified Qlogic.Diophantine as Dio (propAtom)
+import qualified Qlogic.Diophantine as Dio
 import Qlogic.Formula (Formula(..))
 import qualified Qlogic.MemoizedFormula as MForm
 import Qlogic.PropositionalFormula
@@ -409,7 +409,7 @@ orient rs prob mp = do
 
           absmi = abstractInterpretation mk d sig :: MatrixInter (DioPoly DioVar Int)
 
-          usable = if allowUR then UREnc.usablef Dio.propAtom prob else const top
+          usable = if allowUR then UREnc.usable prob else const top
                   
           orientationConstraints = 
            bigAnd [usable (r) --> interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules trsrules]
@@ -467,7 +467,7 @@ filteringConstraints allowAF prob absmi =
           Just mx -> let entries = (\(n,m) -> [(i,j) | i <- [1 .. n], j <- [1 .. m]]) $ mdim mx in
                     notZero mx entries
         notZero mx es = bigOr $ map (\(i,j) -> entry i j mx .>. SR.zero) es
-    constraint allargs = map (\(f,i) -> (Dio.propAtom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
+    constraint allargs = map (\(f,i) -> (atom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations

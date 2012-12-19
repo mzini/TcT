@@ -417,7 +417,10 @@ module Tct.Interactive
       -- The reason is that 'Instances.removeTails' is unsound if the strict trs
       -- from the problem is not empty. TcT will never apply processors in an unsound
       -- setting!
-
+      
+      -- | as 'proof', but output to given file
+    , writeProof
+      
       -- ** Extracting the State
       -- | Beside showing the current state and the proof constructed so far, 
       -- TcT-i also defines actions for extractions.
@@ -1096,13 +1099,13 @@ apply a = app `Ex.catch`
                     --                                            (Closed  _ _ p)                  = P.succeeded p
                     -- changed (Transformed progressed _ _ _ _) = progressed
  
-          pprintResult opens fn = 
-            pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])
-              where pp i sn prob = 
-                      heading ("Problem " ++ show i)
-                      $+$ case fn sn prob of 
-                             Nothing  -> text "The problem remains open"
-                             Just pt' -> U.pprint pt'
+          -- pprintResult opens fn = 
+          --   pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])
+          --     where pp i sn prob = 
+          --             heading ("Problem " ++ show i)
+          --             $+$ case fn sn prob of 
+          --                    Nothing  -> text "The problem remains open"
+          --                    Just pt' -> U.pprint pt'
                       -- indent (U.pprint (maybe (Open prob) id (fn sn prob)))
                       -- block' "Considered Problem"
                       -- [ text "We consider the following problem:"
@@ -1344,6 +1347,19 @@ proof = do st <- getState
           $+$ text ""
           $+$ nb "Use 'load <filename>' to load a new problem."
         ppTree pt = pprint pt
+
+writeProof :: FilePath -> IO ()
+writeProof fn = do
+  do st <- getState 
+     case proofTree st of 
+       Nothing -> ppEmpty
+       Just pt -> do 
+         writeFile fn (show $ U.pprint pt)
+         putStrLn $ "Written file " ++ fn
+  where ppEmpty = pprint $ 
+          text "No system loaded"
+          $+$ text ""
+          $+$ nb "Use 'load <filename>' to load a new problem."
 
 pprintIth :: String -> (p -> Doc) -> (Int,p) -> IO ()
 pprintIth nm pp (i,p) = pprint (text nm <+> text (show i) <> text ":"

@@ -27,7 +27,9 @@ module Tct.Encoding.ArgumentFiltering
       -- | The formula @isInFilter f i@ holds if the ith argument 
       -- filtering is in the filtering.
     , initial
-    -- | Initial argument filtering.
+      -- | Initial argument filtering.
+    , AFAtom(..)
+      -- MS
     )
 where
 

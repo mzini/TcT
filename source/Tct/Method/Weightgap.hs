@@ -100,7 +100,7 @@ instance S.Processor WeightGap where
            <> maybet wgBits (\ bnd -> text ", bits" <+> pprint bnd)
            <> maybet wgCbits (\ cbs -> text ", cbits" <+> pprint cbs)
            <> (if ua then PP.empty else text ", without usable arguments")
-      where  _ :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua = S.processorArgs inst
+      where  _ :+: _ :+: wgDeg :+: wgDim :+: _ :+: wgBits :+: wgCbits :+: ua :+: _ = S.processorArgs inst
              maybet Nothing  _ = PP.empty
              maybet (Just p) f = f p
   description WeightGap = [ "Uses the weight gap principle to shift some strict rules to the weak part of the problem." ]

@@ -28,6 +28,8 @@ module Tct.Encoding.UsableRules
          -- usable.
        , initialUsables
          -- | Initial left-hand side roots symbols of usable rules.
+       , usablef
+         -- MS
        )
        where
 
@@ -52,6 +54,16 @@ data UsableAtom = UsableAtom Symbol
             deriving (Eq, Ord, Show, Typeable)
                      
 instance PropAtom UsableAtom 
+
+usablef :: Boolean b => (UsableAtom -> b) -> Problem -> Rule.Rule -> b
+usablef atomf prob | not (Prob.isDPProblem prob) = const top                      
+                   | otherwise                 = \ r -> usable' (root (Rule.lhs r))
+  where usable' (Right f) | f `Set.member` ds = top
+                          | otherwise         = atomf $ UsableAtom f
+        usable' _         = top
+        ds = case Prob.startTerms prob of 
+               st@Prob.BasicTerms {} -> Prob.defineds st
+               _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
 
 usable :: (Eq l, Ord l) => Problem -> Rule.Rule -> PropFormula l
 usable prob | not (Prob.isDPProblem prob) = const top                      

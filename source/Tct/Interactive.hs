@@ -703,6 +703,7 @@ import qualified Termlib.Utils as U
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Repl as TRepl
 import qualified Termlib.Term.Parser as TParser
+import Termlib.Trs.PrettyPrint (pprintTrs)
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
@@ -723,10 +724,11 @@ import qualified Tct.Encoding.UsablePositions as UA
 import qualified Tct.Method.RuleSelector as RS
 
 import Data.Maybe (fromMaybe, isJust)
+import qualified Data.Set as Set
 import Data.Typeable (cast)
 import Data.List (partition)
 import Control.Concurrent (forkIO)
-import System.Directory (getCurrentDirectory)
+-- import System.Directory (getCurrentDirectory)
 import System.IO.Unsafe
 import System.Process (readProcess)
 import qualified Control.Exception as Ex
@@ -755,44 +757,49 @@ data ProofTree = Closed Problem (P.InstanceOf P.SomeProcessor) (P.ProofOf P.Some
                | Transformed Bool Problem (T.TheTransformer T.SomeTransformation) (T.ProofOf T.SomeTransformation) (Enumeration ProofTree)
                | Open Problem
                  
-instance U.PrettyPrintable ProofTree where
-  pprint = snd . traverse [1::Int]
-    where traverse as (Closed prob proc pproof) = 
-            (mans, ppNode as (P.instanceName proc) prob mans detail) 
-              where detail = P.pprintProof pproof P.ProofOutput
-                    mans   = Just (P.answer pproof)
-          
-          traverse as (Open prob) = 
-            (Nothing, ppNode as "Open Problem" prob Nothing empty)
-          
-          traverse as pt@(Transformed progressed prob tinst tproof ts) = 
-            (mans, ppNode as name prob mans ppProof)
-            where ass        = [as ++ [i] | i <- [1..]]
-                  ts'        = zip ass [ t | (_,t) <- ts]
-                  traverseds = [traverse as' t | (as',t) <- ts']
-                  isOpen = not $ all (isJust . fst) traverseds
-                  subPPs = [ pp | (_,pp) <- traverseds]
-                  name | progressed = T.instanceName tinst
-                       | otherwise  = T.instanceName tinst ++ " (without progress)"
-                  mans | isOpen    = Nothing
-                       | otherwise = Just (P.answer $ proofFromTree pt)
-                  ppProof = 
-                    T.pprintTProof tinst prob tproof P.ProofOutput
-                    $+$ text ""
-                    $+$ ppSubs
-                  ppSubs = vcat subPPs
 
-                    
-          ppNode :: [Int] -> String -> Problem -> Maybe P.Answer -> Doc -> Doc
-          ppNode as name prob manswer detail = 
-            heading (show $ ppNum as <+> text name <+> brackets ppAns)
-            $+$ text ""
-            $+$ indent (ppProb $+$ text "" $+$ detail)
-              where ppAns = maybe (text "OPEN") U.pprint manswer
-                    ppProb = 
-                      text "We consider the following problem:"
-                      $+$ indent (U.pprint prob)
-          ppNum as = hcat (punctuate (text ".") [text (show a) | a <- as]) <> text ")"
+pprintTreeWith :: ([Int] -> String -> Problem -> Maybe P.Answer -> Doc -> [Doc] -> Doc) -> ProofTree -> Doc  
+pprintTreeWith ppNode tree = snd $ traverse [1::Int] tree
+  where 
+    traverse as (Closed prob proc pproof) = 
+            (mans, ppNode as (P.instanceName proc) prob mans detail []) 
+       where 
+        detail = P.pprintProof pproof P.ProofOutput
+        mans   = Just (P.answer pproof)
+          
+    traverse as (Open prob) = (Nothing, ppNode as "Open Problem" prob Nothing empty [])
+          
+    traverse as pt@(Transformed progressed prob tinst tproof ts) = (mans, ppNode as name prob mans ppProof subPPs)
+       where 
+          ass        = [as ++ [i] | i <- [1..]]
+          ts'        = zip ass [ t | (_,t) <- ts]
+          traverseds = [traverse as' t | (as',t) <- ts']
+          isOpen = not $ all (isJust . fst) traverseds
+          subPPs = [ pp | (_,pp) <- traverseds]
+          name | progressed = T.instanceName tinst
+               | otherwise  = T.instanceName tinst ++ " (without progress)"
+          mans | isOpen    = Nothing
+               | otherwise = Just (P.answer $ proofFromTree pt)
+          ppProof = T.pprintTProof tinst prob tproof P.ProofOutput
+
+
+instance U.PrettyPrintable ProofTree where
+  pprint = pprintTreeWith ppNode 
+    where 
+      ppNode as name prob manswer detail subs = 
+        heading (show $ ppNum as <+> text name <+> brackets ppAns)
+        $+$ text ""
+        $+$ indent (ppProb 
+                    $+$ text "" 
+                    $+$ detail 
+                    $+$ text ""
+                    $+$ vcat subs)
+        where 
+          ppAns = maybe (text "OPEN") U.pprint manswer
+          ppProb = text "We consider the following problem:"
+                   $+$ indent (U.pprint prob)
+      ppNum as = hcat (punctuate (text ".") [text (show a) | a <- as]) <> text ")"
+
                   
 openFromTree :: ProofTree -> Enumeration Problem
 openFromTree = openFromTree' (SN (1::Int))
@@ -929,6 +936,7 @@ load' file =
          do ppwarns warns
             modifyState (\ _ -> ST { unselected = []
                                   , proofTree = Just $ Open prob} )
+            writeState
             return ()
   where ppwarns [] = return ()
         ppwarns ws = do putStrLn "Warnings:"
@@ -940,7 +948,10 @@ undo' =
   do STATE _ hst <- readIORef stateRef 
      case hst of 
        [] -> return False
-       (h:hs) -> writeIORef stateRef (STATE h hs) >> return True
+       (h:hs) -> do 
+         writeIORef stateRef (STATE h hs)
+         writeState
+         return True
 
 resetInitialWith' :: (Problem -> Problem) -> IO ()
 resetInitialWith' f = modifyState resetSt
@@ -1038,7 +1049,7 @@ instance Selector (Problem -> Bool) where
 -- enumOpenFromTree
 
 unselect :: Selector sel => sel -> IO ()
-unselect sel = modifyState select' >> printState
+unselect sel = modifyState select' >> printState >> writeState
   where select' st = 
           case proofTree st of 
             Nothing -> st
@@ -1057,6 +1068,7 @@ select sel = unselect $ SelectInv sel
 class Apply p where
   apply' :: p -> Enumeration Problem -> IO (SomeNumbering -> Problem -> Maybe ProofTree)
   
+  
 apply :: Apply p => p -> IO ()
 apply a = app `Ex.catch` 
            \ (Ex.SomeException e) -> 
@@ -1064,14 +1076,14 @@ apply a = app `Ex.catch`
                 pprint $ text ""
                 pprint $ text "Exception raised. Aborting..."
                 return ()
-    where app = 
-            do st <- getState  
-               case proofTree st of 
-                 Nothing -> 
-                   pprint (text "No system loaded"
-                           $+$ text ""
-                           $+$ nb "Use 'load <filename>' to load a new problem.")
-                 Just pt -> applyWithTree st pt
+    where app = do 
+            st <- getState  
+            case proofTree st of 
+              Nothing -> 
+                pprint (text "No system loaded"
+                        $+$ text ""
+                        $+$ nb "Use 'load <filename>' to load a new problem.")
+              Just pt -> applyWithTree st pt >> writeState
 
           applyWithTree st pt = 
             do fn <- apply' a selected
@@ -1295,12 +1307,12 @@ state :: IO ()
 state = printState             
 
 reset :: IO ()
-reset = resetInitialWith' id >> printState
+reset = resetInitialWith' id >> printState >> writeState
 
 undo :: IO ()
 undo = do undone <- undo' 
           if undone 
-            then printState
+            then printState >> writeState
             else pprint $ text "Nothing to undo"
 
 setRC :: IO ()
@@ -1375,12 +1387,7 @@ problems =
 wdgs' :: IO [DG.DG]
 wdgs' = 
   do probs <- problems'
-     let dgs = [ (DG.estimatedDependencyGraph DG.defaultApproximation prob
-                 , Prob.signature prob 
-                 , Prob.variables prob) 
-               | prob <- probs ]
-     _ <- forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
-     return [dg | (dg,_,_) <- dgs]
+     return $ [DG.estimatedDependencyGraph DG.defaultApproximation prob | prob <- probs]
           
 wdgs :: IO [DG.DG]   
 wdgs = do probs <- problems'
@@ -1388,10 +1395,7 @@ wdgs = do probs <- problems'
                        , Prob.signature prob 
                        , Prob.variables prob) 
                     | prob <- probs ]
-          fn <- getCurrentDirectory          
-          _ <- forkIO (DG.saveGraphViz dgs "dg.svg" >> return ())
           mapM_ (pprintIth "Weak Dependency Graph of Problem" U.pprint) $ zip [1..] dgs
-          putStrLn $ "\nsee also '" ++ fn ++ "/dg.svg'.\n"
           return [dg | (dg,_,_) <- dgs]
 
 cwdgs :: IO [DG.CDG]
@@ -1446,3 +1450,128 @@ ruleFromString str prob = do pprint rl
   where ((_,rl),prob') = TRepl.parseFromString TParser.rule str prob
         
 
+----------------------------------------------------------------------------
+--- org-output
+
+orgDoc :: Doc -> Doc
+orgDoc pp = 
+  modeLine
+  $+$ orgLines
+  $+$ text ""
+  $+$ pp
+  where 
+    modeLine = text ";; -*- mode: org-mode; eval: (progn (auto-revert-mode 1) (org-display-inline-images) (add-hook 'after-revert-hook 'org-display-inline-images) (setq auto-revert-interval 1)) -*-"
+    orgLines = text "#+STARTUP: hidestars"
+               $+$ text "#+STARTUP: contents"                 
+               $+$ text "#+STARTUP: inlineimages"
+    
+writeState :: IO ()  
+writeState = do 
+  st <- getState  
+  case proofTree st of 
+    Nothing -> return ()
+    Just pt -> do 
+      writePT `Ex.catch` \ (Ex.SomeException _) -> return ()
+      writeDGs `Ex.catch` \ (Ex.SomeException _) -> return ()
+      writeST `Ex.catch` \ (Ex.SomeException _) -> return ()
+      where 
+        opens = [ ( i
+                  , sn 
+                  , "./dg" ++ (show i) ++ ".svg"
+                  , prob
+                  , Prob.signature prob   
+                  , Prob.variables prob
+                  , DG.estimatedDependencyGraph DG.defaultApproximation prob )
+                | (i,(sn,prob)) <- enumOpenFromTree pt ]
+        (_,selecteds) = partition (\ (_,sn,_,_,_,_,_) -> isUnselected st sn) opens
+        
+        writePT = writeFile "proof.org" (show $ orgDoc $ ppTree)
+        writeST = writeFile "state.org" (show $ orgDoc $ ppST)
+        writeDGs = mapM_ ppDG opens
+          where 
+            ppDG (_,_,fn,_,sig,vars,dg) = do
+            _<- forkIO (DG.saveGraphViz [(dg,sig,vars)] False fn >> return ())
+            return ()
+            
+        ppTree = pprintTreeWith ppNode pt
+          where 
+            ppNode as name prob manswer detail subs = 
+              (ppStars as <+> text name <+> text "\t\t" <+> tag (ppAns manswer))
+              $+$ ppProb 
+              $+$ text ""
+              $+$ ppDetail
+              $+$ text ""
+              $+$ vcat subs
+              where 
+                ppProb = 
+                  ppStars' as
+                  <+> (text "Input System"
+                       $+$ ppProps (Just as) prob manswer
+                       $+$ pptrs "+ Strict DPs" prob Prob.strictDPs 
+                       $+$ pptrs "+ Weak DPs" prob Prob.weakDPs
+                       $+$ pptrs "+ Strict Rules" prob Prob.strictTrs
+                       $+$ pptrs "+ Weak Rules" prob Prob.weakTrs)                  
+                ppDetail = 
+                  ppStars' as <+> (text "Details"
+                                   $+$ detail)
+          
+            ppStars ls = text (take (length ls) (repeat '*'))
+            ppStars' ls = ppStars ls <> text "*" 
+            bold p = text "*" <> p <> text "*"    
+            tag p = text ":" <> p <> text ":"                
+            ppAns manswer = maybe (text "OPEN") U.pprint manswer
+
+        ppST = 
+          vcat [ (text "* Problem" <+> text (show i) <> text ":")
+                 $+$ indent ( ppProps Nothing prob Nothing
+                              $+$ text ""
+                              $+$ text ("[[" ++ fn ++ "]]"))
+                 $+$ text ""
+                 $+$ ppdps "** Strict DPs" dg sig vars DG.StrictDP
+                 $+$ ppdps "** Weak DPs" dg sig vars DG.WeakDP
+                 $+$ pptrs "** Strict Rules" prob Prob.strictTrs
+                 $+$ pptrs "** Weak Rules" prob Prob.weakTrs                            
+               | (i,_,fn,prob,sig,vars,dg) <- selecteds]
+
+        ppProps :: Maybe [Int] -> Prob.Problem -> Maybe P.Answer -> Doc
+        ppProps mas prob manswer =  
+          text ":PROPERTIES:"
+          $+$ ppProp "PROOFSTEP" (maybe (text "?") ppNum mas)
+          $+$ ppProp "ANSWER" ppAns
+          $+$ ppProp "STRATEGY" ppStrat
+          $+$ ppStartTerms
+          $+$ text ":END:"
+          where 
+            ppAns = maybe (text "OPEN") U.pprint manswer
+            ppNum as = hcat (punctuate (text ".") [text (show a) | a <- as])
+            ppProp n pp = text ":" <> text n <> text ":" <+> pp          
+            ppStrat = 
+              case Prob.strategy prob of 
+                Prob.Innermost -> text "innermost"
+                Prob.Full -> text "full"              
+                Prob.Outermost -> text "outermost"              
+                Prob.ContextSensitive {} -> text "context-sensitive"                            
+            ppStartTerms = 
+              case Prob.startTerms prob of 
+                Prob.TermAlgebra fs -> 
+                  ppProp "MEASURE" (text "derivational complexity")
+                  $+$ ppProp "SYMBOLS" (ppSyms fs)
+                Prob.BasicTerms ds cs -> 
+                  ppProp "MEASURE" (text "derivational complexity")
+                  $+$ ppProp "DEFINED-SYMBOLS" (ppSyms ds)
+                  $+$ ppProp "CONSTRUCTORS" (ppSyms cs)                
+            ppSyms fs = fsep $ punctuate (text ",")  [U.pprint (f,sig) | f <- Set.toList fs]
+               where sig = Prob.signature prob
+
+        pptrs n prob accessor 
+          | Trs.isEmpty trs = empty
+          | otherwise       = U.block n $ U.pprint (trs, sig, vars)
+          where trs = accessor prob
+                sig = Prob.signature prob
+                vars = Prob.variables prob
+                
+        ppdps n dg sig vars sr 
+          | null rs = empty
+          | otherwise = U.block n $ pprintTrs pprl rs
+          where rs = [ (i,rl) | (i, (sr', rl)) <- DG.lnodes dg, sr == sr']
+                pprl (i,rl) = U.pprint i <> text ":" <+> U.pprint (rl,sig,vars)

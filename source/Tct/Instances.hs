@@ -388,7 +388,7 @@ bsearch nm mkinst = bsearchProcessor `S.withArgs` ()
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps   = try DPSimp.removeTails 
-            >>> te DPSimp.inline
+            >>> try DPSimp.inline
             >>> te DPSimp.removeHeads
             >>> te DPSimp.removeInapplicable
             >>> try DPSimp.simpDPRHS 

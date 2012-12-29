@@ -523,14 +523,16 @@ pprintLabeledRules name sig vars rs = text name <> text ":"
 
 -- graphviz output of dgs
 
-toGraphViz :: [(DG,F.Signature,V.Variables)] -> DotGraph String
-toGraphViz dgs = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
+toGraphViz :: [(DG,F.Signature,V.Variables)] -> Bool -> DotGraph String
+toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
   where digraph (i,(dg,sig,vars)) = 
           GV.cluster (Str $ pack $ "dg_" ++ show i) $
-          do mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
-             mapM_ edgesToGV nds
-             GV.graphAttrs [GVattribs.toLabel pplabel]
+          if showLabels then graphM >> labelM else graphM
           where nds   = nodes dg
+                graphM = do
+                  mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
+                  mapM_ edgesToGV nds
+                labelM = GV.graphAttrs [GVattribs.toLabel pplabel]
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
                 pplabel = "Below rules are as follows:\\l" ++ concatMap (\ (n,r) -> " " ++ show n ++ ": " ++ st (R.lhs r) ++ " -> " ++ st (R.rhs r) ++ "\\l") lrules
                   where st t = [c | c <- show $ pprint (t,sig,vars), c /= '\n']
@@ -541,8 +543,8 @@ toGraphViz dgs = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
                 edgesToGV n = mapM (\ (m,_,k) -> GV.edge (nde n) (nde m) [GVattribs.toLabel (show k)]) (lsuccessors dg n)
                 nde n = show i ++ "_" ++ show n
                 
-saveGraphViz :: [(DG,F.Signature,V.Variables)] -> FilePath -> IO FilePath
-saveGraphViz dgs = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs) GVcommands.Svg
+saveGraphViz :: [(DG,F.Signature,V.Variables)] -> Bool -> FilePath -> IO FilePath
+saveGraphViz dgs showLabels = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs showLabels) GVcommands.Svg
                 
 graphvizShowDG :: [(DG,F.Signature,V.Variables)] -> IO ()              
-graphvizShowDG dgs = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs) GVcommands.Gtk
+graphvizShowDG dgs = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs True) GVcommands.Gtk

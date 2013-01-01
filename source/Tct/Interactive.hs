@@ -22,7 +22,7 @@ the configuration file, usually located in @${HOME}\/.tct\/tct.hs@.
 The interactive interface is invoked from the command line as follows:
 
 >>> tct -i
-GHCi, version 7.0.3: http://www.haskell.org/ghc/  :? for help
+GHCi, version 7.4.1: http://www.haskell.org/ghc/  :? for help
 ...
 Loading package tct-1.9 ... linking ... done.
 [1 of 1] Compiling Main             ( tct.hs, interpreted )
@@ -31,7 +31,7 @@ Ok, modules loaded: Main.
   Welcome to the TcT
   ------------------
 .  
-  This is version 1.8 of the Tyrolean Complexity Tool.
+  This is version 1.9 of the Tyrolean Complexity Tool.
 .  
   (c) Martin Avanzini <martin.avanzini@uibk.ac.at>,
       Georg Moser <georg.moser@uibk.ac.at>, and
@@ -662,6 +662,8 @@ module Tct.Interactive
       -- * Miscellaneous Utilities
     , pprint
       -- | pretty-print objects.
+    , processor 
+      -- | given a processor, construct an instance
     , termFromString
       -- | Parses a term from a string, with respect
       -- to the signature and variables from the given problem.
@@ -725,7 +727,6 @@ import qualified Tct.Method.RuleSelector as RS
 
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Set as Set
-import Data.Typeable (cast)
 import Data.List (partition)
 import Control.Concurrent (forkIO)
 -- import System.Directory (getCurrentDirectory)
@@ -817,10 +818,6 @@ modifyOpenWith pt f = modifyOpenWith' (SN (1::Int)) pt
 
 enumOpenFromTree :: ProofTree -> [(Int,(SomeNumbering, Problem))]
 enumOpenFromTree tr = zip [1..] (openFromTree tr)
-
-
-instance Eq SomeNumbering where
-  SN a == SN b = Just a == cast b
 
 isUnselected :: ST -> SomeNumbering -> Bool
 isUnselected st sn = sn `elem` unselected st
@@ -1094,7 +1091,7 @@ apply a = app `Ex.catch`
                        _ -> Open prob
                    anyChange = any changed [ fn' sn prob | (sn,prob) <- selected]
                    pt' = pt `modifyOpenWith` fn'
-                   st' = st { proofTree = Just $ pt'}
+                   st' = st { proofTree = Just pt'}
                -- pprintResult opens fn
                if anyChange
                 then putState st' 
@@ -1137,7 +1134,7 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
          Nothing -> 
            error "error when transforming some problem"
          Just rs -> 
-           return $ \ (SN sn) prob -> mkNode prob `fmap` (find sn rs)
+           return $ \ (SN sn) prob -> mkNode prob `fmap` find sn rs
           where mkNode prob res = Transformed progressed prob tinst tproof subTrees
                   where progressed = T.isProgressResult res
                         tproof = T.proofFromResult res
@@ -1171,13 +1168,13 @@ instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.S
 instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
   describe = describe . S.StdProcessor
 
-instance (T.Transformer t) => Show (T.Transformation t sub) where
-  show (T.Transformation t) = "<transformation " ++ T.name t ++ ">"
+-- instance (T.Transformer t) => Show (T.Transformation t sub) where
+--   show (T.Transformation t) = "<transformation " ++ T.name t ++ ">"
 
-instance (S.Processor p) => Show (S.StdProcessor p) where
-  show (S.StdProcessor p) = "<processor " ++ S.name p ++ ">"
+-- instance (S.Processor p) => Show (S.StdProcessor p) where
+--   show (S.StdProcessor p) = "<processor " ++ S.name p ++ ">"
 
-allProcessors :: IO (P.AnyProcessor)
+allProcessors :: IO P.AnyProcessor
 allProcessors = Tct.processors `liftM` getConfig
                    
 transformation :: (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => t -> IO (T.TheTransformer t)
@@ -1185,14 +1182,14 @@ transformation trans =
   do procs <- allProcessors
      putStrLn $ "Input arguments for " ++ T.name trans
      mkInst `liftM` A.parseInteractive (T.arguments trans) procs
-  where mkInst args = (T.Transformation trans) `T.withArgs` args
+  where mkInst args = T.Transformation trans `T.withArgs` args
 
 processor :: (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => p -> IO (P.InstanceOf (S.StdProcessor p))
 processor proc = 
     do procs <- allProcessors
        putStrLn $ "Input arguments for " ++ S.name proc
        mkInst `liftM` A.parseInteractive (S.arguments proc) procs
-  where mkInst args = (S.StdProcessor proc) `S.withArgs` args
+  where mkInst args = S.StdProcessor proc `S.withArgs` args
           
 -- instance Apply P.SomeProcessor where
 --   apply' (P.SomeProcessor p) = 
@@ -1238,7 +1235,7 @@ haddockInstances name =
 
 welcome :: IO ()
 welcome = pprint $ 
-  U.underline (text ("Welcome to the TcT"))
+  U.underline (text "Welcome to the TcT")
   $+$ text ""
   $+$ U.paragraph ("This is version " 
                    ++ version 
@@ -1281,11 +1278,11 @@ help = do cfgdir <- configDirectory
                                 , U.paragraph ( "Use 'describe <processor>' to obtain documentation for "
                                                 ++ "the processor <processor>, c.f. module 'Processor' for a list "
                                                 ++ "of available processors.")
-                                , U.paragraph ( "Type 'state' to output the current proof state.")
-                                , U.paragraph ( "Type 'proof' to output the proof constructed so far.")                                  
-                                , U.paragraph ( "Modify the configuration file '" ++ cfgdir ++ "/tct.hs' "
+                                , U.paragraph "Type 'state' to output the current proof state."
+                                , U.paragraph "Type 'proof' to output the proof constructed so far."
+                                , U.paragraph ("Modify the configuration file '" ++ cfgdir ++ "/tct.hs' "
                                                 ++ " which is automatically loaded on startup.")
-                                , U.paragraph ( "Type ':quit' to exit Tct. ")
+                                , U.paragraph "Type ':quit' to exit Tct. "
                                 ])
                     $+$ text ""
                     $+$ text "This message is available by typing 'help'."
@@ -1387,7 +1384,7 @@ problems =
 wdgs' :: IO [DG.DG]
 wdgs' = 
   do probs <- problems'
-     return $ [DG.estimatedDependencyGraph DG.defaultApproximation prob | prob <- probs]
+     return [DG.estimatedDependencyGraph DG.defaultApproximation prob | prob <- probs]
           
 wdgs :: IO [DG.DG]   
 wdgs = do probs <- problems'
@@ -1477,7 +1474,7 @@ writeState = do
       where 
         opens = [ ( i
                   , sn 
-                  , "./dg" ++ (show i) ++ ".svg"
+                  , "./dg" ++ show i ++ ".svg"
                   , prob
                   , Prob.signature prob   
                   , Prob.variables prob
@@ -1485,12 +1482,12 @@ writeState = do
                 | (i,(sn,prob)) <- enumOpenFromTree pt ]
         (_,selecteds) = partition (\ (_,sn,_,_,_,_,_) -> isUnselected st sn) opens
         
-        writePT = writeFile "proof.org" (show $ orgDoc $ ppTree)
-        writeST = writeFile "state.org" (show $ orgDoc $ ppST)
+        writePT = writeFile "proof.org" (show $ orgDoc ppTree)
+        writeST = writeFile "state.org" (show $ orgDoc ppST)
         writeDGs = mapM_ ppDG opens
           where 
             ppDG (_,_,fn,_,sig,vars,dg) = do
-            _<- forkIO (DG.saveGraphViz [(dg,sig,vars)] False fn >> return ())
+            _<- forkIO (void $ DG.saveGraphViz [(dg,sig,vars)] False fn)
             return ()
             
         ppTree = pprintTreeWith ppNode pt
@@ -1515,11 +1512,11 @@ writeState = do
                   ppStars' as <+> (text "Details"
                                    $+$ detail)
           
-            ppStars ls = text (take (length ls) (repeat '*'))
+            ppStars ls = text $ replicate (length ls) '*'
             ppStars' ls = ppStars ls <> text "*" 
-            bold p = text "*" <> p <> text "*"    
+            -- bold p = text "*" <> p <> text "*"    
             tag p = text ":" <> p <> text ":"                
-            ppAns manswer = maybe (text "OPEN") U.pprint manswer
+            ppAns = maybe (text "OPEN") U.pprint
 
         ppST = 
           vcat [ (text "* Problem" <+> text (show i) <> text ":")
@@ -1557,7 +1554,7 @@ writeState = do
                   ppProp "MEASURE" (text "derivational complexity")
                   $+$ ppProp "SYMBOLS" (ppSyms fs)
                 Prob.BasicTerms ds cs -> 
-                  ppProp "MEASURE" (text "derivational complexity")
+                  ppProp "MEASURE" (text "runtime complexity")
                   $+$ ppProp "DEFINED-SYMBOLS" (ppSyms ds)
                   $+$ ppProp "CONSTRUCTORS" (ppSyms cs)                
             ppSyms fs = fsep $ punctuate (text ",")  [U.pprint (f,sig) | f <- Set.toList fs]

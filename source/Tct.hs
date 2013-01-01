@@ -129,7 +129,7 @@ data OutputMode = OnlyAnswer
 -- | Configuration of TcT. 
 data Config = Config { 
   -- | New processors can be added to TcT by extending this field.
-  processors        :: AnyProcessor  
+  processors        :: AnyProcessor
   
   -- | This field can be used to govern how a processor is 
   -- determined for the loaded problem if no processor is 

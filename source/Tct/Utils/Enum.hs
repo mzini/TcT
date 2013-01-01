@@ -68,6 +68,9 @@ instance (Numbering a, Numbering b) => Numbering (Either a b) where
 data SomeNumbering = forall a. Numbering a => SN a
 instance PrettyPrintable SomeNumbering where pprint (SN e) = ppNumbering e
 
+instance Eq SomeNumbering where
+  SN a == SN b = Just a == cast b
+
 --------------------------------------------------------------------------------
 --- Enumerations
 

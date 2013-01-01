@@ -22,7 +22,7 @@ This module defines the processor for matrix.
 -}
 module Tct.Method.Matrix.NaturalMI where
 
-import Control.Monad (liftM,join)
+import Control.Monad (liftM)
 import Data.Typeable
 import Prelude hiding ((&&),(||),not)
 import Text.PrettyPrint.HughesPJ

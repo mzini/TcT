@@ -261,7 +261,7 @@
 (defun tcti-start-process ()
   (setq tct-inferior-buffer
 	(save-excursion
-	  (cd tct-base)
+	  ;; (cd tct-base)
 	  (make-comint tcti-buffer-name tct-executable nil "-i")))
   (with-current-buffer tct-inferior-buffer
     (inferior-haskell-mode)
@@ -343,15 +343,17 @@
   (interactive)
   (let ((file (concat (expand-file-name tct-base) "/state.org")))
     (if (and (file-exists-p file) (file-readable-p file))
-	(view-file-other-frame file)
-        (with-current-buffer
-	    (auto-revert-mode 1) 
-	  (rename-buffer "*tcti-state*")
-	  (org-display-inline-images) 
-	  (add-hook 'after-revert-hook 'org-display-inline-images) (setq auto-revert-interval 1))
+	(progn
+	  (let ((buffer (find-file-noselect "~/.tct/state.org")))
+	    (with-current-buffer buffer
+	      (rename-buffer "*tcti-state*")
+	      (auto-revert-mode 1) 
+	      (org-display-inline-images) 
+	      (add-hook 'after-revert-hook 'org-display-inline-images) 
+	      (setq auto-revert-interval 1)
+	      (view-buffer-other-frame buffer))))
         (message "TcTi state not available"))))
       
-
 
 ;; ----------------------------------------------------------------------
 ;; common utility

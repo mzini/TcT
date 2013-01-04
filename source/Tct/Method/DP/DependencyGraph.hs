@@ -20,122 +20,118 @@
 
 
 module Tct.Method.DP.DependencyGraph 
-    -- (
-    --  -- * Unified Graph Interface
-    --  -- ** Datatypes
-    --  DependencyGraph
-    --  -- | @DependencyGraph n e@ is a Graph with node-labels @n@ and 
-    --  -- edge-labels 'e'
-    -- , Strictness (..)
-    -- , NodeId
-    --  -- | A node in the dependency graph. Most operations work on @NodeId@s. 
-    --  -- Use @lookupNodeLabel@ to get the label of the node
+    (
+     -- * Unified Graph Interface
+     -- ** Datatypes
+     DependencyGraph
+     -- | @DependencyGraph n e@ is a Graph with node-labels @n@ and 
+     -- edge-labels 'e'
+    , Strictness (..)
+    , NodeId
+     -- | A node in the dependency graph. Most operations work on @NodeId@s. 
+     -- Use @lookupNodeLabel@ to get the label of the node
 
-    --  -- ** Operations
-    -- , nodes
-    -- -- | Returns the set of nodes. 
-    -- , lnodes
-    -- -- | Returns the set of nodes together with their labels. 
-    --  , roots 
-    --  -- | Returns the list of nodes without predecessor.
-    --  , leafs
-    --  -- | Returns the list of nodes without successor.
-    --  , lookupNodeLabel
-    --  -- | Returns the label of the given node, if present.
-    --  , lookupNodeLabel'
-    --  -- | Returns the label of the given node, if present. 
-    --  -- Otherwise an exception is raised
-    --  , lookupNode
-    --  -- | Returns the node with given label.       
-    --  , lookupNode'
-    --  -- | Returns the node with given label.       
-    --  -- Otherwise an exception is raised
-    --  , withNodeLabels
-    --  -- | List version of @lookupNodeLabel@.
-    --  , withNodeLabels'
-    --  -- | List version of @lookupNodeLabel'@.
-    --  , inverse
-    --  -- | Returns the same graph with edges inversed.
-    --  , topsort
-    --  -- | returns a topologically sorted set of nodes.
-    --  , successors
-    -- -- | Returns the list of successors in a given node.
-    --  , reachablesDfs
-    -- -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- -- the successor relation with respect to @ns@ in a depth-first manner
-    --  , reachablesBfs
-    -- -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- -- the successor relation with respect to @ns@ in a breath-first manner
-    --  , lsuccessors
-    -- -- | Returns the list of successors in a given node, including their labels.
-    --  , predecessors
-    -- -- | Returns the list of predecessors in a given node.
-    --  , lpredecessors
-    -- -- | Returns the list of predecessors in a given node, including their labels.
-    -- , isEdgeTo
-    -- -- | @isEdgeTo dg n1 n2@ checks wheter @n2@ is a successor of @n1@ in 
-    -- -- the dependency graph @dg@
-    -- , isLEdgeTo
-    -- -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
-    -- -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
-    -- -- labeled by @l@.
-    -- , subGraph
-    -- -- | Computes the subgraph based on the given nodes.
-    -- -- * Dependency Graph
-    -- -- ** Datatype 
-    -- , DG
-    -- -- | The dependency graph.
-    -- , DGNode
-    -- -- | Nodes of the DG are labeled by rules and their strictness-annotation.
-    -- , Approximation (..)
-    -- , defaultApproximation   
+     -- ** Operations
+    , nodes
+    -- | Returns the set of nodes. 
+    , lnodes
+    -- | Returns the set of nodes together with their labels. 
+     , roots 
+     -- | Returns the list of nodes without predecessor.
+     , leafs
+     -- | Returns the list of nodes without successor.
+     , lookupNodeLabel
+     -- | Returns the label of the given node, if present.
+     , lookupNodeLabel'
+     -- | Returns the label of the given node, if present. 
+     -- Otherwise an exception is raised
+     , lookupNode
+     -- | Returns the node with given label.       
+     , lookupNode'
+     -- | Returns the node with given label.       
+     -- Otherwise an exception is raised
+     , withNodeLabels
+     -- | List version of @lookupNodeLabel@.
+     , withNodeLabels'
+     -- | List version of @lookupNodeLabel'@.
+     , inverse
+     -- | Returns the same graph with edges inversed.
+     , topsort
+     -- | returns a topologically sorted set of nodes.
+     , successors
+    -- | Returns the list of successors in a given node.
+     , reachablesDfs
+    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- the successor relation with respect to @ns@ in a depth-first manner
+     , reachablesBfs
+    -- | @reachable gr ns@ closes the list of nodes @ns@ under 
+    -- the successor relation with respect to @ns@ in a breath-first manner
+     , lsuccessors
+    -- | Returns the list of successors in a given node, including their labels.
+     , predecessors
+    -- | Returns the list of predecessors in a given node.
+     , lpredecessors
+    -- | Returns the list of predecessors in a given node, including their labels.
+    , isEdgeTo
+    -- | @isEdgeTo dg n1 n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- the dependency graph @dg@
+    , isLEdgeTo
+    -- | @isLEdgeTo dg n1 l n2@ checks wheter @n2@ is a successor of @n1@ in 
+    -- the dependency graph @dg@, where the edge from @n1@ to @n2@ is 
+    -- labeled by @l@.
+    , subGraph
+    -- | Computes the subgraph based on the given nodes.
+      
+    -- * Dependency Graph
+    -- ** Datatype 
+    , DG
+    -- | The dependency graph.
+    , DGNode
+    -- | Nodes of the DG are labeled by rules and their strictness-annotation.
+    , Approximation (..)
+    , defaultApproximation   
+    -- | Construct an estimated dependency graph, using the given approximation.
+    , estimatedDependencyGraph
+    -- * Congruence Graph
+    -- ** Datatype 
+    , CDG
+    -- | The congruence dependency graph.
+    , CDGNode (..)
 
-    -- -- ** Operations
-    -- , estimatedDependencyGraph
-    -- -- | @estimatedDependencyGraph approx prob@ 
-    -- -- returns the estimated dependency-graph of a given problem @prob@ with 
-    -- -- respect to the approximation @approx@.
-     
-    -- -- * Congruence Graph
-    -- -- ** Datatype 
-    -- , CDG
-    -- -- | The congruence dependency graph.
-    -- , CDGNode (..)
+    -- ** Operations
+    ,  toCongruenceGraph
+    -- | Computes the congruence graph of a given dependency graph.
+    , allRulesFromNode 
+    -- | Returns the list of annotated rules of the given node.
+    , allRulesFromNodes
+    -- | List version of @allRulesFromNode@.
+    , congruence
+    -- | @congruence cdg n@ 
+    -- returns the nodes from the original dependency graph (i.e., the one 
+    -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
+    , isCyclicNode
+    -- | @isCyclicNode cdg n@ 
+    -- returns @True@ iff there is an edge from a node in @congruence cdg n@
+    -- to @congruence cdg n@ in the original dependency graph (i.e., the one 
+    -- given to @toCongruenceGraph@).
 
-    -- -- ** Operations
-    -- ,  toCongruenceGraph
-    -- -- | Computes the congruence graph of a given dependency graph.
-    -- , allRulesFromNode 
-    -- -- | Returns the list of annotated rules of the given node.
-    -- , allRulesFromNodes
-    -- -- | List version of @allRulesFromNode@.
-    -- , congruence
-    -- -- | @congruence cdg n@ 
-    -- -- returns the nodes from the original dependency graph (i.e., the one 
-    -- -- given to @toCongruenceGraph@) that is denoted by the congruence-node @n@.
-    -- , isCyclicNode
-    -- -- | @isCyclicNode cdg n@ 
-    -- -- returns @True@ iff there is an edge from a node in @congruence cdg n@
-    -- -- to @congruence cdg n@ in the original dependency graph (i.e., the one 
-    -- -- given to @toCongruenceGraph@).
-
-    -- -- ** Utilities
-    -- , pprintCWDGNode
-    --   -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
-    --   -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
-    -- , pprintCWDG
-    --   -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
-    -- , pprintNodeSet      
-    --   -- | Default pretty printer for set of nodes.
-    -- , toGraphViz
-    --   -- | translates 'DG' into a GraphViz graph.
-    -- , saveGraphViz
-    --   -- | output 'DG' as Svg.
-    -- , graphvizShowDG
-    --   -- | show a 'DG' in a GraphViz canvas.
-    -- -- * Misc
-    -- , pprintLabeledRules
-    -- )
+    -- ** Utilities
+    , pprintCWDGNode
+      -- | @pprintCWDGNode cdg sig vars node@ is a default printer for the 
+      -- CDG-node @node@. It shows the nodes of the dependency graph denoted by @node@  as a set.
+    , pprintCWDG
+      -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
+    , pprintNodeSet      
+      -- | Default pretty printer for set of nodes.
+    , toGraphViz
+      -- | translates 'DG' into a GraphViz graph.
+    , saveGraphViz
+      -- | output 'DG' as Svg.
+    , graphvizShowDG
+      -- | show a 'DG' in a GraphViz canvas.
+    -- * Misc
+    , pprintLabeledRules
+    )
 where
 
 import qualified Data.Graph.Inductive.Graph as Graph

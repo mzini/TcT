@@ -619,6 +619,13 @@ module Tct.Interactive
     , undo
       -- | Undos the last modification of the proof state
       
+      -- * Changing the behaviour of TcTi
+      
+      -- | When set to 'True', interactive mode will print
+      -- proofs after execution of commands. This can be globally configured
+      -- in your configuration by modifying 'Tct.interactiveShowProofs'.
+    , setShowProofs
+      
       -- * Help and Documentation
     , help
       -- | Displays a help message.
@@ -860,7 +867,8 @@ problemFromTree = P.inputProblem . proofFromTree
 --- State
 
 data ST = ST { unselected :: ![SomeNumbering]
-             , proofTree  :: Maybe ProofTree}
+             , proofTree  :: Maybe ProofTree
+             }
          
 
 data STATE = STATE ST [ST] 
@@ -1018,6 +1026,15 @@ deleteRuleFromString' str = resetInitialWith' $ del . TRepl.parseFromString TPar
         del ((False, rl), prob) = prob { weakTrs = weakTrs prob Trs.\\ Trs.singleton rl 
                                        , weakDPs = weakDPs prob Trs.\\ Trs.singleton rl }
 
+
+-- --------------------------------------------------------------------------------
+-- --- Options
+        
+setShowProofs :: Bool -> IO ()
+setShowProofs b = 
+  modifyConfig (\ c -> c {Tct.interactiveShowProofs = b })
+
+
 -- --------------------------------------------------------------------------------
 -- --- Selection
 
@@ -1092,7 +1109,8 @@ apply a = app `Ex.catch`
                    anyChange = any changed [ fn' sn prob | (sn,prob) <- selected]
                    pt' = pt `modifyOpenWith` fn'
                    st' = st { proofTree = Just pt'}
-               -- pprintResult opens fn
+               sp <- Tct.interactiveShowProofs `liftM` getConfig
+               when sp (pprintResult opens fn)
                if anyChange
                 then putState st' 
                      >> if null (enumOpenFromTree pt')
@@ -1108,13 +1126,13 @@ apply a = app `Ex.catch`
                     --                                            (Closed  _ _ p)                  = P.succeeded p
                     -- changed (Transformed progressed _ _ _ _) = progressed
  
-          -- pprintResult opens fn = 
-          --   pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])
-          --     where pp i sn prob = 
-          --             heading ("Problem " ++ show i)
-          --             $+$ case fn sn prob of 
-          --                    Nothing  -> text "The problem remains open"
-          --                    Just pt' -> U.pprint pt'
+          pprintResult opens fn = 
+            pprint (vcat [ pp i sn prob | (i, (sn,prob)) <- opens])
+              where pp i sn prob = 
+                      heading ("Problem " ++ show i)
+                      $+$ case fn sn prob of 
+                             Nothing  -> text "The problem remains open"
+                             Just pt' -> U.pprint pt'
                       -- indent (U.pprint (maybe (Open prob) id (fn sn prob)))
                       -- block' "Considered Problem"
                       -- [ text "We consider the following problem:"

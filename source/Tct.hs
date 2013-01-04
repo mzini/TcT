@@ -181,6 +181,10 @@ data Config = Config {
   -- | This field holds the file name of the input problem.  
   , problemFile       :: FilePath
   
+  -- | When this flag is 'True', interactive mode will print
+  -- proofs after execution of commands. 
+  , interactiveShowProofs :: Bool
+    
   -- | Modified by command line option '--list', cf. "Tct.CommandLine".
   , listStrategies    :: Maybe (Maybe String)
   -- | Modified by command line option '--answer', cf. "Tct.CommandLine".
@@ -215,6 +219,7 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , answerType      = Nothing
                        , listStrategies  = Nothing
                        , logFile         = Nothing
+                       , interactiveShowProofs = False
                        , showHelp        = False
                        , showVersion     = False
                        , interactive     = False}

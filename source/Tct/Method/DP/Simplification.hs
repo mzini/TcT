@@ -651,14 +651,14 @@ trivial = T.Transformation Trivial `T.withArgs` ()
 ----------------------------------------------------------------------
 -- Inapplicable
 
-data RemoveInapplicableReason = NonBasic
-
 data RemoveInapplicable = RemoveInapplicable
+
 data RemoveInapplicableProof = 
-  RemoveInapplicableProof { riWDG   :: DG -- ^ Employed congruence graph.
-                          , riRemoveds :: [(RemoveInapplicableReason,[(NodeId,Rule)])] -- ^ Rules that can be removed
-                          , riSig   :: F.Signature
-                          , riVars  :: V.Variables}
+  RemoveInapplicableProof { riWDG         :: DG -- ^ Employed dependency graph.
+                          , riInitials    :: [NodeId] -- ^ Nodes that start a dependency derivation 
+                          , riReachable   :: [NodeId] -- ^ Nodes reachable from initial nodes
+                          , riSig         :: F.Signature
+                          , riVars        :: V.Variables}
   | RemoveInapplicableError DPError
   | RemoveInapplicableFail
                        
@@ -666,52 +666,59 @@ instance T.TransformationProof RemoveInapplicable where
   answer = T.answerFromSubProof
   pprintTProof _ _ (RemoveInapplicableError e) _ = pprint e
   pprintTProof _ _ RemoveInapplicableFail _ = text "The DP problem could not be simplified."
-  pprintTProof _ _ p _ = hcat [pp reason rs | (reason,rs) <- riRemoveds p]
-     where pp NonBasic rs = 
-             text "Consider the dependency graph:"
-             $+$ text ""
-             $+$ indent (pprint (wdg,sig,vars))
-             $+$ text ""
-             $+$ paragraph (show $ text "Left-hand sides of rules" 
-                                   <+> pprintNodeSet [n | (n,_) <- rs] <+> text "are not (marked) basic terms."
-                                   <+> text "Since for each rule there are no incoming edges from different nodes,"
-                                   <+> text "these rules can be removed.")
-           vars         = riVars p                              
-           sig          = riSig p
-           wdg          = riWDG p
+  pprintTProof _ _ p _ = 
+    text "Consider the dependency graph:"
+    $+$ text ""
+    $+$ indent (pprint (wdg,sig,vars))
+    $+$ text ""
+    $+$ paragraph (show $ 
+                   if null (riReachable p)
+                    then text "No dependency pair can be employed in a derivation starting from a marked basic term."
+                    else text "Only the nodes" 
+                         <+> pprintNodeSet (riReachable p)
+                         <+> text "are reachable from nodes"
+                         <+> pprintNodeSet (riInitials p)
+                         <+> text "that start derivation from marked basic terms."
+                         <+> text "These nodes not reachable are removed from the problem.")
+    where 
+      vars = riVars p                              
+      sig  = riSig p
+      wdg  = riWDG p
 
 instance T.Transformer RemoveInapplicable where
   name RemoveInapplicable        = "removeInapplicable"
-  description RemoveInapplicable = [unwords [ "Removes rules that are not applicable in DP derivations."
-                                 , "Only applicable if the strict component is empty."]
-                        ]
+  description RemoveInapplicable = [unwords [ "Removes rules that are not applicable in DP derivations."] ]
   
   type ArgumentsOf RemoveInapplicable = Unit
   type ProofOf RemoveInapplicable = RemoveInapplicableProof
   arguments RemoveInapplicable = Unit
   transform _ prob 
-     | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ RemoveInapplicableError $ ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RemoveInapplicableError $ NonDPProblemGiven
-     | Trs.isEmpty removedRules = return $ T.NoProgress RemoveInapplicableFail
+     | null unreachables = return $ T.NoProgress RemoveInapplicableFail
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
-        where wdg   = estimatedDependencyGraph defaultApproximation prob
-              sig   = Prob.signature prob
-              vars  = Prob.variables prob
-              constrs = Prob.constrs $ Prob.startTerms prob
-              removedRules = Trs.unions [Trs.fromRules [r | (_,rs) <- removeds
-                                                          , (_,r) <- rs]]
-              removeds = [( NonBasic
-                          , [(n,r) | (n, (_,r)) <- lnodes wdg
-                                   , all ((==) n) $ predecessors wdg n
-                                   , any (\ a -> not $ functionSymbols a `Set.isSubsetOf` constrs) (properSubterms $ lhs r) 
-                            ])
-                         ]
-              prob' = prob { Prob.strictDPs = Prob.strictDPs prob Trs.\\ removedRules
-                           , Prob.weakDPs = Prob.weakDPs prob Trs.\\ removedRules }
-              proof = RemoveInapplicableProof { riWDG = wdg
-                                              , riSig = sig
-                                              , riRemoveds = removeds
-                                              , riVars = vars }
+        where 
+          constrs = Prob.constrs $ Prob.startTerms prob
+          initials = [n | (n, (_,r)) <- lns
+                        , all (\ ti -> functionSymbols ti `Set.isSubsetOf` constrs) (properSubterms $ lhs r) ]
+                  
+          reachables = reachablesDfs wdg initials
+          unreachables = [ n | (n,_) <- lns , not $ n `Set.member` rs ]
+            where rs = Set.fromList reachables
+
+          prob' = prob { Prob.strictDPs = Trs.fromRules [ r | (_,(StrictDP,r)) <- lreachables ]
+                       , Prob.weakDPs   = Trs.fromRules [ r | (_,(WeakDP,r)) <- lreachables ] }
+            where lreachables = withNodeLabels' wdg reachables 
+
+          proof = RemoveInapplicableProof { riWDG = wdg
+                                          , riSig = sig
+                                          , riInitials = initials
+                                          , riReachable = reachables
+                                          , riVars = vars }
+
+          wdg   = estimatedDependencyGraph defaultApproximation prob
+          lns   = lnodes wdg
+          sig   = Prob.signature prob
+          vars  = Prob.variables prob
                 
 
 removeInapplicableProcessor :: T.Transformation RemoveInapplicable P.AnyProcessor

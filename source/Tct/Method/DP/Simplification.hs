@@ -59,9 +59,9 @@ module Tct.Method.DP.Simplification
        , SimpKPProof (..)         
        , simpKPProcessor
        , SimpKP
-       , inline
-       , inlineProcessor
-       , Inline
+       -- , inline
+       -- , inlineProcessor
+       -- , Inline
        )
 where
 
@@ -732,91 +732,91 @@ removeInapplicable :: T.TheTransformer RemoveInapplicable
 removeInapplicable = T.Transformation RemoveInapplicable `T.withArgs` ()
 
 
-----------------------------------------------------------------------
--- Inapplicable
+-- ----------------------------------------------------------------------
+-- -- Inline
 
-data Inline = Inline
-data InlineProof = InlineProof { ilSig :: F.Signature
-                               , ilVars :: V.Variables 
-                               , ilRewrites :: [(Rule, [Rule])]}
-                 | InlineProofError DPError
-                 | InlineProofInapplicable String
+-- data Inline = Inline
+-- data InlineProof = InlineProof { ilSig :: F.Signature
+--                                , ilVars :: V.Variables 
+--                                , ilRewrites :: [(Rule, [Rule])]}
+--                  | InlineProofError DPError
+--                  | InlineProofInapplicable String
                        
-instance T.TransformationProof Inline where
-  answer = T.answerFromSubProof
-  pprintTProof _ _ (InlineProofError e) _ = pprint e
-  pprintTProof _ _ (InlineProofInapplicable e) _ = text "No inlining can be performed:" <+> text e
-  pprintTProof _ _ p _ | null $ ilRewrites p = text "No dependency pair could be removed."
-                       | otherwise  = 
-     vcat [ text "We exhaustively inline calls in the right-hand side of" 
-            $+$ pprintTrs ppRule [ r | (r,_) <- ilRewrites p ] ]
-     where vars          = ilVars p
-           sig           = ilSig p                              
-           ppRule r = pprint (r, sig, vars)
+-- instance T.TransformationProof Inline where
+--   answer = T.answerFromSubProof
+--   pprintTProof _ _ (InlineProofError e) _ = pprint e
+--   pprintTProof _ _ (InlineProofInapplicable e) _ = text "No inlining can be performed:" <+> text e
+--   pprintTProof _ _ p _ | null $ ilRewrites p = text "No dependency pair could be removed."
+--                        | otherwise  = 
+--      vcat [ text "We exhaustively inline calls in the right-hand side of" 
+--             $+$ pprintTrs ppRule [ r | (r,_) <- ilRewrites p ] ]
+--      where vars          = ilVars p
+--            sig           = ilSig p                              
+--            ppRule r = pprint (r, sig, vars)
   
   
-instance T.Transformer Inline where
-  name Inline        = "inline"
-  description Inline = [unwords [ ""] ]
+-- instance T.Transformer Inline where
+--   name Inline        = "inline"
+--   description Inline = [unwords [ ""] ]
   
-  type ArgumentsOf Inline = Unit
-  type ProofOf Inline = InlineProof
-  arguments Inline = Unit
-  transform _ prob 
-     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ InlineProofError $ NonDPProblemGiven
-     | Prob.strategy prob /= Prob.Innermost = return $ T.NoProgress $ InlineProofInapplicable "Not an innermost problem."
-     | null rewrites = return $ T.NoProgress $ InlineProofInapplicable "No inlining possible."
-     | otherwise = return $ T.Progress proof (enumeration' [prob'])
-        where (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
-              vars  = Prob.variables prob
-              sdps  = Trs.rules $ Prob.strictDPs prob
-              wdps  = Trs.rules $ Prob.weakDPs prob
+--   type ArgumentsOf Inline = Unit
+--   type ProofOf Inline = InlineProof
+--   arguments Inline = Unit
+--   transform _ prob 
+--      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ InlineProofError $ NonDPProblemGiven
+--      | Prob.strategy prob /= Prob.Innermost = return $ T.NoProgress $ InlineProofInapplicable "Not an innermost problem."
+--      | null rewrites = return $ T.NoProgress $ InlineProofInapplicable "No inlining possible."
+--      | otherwise = return $ T.Progress proof (enumeration' [prob'])
+--         where (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
+--               vars  = Prob.variables prob
+--               sdps  = Trs.rules $ Prob.strictDPs prob
+--               wdps  = Trs.rules $ Prob.weakDPs prob
 
-              rew t rl = do 
-                 sigma <- Subst.match t (lhs rl) Subst.empty
-                 return $ Subst.apply sigma (rhs rl)
+--               rew t rl = do 
+--                  sigma <- Subst.match t (lhs rl) Subst.empty
+--                  return $ Subst.apply sigma (rhs rl)
 
-              rws dps t = case catMaybes [rew t dp | dp <- dps] of 
-                           [] -> [t]
-                           ts -> ts
+--               rws dps t = case catMaybes [rew t dp | dp <- dps] of 
+--                            [] -> [t]
+--                            ts -> ts
 
-              rewrites' dps rl
-                   | progress = Just (rl, [rl { rhs = flatten r' } | r' <- rhss])
-                   | otherwise = Nothing
-                  where rs = case (rhs rl) of 
-                               Term.Fun c' ts 
-                                 | F.isCompound sig c' -> ts
-                               t              -> [t]
-                        progress = and [ rs' /= rs | rs' <- rhss]
-                        rhss = [rs' | rs' <- products $ map (rws dps) rs]
+--               rewrites' dps rl
+--                    | progress = Just (rl, [rl { rhs = flatten r' } | r' <- rhss])
+--                    | otherwise = Nothing
+--                   where rs = case (rhs rl) of 
+--                                Term.Fun c' ts 
+--                                  | F.isCompound sig c' -> ts
+--                                t              -> [t]
+--                         progress = and [ rs' /= rs | rs' <- rhss]
+--                         rhss = [rs' | rs' <- products $ map (rws dps) rs]
               
-              rewritesStrict = catMaybes [ rewrites' (sdps ++ wdps) rl | rl <- sdps ] 
-              rewritesWeak   = catMaybes [ rewrites' wdps           rl | rl <- wdps ] 
-              rewrites = rewritesStrict ++ rewritesWeak
-              flatten rs = Term.Fun c $ concatMap f rs
-                  where f t@(Term.Fun c' ts) 
-                             | F.isCompound sig c' = ts
-                             | otherwise           = [t]
-                        f t = [t]
+--               rewritesStrict = catMaybes [ rewrites' (sdps ++ wdps) rl | rl <- sdps ] 
+--               rewritesWeak   = catMaybes [ rewrites' wdps           rl | rl <- wdps ] 
+--               rewrites = rewritesStrict ++ rewritesWeak
+--               flatten rs = Term.Fun c $ concatMap f rs
+--                   where f t@(Term.Fun c' ts) 
+--                              | F.isCompound sig c' = ts
+--                              | otherwise           = [t]
+--                         f t = [t]
 
-              products [] = [[]]
-              products (xs:xss) = [ x:pxs | x <- xs, pxs <- products xss ]
+--               products [] = [[]]
+--               products (xs:xss) = [ x:pxs | x <- xs, pxs <- products xss ]
 
-              replaceRules rews = Trs.fromRules . (concatMap f)
-                 where f rl = maybe [rl] id (lookup rl rews)
+--               replaceRules rews = Trs.fromRules . (concatMap f)
+--                  where f rl = maybe [rl] id (lookup rl rews)
 
-              prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules rewritesStrict sdps 
-                                                     , Prob.weakDPs = replaceRules rewritesWeak wdps 
-                                                     , Prob.signature = sig }
-              proof = InlineProof { ilSig = sig
-                                  , ilVars = vars
-                                  , ilRewrites = rewrites }
+--               prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules rewritesStrict sdps 
+--                                                      , Prob.weakDPs = replaceRules rewritesWeak wdps 
+--                                                      , Prob.signature = sig }
+--               proof = InlineProof { ilSig = sig
+--                                   , ilVars = vars
+--                                   , ilRewrites = rewrites }
                 
 
-inlineProcessor :: T.Transformation Inline P.AnyProcessor
-inlineProcessor = T.Transformation Inline
+-- inlineProcessor :: T.Transformation Inline P.AnyProcessor
+-- inlineProcessor = T.Transformation Inline
 
--- | Inlining of rules
---  
-inline :: T.TheTransformer Inline
-inline = T.Transformation Inline `T.withArgs` ()
+-- -- | Inlining of rules
+-- --  
+-- inline :: T.TheTransformer Inline
+-- inline = T.Transformation Inline `T.withArgs` ()

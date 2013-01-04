@@ -230,7 +230,7 @@ module Tct.Instances
     , DPSimp.simpKP
     , DPSimp.simpKPOn
     , DPSimp.withKPOn
-    , DPSimp.inline      
+    -- , DPSimp.inline      
     , dpsimps
     , toDP
     , removeLeaf
@@ -388,7 +388,7 @@ bsearch nm mkinst = bsearchProcessor `S.withArgs` ()
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps   = try DPSimp.removeTails 
-            >>> try DPSimp.inline
+            -- >>> try DPSimp.inline
             >>> te DPSimp.removeHeads
             >>> te DPSimp.removeInapplicable
             >>> try DPSimp.simpDPRHS 
@@ -401,7 +401,7 @@ toDP = try (timeout 5 dps <> dts) >>> simps
   where dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
         dts = DP.dependencyTuples
         simps = te DPSimp.removeInapplicable
-                >>> te DPSimp.inline
+                -- >>> te DPSimp.inline
                 >>> te DPSimp.removeHeads
                 >>> te (DPSimp.simpKPOn RS.selStrictLeafs)
                 >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)

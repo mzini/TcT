@@ -247,12 +247,12 @@ instance P.Processor p => T.TransformationProof (Compose p) where
             where mans = do
                     rProof <- find 'R' subproofs
                     sProof <- find 'S' subproofs
-                    return $ P.CertAnswer $ cert rProof sProof
+                    return $ mkAnswer rProof sProof
           ComposeProof {} -> 
             case subproofs of 
               [(_,sProof)] 
                 | not success -> P.MaybeAnswer 
-                | otherwise   -> P.CertAnswer $ cert rProof sProof
+                | otherwise   -> mkAnswer rProof sProof
                 where rProof = proofSubProof tProof
                       success = progress tProof && P.succeeded sProof
               _  -> P.MaybeAnswer
@@ -260,8 +260,11 @@ instance P.Processor p => T.TransformationProof (Compose p) where
             
         where tProof = T.transformationProof proof
               subproofs = T.subProofs proof
-              cert :: (P.ComplexityProof p1, P.ComplexityProof p2) => p1 -> p2 -> Cert.Certificate
-              cert rProof sProof = Cert.certified (Cert.constant, ub)
+              mkAnswer :: (P.ComplexityProof p1, P.ComplexityProof p2) => p1 -> p2 -> P.Answer
+              mkAnswer rProof sProof = 
+                case ub of 
+                  Cert.Unknown -> P.MaybeAnswer 
+                  _ -> P.CertAnswer $ Cert.certified (Cert.constant, ub)
                 where ub = case proofBound tProof of 
                             Add     -> rUb `Cert.add` sUb
                             Mult    -> rUb `Cert.mult` sUb

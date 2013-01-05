@@ -675,7 +675,7 @@ dc2012 =
 
 
 rc2012 :: P.InstanceOf P.SomeProcessor
-rc2012 = named "dc2012" $ 
+rc2012 = named "rc2012" $ 
           withProblem $ \ prob -> 
            case Prob.strategy prob of 
              Prob.Innermost -> some rc2012RCi
@@ -742,14 +742,10 @@ rc2012 = named "dc2012" $
                                       <||> Compose.composeDynamic Compose.Add (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
-        directs = timeout 58 (te (compse 1)
-                              >>> te (compse 2)
-                              >>> te (compse 3)
-                              >>> te (compse 4)
-                              >>| empty)                           
+        directs = (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
                   `Combinators.orBetter` timeout 5 matchbounds
-                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" PopStar.popstarSmallPS )
-                  `Combinators.orBetter` timeout 58 PopStar.popstarPS
+                  `Combinators.orBetter` ( bsearch "popstar" PopStar.popstarSmallPS )
+                  `Combinators.orBetter` PopStar.popstarPS
           
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
@@ -771,7 +767,7 @@ rc2012 = named "dc2012" $
           try IRR.irr 
           >>! Combinators.best [ some $ DP.dependencyTuples >>| isTrivialDP
                                , some $ directs 
-                               , some $ timeout 58 rc2012DPi]
+                               , some $ rc2012DPi]
           
         rc2012DP i prob
           | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi

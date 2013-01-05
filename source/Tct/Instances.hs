@@ -393,27 +393,33 @@ dpsimps   = try DPSimp.removeTails
             >>> te DPSimp.removeInapplicable
             >>> try DPSimp.simpDPRHS 
             >>> try UR.usableRules
-            >>> try DPSimp.trivial            
+            >>> try DPSimp.trivial
+            
+-- | use 'DPSimp.simpKPOn' and 'DPSimp.removeTails' to remove leafs from the dependency graph. 
+cleanTail :: T.TheTransformer T.SomeTransformation
+cleanTail = 
+  te (DPSimp.simpKPOn RS.selStrictLeafs) 
+  >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+            
 -- | Tries dependency pairs with weightgap, otherwise uses dependency tuples. 
--- Also employs simplifications, including (linear) path-analysis.
+-- Simpifies the resulting DP problem as much as possible.
 toDP :: T.TheTransformer T.SomeTransformation
-toDP = try (timeout 5 dps <> dts) >>> simps
-  where dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
-        dts = DP.dependencyTuples
-        simps = te DPSimp.removeInapplicable
-                -- >>> te DPSimp.inline
-                >>> te DPSimp.removeHeads
-                >>> te (DPSimp.simpKPOn RS.selStrictLeafs)
-                >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
-                >>> try linearPathAnalysis 
-                >>> te DPSimp.simpKP
-                >>> try DPSimp.trivial                
-                >>> try DPSimp.simpDPRHS
-                >>> try UR.usableRules 
-        wgOnUsable = Compose.composeDynamic Compose.Add $ 
-                     weightgap defaultOptions { dim = 2
-                                              , degree = (Just 1)
-                                              , on = Weightgap.WgOnTrs }
+toDP = 
+  try (timeout 5 dps <> dts)
+  >>> te DPSimp.removeInapplicable
+  -- >>> te DPSimp.inline
+  >>> te DPSimp.removeHeads
+  >>> try cleanTail
+  >>> try UR.usableRules
+  where 
+    dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
+    dts = DP.dependencyTuples
+    wgOnUsable = Compose.composeDynamic Compose.Add $ 
+                 weightgap defaultOptions { dim = 2
+                                          , degree = (Just 1)
+                                          , on = Weightgap.WgOnTrs }
+
+
 
 -- | removes leafs in the dependency graph, using knowledge-propagation
 -- and the given processor        
@@ -482,7 +488,7 @@ instance IsDefaultOption PolyOptions where
 polys :: Int -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)  
 polys 1 = poly linearPolynomial
 polys n = poly $ (customPolynomial inter) { pbits = 2, pcbits = Nothing }
-  where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs'] 
+  where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs']
                    | vs' <- List.subsequences vs
                    , length vs <= n ]
                    ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
@@ -685,8 +691,6 @@ rc2012 = named "rc2012" $
                      weightgap defaultOptions { dim = 2
                                               , degree = (Just 1)
                                               , on = Weightgap.WgOnTrs }
-                     
-        cleanTail = try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)                     
           
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                       `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
@@ -713,8 +717,7 @@ rc2012 = named "rc2012" $
           when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
 
         isTrivialDP = 
-          te DPSimp.removeInapplicable
-          >>> te (DPSimp.simpKPOn RS.selStrictLeafs)
+          try DPSimp.removeInapplicable
           >>> try cleanTail 
           >>> try DPSimp.trivial
           >>| empty          
@@ -725,13 +728,13 @@ rc2012 = named "rc2012" $
         removeLeafs i = removeLeaf (spopstar i) 
                         <> (removeLeaf (mx i i) 
                             <||> removeLeaf (mx (i + 1) i)
+                            <||> when (i == 1) (removeLeaf (mx 3 1))
                             <||> when (i == 2) (removeLeaf (polys 2)))
 
-        simps = te DPSimp.simpKP
-                >>> try DPSimp.removeTails
-                >>> try DPSimp.trivial
-                >>> try DPSimp.simpDPRHS
-                >>> try UR.usableRules 
+        simps = 
+          try cleanTail
+          >>> try DPSimp.trivial
+          >>> try UR.usableRules 
 
         basics = 
           timeout 5 matchbounds 
@@ -783,8 +786,8 @@ rc2012 = named "rc2012" $
                 selStrictRule = RS.selAnyOf (RS.selStricts `RS.selInter` RS.selRules)
 
         rc2012DPi = 
-          toDP >>!! te (withCWDG trans') >>! basics
-          where trans' cwdg 
+          toDP >>!! te (withCWDG trans) >>! basics
+          where trans cwdg 
                   | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
                   | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
                 removeFirstCongruence = 

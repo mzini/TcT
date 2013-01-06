@@ -759,18 +759,18 @@ rc2012 = named "rc2012" $
                         <||> when (i < 4) (Compose.composeDynamic Compose.Add (mx (i + 1) i)))
           
         rc2012RC = 
-          Combinators.best [ some $ DP.dependencyPairs >>| isTrivialDP
-                           , some $ directs 
-                           , some $ Timeout.timeout 58 (dp >>| withProblem (rc2012DP 1))]
+          Combinators.best [ some $ timeout 57 $ DP.dependencyPairs >>| isTrivialDP
+                           , some $ timeout 57 $ directs 
+                           , some $ Timeout.timeout 57 (dp >>| withProblem (rc2012DP 1))]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
                      >>> try wgOnUsable
                      
         rc2012RCi = 
           try IRR.irr 
-          >>! Combinators.best [ some $ DP.dependencyTuples >>| isTrivialDP
-                               , some $ directs 
-                               , some $ rc2012DPi]
+          >>! Combinators.best [ some $ timeout 57 $ DP.dependencyTuples >>| isTrivialDP
+                               , some $ timeout 57 $ directs 
+                               , some $ timeout 57 $ rc2012DPi]
           
         rc2012DP i prob
           | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi

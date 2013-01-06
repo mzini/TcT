@@ -791,8 +791,8 @@ rc2012 = named "rc2012" $
                   | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
                   | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
                 removeFirstCongruence = 
-                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveBWith` proc >>> simps
-                  where proc = simps >>> te shiftLeafs >>! basics
+                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveBWith` proc >>> try simps
+                  where proc = try simps >>> te shiftLeafs >>! basics
                 cwdgDepth cwdg = maximum $ 0 : [ dp r | r <- DG.roots cwdg]
                   where dp n = maximum $ 0 : [ 1 + dp m | m <- DG.successors cwdg n]
 

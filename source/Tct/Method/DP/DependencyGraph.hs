@@ -163,7 +163,7 @@ import qualified Termlib.Variable as V
 import qualified Termlib.Problem as Prob
 import Termlib.Problem (Problem)
 import qualified Termlib.Term as Term
-import Termlib.Term (Term)
+import Termlib.Term (Term, properSubterms)
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import Termlib.Trs.PrettyPrint (pprintTrs)
@@ -309,7 +309,7 @@ estimatedDependencyGraph approx prob = Graph.mkGraph ns es
                       qs = case Prob.strategy prob of 
                                Prob.Innermost -> lhss
                                _              -> []
-                      isQNF v = all not [ v `Sub.matches` l | l <- qs]                         
+                      isQNF v = all not [ v_i `Sub.matches` l | l <- qs, v_i <- properSubterms v]
                   tcap <- icap lhss qs [s',u'] t'
                   case unifyNF tcap u' of 
                     False -> return $ False

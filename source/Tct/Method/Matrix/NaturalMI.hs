@@ -32,14 +32,13 @@ import qualified Data.Set as Set
 import Qlogic.MiniSat (MiniSatLiteral, MiniSat, MiniSatSolver)
 import Qlogic.Boolean
 import Qlogic.Diophantine
-import qualified Qlogic.Diophantine as Dio
 import Qlogic.Formula (Formula(..))
 import qualified Qlogic.MemoizedFormula as MForm
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 import qualified Qlogic.Assign as A
 import qualified Qlogic.NatSat as N
-import Qlogic.SatSolver
+import qualified Qlogic.SatSolver as SatSolver 
 import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
@@ -320,17 +319,17 @@ solveConstraint :: P.SolverM m =>
                    -> m (OrientationProof MatrixOrder)
 solveConstraint prob ua mk sig mp constraints = 
   catchException $ 
-    do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= addFormula
+    do let fml = toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) constraints >>= SatSolver.addFormula
            mi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int) 
        theMI <- P.minisatValue fml mi
        return $ case theMI of
                   Nothing -> Incompatible
                   Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob Nothing []
                   
-formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatError (PropFormula MiniSatLiteral))
+formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
 formula fml = run $ toFormula Nothing 3 fml
-  where run :: MiniSat  r -> IO (Either SatError r)
-        run = runSolver
+  where run :: MiniSat  r -> IO (Either SatSolver.SatError r)
+        run = SatSolver.runSolver
 
 gt :: MatrixInter (DioPoly DioVar Int) -> Term -> Term -> DioFormula MiniSatLiteral DioVar Int 
 gt mi l r = interpretTerm mi l .>. interpretTerm mi r
@@ -349,7 +348,7 @@ solveConstraint' :: P.SolverM m =>
 solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
     MWithDP -> solve initial mkOrder mform dform
       where 
-        mkOrder (mv :&: af :&: us) =
+        mkOrder (mv SatSolver.:&: af SatSolver.:&: us) =
           MatrixOrder { ordInter  = fmap (\x -> x $ bound mp) mv
                       , param     = mk 
                       , miKind    = mikind mp 
@@ -358,7 +357,7 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
                       , argFilter = if allowAF then Just af else Nothing
                       , usymbols  = us
                       }
-        initial = absmi :&: AFEnc.initial sig :&: UREnc.initialUsables
+        initial = absmi SatSolver.:&: AFEnc.initial sig SatSolver.:&: UREnc.initialUsables
     MNoDP -> solve initial mkOrder mform dform
       where
         mkOrder (mv) =
@@ -374,13 +373,13 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
     where 
       absmi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int)
 
-      solve :: Decoder e a => P.SolverM m => e -> ( e -> MatrixOrder) -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral -> DioFormula MiniSatLiteral DioVar Int -> m (OrientationProof MatrixOrder)
-      solve initial mkOrder mform dform =
+      solve :: SatSolver.Decoder e a => P.SolverM m => e -> ( e -> MatrixOrder) -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral -> DioFormula MiniSatLiteral DioVar Int -> m (OrientationProof MatrixOrder)
+      solve initial mkOrder memform dioform =
         catchException $ do
           let pform = do
-                pform1 <- MForm.toFormula mform
-                pform2 <- toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) dform
-                addFormula (pform1 && pform2)
+                pform1 <- MForm.toFormula memform
+                pform2 <- toFormula (N.bound `liftM` cbits mp) (N.bound $ bound mp) dioform
+                SatSolver.addFormula (pform1 && pform2)
           mi <- P.minisatValue (pform) initial
           return $ case  mi of
             Nothing -> Incompatible
@@ -433,12 +432,12 @@ orient rs prob mp = do
 
 
           mform = validUsableRules
-          dform = (kind && dp && orientation && filtering)
+          dform = (kindConstraint && dpConstraint && orientationConstraint && filteringConstraint)
             where
-              kind        = kindConstraints mk absmi
-              dp          = dpChoice mdp st uaOn
-              orientation = orientationConstraints
-              filtering   = filteringConstraints allowAF prob absmi
+              kindConstraint        = kindConstraints mk absmi
+              dpConstraint          = dpChoice mdp st uaOn
+              orientationConstraint = orientationConstraints
+              filteringConstraint   = filteringConstraints allowAF prob absmi
 
           
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
@@ -453,21 +452,19 @@ filteringConstraints :: (Eq l, Ord l, Show a) => AbstrOrdSemiring a (DioFormula 
 filteringConstraints allowAF prob absmi = 
   if allowAF then bigAnd $ constraint allargs else top
   where
-    args    = concatMap (\f -> zip (cycle [f]) [1..F.arity (Prob.signature prob) f])
+    argsOf   = concatMap (\f -> zip (cycle [f]) [1..F.arity (Prob.signature prob) f])
     allfs   = Set.toList $ Trs.functionSymbols $ Prob.allComponents prob
-    allargs = args allfs
+    allargs = argsOf allfs
 
-    sig = Prob.signature prob
-
-    isNotZeroMatrix f i absmi = fml
+    isNotZeroMatrix f i mi = fml
       where
-        mx  = Map.lookup f (interpretations absmi) >>= \l -> Map.lookup (V.Canon i) (coefficients l)
-        fml = case mx of
-          Nothing -> error "Tct.Method.Matrix.NaturalMi.isInFilter: Undefined function index"
-          Just mx -> let entries = (\(n,m) -> [(i,j) | i <- [1 .. n], j <- [1 .. m]]) $ mdim mx in
+        mxM = Map.lookup f (interpretations mi) >>= \l -> Map.lookup (V.Canon i) (coefficients l)
+        fml = case mxM of
+          Nothing  -> error "Tct.Method.Matrix.NaturalMi.isInFilter: Undefined function index"
+          Just mx -> let entries = (\(n,m) -> [(k,l) | k <- [1 .. n], l <- [1 .. m]]) $ mdim mx in
                     notZero mx entries
-        notZero mx es = bigOr $ map (\(i,j) -> entry i j mx .>. SR.zero) es
-    constraint allargs = map (\(f,i) -> (atom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) allargs
+        notZero mx es = bigOr $ map (\(k,l) -> entry k l mx .>. SR.zero) es
+    constraint args = map (\(f,i) -> (atom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) args
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
@@ -682,7 +679,7 @@ instance (AbstrOrd a b, MIEntry a) => AbstrOrd (LInter a) b where
   (LI lcoeffs lconst) .<=. (LI rcoeffs rconst) = bigAnd (Map.elems zipmaps) && lconst .<=. rconst
                                                  where zipmaps = Map.intersectionWith (.<=.) lcoeffs rcoeffs
 
-instance (Ord l, Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
+instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
   plus = N.mAddNO
   prod = N.mTimesNO
   zero = N.natToFormula 0
@@ -696,7 +693,7 @@ instance (Ord l, Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
   padFormTo n f = N.padBots (max n l - l) f
     where l = length f
 
-instance Decoder (MatrixInter (N.Size -> Int)) (N.PLVec DioVar) where
+instance SatSolver.Decoder (MatrixInter (N.Size -> Int)) (N.PLVec DioVar) where
   add (N.PLVec (DioVar y) k) mi = case cast y of
                                       Nothing -> mi
                                       Just x -> mi{interpretations = Map.adjust newli fun (interpretations mi)}

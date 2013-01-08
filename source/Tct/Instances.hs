@@ -176,6 +176,7 @@ module Tct.Instances
       
       -- ** Compose
     , Compose.compose
+    , partitionIndependent
     , Compose.composeDynamic
     , Compose.composeStatic      
     , Compose.greedy      
@@ -208,6 +209,7 @@ module Tct.Instances
       -- * Rule-selectors based on dependency graphs
     , RS.selFirstCongruence
     , RS.selFirstStrictCongruence
+    , selFWBWstrict
       -- * Boolean Selectors
     , RS.selAnyOf
     , RS.selAllOf
@@ -298,6 +300,7 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
 import qualified Data.List as List
+import qualified Data.Set as Set
 
 -- TODO doc
 pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
@@ -385,6 +388,21 @@ bsearch nm mkinst = bsearchProcessor `S.withArgs` ()
                       Cert.Poly b -> b
                       _           -> Nothing
 
+
+partitionIndependent :: T.TheTransformer (Compose.Compose P.AnyProcessor)
+partitionIndependent = Compose.composeStatic selFWBWstrict Compose.Add
+
+selFWBWstrict :: RS.ExpressionSelector
+selFWBWstrict = RS.selAllOf $ RS.selFromWDG "forward and backward closed partitioning of WDG" f
+  where f wdg = case stricts of 
+                  [] -> Prob.emptyRuleset 
+                  n:_ -> Prob.emptyRuleset 
+                          {Prob.sdp = Trs.fromRules [ r | (_,(DG.StrictDP, r)) <- DG.withNodeLabels' wdg $ rs n] }
+          where stricts = [n | (n,(DG.StrictDP,_)) <- DG.lnodes wdg]
+                iwdg = DG.inverse wdg
+                rs n = DG.reachablesBfs wdg [n] `union` DG.reachablesBfs iwdg [n]
+        a `union` b = Set.toList $ Set.fromList a `Set.union` Set.fromList b
+
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps   = try DPSimp.removeTails 
@@ -406,10 +424,12 @@ cleanTail =
 toDP :: T.TheTransformer T.SomeTransformation
 toDP = 
   try (timeout 5 dps <> dts)
-  >>> te DPSimp.removeInapplicable
-  -- >>> te DPSimp.inline
-  >>> te DPSimp.removeHeads
+  >>> try DPSimp.removeInapplicable
   >>> try cleanTail
+  >>> te DPSimp.removeHeads
+  >>> te partitionIndependent
+  >>> try cleanTail
+  >>> try DPSimp.trivial
   >>> try UR.usableRules
   where 
     dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
@@ -745,10 +765,10 @@ rc2012 = named "rc2012" $
                                       <||> Compose.composeDynamic Compose.Add (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
-        directs = (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
+        directs = timeout 57 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
                   `Combinators.orBetter` timeout 5 matchbounds
-                  `Combinators.orBetter` ( bsearch "popstar" PopStar.popstarSmallPS )
-                  `Combinators.orBetter` PopStar.popstarPS
+                  `Combinators.orBetter` timeout 57 ( bsearch "popstar" PopStar.popstarSmallPS )
+                  `Combinators.orBetter` timeout 57 PopStar.popstarPS
           
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
@@ -760,7 +780,7 @@ rc2012 = named "rc2012" $
           
         rc2012RC = 
           Combinators.best [ some $ timeout 57 $ DP.dependencyPairs >>| isTrivialDP
-                           , some $ timeout 57 $ directs 
+                           , some $ directs 
                            , some $ Timeout.timeout 57 (dp >>| withProblem (rc2012DP 1))]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
@@ -768,8 +788,7 @@ rc2012 = named "rc2012" $
                      
         rc2012RCi = 
           try IRR.irr 
-          >>! Combinators.best [ some $ timeout 57 $ DP.dependencyTuples >>| isTrivialDP
-                               , some $ timeout 57 $ directs 
+          >>! Combinators.best [ some $ directs 
                                , some $ timeout 57 $ rc2012DPi]
           
         rc2012DP i prob

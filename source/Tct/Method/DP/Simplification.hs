@@ -78,7 +78,7 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 import Termlib.Rule (Rule (..),)
 import qualified Termlib.Term as Term
-import qualified Termlib.Substitution as Subst
+-- import qualified Termlib.Substitution as Subst
 import Termlib.Term (properSubterms, functionSymbols)
 
 import Termlib.Trs.PrettyPrint (pprintNamedTrs, pprintTrs)

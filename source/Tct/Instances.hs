@@ -765,10 +765,10 @@ rc2012 = named "rc2012" $
                                       <||> Compose.composeDynamic Compose.Add (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
-        directs = timeout 57 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
+        directs = timeout 58 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
                   `Combinators.orBetter` timeout 5 matchbounds
-                  `Combinators.orBetter` timeout 57 ( bsearch "popstar" PopStar.popstarSmallPS )
-                  `Combinators.orBetter` timeout 57 PopStar.popstarPS
+                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" PopStar.popstarSmallPS )
+                  `Combinators.orBetter` timeout 58 PopStar.popstarPS
           
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
@@ -779,9 +779,9 @@ rc2012 = named "rc2012" $
                         <||> when (i < 4) (Compose.composeDynamic Compose.Add (mx (i + 1) i)))
           
         rc2012RC = 
-          Combinators.best [ some $ timeout 57 $ DP.dependencyPairs >>| isTrivialDP
+          Combinators.best [ some $ timeout 58 $ DP.dependencyPairs >>| isTrivialDP
                            , some $ directs 
-                           , some $ Timeout.timeout 57 (dp >>| withProblem (rc2012DP 1))]
+                           , some $ Timeout.timeout 58 (dp >>| withProblem (rc2012DP 1))]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
                      >>> try wgOnUsable
@@ -789,7 +789,7 @@ rc2012 = named "rc2012" $
         rc2012RCi = 
           try IRR.irr 
           >>! Combinators.best [ some $ directs 
-                               , some $ timeout 57 $ rc2012DPi]
+                               , some $ timeout 58 $ rc2012DPi]
           
         rc2012DP i prob
           | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi

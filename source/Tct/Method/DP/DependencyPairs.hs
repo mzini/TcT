@@ -65,7 +65,7 @@ dependencyPairsOf useTuples prob trs names = do rs <- mapM mk $ zip (Trs.rules t
                            rhs' <- mkRhs i $ R.rhs rule
                            return $ R.fromPair (lhs',rhs')
           mkRhs i t   = fromSubterms $ gatherSubterms t
-              where fromSubterms [t1] = mrk t1
+              where -- fromSubterms [t1] = mrk t1
                     fromSubterms ts = do c <- fresh (defaultAttribs i (length ts)) {symIsCompound = True}
                                          ts' <- mapM mrk ts
                                          return $ Term.Fun c ts'

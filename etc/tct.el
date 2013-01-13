@@ -363,6 +363,11 @@
   (tct-dired)
   (tct-interactive))
 
+(defun tct-quit ()
+  (interactive)
+  (tct-dired-quit)
+  (tcti-quit))
+
 (defun tct-open-hs ()
   (interactive)
   (find-file tct.hs))

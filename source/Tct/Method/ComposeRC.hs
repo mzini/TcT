@@ -123,7 +123,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
     transform inst prob 
          | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
          | not (Trs.isEmpty $ Prob.strictTrs prob) = return $ T.NoProgress $ ComposeRCInapplicable "strict rules of input problem are empty" 
-         | Trs.isEmpty initialDPs  = return $ T.NoProgress $ ComposeRCInapplicable "no was rules selected" 
+         | Trs.isEmpty initialDPs  = return $ T.NoProgress $ ComposeRCInapplicable "no rules were selected" 
+         | not (any isCut unselectedNodes) = return $ T.NoProgress $ ComposeRCInapplicable "no rule was cut"
          | otherwise = 
              do mProofA <- mapply mProcA probA
                 mProofB <- case maybe True P.succeeded mProofA of 
@@ -173,9 +174,12 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                         closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
                             where initials = [ n | (n, (_, r)) <- allLabeledNodes, rs `Trs.member` r ]
 
-              unselectedLabeledNodes = DG.withNodeLabels' wdg $ Set.toList $ Set.fromList (DG.nodes wdg) Set.\\ selectedNodes
-              (cutWeakDPs, uncutWeakDPs) = List.partition isCut [ (n,r) | (n,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
-                    where isCut (n, _) = any (`Set.member` selectedNodes) (successors wdg n)
+              unselectedNodes = [n | n <- DG.nodes wdg, not (n `Set.member` selectedNodes)]
+
+              isCut n = any (`Set.member` selectedNodes) (successors wdg n)
+
+              unselectedLabeledNodes = DG.withNodeLabels' wdg $ unselectedNodes
+              (cutWeakDPs, uncutWeakDPs) = List.partition (\ (n,_) -> isCut n) [ (n,r) | (n,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
               unselectedStrictDPs = Trs.fromRules $ [ r | (_,(DG.StrictDP, r)) <- unselectedLabeledNodes ] 
                                                     ++ [ r | (_, r) <- cutWeakDPs]
               unselectedWeakDPs = Trs.fromRules [ r | (_, r) <- uncutWeakDPs]

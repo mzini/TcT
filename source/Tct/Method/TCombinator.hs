@@ -35,8 +35,8 @@ where
 import Tct.Processor.Transformations
 
 import Control.Monad (liftM)
+import qualified System.Timeout as TO
 
-import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
 
 import Data.Maybe (catMaybes)
@@ -320,7 +320,7 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :<>: t2) where
   
   transform tinst prob =
          do rs <- P.evalList (parChoice t) (not . isProgress) [ Left `liftM` transform t1 prob
-                                                  , Right `liftM` transform t2 prob]
+                                                              , Right `liftM` transform t2 prob]
             let toResult :: Either (Result t1) (Result t2) -> Result (t1 :<>: t2)
                 toResult (Left  r1@(Progress _ ps)) = Progress (ChoiceOne r1) ps 
                 toResult (Left  r1@(NoProgress _))  = NoProgress (ChoiceOne r1)
@@ -490,7 +490,7 @@ instance (Transformer t) => Transformer (Timeout t) where
     arguments (Timeout t _) = arguments t
     transform inst prob = 
       do io <- P.mkIO $ transform tinst prob
-         r <- liftIO $ timedKill (i * (10^(6 :: Int))) io
+         r <- liftIO $ TO.timeout (i * (10^(6 :: Int))) io
          return $ case r of 
                    Just (Progress p ps) -> Progress (NoTimeout p) ps
                    Just (NoProgress p) -> NoProgress (NoTimeout p)

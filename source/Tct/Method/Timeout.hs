@@ -28,8 +28,9 @@ module Tct.Method.Timeout
     , TOProof (..)
     , Timeout)
 where 
-import Control.Concurrent.Utils (timedKill)
+-- import Control.Concurrent.Utils (timedKill)
 import Control.Monad.Trans (liftIO)
+import qualified System.Timeout as TO
 
 import Tct.Utils.Xml as Xml
 import Tct.Processor.Args
@@ -70,7 +71,7 @@ instance P.Processor p => S.Processor (Timeout p) where
       where Nat i :+: inst = S.processorArgs tinst
     solve tinst prob  = 
         do io <- P.mkIO $ P.apply inst prob 
-           r <- liftIO $ timedKill (i * (10^(6 :: Int))) io
+           r <- liftIO $ TO.timeout (i * (10^(6 :: Int))) io
            return $ case r of 
                       Just p  -> TOProof (P.result p)
                       Nothing -> TimedOut i

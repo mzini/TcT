@@ -43,7 +43,7 @@ import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
 
-import Termlib.Term (Term)
+import Termlib.Term (Term,root)
 import qualified Tct.Utils.Xml as Xml
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -113,17 +113,16 @@ instance ComplexityProof MatrixOrder where
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
-                          $+$ (case maf of 
-                               Nothing -> empty
-                               Just af -> text "" 
-                                         $+$ paragraph "Further, following argument filtering is employed:"
-                                         $++$ (nest 1 . pprint $  af)
-                                         $++$ paragraph "Usable defined function symbols are a subset of:"
-                                         $++$ (nest 1 . pprint $ (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us])))
-                          $+$ text ""
+                          -- $+$ (case maf of 
+                          --      Nothing -> empty
+                          --      Just af -> text "" 
+                          --                $+$ paragraph "Further, following argument filtering is employed:"
+                          --                $++$ (nest 1 . pprint $  af)
+                          --                $++$ paragraph "Usable defined function symbols are a subset of:"
+                          --                $++$ (nest 1 . pprint $ (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us])))
                           $+$ paragraph "This order satisfies following ordering constraints"
                           $+$ text ""                            
-                          $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))
+                          $+$ indent (pprintOrientRules inter sig vars rs)
 
         where ppknd UnrestrictedMatrix            = "unrestricted matrix interpretation."
               ppknd (TriangularMatrix Nothing)    = "triangular matrix interpretation."
@@ -143,8 +142,10 @@ instance ComplexityProof MatrixOrder where
               prob  = input order
               sig   = Prob.signature prob
               vars  = Prob.variables prob
-              maf   = argFilter order
-              us    = usymbols order
+              rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob 
+                        , let rt = root $ R.lhs rl
+                          in or [ rt == Right f | f <- us ] ]
+              us = usymbols order                                            
     
     answer order = CertAnswer $ certified (unknown, ub)
        
@@ -357,7 +358,7 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
                       , argFilter = if allowAF then Just af else Nothing
                       , usymbols  = us
                       }
-        initial = absmi SatSolver.:&: AFEnc.initial sig SatSolver.:&: UREnc.initialUsables
+        initial = absmi SatSolver.:&: AFEnc.initial sig SatSolver.:&: UREnc.initialUsables prob
     MNoDP -> solve initial mkOrder mform dform
       where
         mkOrder (mv) =

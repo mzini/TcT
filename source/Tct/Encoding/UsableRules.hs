@@ -68,8 +68,11 @@ usable prob | not (Prob.isDPProblem prob) = const top
         _                     -> error "UsableRules: Prob.defineds not defined on TermAlgebra"
 
                   
-initialUsables :: [Symbol]
-initialUsables = []
+initialUsables :: Problem -> [Symbol]
+initialUsables prob = Set.toList $ 
+  case Prob.startTerms prob of 
+    Prob.TermAlgebra fs -> fs
+    st -> Prob.defineds st
 
 validUsableRulesEncoding :: (Eq l, Ord l, Monad s, Solver s l) => Problem -> (Symbol -> Int -> PropFormula l) -> Memo Term s l (PropFormula l)
 validUsableRulesEncoding prob unfiltered 

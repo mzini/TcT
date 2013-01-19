@@ -72,21 +72,26 @@ relativeStricterTrsConstraints oblrules a trs = weakTrsConstraints a nonobltrs &
 strictOneConstraints :: (Algebra a c, AbstrOrd c b) => a -> Trs.Trs -> b
 strictOneConstraints = orientOneConstraints (.>.)
 
-pprintOrientRules :: (PrettyPrintable (c, V.Variables), AbstrOrd c Bool, Algebra a c) => a -> F.Signature -> V.Variables -> Trs.Trs -> Doc
-pprintOrientRules inter sig vars trs = 
+pprintOrientRules :: (PrettyPrintable (c, V.Variables), AbstrOrd c Bool, Algebra a c) => a -> F.Signature -> V.Variables -> [R.Rule] -> Doc
+pprintOrientRules inter sig vars rs = 
   columns [ (AlignRight, as)
           , (AlignLeft, bs)
           , (AlignLeft, cs)]
-  where (as, bs, cs) = unzip3 $ concatMap ppOrientRl (Trs.rules trs)
-        ppOrientRl r | '?' `elem` ord = []
-                     | otherwise = [ (ppIntTerm (R.lhs r), text " = " , pprint (il, vars))
-                                   , (empty              , text ord , pprint (ir, vars))
-                                   , (empty              , text " = " , ppIntTerm (R.rhs r))
-                                   , nl]
-          where il = interpretTerm inter (R.lhs r)
-                ir = interpretTerm inter (R.rhs r)
-                nl = (text " ", text " ", text " ")
-                ord | il .>. ir = " > "
-                    | il .>=. ir = " >= "
-                    | otherwise  = " ? "
-                ppIntTerm t = brackets $ pprint (t, sig, vars)
+  where 
+    (as, bs, cs) = unzip3 $ concatMap ppOrientRl rs
+    ppOrientRl rule
+      | '?' `elem` ord = []
+      | otherwise = [ (ppIntTerm l , text " = " , pprint (il, vars))
+                    , (empty       , text ord   , pprint (ir, vars))
+                    , (empty       , text " = " , ppIntTerm r)
+                    , nl]
+      where 
+        l = R.lhs rule
+        r = R.rhs rule
+        il = interpretTerm inter l
+        ir = interpretTerm inter r
+        nl = (text " ", text " ", text " ")
+        ord | il .>. ir = " > "
+            | il .>=. ir = " >= "
+            | otherwise  = " ? "
+        ppIntTerm t = brackets $ pprint (t, sig, vars)

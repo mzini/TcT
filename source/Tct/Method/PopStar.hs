@@ -407,7 +407,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                                , popInstance          = inst 
                                , popUsableSymbols     = us 
                                , popStrictlyOriented  = sr }
-                    initial  = UREnc.initialUsables 
+                    initial  = UREnc.initialUsables prob
                                :&: SMEnc.empty sig quasiConstrs 
                                :&: PrecEnc.initialRecursiveSymbols                                                         
                                :&: PrecEnc.initial sig 

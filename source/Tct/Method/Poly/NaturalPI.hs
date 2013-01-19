@@ -90,7 +90,7 @@ instance P.ComplexityProof PolynomialOrder where
       $+$ text ""
       $+$ paragraph "This order satisfies following ordering constraints"
       $+$ text ""
-      $+$ indent (pprintOrientRules inter sig vars (Prob.allComponents prob))      
+      $+$ indent (pprintOrientRules inter sig vars (Trs.rules $ Prob.allComponents prob))      
     where ppknd (UnrestrictedPoly   shp) = ppshp shp
           ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
           ppshp (SimpleShape s) = show s ++ " polynomial interpretation."

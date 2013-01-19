@@ -193,7 +193,7 @@ orientProblem prod prob = maybe Incompatible Order `liftM` slv
                                , mpoInputProblem      = prob 
                                , mpoUsableSymbols     = us 
                                , mpoIsPPO             = prod}
-                    initial = UREnc.initialUsables 
+                    initial = UREnc.initialUsables prob
                               :&: PrecEnc.initial sig 
                               :&: AFEnc.initial sig
 

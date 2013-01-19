@@ -119,6 +119,7 @@
 (defvar tct-dired-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [return] 'tct-dired-find-file)
+    (define-key map [mouse-1] 'tct-dired-find-file)
     (define-key map "x"        'tct-dired-on-file)
     (define-key map "l" 'tct-dired-load-interactive)
     (define-key map "s" 'tct-dired-show-trs)

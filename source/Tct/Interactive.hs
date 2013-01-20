@@ -749,6 +749,9 @@ import Control.Monad
 nb :: String -> Doc          
 nb msg = text "NB:" <+> text msg
 
+instance U.PrettyPrintable String where
+  pprint = text
+
 pprint :: U.PrettyPrintable a => a -> IO ()
 pprint a = do putStrLn "" 
               print $ indent $ U.pprint a
@@ -1343,7 +1346,18 @@ setIDC :: IO ()
 setIDC = setIDC' >> printState
 
 load :: FilePath -> IO ()
-load fn = load' fn >> printState
+load fn = do 
+  load' fn
+  mpt <- proofTree `liftM` getState 
+  case mpt of 
+    Just (Open prob) -> 
+      pprint $ 
+      indent (U.pprint prob)
+      $+$ text ""
+      $+$ text "Problem loaded."
+      
+    _ -> return ()
+      
 
 loadRC :: FilePath -> IO ()
 loadRC n = load' n >> setRC

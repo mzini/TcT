@@ -56,7 +56,7 @@ import Tct.Method.Compose hiding (compose)
 import Tct.Method.ComposeRC hiding (composeRC)
 import Tct.Method.DP.DependencyPairs hiding (dependencyPairs)
 import Tct.Method.DP.PathAnalysis hiding (pathAnalysis)
-import Tct.Method.DP.Simplification hiding (simpDPRHS, simpKP)
+import Tct.Method.DP.Simplification hiding (simpDPRHS, simpPE)
 import Tct.Method.DP.UsableRules hiding (usableRules)
 import Tct.Method.EpoStar hiding (epostar)
 import Tct.Method.InnermostRuleRemoval hiding (irr)
@@ -155,7 +155,7 @@ builtInProcessors =
     P.<|>
     S.StdProcessor simpDPRHS
     P.<|>
-    S.StdProcessor simpKP
+    S.StdProcessor simpPE
     P.<|>
     -- S.StdProcessor inline
     -- P.<|>
@@ -851,8 +851,7 @@ simpDPRHS = simpDPRHSProcessor
 {- |
 Moves a strict dependency into the weak component if all
 predecessors in the dependency graph are strict and there is no
-edge from the rule to itself. Only applicable if the strict
-component is empty.
+edge from the rule to itself. Only 
 
 [subprocessor :: \<processor>] The processor that is applied on the transformed problem(s)
 
@@ -871,8 +870,8 @@ Currently we only take subset-inclusions of the different components into accoun
 -- inline :: T.Transformation Inline P.AnyProcessor
 -- inline = inlineProcessor
 
-simpKP :: T.Transformation (SimpKP P.AnyProcessor) P.AnyProcessor
-simpKP = simpKPProcessor
+simpPE :: T.Transformation (SimpPE P.AnyProcessor) P.AnyProcessor
+simpPE = simpPEProcessor
 
 {- |
 This processor restricts the strict- and weak-rules to usable rules

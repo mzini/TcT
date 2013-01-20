@@ -23,8 +23,8 @@
 module Tct.Method.ComposeRC 
        (
          composeRC
-       , solveAWith
-       , solveBWith         
+       , solveUpperWith
+       , solveLowerWith         
        , composeRCselect
          -- * Proof Object
        , ComposeRCProof (..)
@@ -49,7 +49,6 @@ import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert
 
-import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils (PrettyPrintable (..), paragraph, snub)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
@@ -63,22 +62,23 @@ import Data.Graph.Inductive.Query.DFS (dfs)
 import Data.Typeable ()
 
 data ComposeRC p1 p2 = ComposeRC
-data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector :: ExpressionSelector
-                                           , cpUnselected   :: Trs.Trs
-                                           , cpSelected     :: Trs.Trs 
-                                           , cpProofA       :: Maybe (P.Proof p1) 
-                                           , cpProofB       :: Maybe (P.Proof p2)
-                                           , cpProbA        :: Prob.Problem
-                                           , cpProbB        :: Prob.Problem
-                                           , cpWdg          :: DG.DG}
+data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector   :: ExpressionSelector
+                                           , cpUnselected     :: Trs.Trs
+                                           , cpSelected       :: Trs.Trs 
+                                           , cpExtensionRules :: Trs.Trs
+                                           , cpProofD         :: Maybe (P.Proof p1) 
+                                           , cpProofU         :: Maybe (P.Proof p2)
+                                           , cpProbD          :: Prob.Problem
+                                           , cpProbU          :: Prob.Problem
+                                           , cpWdg            :: DG.DG}
                           | ComposeRCInapplicable String
 
 progress :: (P.Processor p1, P.Processor p2) => ComposeRCProof p1 p2 -> Bool
 progress ComposeRCInapplicable {} = False
-progress proof = maybe True P.succeeded (cpProofA proof) 
-                 && maybe True P.succeeded (cpProofB proof)
+progress proof = maybe True P.succeeded (cpProofD proof) 
+                 && maybe True P.succeeded (cpProofU proof)
                  && not (Trs.isEmpty sdps)
-   where sdps = Prob.strictDPs $ cpProbB proof
+   where sdps = Prob.strictDPs $ cpProbU proof
          
 
 instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
@@ -112,12 +112,12 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
       :+: 
       opt { A.name = "sub-processor-A"
           , A.defaultValue = Nothing
-          , A.description = "If given, applied on the problem reflecting the upper congruence classes."
+          , A.description = "Use this processor to solve the upper component."
           }
       :+: 
       opt { A.name = "sub-processor-B"
           , A.defaultValue = Nothing
-          , A.description = "If given, applied on the problem reflecting the lower congruence classes."
+          , A.description = "Use this processor to solve the lower component."
           }
     
     transform inst prob 
@@ -137,26 +137,31 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               allLabeledNodes = lnodes wdg
               sig = Prob.signature prob
 
-              mkProof mProofA mProofB | progress tproof = T.Progress tproof subprobs
-                                      | otherwise       = T.NoProgress tproof
-                  where tproof = ComposeRCProof { cpRuleSelector = s
-                                                , cpUnselected   = Trs.fromRules [ r | (_,(_,r)) <- unselectedLabeledNodes]
-                                                , cpSelected     = selectedStrictDPs `Trs.union` selectedWeakDPs
-                                                , cpProofA       = mProofA
-                                                , cpProofB       = mProofB
-                                                , cpProbA        = probA
-                                                , cpProbB        = probB
-                                                , cpWdg          = wdg }
-                        subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
-                                             , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
+              mkProof mProofA mProofB 
+                  | progress tproof = T.Progress tproof subprobs
+                  | otherwise       = T.NoProgress tproof
+                  where 
+                    tproof = ComposeRCProof { cpRuleSelector   = s
+                                            , cpUnselected     = Trs.fromRules [ r | (_,(_,r)) <- unselectedLabeledNodes]
+                                            , cpSelected       = selectedStrictDPs `Trs.union` selectedWeakDPs
+                                            , cpExtensionRules = extRules
+                                            , cpProofD         = mProofA
+                                            , cpProofU         = mProofB
+                                            , cpProbD          = probA
+                                            , cpProbU          = probB
+                                            , cpWdg            = wdg }
+                    subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
+                                         , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
 
-              probA = Prob.sanitise $ prob { Prob.strictDPs = selectedStrictDPs
-                                           , Prob.weakDPs   = Trs.unions [ flatten unselectedStrictDPs
-                                                                         , flatten unselectedWeakDPs
-                                                                         , selectedWeakDPs ] }
+              extRules = flatten unselectedStrictDPs `Trs.union` flatten unselectedWeakDPs
 
-              probB = Prob.sanitise $ prob { Prob.strictDPs = unselectedStrictDPs
-                                           , Prob.weakDPs   = unselectedWeakDPs }
+              probA = Prob.sanitise $ 
+                 prob { Prob.strictDPs = selectedStrictDPs
+                      , Prob.weakDPs   = extRules `Trs.union` selectedWeakDPs }
+
+              probB = Prob.sanitise $ 
+                 prob { Prob.strictDPs = unselectedStrictDPs
+                      , Prob.weakDPs   = unselectedWeakDPs }
 
               flatten = Trs.fromRules . concatMap flattenRule . Trs.toRules
                  where flattenRule (Rule l (Term.Fun f ts))
@@ -190,37 +195,41 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
 instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
-    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Compose RC is inapplicable since" <+> text reason <> text "."
-    pprintTProof _ prob tproof _ = 
-      paragraph "We measure the number of applications of following selected rules relative to the remaining rules."
+    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Dependency graph decomposition is inapplicable since" <+> text reason <> text "."
+    pprintTProof _ prob tproof mde = 
+      paragraph "We decompose the input problem according to the dependency graph into the upper component"
       $+$ text ""
-      $+$ indent (pptrs "Selected Rules (A)" (cpSelected tproof))
-      $+$ indent (pptrs "Remaining Rules (B)" (cpUnselected tproof))
+      $+$ indent (pprint (cpUnselected tproof, sig, vars))
       $+$ text ""
-      $+$ paragraph "The length of a single A-subderivation is expressed by the following problem."
+      $+$ paragraph "and lower component"
       $+$ text ""
-      $+$ block' "Problem (A)" [pprint (cpProbA tproof)]
+      $+$ indent (pprint (cpSelected tproof, sig, vars))
       $+$ text ""
-      $+$ paragraph "The number of B-applications is expressed by the following problem."
+      $+$ paragraph "Further, following extension rules are added to the lower component."
       $+$ text ""
-      $+$ block' "Problem (B)" [pprint (cpProbB tproof)]
-      $+$ maybePrintSub (cpProofA tproof) "A"
-      $+$ maybePrintSub (cpProofB tproof) "B"
-       where vars = Prob.variables prob
-             sig  = Prob.signature prob
-             pptrs = pprintNamedTrs sig vars
-             maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
-             maybePrintSub Nothing  _ = empty
-             maybePrintSub (Just p) n = 
-               case P.succeeded p of 
-                 True -> text ""
-                         $+$ paragraph ("TcT answers on problem (" ++ n ++ ") " 
-                                        ++ show (pprint (P.answer p)) ++ ".")
-                 False -> paragraph ("Unfortnuately TcT could not construct a certificate for Problem ("
-                                     ++ show n ++ "). We abort.")
-               $+$ text ""
-               $+$ block' "Sub-proof" [P.pprintProof p P.ProofOutput]
-
+      $+$ pprint (cpExtensionRules tproof, sig, vars)
+      $+$ maybePrintSub (cpProofD tproof) "lower"
+      $+$ maybePrintSub (cpProofU tproof) "upper"
+       where 
+         vars = Prob.variables prob
+         sig  = Prob.signature prob
+         maybePrintSub :: P.Processor p => Maybe (P.Proof p) -> String -> Doc
+         maybePrintSub Nothing  _ = empty
+         maybePrintSub (Just p) n = 
+           text ""
+           $+$ paragraph (show ppAns)
+           $+$ text ""
+           $+$ block' "Sub-proof" [P.pprintProof p mde]
+           $+$ text ""
+           $+$ text "We return to the main proof."
+           where 
+             ppAns
+               | P.succeeded p = 
+                   text "TcT solves the" <+> text n <+> text "component with certificate" 
+                   <+> pprint (P.answer p) <> text "."
+               | otherwise =
+                   text "TcT could not construct a certificate for the"
+                   <+> text n <+> text "component. We abort."
     answer proof = 
       case tproof of 
         ComposeRCInapplicable{} -> P.MaybeAnswer
@@ -232,8 +241,8 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
               subproofs = T.subProofs proof
               ub = Cert.upperBound cert1 `Cert.mult` Cert.upperBound cert2
               lb = Cert.lowerBound cert1 `Cert.add` Cert.lowerBound cert2
-              cert1 = certFrom (cpProofA tproof) (find (1 :: Int) subproofs)
-              cert2 = certFrom (cpProofB tproof) (find (2 :: Int) subproofs)
+              cert1 = certFrom (cpProofD tproof) (find (1 :: Int) subproofs)
+              cert2 = certFrom (cpProofU tproof) (find (2 :: Int) subproofs)
               certFrom :: (P.ComplexityProof a1, P.ComplexityProof a2) => Maybe a1 -> Maybe a2 -> Cert.Certificate
               certFrom mp1 mp2 = maybe Cert.uncertified id mcert 
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
@@ -281,12 +290,12 @@ composeRCProcessor = T.Transformation ComposeRC
 composeRC :: ExpressionSelector -> T.TheTransformer (ComposeRC P.AnyProcessor P.AnyProcessor)
 composeRC s = T.Transformation ComposeRC `T.withArgs` (s :+: Nothing :+: Nothing)
 
--- | Specify a processor to solve Problem A immediately. 
+-- | Specify a processor to solve the lower immediately. 
 -- The Transformation aborts if the problem cannot be handled.
-solveAWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p p2))
-solveAWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRC (s :+: Just p :+: p2)
+solveLowerWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p p2))
+solveLowerWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRC (s :+: Just p :+: p2)
 
--- | Specify a processor to solve Problem B immediately. 
+-- | Specify a processor to solve the upper component immediately.
 -- The Transformation aborts if the problem cannot be handled.
-solveBWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p1 p))
-solveBWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRC (s :+: p1 :+: Just p)
+solveUpperWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p1 p))
+solveUpperWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRC (s :+: p1 :+: Just p)

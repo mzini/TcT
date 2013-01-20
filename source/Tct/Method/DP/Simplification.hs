@@ -53,12 +53,12 @@ module Tct.Method.DP.Simplification
 
          
          -- * Knowledge Propagation
-       , simpKP
-       , simpKPOn
-       , withKPOn
-       , SimpKPProof (..)         
-       , simpKPProcessor
-       , SimpKP
+       , simpPE
+       , simpPEOn
+       , withPEOn
+       , SimpPEProof (..)         
+       , simpPEProcessor
+       , SimpPE
        -- , inline
        -- , inlineProcessor
        -- , Inline
@@ -186,26 +186,30 @@ data RemoveTailProof = RTProof { removables :: [(NodeId, DGNode)] -- ^ Tail Node
 instance T.TransformationProof RemoveTail where
   answer = T.answerFromSubProof
   pprintTProof _ _ (RTError e) _ = pprint e
-  pprintTProof _ _ p _ | null remls = text "No weak dependency pair could be removed."
-                       | otherwise  = 
-     text "We consider the (approximated) congruence graph"
-     $+$ text ""
-     $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-     $+$ text ""
-     $+$ paragraph "and the following set of dependency pairs."
-     $+$ text ""
-     $+$ indent (pprintTrs ppRule remls)
-     $+$ text ""
-     $+$ paragraph ("The problem can be simplified by removing these pairs, "
-                    ++ "as they only occur in suffixes of paths through the dependency graph.")
+  pprintTProof _ _ p _ 
+     | null remls = paragraph "The dependency graph contains no sub-graph of weak DPs closed under successors."
+     | otherwise  = 
+         paragraph "The following weak DPs constitute a sub-graph of the DG that is closed under successors. The DPs are removed."
+         $+$ text ""
+         $+$ pprint (Trs.fromRules [ r | (_,(_,r)) <- remls ], sig,vars)
+     -- text "We consider the (approximated) congruence graph"
+     -- $+$ text ""
+     -- $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+     -- $+$ text ""
+     -- $+$ paragraph "and the following set of dependency pairs."
+     -- $+$ text ""
+     -- $+$ indent (pprintTrs ppRule remls)
+     -- $+$ text ""
+     -- $+$ paragraph ("The problem can be simplified by removing these pairs, "
+     --                ++ "as they only occur in suffixes of paths through the dependency graph.")
      where vars          = variables p                              
            sig           = signature p
-           cwdg          = cgraph p
+           -- cwdg          = cgraph p
            remls         = removables p
-           ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
-           ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
-                       | otherwise             = PP.empty
-               where scc = lookupNodeLabel' cwdg n
+           -- ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
+           -- ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
+           --             | otherwise             = PP.empty
+           --     where scc = lookupNodeLabel' cwdg n
                                           
 
 onlyWeaks :: CDGNode -> Bool
@@ -281,18 +285,19 @@ data SimpRHSProof = SRHSProof { srhsReplacedRules :: [Rule] -- ^ Rules that coul
 instance T.TransformationProof SimpRHS where
   answer = T.answerFromSubProof
   pprintTProof _ _ (SRHSError e) _ = pprint e
-  pprintTProof _ _ p _ | null repls = text "No rule was simplified"
-                       | otherwise = 
-       text "We consider the following dependency-graph" 
-       $+$ text ""
-       $+$ indent (pprint (dg, sig, vars))
-       $+$ paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
+  pprintTProof _ _ p _ 
+    | null repls = text "No rule was simplified"
+    | otherwise = 
+       -- text "We consider the following dependency-graph" 
+       -- $+$ text ""
+       -- $+$ indent (pprint (dg, sig, vars))
+       paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
        $+$ text ""
        $+$ indent (pprint (Trs.fromRules repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p
-           dg    = srhsDG p
+           -- dg    = srhsDG p
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"
@@ -349,33 +354,33 @@ simpDPRHS = T.Transformation SimpRHS `T.withArgs` ()
 --------------------------------------------------------------------------------
 --- 'Knowledge propagation'
 
-data SimpKP p = SimpKP
-data SimpKPSelection = 
-  SimpKPSelection { skpNode :: NodeId -- ^ Node of selected rule in the dependency graph
+data SimpPE p = SimpPE
+data SimpPESelection = 
+  SimpPESelection { skpNode :: NodeId -- ^ Node of selected rule in the dependency graph
                   , skpRule :: Rule -- ^ Selected rule
                   , skpPredecessors :: [(NodeId,Rule)]-- ^ Predecessors of rules 
                   }
   
-data SimpKPProof p = 
-  SimpKPProof { skpDG            :: DG
-              , skpSelections    :: [SimpKPSelection]
+data SimpPEProof p = 
+  SimpPEProof { skpDG            :: DG
+              , skpSelections    :: [SimpPESelection]
               , skpSig           :: F.Signature
               , skpVars          :: V.Variables}                                
-  | SimpKPPProof { skpDG            :: DG
+  | SimpPEPProof { skpDG            :: DG
                  , skpSig           :: F.Signature
                  , skpPProof        :: P.PartialProof (P.ProofOf p)
                  , skpPProc         :: P.InstanceOf p                   
-                 , skpSelections    :: [SimpKPSelection]
+                 , skpSelections    :: [SimpPESelection]
                  , skpVars          :: V.Variables}                                
                    
-  | SimpKPErr DPError
+  | SimpPEErr DPError
                        
-instance P.Processor p => T.TransformationProof (SimpKP p) where
+instance P.Processor p => T.TransformationProof (SimpPE p) where
   answer proof = 
     case T.transformationProof proof of
-      SimpKPErr _ -> P.MaybeAnswer 
-      SimpKPProof {} -> T.answerFromSubProof proof
-      tproof@SimpKPPProof{} ->  
+      SimpPEErr _ -> P.MaybeAnswer 
+      SimpPEProof {} -> T.answerFromSubProof proof
+      tproof@SimpPEPProof{} ->  
         case u1 `Cert.add` u2 of 
           Cert.Unknown -> P.MaybeAnswer
           u -> P.CertAnswer $ Cert.certified ( Cert.constant, u)
@@ -383,28 +388,41 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
               u1 = ub $ skpPProof tproof
               u2 = ub $ T.answerFromSubProof proof
 
-  pprintTProof _ _ (SimpKPErr e) _ = pprint e
-  pprintTProof _ _ p@(SimpKPProof {}) _ 
-     | null sel = text "Knowledge propagation is not applicable on selected rules."
+  pprintTProof _ _ (SimpPEErr e) _ = pprint e
+  pprintTProof _ _ p@(SimpPEProof {}) _ 
+     | null sel = text "Predecessor estimation is not applicable on selected rules."
      | otherwise = 
-      text "We consider the (estimated) dependency graph" 
-      $+$ text ""
-      $+$ indent (pprint (dg, sig, vars))
-      $+$ paragraph "We estimate the application of rules based on the application of their predecessors as follows:"
-      $+$ hcat [ let n = pprintNodeSet [skpNode s]
-                 in text "- We remove" <+> n
-                    <+> text "and add"
-                    <+> text "Pre" <> parens n
-                    <+> text "=" 
-                    <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
-                    <+> text "to the strict component."
-                    $+$ text ""
-                | s <- sel]
-    where vars  = skpVars p                              
-          sig   = skpSig p
-          dg    = skpDG p
-          sel   = skpSelections p
-  pprintTProof _ _ p@(SimpKPPProof {}) _ = 
+       paragraph (show $ 
+         text "We estimate the number of application of"
+         <+> ppEstimated
+         <+> text "by applications of"
+         <+> text "Pre" <> parens (ppEstimated) <+> text "=" <+> ppPredecessors <> text "."
+         <+> text "Here rules are labeled as follows:")
+       $+$ text ""
+       $+$ indent (pprintLabeledRules "DPs" sig vars ldps)
+      -- text "We consider the (estimated) dependency graph" 
+      -- $+$ text ""
+      -- $+$ indent (pprint (dg, sig, vars))
+      -- $+$ paragraph "We estimate the application of rules based on the application of their predecessors as follows:"
+      -- $+$ hcat [ let n = pprintNodeSet [skpNode s]
+      --            in text "- We remove" <+> n
+      --               <+> text "and add"
+      --               <+> text "Pre" <> parens n
+      --               <+> text "=" 
+      --               <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
+      --               <+> text "to the strict component."
+      --               $+$ text ""
+      --           | s <- sel]
+    where 
+      vars  = skpVars p                              
+      sig   = skpSig p
+      ldps  = [(n,r) | (n, (_, r)) <- lnodes $ skpDG p]
+      sel   = skpSelections p
+      ppNS = pprintNodeSet . snub 
+      ppEstimated = ppNS [skpNode s | s <- sel]
+      ppPredecessors = ppNS $ [ n | s <- sel, (n,_) <- skpPredecessors s]
+
+  pprintTProof _ _ p@(SimpPEPProof {}) _ = 
       ppSub 
       $+$ text ""
       $+$ if null sel
@@ -414,11 +432,11 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
                                    <+> text "induces the complexity certificate "
                                    <+> pprint ans
                                    <+> text "on application of rules" 
-                                   <+> pprintNodeSet (Set.toList orientedNodes) <> text "."
-                                   <+> text "Here rules are labeled according to the (estimated) dependency graph")
-                $+$ text ""
-                $+$ indent (pprint (dg, sig, vars))
-                $+$ text ""
+                                   <+> pprintNodeSet (Set.toList orientedNodes) <> text ".")
+                                   -- <+> text "Here rules are labeled according to the (estimated) dependency graph")
+                -- $+$ text ""
+                -- $+$ indent (pprint (dg, sig, vars))
+                -- $+$ text ""
                 $+$ ppPropagates orientedNodes sel
                 $+$ text ""
                 $+$ paragraph (show $ text "Overall, we obtain that"
@@ -452,7 +470,8 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
           ppPropagates _ [] = PP.empty
           ppPropagates sofar ss =
             text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
-                                    ++ "These cover all predecessors of " ++ (sns newnodes) ++ ", their complexity is equally bounded.")
+                                    ++ "These cover all predecessors of " ++ (sns newnodes) 
+                                    ++ " from in the estimated DG, their complexity is equally bounded.")
             $+$ ppPropagates (sofar `Set.union` newnodes) ss'
             where sns = show . pprintNodeSet . Set.toList
                   (new,ss') = partition predsCovered ss
@@ -460,10 +479,10 @@ instance P.Processor p => T.TransformationProof (SimpKP p) where
                   newnodes = Set.fromList [skpNode s | s <- new]
             
 
-instance (P.Processor p) => T.Transformer (SimpKP p) where 
-  name _ = "simpKP"
-  type ArgumentsOf (SimpKP p) = Arg (Assoc (RS.ExpressionSelector)) :+: Arg (Maybe (Proc p))
-  type ProofOf (SimpKP p)     = SimpKPProof p
+instance (P.Processor p) => T.Transformer (SimpPE p) where 
+  name _ = "simpPE"
+  type ArgumentsOf (SimpPE p) = Arg (Assoc (RS.ExpressionSelector)) :+: Arg (Maybe (Proc p))
+  type ProofOf (SimpPE p)     = SimpPEProof p
   arguments _ =       
     opt { A.name         = "select" 
         , A.defaultValue = RS.selAllOf RS.selDPs
@@ -474,22 +493,22 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
             , A.description = "If given, used to orient predecessors of selected rules."
             }
 
-  description SimpKP = [unwords [ "Moves a strict dependency into the weak component"
+  description SimpPE = [unwords [ "Moves a strict dependency into the weak component"
                                 , "if all predecessors in the dependency graph are strict" 
                                 , "and there is no edge from the rule to itself."
                                 , "Only applicable if the strict component is empty."]
                        ]
   transform inst prob 
-     | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpKPErr ContainsStrictRule
-     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpKPErr $ NonDPProblemGiven
+     -- | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpPEErr ContainsStrictRule
+     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpPEErr $ NonDPProblemGiven
      | otherwise = transform' mpinst
     where wdg   = estimatedDependencyGraph defaultApproximation prob
           selector :+: mpinst = T.transformationArgs inst
-          strs  = Prob.strictTrs prob
+          -- strs  = Prob.strictTrs prob
           sdps  = Prob.strictDPs prob
           wdps  = Prob.weakDPs prob
 
-          mkSel n rl preds = SimpKPSelection { skpNode = n
+          mkSel n rl preds = SimpPESelection { skpNode = n
                                              , skpRule = rl
                                              , skpPredecessors = [ (m,rlm) | (m, (_,rlm), _) <- preds] }
 
@@ -509,8 +528,8 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
                                   , Trs.member initialDPs rl 
                                   , let preds = lpredecessors wdg n
                                   , all (\ (m,(strictness,_),_) -> m /= n && strictness == StrictDP) preds ]
-                     proof :: T.ProofOf (SimpKP p)
-                     proof = SimpKPProof { skpDG   = wdg
+                     proof :: T.ProofOf (SimpPE p)
+                     proof = SimpPEProof { skpDG   = wdg
                                          , skpSelections = selected
                                          , skpSig  = Prob.signature prob 
                                          , skpVars = Prob.variables prob}
@@ -539,10 +558,10 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
                           bigAnd as  = P.BigAnd as
 
 
-                  mkProof :: P.Processor p => P.InstanceOf p -> P.PartialProof (P.ProofOf p) -> T.Result (SimpKP p)
+                  mkProof :: P.Processor p => P.InstanceOf p -> P.PartialProof (P.ProofOf p) -> T.Result (SimpPE p)
                   mkProof proc p | progressed = T.Progress proof (enumeration' [prob'])
                                  | otherwise  = T.NoProgress proof 
-                     where proof = SimpKPPProof { skpDG         = wdg
+                     where proof = SimpPEPProof { skpDG         = wdg
                                                 , skpSelections = propagated
                                                 , skpSig        = Prob.signature prob
                                                 , skpPProof     = p
@@ -566,24 +585,21 @@ instance (P.Processor p) => T.Transformer (SimpKP p) where
                                         , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) }
          
 
-simpKPProcessor :: T.Transformation (SimpKP P.AnyProcessor) P.AnyProcessor
-simpKPProcessor = T.Transformation SimpKP
+simpPEProcessor :: T.Transformation (SimpPE P.AnyProcessor) P.AnyProcessor
+simpPEProcessor = T.Transformation SimpPE
 
 -- | Moves a strict dependency into the weak component
 -- if all predecessors in the dependency graph are strict 
 -- and there is no edge from the rule to itself.
--- Only applicable if the strict component is empty.
--- This processor is inspired by Knowledge Propagation used in AProVE, 
--- therefor its name.
-simpKP :: T.TheTransformer (SimpKP P.AnyProcessor)
-simpKP = T.Transformation SimpKP `T.withArgs` (RS.selAllOf RS.selDPs :+: Nothing)
+simpPE :: T.TheTransformer (SimpPE P.AnyProcessor)
+simpPE = T.Transformation SimpPE `T.withArgs` (RS.selAllOf RS.selDPs :+: Nothing)
 
-simpKPOn :: RS.ExpressionSelector -> T.TheTransformer (SimpKP P.AnyProcessor)
-simpKPOn rs = T.Transformation SimpKP `T.withArgs` (rs :+: Nothing)
+simpPEOn :: RS.ExpressionSelector -> T.TheTransformer (SimpPE P.AnyProcessor)
+simpPEOn rs = T.Transformation SimpPE `T.withArgs` (rs :+: Nothing)
 
 
-withKPOn :: P.Processor p => P.InstanceOf p -> RS.ExpressionSelector -> T.TheTransformer (SimpKP p)
-inst `withKPOn` rs = T.Transformation SimpKP `T.withArgs` (rs :+: Just inst)
+withPEOn :: P.Processor p => P.InstanceOf p -> RS.ExpressionSelector -> T.TheTransformer (SimpPE p)
+inst `withPEOn` rs = T.Transformation SimpPE `T.withArgs` (rs :+: Just inst)
 
 
 ----------------------------------------------------------------------
@@ -600,16 +616,17 @@ instance T.TransformationProof Trivial where
   answer _ = P.CertAnswer $ Cert.certified (Cert.constant, Cert.constant)
   pprintTProof _ _ (TrivialError e) _ = pprint e
   pprintTProof _ _ TrivialFail _ = text "The DP problem is not trivial."
-  pprintTProof _ _ p _ = 
-     text "We consider the dependency graph"
-     $+$ text ""
-     $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-     $+$ text ""
-     $+$ paragraph "All SCCs are trivial and dependency pairs can be removed."
-     where vars          = trivialVars p                              
-           sig           = trivialSig p
-           cwdg          = trivialCDG p
-           ppLabel _ _ = text "trivial"
+  pprintTProof _ _ _ _ = 
+    paragraph "The dependency graph contains no loops, we remove all dependency pairs." 
+     -- text "We consider the dependency graph"
+     -- $+$ text ""
+     -- $+$ indent (pprintCWDG cwdg sig vars ppLabel)
+     -- $+$ text ""
+     -- $+$ paragraph "All SCCs are trivial and dependency pairs can be removed."
+     -- where vars          = trivialVars p                              
+     --       sig           = trivialSig p
+     --       cwdg          = trivialCDG p
+     --       ppLabel _ _ = text "trivial"
 
 instance T.Transformer Trivial where
   name Trivial        = "trivial"

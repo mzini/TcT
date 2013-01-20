@@ -183,8 +183,8 @@ module Tct.Instances
     , ComposeRC.composeRC
     , Compose.ComposeBound (..)
     , ComposeRC.composeRCselect
-    , ComposeRC.solveAWith
-    , ComposeRC.solveBWith
+    , ComposeRC.solveUpperWith
+    , ComposeRC.solveLowerWith
     -- *** RuleSelector
     -- | A 'Compose.RuleSelector' is used to select 
     -- rules from a problem. Various combinators 
@@ -229,9 +229,9 @@ module Tct.Instances
     , DPSimp.trivial      
     , DPSimp.removeInapplicable      
     , DPSimp.simpDPRHS      
-    , DPSimp.simpKP
-    , DPSimp.simpKPOn
-    , DPSimp.withKPOn
+    , DPSimp.simpPE
+    , DPSimp.simpPEOn
+    , DPSimp.withPEOn
     -- , DPSimp.inline      
     , dpsimps
     , toDP
@@ -413,10 +413,10 @@ dpsimps   = try DPSimp.removeTails
             >>> try UR.usableRules
             >>> try DPSimp.trivial
             
--- | use 'DPSimp.simpKPOn' and 'DPSimp.removeTails' to remove leafs from the dependency graph. 
+-- | use 'DPSimp.simpPEOn' and 'DPSimp.removeTails' to remove leafs from the dependency graph. 
 cleanTail :: T.TheTransformer T.SomeTransformation
 cleanTail = 
-  te (DPSimp.simpKPOn RS.selStrictLeafs) 
+  te (DPSimp.simpPEOn RS.selStrictLeafs) 
   >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
             
 -- | Tries dependency pairs with weightgap, otherwise uses dependency tuples. 
@@ -445,7 +445,7 @@ toDP =
 -- and the given processor        
 removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
 removeLeaf p = 
-  p `DPSimp.withKPOn` RS.selAnyLeaf
+  p `DPSimp.withPEOn` RS.selAnyLeaf
   >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
   >>> try UR.usableRules
   >>> try DPSimp.trivial
@@ -618,7 +618,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
              where insideDP  = te dpsimps' >>| empty `Combinators.before` (try wgUsables >>| te (try dpsimps' >>> wgAll) >>| directs)
                    dpsimps'  = try DPSimp.removeTails 
                                >>> try DPSimp.simpDPRHS 
-                               >>> try DPSimp.simpKP                   
+                               >>> try DPSimp.simpPE                   
                    wgAll     = wg lin 
                                <> wg quad
                                <> wg cubic
@@ -810,7 +810,7 @@ rc2012 = named "rc2012" $
                   | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
                   | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
                 removeFirstCongruence = 
-                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveBWith` proc >>> try simps
+                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveUpperWith` proc >>> try simps
                   where proc = try simps >>> te shiftLeafs >>! basics
                 cwdgDepth cwdg = maximum $ 0 : [ dp r | r <- DG.roots cwdg]
                   where dp n = maximum $ 0 : [ 1 + dp m | m <- DG.successors cwdg n]

@@ -1,7 +1,0 @@
-(VAR x y)
-(RULES
-d(0) -> 0
-d(s(x)) -> s(s(d(x)))
-e(s(x),y) -> e(x,d(y))
-sup(s(x),e(0,y)) -> sup(x,e(y,s(0)))
-)

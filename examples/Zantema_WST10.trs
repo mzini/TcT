@@ -1,6 +1,0 @@
-(VAR x)
-(RULES
-a(c(x)) -> d(c(x))
-b(d(x)) -> d(a(x))
-a(d(x)) -> b(a(x))
-)

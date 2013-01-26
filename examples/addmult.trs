@@ -1,7 +1,0 @@
-(VAR x y)
-(RULES
-add(0,x) -> x
-add(s(x),y) -> s(add(x,y))
-mult(0,x) -> 0
-mult(s(x),y) -> add(y,mult(x,y))
-)

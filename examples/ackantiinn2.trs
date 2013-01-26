@@ -1,8 +1,0 @@
-(VAR m n)
-(RULES
-ack(0,n) -> s(n)
-ack(s(m),0) -> ack(m,s(0))
-ack(s(m),s(n)) -> ack(m,ack(s(m),n))
-s(x) -> r(x)
-0 -> z
-)

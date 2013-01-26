@@ -1,6 +1,0 @@
-(VAR x y z)
-(RULES
-a(0,0,z) -> s(z)
-a(x,s(y),z) -> a(x,y,a(x,y,z))
-a(s(x),0,z) -> a(x,z,z)
-)

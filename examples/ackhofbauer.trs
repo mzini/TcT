@@ -1,6 +1,0 @@
-(VAR x y z w)
-(RULES
-op(i(x),op(y,z)) -> op(x,op(i(i(y)),z))
-op(i(x),op(y,op(z,w))) -> op(x,op(z,op(y,w)))
-i(x) -> x
-)

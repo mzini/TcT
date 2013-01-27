@@ -41,7 +41,9 @@ import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description)
 import Termlib.Problem (Problem)
+import Termlib.Utils (underline)
 import Tct.Processor.Parse
+import Text.PrettyPrint.HughesPJ hiding (parens)
 
 -- | This datatype defines a specific instance of a standard processor 
 data TheProcessor a = TheProcessor { processor     :: a -- ^ The processor.
@@ -107,8 +109,10 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
                                           return $ TP $ TheProcessor { processor = a
                                                                      , processorArgs = args}
     parseFromArgsInteractive (StdProcessor a) procs =
-      do putStrLn $ "Input arguments for " ++ name a
+      do putStrLn $ show $ underline $ text "Enter arguments for processor '" <> text (name a) <> text "':"
+         putStrLn ""
          as <- A.parseInteractive (arguments a) procs 
+         putStrLn ""
          return $ TP (TheProcessor a as)
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)

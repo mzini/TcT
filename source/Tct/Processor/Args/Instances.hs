@@ -41,10 +41,7 @@ module Tct.Processor.Args.Instances
        where
 
 import Data.Typeable
-import Data.Maybe (fromJust)
-import qualified Control.Exception as Ex
-import Data.Char (toLower)
-import Control.Monad (liftM, mplus)
+import Control.Monad (liftM)
 import Text.Parsec.Combinator (choice)
 import Text.Parsec.Char (string)
 import Data.List (intersperse, sortBy)
@@ -88,7 +85,8 @@ instance Argument Bool where
 
 instance ParsableArgument Bool where
     parseArg Phantom = Parse.bool
-
+    interactiveParser = defaultIP ["On", "Off"]
+      
 -- * Compound
 
 instance Argument a => Argument [a] where 
@@ -98,14 +96,27 @@ instance Argument a => Argument [a] where
 
 instance Argument a => Argument (Maybe a) where 
     type Domain (Maybe a) = Maybe (Domain a)
-    domainName Phantom = domainName (Phantom :: Phantom a) ++ "|none"
+    domainName Phantom = domainName (Phantom :: Phantom a) ++ "|none"      
     showArg _ (Just a)   = showArg (Phantom :: Phantom a) a
     showArg _ Nothing    = "none"
 
 instance ParsableArgument a => ParsableArgument (Maybe a) where 
     parseArg Phantom = try (string "none" >> return Nothing)
                        <|> Just `liftM` parseArg (Phantom :: Phantom a)
-
+    interactiveParser (_ :: Phantom (Maybe a)) procs = 
+      IP { ipCompletions = "none" : ipCompletions ip
+         , ipSynopsis = text "none|" <> ipSynopsis ip
+         , ipParse = prs }
+              
+      where pa = Phantom :: Phantom a 
+            ip = interactiveParser pa procs
+            prs "none" = return $ Right Nothing
+            prs str = do 
+              res <- ipParse ip str
+              return $ case res of 
+                         Left err -> Left err
+                         Right a -> Right (Just a)
+              
 instance ParsableArgument a => ParsableArgument [a] where
     parseArg Phantom = many p 
         where p :: P.ProcessorParser (Domain a)
@@ -129,10 +140,9 @@ instance (Typeable a, Show a, Enum a, Bounded a) => Argument (EnumOf a) where
     showArg _ a = show a
 
 instance (Typeable a, Show a, Enum a, Bounded a) => ParsableArgument (EnumOf a) where
-    parseArg Phantom = parseArgAssoc [(lwer $ show e, e) | e <- [(minBound :: a) .. maxBound]]
-        where lwer ""     = ""
-              lwer (c:cs) = toLower c : cs
-
+    parseArg Phantom = parseArgAssoc [(show e, e) | e <- [(minBound :: a) .. maxBound]]
+    interactiveParser = defaultIP options
+      where options = [show e | e <- [(minBound :: a) .. maxBound]]
 
 -- | Instances of this class can be parsed by means of the
 -- defined method 'assoc'. 
@@ -163,47 +173,63 @@ type Processor = Proc P.AnyProcessor
 
 instance ParsableArgument Processor where
     parseArg _ = P.parseAnyProcessor
-    parseArgInteractive _ procs = parse
-      where parse = 
-              do mi <- readIndex `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
-                 case mi of 
-                   Nothing -> return Nothing
-                   Just i -> (Just `liftM` parseIth i) `Ex.catch`  (\ (_ :: Ex.SomeException) -> parse) 
-            procLst = zip [(1::Int)..] (sortBy compareName $ P.toProcessorList procs)
-              where compareName p1 p2 = P.name p1 `compare` P.name p2            
+    interactiveParser _ procs = 
+      IP { ipCompletions = [ n | (n, _) <- procLst]
+         , ipSynopsis = text "<processor>"
+         , ipParse = prs } 
+      
+      where 
+        procLst = [(P.name p, p) | p <- sortBy compareName $ P.toProcessorList procs]
+          where compareName p1 p2 = P.name p1 `compare` P.name p2
+        prs n = 
+          case lookup n procLst of 
+            Nothing -> return $ Left $ text $ "Processor '" ++ n ++ "' not known"
+            Just proc -> do 
+              parsed <- P.parseFromArgsInteractive proc procs
+              return $ Right $ P.liftOOI parsed
+    -- parseArgInteractive _ procs = parse
+    --   where parse = do 
+    --           rd <- readIndex
+    --           case rd of 
+    --             Left s -> return $ Left s
+    --             Right idx -> 
+    --               (Right `liftM` parseIth idx) `Ex.catch`  (\ (_ :: Ex.SomeException) -> parse) 
+    --         procLst = zip [(1::Int)..] (sortBy compareName $ P.toProcessorList procs)
+    --           where compareName p1 p2 = P.name p1 `compare` P.name p2            
             
-            findProc i = fromJust (lookup i procLst)
+    --         findProc i = fromJust (lookup i procLst)
             
-            showProcList = 
-              do let putProc (i, p) = putStrLn $ "  " ++ (show i) ++ ") " ++ P.name p 
-                 putStrLn "Available Processors:"
-                 mapM_ putProc procLst
+    --         showProcList = 
+    --           do let putProc (i, p) = putStrLn $ "  " ++ (show i) ++ ") " ++ P.name p 
+    --              putStrLn "Available Processors:"
+    --              mapM_ putProc procLst
             
-            parseIth i = 
-              do parsed <- P.parseFromArgsInteractive (findProc i) procs
-                 return $ P.liftOOI parsed
+    --         parseIth i = 
+    --           do parsed <- P.parseFromArgsInteractive (findProc i) procs
+    --              return $ P.liftOOI parsed
             
             
-            readIndex :: IO (Maybe Int)
-            readIndex = 
-              do putStrLn "Enter processor number, processor name '?' for list of processors or 'a' to abort:"
-                 putStr "  > "
-                 r <- getLine
-                 case r of 
-                   "?" -> showProcList >> readIndex 
-                   "a" -> return Nothing 
-                   _   -> do mi1 <- readInt r `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
-                             let mi2 = fst `liftM` (L.find (\ (_,p) -> P.name p == r) procLst) 
-                             case mi1 `mplus` mi2 of
-                               Nothing -> 
-                                 do putStrLn $ "Processor '" ++ r ++ "' not found"
-                                    readIndex
-                               mi -> return mi
+    --         readIndex :: IO (Either String Int)
+    --         readIndex = do 
+    --           putStrLn "Enter processor number, or type '?' for list of processors:"
+    --           putStr "  > "
+    --           r <- getLine
+    --           case r of 
+    --             "?" -> showProcList >> readIndex 
+    --             _   -> do 
+    --               mi1 <- readInt r `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+    --               let mi2 = fst `liftM` (L.find (\ (_,p) -> P.name p == r) procLst) 
+    --               case mi1 `mplus` mi2 of
+    --                 Nothing -> do
+    --                   putStrLn $ "Processor '" ++ r ++ "' not found"
+    --                   readIndex
+    --                 Just idx -> return $ Right idx
                              
-            readInt r = do let res = read r
-                           if 0 < res && res <= length procLst
-                             then return $ Just res
-                             else return $ Nothing
+    --         readInt r = do 
+    --           let res = read r
+    --           if 0 < res && res <= length procLst
+    --            then return $ Just res
+    --            else return $ Nothing
 
 
 -- argument types

@@ -42,21 +42,26 @@ module Tct.Processor.Args
        , Phantom (..)
        , parseArguments
        , synopsis
+       , withLineBuffering
+       , InteractiveParser (..)
+       , defaultIP
        ) where
 
 import qualified Tct.Processor as P
 import qualified Tct.Utils.Xml as Xml
 
+import System.IO
+
+import qualified Tct.Utils.Ask as Ask
 import Tct.Processor.Parse
 import Text.Parsec.Prim
 import Text.Parsec.Combinator hiding (optional)
 import Text.Parsec.Char
---import qualified Control.Exception as Ex
+import qualified Control.Exception as C
 import qualified Data.Map as Map
 import Data.List (partition, intersperse)
 import Data.Typeable (cast, Typeable)
 import Control.Monad (liftM)
-import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.HughesPJ
 
@@ -76,15 +81,27 @@ class Argument a where
     -- | Pretty printer of arguments.    
     showArg :: Phantom a -> Domain a -> String
 
+
+data InteractiveParser a = IP { ipCompletions :: [String] 
+                              , ipSynopsis :: Doc
+                              , ipParse :: String -> IO (Either Doc (Domain a))}
+
+
+defaultIP :: ParsableArgument a => [String] -> Phantom a -> P.AnyProcessor -> InteractiveParser a
+defaultIP completions pa procs = 
+  IP { ipCompletions = completions
+     , ipSynopsis = U.paragraph $ domainName pa
+     , ipParse = return . p }
+  where 
+    p str = case fromString (parseArg pa) procs "argument" str of 
+              Right a -> Right a
+              Left err -> Left $ U.paragraph $ show err
+
 -- | Instances of this class additionally provide parsers for arguments.
 class (Argument a) => ParsableArgument a where
     parseArg :: Phantom a -> P.ProcessorParser (Domain a)
-    parseArgInteractive :: Phantom a -> P.AnyProcessor -> IO (Maybe (Domain a))
-    parseArgInteractive pa procs = pse `liftM` getLine
-      where pse str = 
-              case fromString (parseArg pa) procs "argument" str of
-                Right a -> Just a
-                Left _ -> Nothing
+    interactiveParser :: Phantom a -> P.AnyProcessor -> InteractiveParser a
+    interactiveParser = defaultIP []
         
 data SomeDomainElt = forall a. (Show a, Typeable a) => SomeDomainElt a deriving (Typeable)
 instance Show SomeDomainElt where show (SomeDomainElt e) = show e
@@ -140,6 +157,10 @@ instance ParsableArguments Unit where
     descriptions Unit = []
     parseInteractive _ _ = return ()
 
+
+
+
+
 instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
                      | otherwise     = parseArg (Phantom :: Phantom a)
@@ -162,34 +183,50 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                  , P.adDescr      = description a
                                  , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
 
-    parseInteractive a procs = 
-        do putStrLn $ show (text "* " <> text (name a) <> text ":"
-                            $+$ nest 2 (descr $+$ text "" $+$ syn $+$ text ""))
-           ask
-      where syn = text "Synopsis:" <+> text (domainName phantom)
-            descr = (U.paragraph (description a))
-            ask | isOptional_ a = 
-              do putStrLn $ show $ nest 2 $ U.paragraph ( "Use the default value '"
-                                                         ++ showArg phantom (defaultValue a) 
-                                                         ++"'? Enter 'yes' or 'no', default is 'yes':")
-                 putStrLn ""
-                 putStr "> "
-                 str <- getLine
-                 if map toLower str == "no" 
-                  then ask'
-                  else return (defaultValue a)
-                 | otherwise = ask'
-            ask' = 
-              do putStr "  > "
-                 mres <- parseArgInteractive phantom procs
-                 case mres of 
-                   Nothing -> 
-                       do putStrLn $ "Error parsing argument, expecting '" ++ (domainName phantom) ++ "'"
-                          putStrLn "repeat input, or abort with Ctrl-c"
-                          ask'
-                   Just v -> return v
+    parseInteractive pa procs = do 
+        putStrLn $ show $ text "- Argument '" <> text (name pa) <> text "' (type :h for help)"
+        ask
+      where 
+         descr = U.paragraph (description pa)
 
-            phantom = Phantom :: Phantom a
+         prompt 
+           | isOptional_ pa = "[" ++ showArg phantom (defaultValue pa) ++ "] > "
+           | otherwise      = "> "
+
+         ip = interactiveParser phantom procs
+
+         phantom = Phantom :: Phantom a
+
+         trim [] = []
+         trim (' ':xs) = case trim xs of 
+                           [] -> []
+                           xs' -> ' ':xs'
+         trim (x:xs) = x:trim xs
+                  
+         ask = do 
+           mstr <- Ask.ask prompt (ipCompletions ip ++ [":h"]) Just
+           process $ trim `liftM` mstr
+
+         process Nothing = putHelp >> ask
+         process (Just "") | isOptional_ pa = return $ defaultValue pa
+         process (Just ":h") = putHelp >> ask 
+
+         process (Just str) = do 
+           res <- ipParse ip str
+           case res of 
+             Left _ -> putStrLn "" >> putStrLn ("Error parsing argument. Type ':h' for help.") >> ask
+             Right a  -> return a 
+
+         putHelp = 
+           putStrLn $ show $ 
+           nest 2 $ 
+           text ""
+           $+$ descr 
+           $+$ text ""
+           $+$ text "Synopsis:" <+> ipSynopsis ip
+           $+$ text ""
+
+  
                      
 instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: b) where
     parseArgs (a :+: b) opts = do e_a <- parseArgs a opts
@@ -256,3 +293,12 @@ optional nm def tpe =
   tpe { name = nm
       , defaultValue = def
       , isOptional_ = True}
+
+
+withLineBuffering :: IO b -> IO b
+withLineBuffering io = do 
+  bm <- hGetBuffering stdin
+  hSetBuffering stdin LineBuffering
+  io `C.finally` hSetBuffering stdin bm
+ 
+ 

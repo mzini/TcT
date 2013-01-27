@@ -393,7 +393,8 @@ instance Processor SomeProcessor where
     solve_ (SPI (SomeInstance inst)) prob = SomeProof `liftM` solve_ inst prob
     solvePartial_ (SPI (SomeInstance inst)) stricts prob = do pp <- solvePartial_ inst stricts prob
                                                               return $ modify pp
-        where modify pp = pp { ppResult = SomeProof $ ppResult pp}
+        where modify (PartialInapplicable str) = PartialInapplicable str
+              modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance ParsableProcessor SomeProcessor where
     description     (SomeProcessor proc) = description proc
@@ -486,7 +487,8 @@ instance Processor AnyProcessor where
     solve_ (OOI inst) prob  = SomeProof `liftM` solve_ inst prob
     solvePartial_ (OOI inst) stricts prob  = do pp <- solvePartial_ inst stricts prob
                                                 return $ modify pp
-        where modify pp = pp { ppResult = SomeProof $ ppResult pp}
+        where modify (PartialInapplicable str) = PartialInapplicable str
+              modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
 instance Typeable AnyProcessor where 
     typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "AnyProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "OO") []]

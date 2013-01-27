@@ -42,7 +42,7 @@ module Tct.Processor.Args
        , Phantom (..)
        , parseArguments
        , synopsis
-       , withLineBuffering
+       -- , withLineBuffering
        , InteractiveParser (..)
        , defaultIP
        ) where
@@ -295,10 +295,10 @@ optional nm def tpe =
       , isOptional_ = True}
 
 
-withLineBuffering :: IO b -> IO b
-withLineBuffering io = do 
-  bm <- hGetBuffering stdin
-  hSetBuffering stdin LineBuffering
-  io `C.finally` hSetBuffering stdin bm
+-- withLineBuffering :: IO b -> IO b
+-- withLineBuffering io = do 
+--   bm <- hGetBuffering stdin
+--   hSetBuffering stdin LineBuffering
+--   io `C.finally` hSetBuffering stdin bm
  
  

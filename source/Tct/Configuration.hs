@@ -92,16 +92,10 @@ module Tct.Configuration (
   , Custom.strategy
   , Custom.Custom (..)    
   -- | 
-  -- TODO: example needs to be updated. 
   -- The following example defines a new processor that searches for matrix-interpretations of dimension @1@ to @3@
   -- in parallel, cf. 'Instances.matrix' and 'Instances.fastest'.  
   -- 
-  -- >>> matrices = fromInstance description inst
-  --      where description = Description { as    = "matrices"
-  --                                      , args  = Unit
-  --                                      , descr = ["Applies matrices of dimension 1 to 3 in parallel."] 
-  --                                      }
-  --            inst () = fastest [ matrix defaultOptions {dim = i} | i <- [1..3] ]
+  -- >>> matrices = strategy { as = "matrices" , code = fastest [ matrix defaultOptions {dim = i} | i <- [1..3] ] }
   --
   -- As defined by the given description, the name of this custom processor is /matrices/.
   -- A processor accepts zero or more arguments, in the above example the field 'args' of the 
@@ -121,7 +115,6 @@ module Tct.Configuration (
   -- . 
   -- Processor "matrices":
   -- ---------------------
-  --   Applies matrices with dimension 1 to 3 in parallel.
   -- .  
   --   Usage:
   --    matrices
@@ -151,20 +144,15 @@ module Tct.Configuration (
   -- | The next definition extends the /matrices/ processor as defined above by two arguments of type 'Args.Nat', 
   -- and one argument of type 'Bool'.
   --    
-  -- >>> ms = fromInstance description inst
-  --      where description = 
-  --                Description { as = "matrices"
-  --                            , descr = ["The processor 'matrices n' applies matrices of " 
-  --                                       ++ "dimension 'startdim' to dimension 'startdim + n' in parallel."]
-  --                             , args = optional "startdim" 1 naturalArg { description = "Lowest dimension." } 
-  --                                      :+: 
-  --                                       optional "fast" True boolArg { description = "If 'On', return certificate of fastest processor." }
-  --                                      :+: 
-  --                                      naturalArg
-  --                             }
-  --            inst (Nat sdim :+: fast :+: Nat n) = comb [ matrix defaultOptions {dim = i} | i <- [sdim..sdim+n] ]
-  --                where comb | fast      = fastest
-  --                           | otherwise = best    
+  -- >>> ms = strategy { as = "matrices"
+  --                   , code = inst
+  --                   , args = optional "startdim" 1 naturalArg { description = "Lowest dimension." } 
+  --                            :+: optional "fast" True boolArg { description = "If 'On', return certificate of fastest processor." }
+  --                            :+: naturalArg
+  --                   }
+  --         where inst (Nat sdim :+: fast :+: Nat n) = comb [ matrix defaultOptions {dim = i} | i <- [sdim..sdim+n] ]
+  --                  where comb | fast      = fastest
+  --                             | otherwise = best    
   --  
   -- Note that the instance constructor @inst@ takes a triple of arguments, with elements separated by @:+:@. This corresponds with the 
   -- number of arguments reflected in the field 'args' of the description.
@@ -173,8 +161,6 @@ module Tct.Configuration (
   -- >>> tct --list matrices
   -- Processor "matrices":
   -- ---------------------
-  --   The processor 'matrices n' applies matrices of dimension 'startdim'
-  --   to dimension 'startdim + n' in parallel.
   -- .  
   --   Usage:
   --    matrices [:startdim <nat>] [:fast On|Off] <nat>
@@ -185,9 +171,6 @@ module Tct.Configuration (
     
   -- ** Predefined Argument Types
   -- | #predef# 
-  , Unit (..)    
-  , (:+:)(..)
-  , Arg (..)
   , Args.boolArg
   , Args.naturalArg
   , Args.processorArg
@@ -195,6 +178,10 @@ module Tct.Configuration (
   , Args.EnumArg
   , Args.AssocArg
   , Args.AssocArgument (..)      
+  -- ** Argument Lists  
+  , Unit (..)    
+  , (:+:)(..)
+  , Arg (..)
     
   -- * The Configuration Object
   -- | The type 'Config' reflects the configuration of 'TcT'.

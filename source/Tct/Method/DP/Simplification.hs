@@ -192,24 +192,9 @@ instance T.TransformationProof RemoveTail where
          paragraph "The following weak DPs constitute a sub-graph of the DG that is closed under successors. The DPs are removed."
          $+$ text ""
          $+$ pprint (Trs.fromRules [ r | (_,(_,r)) <- remls ], sig,vars)
-     -- text "We consider the (approximated) congruence graph"
-     -- $+$ text ""
-     -- $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-     -- $+$ text ""
-     -- $+$ paragraph "and the following set of dependency pairs."
-     -- $+$ text ""
-     -- $+$ indent (pprintTrs ppRule remls)
-     -- $+$ text ""
-     -- $+$ paragraph ("The problem can be simplified by removing these pairs, "
-     --                ++ "as they only occur in suffixes of paths through the dependency graph.")
      where vars          = variables p                              
            sig           = signature p
-           -- cwdg          = cgraph p
            remls         = removables p
-           -- ppRule (i, (_,r)) = text (show i) <> text ":" <+> pprint (r, sig, vars)
-           -- ppLabel _ n | onlyWeaks scc         = text "Weak SCC"
-           --             | otherwise             = PP.empty
-           --     where scc = lookupNodeLabel' cwdg n
                                           
 
 onlyWeaks :: CDGNode -> Bool
@@ -288,16 +273,12 @@ instance T.TransformationProof SimpRHS where
   pprintTProof _ _ p _ 
     | null repls = text "No rule was simplified"
     | otherwise = 
-       -- text "We consider the following dependency-graph" 
-       -- $+$ text ""
-       -- $+$ indent (pprint (dg, sig, vars))
        paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
        $+$ text ""
        $+$ indent (pprint (Trs.fromRules repls, sig, vars))
      where vars  = srhsVars p                              
            sig   = srhsSig p
            repls = srhsReplacedRules p
-           -- dg    = srhsDG p
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"
@@ -400,19 +381,6 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
          <+> text "Here rules are labeled as follows:")
        $+$ text ""
        $+$ indent (pprintLabeledRules "DPs" sig vars ldps)
-      -- text "We consider the (estimated) dependency graph" 
-      -- $+$ text ""
-      -- $+$ indent (pprint (dg, sig, vars))
-      -- $+$ paragraph "We estimate the application of rules based on the application of their predecessors as follows:"
-      -- $+$ hcat [ let n = pprintNodeSet [skpNode s]
-      --            in text "- We remove" <+> n
-      --               <+> text "and add"
-      --               <+> text "Pre" <> parens n
-      --               <+> text "=" 
-      --               <+> pprintNodeSet [m | (m,_) <- skpPredecessors s]
-      --               <+> text "to the strict component."
-      --               $+$ text ""
-      --           | s <- sel]
     where 
       vars  = skpVars p                              
       sig   = skpSig p
@@ -433,10 +401,6 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
                                    <+> pprint ans
                                    <+> text "on application of rules" 
                                    <+> pprintNodeSet (Set.toList orientedNodes) <> text ".")
-                                   -- <+> text "Here rules are labeled according to the (estimated) dependency graph")
-                -- $+$ text ""
-                -- $+$ indent (pprint (dg, sig, vars))
-                -- $+$ text ""
                 $+$ ppPropagates orientedNodes sel
                 $+$ text ""
                 $+$ paragraph (show $ text "Overall, we obtain that"
@@ -499,7 +463,6 @@ instance (P.Processor p) => T.Transformer (SimpPE p) where
                                 , "Only applicable if the strict component is empty."]
                        ]
   transform inst prob 
-     -- | not (Trs.isEmpty strs)      = return $ T.NoProgress $ SimpPEErr ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ SimpPEErr $ NonDPProblemGiven
      | otherwise = transform' mpinst
     where wdg   = estimatedDependencyGraph defaultApproximation prob
@@ -618,15 +581,6 @@ instance T.TransformationProof Trivial where
   pprintTProof _ _ TrivialFail _ = text "The DP problem is not trivial."
   pprintTProof _ _ _ _ = 
     paragraph "The dependency graph contains no loops, we remove all dependency pairs." 
-     -- text "We consider the dependency graph"
-     -- $+$ text ""
-     -- $+$ indent (pprintCWDG cwdg sig vars ppLabel)
-     -- $+$ text ""
-     -- $+$ paragraph "All SCCs are trivial and dependency pairs can be removed."
-     -- where vars          = trivialVars p                              
-     --       sig           = trivialSig p
-     --       cwdg          = trivialCDG p
-     --       ppLabel _ _ = text "trivial"
 
 instance T.Transformer Trivial where
   name Trivial        = "trivial"
@@ -749,91 +703,3 @@ removeInapplicable :: T.TheTransformer RemoveInapplicable
 removeInapplicable = T.Transformation RemoveInapplicable `T.withArgs` ()
 
 
--- ----------------------------------------------------------------------
--- -- Inline
-
--- data Inline = Inline
--- data InlineProof = InlineProof { ilSig :: F.Signature
---                                , ilVars :: V.Variables 
---                                , ilRewrites :: [(Rule, [Rule])]}
---                  | InlineProofError DPError
---                  | InlineProofInapplicable String
-                       
--- instance T.TransformationProof Inline where
---   answer = T.answerFromSubProof
---   pprintTProof _ _ (InlineProofError e) _ = pprint e
---   pprintTProof _ _ (InlineProofInapplicable e) _ = text "No inlining can be performed:" <+> text e
---   pprintTProof _ _ p _ | null $ ilRewrites p = text "No dependency pair could be removed."
---                        | otherwise  = 
---      vcat [ text "We exhaustively inline calls in the right-hand side of" 
---             $+$ pprintTrs ppRule [ r | (r,_) <- ilRewrites p ] ]
---      where vars          = ilVars p
---            sig           = ilSig p                              
---            ppRule r = pprint (r, sig, vars)
-  
-  
--- instance T.Transformer Inline where
---   name Inline        = "inline"
---   description Inline = [unwords [ ""] ]
-  
---   type ArgumentsOf Inline = Unit
---   type ProofOf Inline = InlineProof
---   arguments Inline = Unit
---   transform _ prob 
---      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ InlineProofError $ NonDPProblemGiven
---      | Prob.strategy prob /= Prob.Innermost = return $ T.NoProgress $ InlineProofInapplicable "Not an innermost problem."
---      | null rewrites = return $ T.NoProgress $ InlineProofInapplicable "No inlining possible."
---      | otherwise = return $ T.Progress proof (enumeration' [prob'])
---         where (c,sig) = Sig.runSignature (F.fresh (F.defaultAttribs "c" 0) { F.symIsCompound = True }) (Prob.signature prob)
---               vars  = Prob.variables prob
---               sdps  = Trs.rules $ Prob.strictDPs prob
---               wdps  = Trs.rules $ Prob.weakDPs prob
-
---               rew t rl = do 
---                  sigma <- Subst.match t (lhs rl) Subst.empty
---                  return $ Subst.apply sigma (rhs rl)
-
---               rws dps t = case catMaybes [rew t dp | dp <- dps] of 
---                            [] -> [t]
---                            ts -> ts
-
---               rewrites' dps rl
---                    | progress = Just (rl, [rl { rhs = flatten r' } | r' <- rhss])
---                    | otherwise = Nothing
---                   where rs = case (rhs rl) of 
---                                Term.Fun c' ts 
---                                  | F.isCompound sig c' -> ts
---                                t              -> [t]
---                         progress = and [ rs' /= rs | rs' <- rhss]
---                         rhss = [rs' | rs' <- products $ map (rws dps) rs]
-              
---               rewritesStrict = catMaybes [ rewrites' (sdps ++ wdps) rl | rl <- sdps ] 
---               rewritesWeak   = catMaybes [ rewrites' wdps           rl | rl <- wdps ] 
---               rewrites = rewritesStrict ++ rewritesWeak
---               flatten rs = Term.Fun c $ concatMap f rs
---                   where f t@(Term.Fun c' ts) 
---                              | F.isCompound sig c' = ts
---                              | otherwise           = [t]
---                         f t = [t]
-
---               products [] = [[]]
---               products (xs:xss) = [ x:pxs | x <- xs, pxs <- products xss ]
-
---               replaceRules rews = Trs.fromRules . (concatMap f)
---                  where f rl = maybe [rl] id (lookup rl rews)
-
---               prob' = Prob.withFreshCompounds $ prob { Prob.strictDPs = replaceRules rewritesStrict sdps 
---                                                      , Prob.weakDPs = replaceRules rewritesWeak wdps 
---                                                      , Prob.signature = sig }
---               proof = InlineProof { ilSig = sig
---                                   , ilVars = vars
---                                   , ilRewrites = rewrites }
-                
-
--- inlineProcessor :: T.Transformation Inline P.AnyProcessor
--- inlineProcessor = T.Transformation Inline
-
--- -- | Inlining of rules
--- --  
--- inline :: T.TheTransformer Inline
--- inline = T.Transformation Inline `T.withArgs` ()

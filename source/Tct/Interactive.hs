@@ -1088,11 +1088,7 @@ class Apply p where
   
 apply :: Apply p => p -> IO ()
 apply a = app `Ex.catch` 
-           \ (Ex.SomeException e) -> 
-             do pprint $ text $ show e 
-                pprint $ text ""
-                pprint $ text "Exception raised. Aborting..."
-                return ()
+           \ (Ex.SomeException e) -> pprint (show e ) >> pprint (text "Exception raised. Aborting...")
     where app = do 
             st <- getState  
             case proofTree st of 
@@ -1255,21 +1251,22 @@ haddockInstances name =
 
 
 welcome :: IO ()
-welcome = pprint $ 
-  U.underline (text "Welcome to the TcT")
-  $+$ text ""
-  $+$ U.paragraph ("This is version " 
-                   ++ version 
-                   ++ " of the Tyrolean Complexity Tool.")
-  $+$ text ""                    
-  $+$ text "(c)" <+> ( text "Martin Avanzini <martin.avanzini@uibk.ac.at>,"
-                       $+$ text "Georg Moser <georg.moser@uibk.ac.at>, and"
-                       $+$ text "Andreas Schnabl <andreas.schnabl@uibk.ac.at>.")
-  $+$ text ""
-  $+$ U.paragraph ("This software is licensed under the GNU Lesser "
-                   ++ "General Public License, see <http://www.gnu.org/licenses/>.")
-  $+$ text ""
-  $+$ text "Don't know how to start? Type 'help'."
+welcome = 
+  pprint $ 
+    U.underline (text "Welcome to the TcT")
+    $+$ text ""
+    $+$ U.paragraph ("This is version " 
+                     ++ version 
+                     ++ " of the Tyrolean Complexity Tool.")
+    $+$ text ""                    
+    $+$ text "(c)" <+> ( text "Martin Avanzini <martin.avanzini@uibk.ac.at>,"
+                         $+$ text "Georg Moser <georg.moser@uibk.ac.at>, and"
+                         $+$ text "Andreas Schnabl <andreas.schnabl@uibk.ac.at>.")
+    $+$ text ""
+    $+$ U.paragraph ("This software is licensed under the GNU Lesser "
+                     ++ "General Public License, see <http://www.gnu.org/licenses/>.")
+    $+$ text ""
+    $+$ text "Don't know how to start? Type 'help'."
 
 help :: IO ()
 help = do cfgdir <- configDirectory
@@ -1489,7 +1486,7 @@ orgDoc pp =
   $+$ text ""
   $+$ pp
   where 
-    modeLine = text ";; -*- mode: org-mode; eval: (progn (auto-revert-mode 1) (org-display-inline-images) (add-hook 'after-revert-hook 'org-display-inline-images) (setq auto-revert-interval 1)) -*-"
+    modeLine = text ";; -*- mode: org; eval: (progn (auto-revert-mode 1) (org-display-inline-images) (add-hook 'after-revert-hook 'org-display-inline-images) (setq auto-revert-interval 1)) -*-"
     orgLines = text "#+STARTUP: hidestars"
                $+$ text "#+STARTUP: contents"                 
                $+$ text "#+STARTUP: inlineimages"

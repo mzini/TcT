@@ -362,14 +362,12 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 
 
 
-bsearch :: P.Processor proc => String -> (Maybe Int -> P.InstanceOf proc) -> P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))
-bsearch nm mkinst = bsearchProcessor `S.withArgs` ()
-  where bsearchProcessor = Custom.fromAction 
-                           Custom.Description { Custom.as = "bsearch-"++nm
-                                              , Custom.descr = []
-                                              , Custom.args = Unit }
-                           (const $ bsearch' mkinst)
-        bsearch' mk prob = 
+bsearch :: (P.Processor proc,res ~ P.ProofOf proc) => String -> (Maybe Int -> P.InstanceOf proc) -> P.InstanceOf (Custom.Custom Unit res (Custom.SomeCode Unit res))
+bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
+                                  , Custom.arguments = Unit 
+                                  , Custom.code = Custom.SomeCode $ \ () -> bsearch' mkinst}
+                    `Custom.withArgs` ()
+  where bsearch' mk prob = 
           do proof <- P.solve (mk Nothing) prob
              case ub proof of 
                Just 0 -> return proof
@@ -877,12 +875,11 @@ class WithProblem inp outp | inp -> outp where
 instance T.Transformer t => WithProblem (T.TheTransformer t) (T.TheTransformer (TCombinator.WithProblem t)) where
   withProblem = TCombinator.withProblem
 
-instance (P.Processor proc, outp ~ P.InstanceOf (S.StdProcessor (Custom.Custom Unit (P.ProofOf proc)))) => WithProblem (P.InstanceOf proc) outp where
-   withProblem f = proc `S.withArgs` ()
-     where proc = Custom.fromAction d (\ () prob -> P.solve (f prob) prob )
-           d    = Custom.Description { Custom.as    = "Inspecting Problem..."
-                                     , Custom.descr = []
-                                     , Custom.args  = Unit }
+instance (P.Processor proc, P.ProofOf proc ~ res) => WithProblem (P.InstanceOf proc) (P.InstanceOf (Custom.Custom Unit res (Custom.SomeCode Unit res))) where
+   withProblem f = proc `Custom.withArgs` ()
+     where proc = Custom.Custom { Custom.as = "Inspecting Problem..."
+                                , Custom.arguments = Unit
+                                , Custom.code = Custom.SomeCode $ \ () prob -> P.solve (f prob) prob}
 
 withWDG :: WithProblem inp outp => (DG.DG -> inp) -> outp
 withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.defaultApproximation prob)
@@ -895,8 +892,9 @@ withCWDG f = withProblem $ \ prob -> f (DG.toCongruenceGraph $ DG.estimatedDepen
 
 -- | 'named name proc' acts like 'proc', but displays itself under the name 'name' in proof outputs      
 named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf P.SomeProcessor
-named n inst = some $ proc `S.withArgs` ()
-  where proc = Custom.fromAction d (\ () -> P.solve inst)
-        d    = Custom.Description { Custom.as    = n
-                                  , Custom.descr = []
-                                  , Custom.args  = Unit }
+named n inst = some $ proc `Custom.withArgs` ()
+  where proc = Custom.Custom { Custom.as = n
+                             , Custom.arguments = Unit 
+                             , Custom.code = Custom.SomeCode $ \ () -> P.solve inst }
+
+               

@@ -70,7 +70,8 @@ import Tct.Method.Weightgap
 import Tct.Method.Timeout hiding (timeout)
 import Tct.Method.Mpo hiding (mpo)
 import qualified Tct.Instances as Inst
-import Tct.Method.Custom (asProcessor)
+import Tct.Method.Custom (Custom (..))
+import qualified Tct.Processor.Args as A
 
 -- generated: Fri Jan  6 13:08:14 JST 2012
 builtInProcessors :: P.AnyProcessor 
@@ -165,15 +166,15 @@ builtInProcessors =
     P.<|>
     S.StdProcessor uncurry
     P.<|>
-    Inst.rc2012 `asProcessor` "rc2012"
+    Custom { as = "rc2012", code =  Inst.rc2012, arguments = A.Unit }
     P.<|>
-    Inst.dc2012 `asProcessor` "dc2012"
+    Custom { as = "dc2012", code =  Inst.dc2012, arguments = A.Unit }
     P.<|>
-    Inst.certify2012 `asProcessor` "certify2012"
+    Custom { as = "certify2012", code =  Inst.certify2012, arguments = A.Unit }    
     P.<|>
-    Inst.rc2011 `asProcessor` "rc2011"
+    Custom { as = "rc2011", code =  Inst.rc2012, arguments = A.Unit }    
     P.<|>
-    Inst.dc2011 `asProcessor` "dc2011"
+    Custom { as = "dc2011", code =  Inst.rc2012, arguments = A.Unit }    
     P.<|>
     foldr (P.<|>) P.none Preds.predicateProcessors
 

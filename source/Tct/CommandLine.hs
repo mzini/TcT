@@ -16,7 +16,7 @@ refer to "Tct.Interactive". As explained in "Tct.Configuration", TcT can be easi
 customized.
 TcT is invoked from the command line as follows:
 
->>> tct [<options>]* <filename>
+>>> tct [options] <filename>
 
 Here '<filename>' specifies a complexity problem either
 in the old /termination problem database/ format (cf. <http://www.lri.fr/~marche/tpdb/format.html>)

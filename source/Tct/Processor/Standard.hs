@@ -30,6 +30,8 @@ module Tct.Processor.Standard
        , withArgs
        , modifyArguments
        , apply
+         -- unexported
+       , mkParseProcessor
        )
 where
 
@@ -114,6 +116,7 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
          as <- A.parseInteractive (arguments a) procs 
          putStrLn ""
          return $ TP (TheProcessor a as)
+
 
 mkParseProcessor :: (ParsableArguments a) => String -> a -> P.ProcessorParser (Domains a)
 mkParseProcessor nm args = do _ <- string nm

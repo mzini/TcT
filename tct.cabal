@@ -50,7 +50,8 @@ Executable tct
   old-locale == 1.0.*,
   qlogic == 0.9, 
   parfold == 0.9,
-  termlib == 0.9
+  termlib == 0.9,
+  haskeline
 
  hs-source-dirs:    
   source
@@ -80,6 +81,7 @@ Library
    Tct.Processor.Transformations
    Tct.Processor.LoggingSolver
    Tct.Utils.Enum
+   Tct.Utils.Ask
    Tct.Utils.Xml
    Tct.Utils.PPrint
    Tct.Encoding.ArgumentFiltering
@@ -154,7 +156,8 @@ Library
   old-locale == 1.0.*,
   qlogic == 0.9, 
   parfold == 0.9,
-  termlib == 0.9
+  termlib == 0.9, 
+  haskeline
 
  hs-source-dirs:    
   source

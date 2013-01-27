@@ -89,12 +89,10 @@ module Tct.Configuration (
   -- one can also specify an action that given a complexity problem, constructs 
   -- a complexity proof.
     
-  , Description (..)
-  , Custom.fromInstance
-  , Custom.asProcessor    
-  , Custom.fromAction
-    
+  , Custom.strategy
+  , Custom.Custom (..)    
   -- | 
+  -- TODO: example needs to be updated. 
   -- The following example defines a new processor that searches for matrix-interpretations of dimension @1@ to @3@
   -- in parallel, cf. 'Instances.matrix' and 'Instances.fastest'.  
   -- 
@@ -216,6 +214,5 @@ import Tct (defaultConfig, Config (..), tct)
 import qualified Tct.Processor.Args.Instances as Args
 import qualified Tct.Processor.Args as Arg ()
 import Tct.Processor.Args
-import Tct.Method.Custom (Description(..))
 import qualified Tct.Processor as P
 import qualified Tct.Method.Custom as Custom

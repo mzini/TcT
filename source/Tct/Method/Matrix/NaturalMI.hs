@@ -113,13 +113,6 @@ instance ComplexityProof MatrixOrder where
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
-                          -- $+$ (case maf of 
-                          --      Nothing -> empty
-                          --      Just af -> text "" 
-                          --                $+$ paragraph "Further, following argument filtering is employed:"
-                          --                $++$ (nest 1 . pprint $  af)
-                          --                $++$ paragraph "Usable defined function symbols are a subset of:"
-                          --                $++$ (nest 1 . pprint $ (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us])))
                           $+$ paragraph "This order satisfies following ordering constraints"
                           $+$ text ""                            
                           $+$ indent (pprintOrientRules inter sig vars rs)

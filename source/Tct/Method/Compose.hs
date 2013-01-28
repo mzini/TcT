@@ -21,16 +21,16 @@ This module provides the /compose/ transformation.
 
 module Tct.Method.Compose 
        (
-         compose
-       , composeDynamic
-       , composeStatic         
-       , ComposeBound (..)
+         decompose
+       , decomposeDynamic
+       , decomposeStatic         
+       , DecomposeBound (..)
          -- * Proof Object
-       , ComposeProof (..)
+       , DecomposeProof (..)
        , progress
          -- * Processor
-       , composeProcessor
-       , Compose
+       , decomposeProcessor
+       , Decompose
        , greedy
        )
        where
@@ -63,42 +63,43 @@ import Tct.Method.RuleSelector
 -- import Termlib.Term (..)
 -- static partitioning
 
-data ComposeBound = Add  -- ^ obtain bound by addition
-                  | Mult -- ^ obtain bound by multiplication
-                  | Compose  -- ^ obtain bound by composition
+data DecomposeBound = Add  -- ^ obtain bound by addition
+                    | Mult -- ^ obtain bound by multiplication
+                    | Compose  -- ^ obtain bound by composition
   deriving (Bounded, Ord, Eq, Show, Typeable, Enum) 
 
 
--- Compose Processor ala Zankl/Korp and Waldmann
-data Compose p = ComposeProc
-data ComposeProof p = ComposeProof { proofBound          :: ComposeBound 
-                                   , proofSelector       :: ExpressionSelector
-                                   , proofOrientedStrict :: [Rule.Rule]
-                                   , proofSubProof       :: (P.Proof p) }
-                    | ComposeStaticProof { proofBound :: ComposeBound
-                                         , proofSelectedTrs :: Trs.Trs
-                                         , proofSelectedDPs :: Trs.Trs
-                                         , proofSubProblems :: (Problem, Problem)}
-                    | Inapplicable String
+-- Decompose Processor ala Zankl/Korp and Waldmann
+data Decompose p = DecomposeProc
+data DecomposeProof p = DecomposeProof 
+                        { proofBound          :: DecomposeBound 
+                        , proofSelector       :: ExpressionSelector
+                        , proofOrientedStrict :: [Rule.Rule]
+                        , proofSubProof       :: (P.Proof p) }
+                      | DecomposeStaticProof { proofBound :: DecomposeBound
+                                             , proofSelectedTrs :: Trs.Trs
+                                             , proofSelectedDPs :: Trs.Trs
+                                             , proofSubProblems :: (Problem, Problem)}
+                      | Inapplicable String
 
 
-progress :: P.Processor p => ComposeProof p -> Bool
+progress :: P.Processor p => DecomposeProof p -> Bool
 progress Inapplicable {} = False
-progress p@(ComposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subproof
+progress p@(DecomposeProof {}) = not (Trs.isEmpty $ stricts) && P.succeeded subproof
   where subproof = proofSubProof p
         stricts = Prob.strictComponents $ P.inputProblem $ subproof
-progress p@(ComposeStaticProof {}) = not (trivial sProb) && not (trivial rProb) 
+progress p@(DecomposeStaticProof {}) = not (trivial sProb) && not (trivial rProb) 
   where trivial = Trs.isEmpty . Prob.strictComponents
         (sProb,rProb) = proofSubProblems p
 
 
 
-instance (P.Processor p) => T.Transformer (Compose p) where
-    type ArgumentsOf (Compose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf ComposeBound) :+: Arg Bool :+: Arg (Maybe (Proc p))
-    type ProofOf (Compose p)     = ComposeProof p
+instance (P.Processor p) => T.Transformer (Decompose p) where
+    type ArgumentsOf (Decompose p) = Arg (Assoc ExpressionSelector) :+: Arg (EnumOf DecomposeBound) :+: Arg Bool :+: Arg (Maybe (Proc p))
+    type ProofOf (Decompose p)     = DecomposeProof p
 
-    name _              = "compose"
-    instanceName inst   = show $ text "compose" <+> parens ppCompFn
+    name _              = "decompose"
+    instanceName inst   = show $ text "decompose" <+> parens ppCompFn
         where _ :+: compFn :+: _ = T.transformationArgs inst
               -- ppsplit = text $ show split 
               ppCompFn = case compFn of 
@@ -127,12 +128,12 @@ instance (P.Processor p) => T.Transformer (Compose p) where
       opt { A.name = "allow"
           , A.defaultValue = Add
           , A.description = unwords 
-                            [ "This argument type 'Compose.ComposeBound' determines"
+                            [ "This argument type 'Compose.DecomposeBound' determines"
                             , "how the complexity certificate should be obtained from subproblems (A) and (B)."
                             , "Consequently, this argument also determines the shape of (B)."
                             , "The third argument defines a processor that is applied on problem (A)."
                             , "If this processor succeeds, the input problem is transformed into (B)."
-                            , "Note that for compose bound 'Mult' the transformation only succeeds"
+                            , "Note that for decompose bound 'Mult' the transformation only succeeds"
                             , "if applied to non size-increasing Problems."
                             ] 
           }
@@ -161,7 +162,7 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                      | otherwise       -> return $ T.NoProgress tproof
           where (rProb,sProb) = mkProb dps trs
                 (dps, trs) = rules sel
-                tproof = ComposeStaticProof { proofBound = compfn
+                tproof = DecomposeStaticProof { proofBound = compfn
                                             , proofSelectedDPs = dps
                                             , proofSelectedTrs = trs
                                             , proofSubProblems = (rProb, sProb)}
@@ -209,14 +210,14 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                 | progress tproof = T.Progress tproof  (enumeration'  [sProb])
                 | otherwise       = T.NoProgress tproof
                 where (rProb, sProb) = mkProb (Trs.fromRules (P.ppRemovableDPs pp)) (Trs.fromRules (P.ppRemovableTrs pp))
-                      tproof = ComposeProof { proofBound = compfn 
-                                            , proofSelector = rs 
-                                            , proofOrientedStrict = Trs.rules (strictTrs rProb) ++ Trs.rules (strictDPs rProb)
-                                            , proofSubProof = P.Proof { P.inputProblem = rProb
-                                                                      , P.appliedProcessor = inst1
-                                                                      , P.result = P.ppResult pp }
-                                            }
-                  
+                      tproof = DecomposeProof { proofBound = compfn 
+                                              , proofSelector = rs 
+                                              , proofOrientedStrict = Trs.rules (strictTrs rProb) ++ Trs.rules (strictDPs rProb)
+                                              , proofSubProof = P.Proof { P.inputProblem = rProb
+                                                                        , P.appliedProcessor = inst1
+                                                                        , P.result = P.ppResult pp }
+                                              }
+                      
               mkProb dps trs = (rProb, sProb)
                 where rDps = dps `Trs.intersect` Prob.strictDPs prob
                       rTrs = trs `Trs.intersect` Prob.strictTrs prob
@@ -240,15 +241,15 @@ instance (P.Processor p) => T.Transformer (Compose p) where
                                           , strictDPs  = sDps }                  
                                   
 
-instance P.Processor p => T.TransformationProof (Compose p) where
+instance P.Processor p => T.TransformationProof (Decompose p) where
       answer proof = 
         case tProof of 
-          ComposeStaticProof {} -> fromMaybe P.MaybeAnswer mans
+          DecomposeStaticProof {} -> fromMaybe P.MaybeAnswer mans
             where mans = do
                     rProof <- find 'R' subproofs
                     sProof <- find 'S' subproofs
                     return $ mkAnswer rProof sProof
-          ComposeProof {} -> 
+          DecomposeProof {} -> 
             case subproofs of 
               [(_,sProof)] 
                 | not success -> P.MaybeAnswer 
@@ -274,9 +275,9 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                       ubound p = Cert.upperBound $ certificate p                        
               
 
-      pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'compose' since " 
+      pprintTProof _ _ (Inapplicable reason) _ = paragraph ("We cannot use 'decompose' since " 
                                                             ++ reason ++ ".")
-      pprintTProof _ prob (tproof@(ComposeProof compfn _ stricts rSubProof)) _ = 
+      pprintTProof _ prob (tproof@(DecomposeProof compfn _ stricts rSubProof)) _ = 
         if progress tproof 
         then paragraph ("We use the processor " 
                         ++ pName ++ " to orient following rules strictly.")
@@ -318,7 +319,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   pptrs = pprintNamedTrs sig vars
                   ppSubproof = P.pprintProof (P.result rSubProof) P.ProofOutput
                   
-      pprintTProof _ _ (tproof@(ComposeStaticProof compfn _ _ (rProb,sProb))) _ = 
+      pprintTProof _ _ (tproof@(DecomposeStaticProof compfn _ _ (rProb,sProb))) _ = 
         if progress tproof 
          then paragraph ("We analyse the complexity of following sub-problems (A) and (B):")
              $+$ text ""
@@ -345,7 +346,7 @@ instance P.Processor p => T.TransformationProof (Compose p) where
           , Xml.elt "splitBy" [] [Xml.text $ show split]]
           ++ case proof of 
                Inapplicable reason -> [Xml.elt "rSubProof" [] [Xml.elt "inapplicable" [] [Xml.text reason]]]
-               ComposeProof {} -> [Xml.elt "rSubProof" [] [P.toXml $ proofSubProof proof]]
+               DecomposeProof {} -> [Xml.elt "rSubProof" [] [P.toXml $ proofSubProof proof]]
                _ -> []
         )
         where split :+: compFn :+: _ = T.transformationArgs tinst
@@ -355,8 +356,8 @@ instance P.Processor p => T.TransformationProof (Compose p) where
                   Mult    -> "multiplication"
                   Compose -> "composition"
 
-composeProcessor :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
-composeProcessor = T.Transformation ComposeProc
+decomposeProcessor :: T.Transformation (Decompose P.AnyProcessor) P.AnyProcessor
+decomposeProcessor = T.Transformation DecomposeProc
 
 -- | This transformation implements techniques for splitting the complexity problem
 -- into two complexity problems (A) and (B) so that the complexity of the input problem
@@ -364,17 +365,17 @@ composeProcessor = T.Transformation ComposeProc
 -- The processor closely follows the ideas presented in
 -- /Complexity Bounds From Relative Termination Proofs/
 -- (<http://www.imn.htwk-leipzig.de/~waldmann/talk/06/rpt/rel/main.pdf>).
-compose :: (P.Processor p1) => ExpressionSelector -> ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-compose split compfn sub = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: Just sub)
+decompose :: (P.Processor p1) => ExpressionSelector -> DecomposeBound -> P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
+decompose split compfn sub = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: False :+: Just sub)
 
--- | @composeDynamic == compose (selAnyOf selStricts)@.
-composeDynamic :: (P.Processor p1) => ComposeBound -> P.InstanceOf p1 -> T.TheTransformer (Compose p1)
-composeDynamic = compose (selAnyOf selStricts)
+-- | @decomposeDynamic == decompose (selAnyOf selStricts)@.
+decomposeDynamic :: (P.Processor p1) => DecomposeBound -> P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
+decomposeDynamic = decompose (selAnyOf selStricts)
 
--- | @composeStatic == compose (selAnyOf selStricts)@.
-composeStatic :: ExpressionSelector -> ComposeBound -> T.TheTransformer (Compose P.AnyProcessor)
-composeStatic split compfn = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: False :+: Nothing)
+-- | @decomposeStatic == decompose (selAnyOf selStricts)@.
+decomposeStatic :: ExpressionSelector -> DecomposeBound -> T.TheTransformer (Decompose P.AnyProcessor)
+decomposeStatic split compfn = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: False :+: Nothing)
 
-greedy :: (P.Processor p1) => T.TheTransformer (Compose p1) -> T.TheTransformer (Compose p1)
-greedy tinst = T.Transformation ComposeProc `T.withArgs` (split :+: compfn :+: True :+: sub)
+greedy :: (P.Processor p1) => T.TheTransformer (Decompose p1) -> T.TheTransformer (Decompose p1)
+greedy tinst = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: True :+: sub)
   where split :+: compfn :+: _ :+: sub = T.transformationArgs tinst

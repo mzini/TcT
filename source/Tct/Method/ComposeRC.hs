@@ -22,15 +22,15 @@
 
 module Tct.Method.ComposeRC 
        (
-         composeRC
+         decomposeDG
        , solveUpperWith
        , solveLowerWith         
-       , composeRCselect
+       , decomposeDGselect
          -- * Proof Object
-       , ComposeRCProof (..)
+       , DecomposeDGProof (..)
          -- * Processor
-       , composeRCProcessor
-       , ComposeRC
+       , decomposeDGProcessor
+       , DecomposeDG
        )
 where
 
@@ -61,29 +61,30 @@ import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
 import Data.Typeable ()
 
-data ComposeRC p1 p2 = ComposeRC
-data ComposeRCProof p1 p2 = ComposeRCProof { cpRuleSelector   :: ExpressionSelector
-                                           , cpUnselected     :: Trs.Trs
-                                           , cpSelected       :: Trs.Trs 
-                                           , cpExtensionRules :: Trs.Trs
-                                           , cpProofD         :: Maybe (P.Proof p1) 
-                                           , cpProofU         :: Maybe (P.Proof p2)
-                                           , cpProbD          :: Prob.Problem
-                                           , cpProbU          :: Prob.Problem
-                                           , cpWdg            :: DG.DG}
-                          | ComposeRCInapplicable String
+data DecomposeDG p1 p2 = DecomposeDG
+data DecomposeDGProof p1 p2 = DecomposeDGProof 
+                              { cpRuleSelector   :: ExpressionSelector
+                              , cpUnselected     :: Trs.Trs
+                              , cpSelected       :: Trs.Trs 
+                              , cpExtensionRules :: Trs.Trs
+                              , cpProofD         :: Maybe (P.Proof p1) 
+                              , cpProofU         :: Maybe (P.Proof p2)
+                              , cpProbD          :: Prob.Problem
+                              , cpProbU          :: Prob.Problem
+                              , cpWdg            :: DG.DG}
+                          | DecomposeDGInapplicable String
 
-progress :: (P.Processor p1, P.Processor p2) => ComposeRCProof p1 p2 -> Bool
-progress ComposeRCInapplicable {} = False
+progress :: (P.Processor p1, P.Processor p2) => DecomposeDGProof p1 p2 -> Bool
+progress DecomposeDGInapplicable {} = False
 progress proof = maybe True P.succeeded (cpProofD proof) 
                  && maybe True P.succeeded (cpProofU proof)
                  && not (Trs.isEmpty sdps)
    where sdps = Prob.strictDPs $ cpProbU proof
          
 
-instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) where
-    type ArgumentsOf (ComposeRC p1 p2) = Arg (Assoc (ExpressionSelector)) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
-    type ProofOf (ComposeRC p1 p2)     = ComposeRCProof p1 p2
+instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) where
+    type ArgumentsOf (DecomposeDG p1 p2) = Arg (Assoc (ExpressionSelector)) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
+    type ProofOf (DecomposeDG p1 p2)     = DecomposeDGProof p1 p2
 
     name _ = "compose-rc"
     instanceName inst = show $ text "compose-rc" <+> parens (ppsplit)
@@ -107,7 +108,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
       ]
     arguments _ = 
       opt { A.name         = "split" 
-          , A.defaultValue = composeRCselect
+          , A.defaultValue = decomposeDGselect
           , A.description  = "This problem determines the strict rules of the selected upper congruence rules."}
       :+: 
       opt { A.name = "sub-processor-A"
@@ -121,10 +122,10 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
           }
     
     transform inst prob 
-         | not (Prob.isDPProblem prob) = return $ T.NoProgress $ ComposeRCInapplicable "given problem is not a DP problem" 
-         | not (Trs.isEmpty $ Prob.strictTrs prob) = return $ T.NoProgress $ ComposeRCInapplicable "strict rules of input problem are empty" 
-         | Trs.isEmpty initialDPs  = return $ T.NoProgress $ ComposeRCInapplicable "no rules were selected" 
-         | not (any isCut unselectedNodes) = return $ T.NoProgress $ ComposeRCInapplicable "no rule was cut"
+         | not (Prob.isDPProblem prob) = return $ T.NoProgress $ DecomposeDGInapplicable "given problem is not a DP problem" 
+         | not (Trs.isEmpty $ Prob.strictTrs prob) = return $ T.NoProgress $ DecomposeDGInapplicable "strict rules of input problem are empty" 
+         | Trs.isEmpty initialDPs  = return $ T.NoProgress $ DecomposeDGInapplicable "no rules were selected" 
+         | not (any isCut unselectedNodes) = return $ T.NoProgress $ DecomposeDGInapplicable "no rule was cut"
          | otherwise = 
              do mProofA <- mapply mProcA probA
                 mProofB <- case maybe True P.succeeded mProofA of 
@@ -141,15 +142,16 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
                   | progress tproof = T.Progress tproof subprobs
                   | otherwise       = T.NoProgress tproof
                   where 
-                    tproof = ComposeRCProof { cpRuleSelector   = s
-                                            , cpUnselected     = Trs.fromRules [ r | (_,(_,r)) <- unselectedLabeledNodes]
-                                            , cpSelected       = selectedStrictDPs `Trs.union` selectedWeakDPs
-                                            , cpExtensionRules = extRules
-                                            , cpProofD         = mProofA
-                                            , cpProofU         = mProofB
-                                            , cpProbD          = probA
-                                            , cpProbU          = probB
-                                            , cpWdg            = wdg }
+                    tproof = DecomposeDGProof 
+                             { cpRuleSelector   = s
+                             , cpUnselected     = Trs.fromRules [ r | (_,(_,r)) <- unselectedLabeledNodes]
+                             , cpSelected       = selectedStrictDPs `Trs.union` selectedWeakDPs
+                             , cpExtensionRules = extRules
+                             , cpProofD         = mProofA
+                             , cpProofU         = mProofB
+                             , cpProbD          = probA
+                             , cpProbU          = probB
+                             , cpWdg            = wdg }
                     subprobs = catMaybes [ maybe (Just (SN (1 :: Int), probA)) (const Nothing) mProofA
                                          , maybe (Just (SN (2 :: Int), probB)) (const Nothing) mProofB ]
 
@@ -194,8 +196,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (ComposeRC p1 p2) whe
               mapply Nothing      _     = return Nothing
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
 
-instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1 p2) where
-    pprintTProof _ _ (ComposeRCInapplicable reason) _ = text "Dependency graph decomposition is inapplicable since" <+> text reason <> text "."
+instance (P.Processor p1, P.Processor p2) => T.TransformationProof (DecomposeDG p1 p2) where
+    pprintTProof _ _ (DecomposeDGInapplicable reason) _ = text "Dependency graph decomposition is inapplicable since" <+> text reason <> text "."
     pprintTProof _ prob tproof mde = 
       paragraph "We decompose the input problem according to the dependency graph into the upper component"
       $+$ text ""
@@ -232,7 +234,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
                    <+> text n <+> text "component. We abort."
     answer proof = 
       case tproof of 
-        ComposeRCInapplicable{} -> P.MaybeAnswer
+        DecomposeDGInapplicable{} -> P.MaybeAnswer
         _ -> 
           case ub of
             Cert.Unknown -> P.MaybeAnswer
@@ -248,9 +250,9 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (ComposeRC p1
                   where mcert = (P.certificate `liftM` mp1) `mplus` (P.certificate `liftM` mp2)
 
 
--- | This is the default 'RuleSelector' used with 'composeRC'.
-composeRCselect :: ExpressionSelector
--- composeRCselect = selAllOf $ selFromCWDG "below first cut in CWDG" fn
+-- | This is the default 'RuleSelector' used with 'decomposeDG'.
+decomposeDGselect :: ExpressionSelector
+-- decomposeDGselect = selAllOf $ selFromCWDG "below first cut in CWDG" fn
 --   where fn cwdg = 
 --           case DG.roots cwdg of 
 --             (r:_) -> selBelow cwdg r
@@ -260,7 +262,7 @@ composeRCselect :: ExpressionSelector
 --           where rs = DG.allRulesFromNodes cwdg strictSuccs
 --                 strictSuccs = [ n | n <- DG.successors cwdg r
 --                                   , any (\ (s,_) -> s == DG.StrictDP) $ DG.allRulesFromNodes cwdg $ DG.reachablesDfs cwdg [n] ]
-composeRCselect = selAllOf $ selFromWDG "below first cut in WDG" fn
+decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
     where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
                                     , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
               where nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, n `elem` DG.reachablesBfs dg [m] ]
@@ -272,11 +274,11 @@ composeRCselect = selAllOf $ selFromWDG "below first cut in WDG" fn
                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
 
 
-composeRCProcessor :: T.Transformation (ComposeRC P.AnyProcessor P.AnyProcessor) P.AnyProcessor
-composeRCProcessor = T.Transformation ComposeRC
+decomposeDGProcessor :: T.Transformation (DecomposeDG P.AnyProcessor P.AnyProcessor) P.AnyProcessor
+decomposeDGProcessor = T.Transformation DecomposeDG
 
--- | This processor implements processor \'compose\' specifically for
--- the (weak) dependency pair setting. It tries to estimate the
+-- | This processor implements processor \'dependency graph decomposition\'. 
+-- It tries to estimate the
 -- complexity of the input problem based on the complexity of
 -- dependency pairs of upper congruence classes (with respect to the
 -- congruence graph) relative to the dependency pairs in the remaining
@@ -287,15 +289,15 @@ composeRCProcessor = T.Transformation ComposeRC
 -- processors that are applied on the two individual subproblems. The
 -- transformation results into the systems which could not be oriented
 -- by those processors.
-composeRC :: ExpressionSelector -> T.TheTransformer (ComposeRC P.AnyProcessor P.AnyProcessor)
-composeRC s = T.Transformation ComposeRC `T.withArgs` (s :+: Nothing :+: Nothing)
+decomposeDG :: ExpressionSelector -> T.TheTransformer (DecomposeDG P.AnyProcessor P.AnyProcessor)
+decomposeDG s = T.Transformation DecomposeDG `T.withArgs` (s :+: Nothing :+: Nothing)
 
 -- | Specify a processor to solve the lower immediately. 
 -- The Transformation aborts if the problem cannot be handled.
-solveLowerWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p p2))
-solveLowerWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer ComposeRC (s :+: Just p :+: p2)
+solveLowerWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (DecomposeDG p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (DecomposeDG p p2))
+solveLowerWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer DecomposeDG (s :+: Just p :+: p2)
 
 -- | Specify a processor to solve the upper component immediately.
 -- The Transformation aborts if the problem cannot be handled.
-solveUpperWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (ComposeRC p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (ComposeRC p1 p))
-solveUpperWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer ComposeRC (s :+: p1 :+: Just p)
+solveUpperWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (DecomposeDG p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (DecomposeDG p1 p))
+solveUpperWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer DecomposeDG (s :+: p1 :+: Just p)

@@ -52,8 +52,8 @@ import Tct.Method.Predicates hiding
    , isRCProblem) 
 import Tct.Method.Bounds hiding (bounds)
 import Tct.Method.Combinator hiding (fail, success, empty, open, ite, best, fastest, sequentially)
-import Tct.Method.Compose hiding (compose)
-import Tct.Method.ComposeRC hiding (composeRC)
+import Tct.Method.Compose hiding (decompose)
+import Tct.Method.ComposeRC hiding (decomposeDG)
 import Tct.Method.DP.DependencyPairs hiding (dependencyPairs)
 import Tct.Method.DP.PathAnalysis hiding (pathAnalysis)
 import Tct.Method.DP.Simplification hiding (simpDPRHS, simpPE)
@@ -144,9 +144,9 @@ builtInProcessors =
     P.<|>
     S.StdProcessor toInnermost
     P.<|>
-    S.StdProcessor composeRC
+    S.StdProcessor decomposeDG
     P.<|>
-    S.StdProcessor compose
+    S.StdProcessor decompose
     P.<|>
     S.StdProcessor dependencyPairs
     P.<|>
@@ -617,7 +617,7 @@ irr :: T.Transformation InnermostRuleRemoval P.AnyProcessor
 irr = irrProcessor
 
 {- |
-This processor implements processor \'compose\' specifically for
+This processor implements processor \'decompose\' specifically for
 the (weak) dependency pair setting. It tries to estimate the
 complexity of the input problem based on the complexity of
 dependency pairs of upper congruence classes (with respect to the
@@ -650,8 +650,8 @@ Currently we only take subset-inclusions of the different components into accoun
 [sub-processor-B :: \<processor>|none /(optional)/] If given, applied on the problem reflecting the lower congruence classes.
 
 -}
-composeRC :: T.Transformation (ComposeRC P.AnyProcessor P.AnyProcessor) P.AnyProcessor
-composeRC = composeRCProcessor
+decomposeDG :: T.Transformation (DecomposeDG P.AnyProcessor P.AnyProcessor) P.AnyProcessor
+decomposeDG = decomposeDGProcessor
 
 {- |
 Uses the weight gap principle to shift some strict rules to the
@@ -752,8 +752,8 @@ Currently we only take subset-inclusions of the different components into accoun
 [allow :: Add|Mult|Compose /(optional)/] This argument type 'Compose.ComposeBound' determines how the complexity certificate should be obtained from subproblems (A) and (B). Consequently, this argument also determines the shape of (B). The third argument defines a processor that is applied on problem (A). If this processor succeeds, the input problem is transformed into (B). Note that for compose bound 'Mult' the transformation only succeeds if applied to non size-increasing Problems.
 
 -}
-compose :: T.Transformation (Compose P.AnyProcessor) P.AnyProcessor
-compose = composeProcessor
+decompose :: T.Transformation (Decompose P.AnyProcessor) P.AnyProcessor
+decompose = decomposeProcessor
 
 {- |
 Switches to innermost rewriting on overlay and right-linear input.

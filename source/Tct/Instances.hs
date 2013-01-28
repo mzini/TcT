@@ -174,15 +174,15 @@ module Tct.Instances
       -- ** Weightgap
     , weightgap
       
-      -- ** Compose
-    , Compose.compose
+      -- ** Decompose
+    , Compose.decompose
     , partitionIndependent
-    , Compose.composeDynamic
-    , Compose.composeStatic      
+    , Compose.decomposeDynamic
+    , Compose.decomposeStatic      
     , Compose.greedy      
-    , ComposeRC.composeRC
-    , Compose.ComposeBound (..)
-    , ComposeRC.composeRCselect
+    , Compose.DecomposeBound (..)
+    , ComposeRC.decomposeDG
+    , ComposeRC.decomposeDGselect
     , ComposeRC.solveUpperWith
     , ComposeRC.solveLowerWith
     -- *** RuleSelector
@@ -388,8 +388,8 @@ bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
                       _           -> Nothing
 
 
-partitionIndependent :: T.TheTransformer (Compose.Compose P.AnyProcessor)
-partitionIndependent = Compose.composeStatic selFWBWstrict Compose.Add
+partitionIndependent :: T.TheTransformer (Compose.Decompose P.AnyProcessor)
+partitionIndependent = Compose.decomposeStatic selFWBWstrict Compose.Add
 
 selFWBWstrict :: RS.ExpressionSelector
 selFWBWstrict = RS.selAllOf $ RS.selFromWDG "forward and backward closed partitioning of WDG" f
@@ -483,8 +483,8 @@ arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $
 
 
 -- | This processor implements the weightgap principle.   
-weightgap :: MatrixOptions -> T.TheTransformer (Compose.Compose (S.StdProcessor Weightgap.WeightGap))
-weightgap m = Compose.composeDynamic Compose.Add wg
+weightgap :: MatrixOptions -> T.TheTransformer (Compose.Decompose (S.StdProcessor Weightgap.WeightGap))
+weightgap m = Compose.decomposeDynamic Compose.Add wg
   where wg = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
 
 -- * defaultPoly
@@ -624,7 +624,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                                <> wg quad {on = Weightgap.WgOnTrs} 
                                <> wg cubic {on = Weightgap.WgOnTrs}
                    wg = weightgap                               
-                   -- composeMult = compose splitWithoutLeafs Mult elim 
+                   -- decomposeMult = decompose splitWithoutLeafs Mult elim 
                    -- elim     = P.someInstance (try dpsimp >>| directs `Combinators.before` insideDP) -- arrr
                    
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
@@ -693,9 +693,9 @@ dc2012 =
               <> compCom (mx 3 2) 
               <> compCom (mx 4 3)
                 
-        compAdd p = Compose.composeDynamic Compose.Add p
-        compMul p = Compose.greedy $ Compose.composeDynamic Compose.Mult p
-        compCom p = Compose.greedy $ Compose.composeDynamic Compose.Compose p        
+        compAdd p = Compose.decomposeDynamic Compose.Add p
+        compMul p = Compose.greedy $ Compose.decomposeDynamic Compose.Mult p
+        compCom p = Compose.greedy $ Compose.decomposeDynamic Compose.Compose p        
 
 
 rc2012 :: P.InstanceOf P.SomeProcessor
@@ -756,10 +756,10 @@ rc2012 = named "rc2012" $
         basics = 
           timeout 5 matchbounds 
           `Combinators.orFaster` PopStar.popstarPS
-          `Combinators.orFaster` (te (Compose.composeDynamic Compose.Add (polys 3)
-                                      <||> Compose.composeDynamic Compose.Add (mx 3 3)
-                                      <||> Compose.composeDynamic Compose.Add (mx 4 3)                        
-                                      <||> Compose.composeDynamic Compose.Add (mx 4 4)) 
+          `Combinators.orFaster` (te (Compose.decomposeDynamic Compose.Add (polys 3)
+                                      <||> Compose.decomposeDynamic Compose.Add (mx 3 3)
+                                      <||> Compose.decomposeDynamic Compose.Add (mx 4 3)                        
+                                      <||> Compose.decomposeDynamic Compose.Add (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
         directs = timeout 58 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
@@ -769,11 +769,11 @@ rc2012 = named "rc2012" $
           
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
-                    Compose.composeDynamic Compose.Add (spopstar i) -- binary search auf grad
-                    <> (when (i == 2 || i == 3) (Compose.composeDynamic Compose.Add (polys i))
+                    Compose.decomposeDynamic Compose.Add (spopstar i) -- binary search auf grad
+                    <> (when (i == 2 || i == 3) (Compose.decomposeDynamic Compose.Add (polys i))
                         <||> wg i i
-                        <||> Compose.composeDynamic Compose.Add (mx i i)
-                        <||> when (i < 4) (Compose.composeDynamic Compose.Add (mx (i + 1) i)))
+                        <||> Compose.decomposeDynamic Compose.Add (mx i i)
+                        <||> when (i < 4) (Compose.decomposeDynamic Compose.Add (mx (i + 1) i)))
           
         rc2012RC = 
           Combinators.best [ some $ timeout 58 $ DP.dependencyPairs >>| isTrivialDP
@@ -798,7 +798,7 @@ rc2012 = named "rc2012" $
                              <||> when (i < 4) (cmp (mx (i+1) i) <||> wg (i + 1) i))
                         >>| withProblem (rc2012DP (i + 1))
                        
-          where cmp p = Compose.compose selStrictRule Compose.Add p
+          where cmp p = Compose.decompose selStrictRule Compose.Add p
                 selStrictRule = RS.selAnyOf (RS.selStricts `RS.selInter` RS.selRules)
 
         rc2012DPi = 
@@ -807,7 +807,7 @@ rc2012 = named "rc2012" $
                   | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
                   | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
                 removeFirstCongruence = 
-                  ComposeRC.composeRC ComposeRC.composeRCselect `ComposeRC.solveUpperWith` proc >>> try simps
+                  ComposeRC.decomposeDG ComposeRC.decomposeDGselect `ComposeRC.solveUpperWith` proc >>> try simps
                   where proc = try simps >>> te shiftLeafs >>! basics
                 cwdgDepth cwdg = maximum $ 0 : [ dp r | r <- DG.roots cwdg]
                   where dp n = maximum $ 0 : [ 1 + dp m | m <- DG.successors cwdg n]
@@ -816,8 +816,8 @@ rc2012 = named "rc2012" $
 
 certify2012 :: P.InstanceOf P.SomeProcessor
 certify2012 = some $ try IRR.irr >>| step [1..] (te . t) (const empty)
-  where t d = some $ Compose.composeDynamic Compose.Add (vmx d)
-                     -- <> composeDynamic Add (vps d)
+  where t d = some $ Compose.decomposeDynamic Compose.Add (vmx d)
+                     -- <> decomposeDynamic Add (vps d)
         vmx dimension = matrix $ 
                         defaultOptions { cbits = Just (bits' + 1)
                                        , bits = bits'

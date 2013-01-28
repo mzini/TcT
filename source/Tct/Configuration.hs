@@ -95,7 +95,7 @@ module Tct.Configuration (
   -- The following example defines a new processor that searches for matrix-interpretations of dimension @1@ to @3@
   -- in parallel, cf. 'Instances.matrix' and 'Instances.fastest'.  
   -- 
-  -- >>> matrices = strategy { as = "matrices" , code = fastest [ matrix defaultOptions {dim = i} | i <- [1..3] ] }
+  -- >>> matrices = fastest [ matrix defaultOptions {dim = i} | i <- [1..3] ] `asStrategy` "matrices"
   --
   -- As defined by the given description, the name of this custom processor is /matrices/.
   -- A processor accepts zero or more arguments, in the above example the field 'args' of the 
@@ -173,6 +173,7 @@ module Tct.Configuration (
   -- | #predef# 
   , Args.boolArg
   , Args.naturalArg
+  , Args.Nat (..)
   , Args.processorArg
   , Args.maybeArg
   , Args.EnumArg

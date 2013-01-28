@@ -432,8 +432,7 @@ toDP =
   where 
     dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
     dts = DP.dependencyTuples
-    wgOnUsable = Compose.composeDynamic Compose.Add $ 
-                 weightgap defaultOptions { dim = 2
+    wgOnUsable = weightgap defaultOptions { dim = 2
                                           , degree = (Just 1)
                                           , on = Weightgap.WgOnTrs }
 
@@ -482,10 +481,10 @@ arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
 arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
--- TODO: check if urules are applicable
 -- | This processor implements the weightgap principle.   
-weightgap :: MatrixOptions -> P.InstanceOf (S.StdProcessor Weightgap.WeightGap)
-weightgap m = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
+weightgap :: MatrixOptions -> T.TheTransformer (Compose.Compose (S.StdProcessor Weightgap.WeightGap))
+weightgap m = Compose.composeDynamic Compose.Add wg
+  where wg = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
 
 -- * defaultPoly
 
@@ -582,7 +581,7 @@ dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail str
                           <> wg cubic
                           <> wg quartic
                           <> wg quintic
-            wg = Compose.composeDynamic Compose.Add . weightgap
+            wg = weightgap
             strategy    = try IRR.irr 
                           >>| try Uncurry.uncurry 
                           >>| (direct 
@@ -623,7 +622,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    wgUsables = wg lin {on = Weightgap.WgOnTrs} 
                                <> wg quad {on = Weightgap.WgOnTrs} 
                                <> wg cubic {on = Weightgap.WgOnTrs}
-                   wg = Compose.composeDynamic Compose.Add . weightgap                               
+                   wg = weightgap                               
                    -- composeMult = compose splitWithoutLeafs Mult elim 
                    -- elim     = P.someInstance (try dpsimp >>| directs `Combinators.before` insideDP) -- arrr
                    
@@ -665,7 +664,7 @@ dc2012 =
         whenNonTrivial t = withProblem $ \ prob ->
           when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
 
-        wg dimension deg = Compose.composeDynamic Compose.Add $ weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
+        wg dimension deg = weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
                      
         mx dimension deg = matrix $ dos dimension deg
 
@@ -705,8 +704,7 @@ rc2012 = named "rc2012" $
              Prob.Innermost -> some rc2012RCi
              _ -> some $ Combinators.iteProgress TOI.toInnermost rc2012RCi rc2012RC
     
-  where wgOnUsable = Compose.composeDynamic Compose.Add $ 
-                     weightgap defaultOptions { dim = 2
+  where wgOnUsable = weightgap defaultOptions { dim = 2
                                               , degree = (Just 1)
                                               , on = Weightgap.WgOnTrs }
           
@@ -727,7 +725,7 @@ rc2012 = named "rc2012" $
                 cert' | deg' == 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
 
-        wg dimension deg = Compose.composeDynamic Compose.Add $ weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
+        wg dimension deg = weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
                      
         mx dimension deg = matrix $ dos dimension deg
 

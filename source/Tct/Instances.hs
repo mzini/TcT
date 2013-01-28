@@ -232,6 +232,7 @@ module Tct.Instances
     , DPSimp.simpPE
     , DPSimp.simpPEOn
     , DPSimp.withPEOn
+    , cleanTail
     -- , DPSimp.inline      
     , dpsimps
     , toDP

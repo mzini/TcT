@@ -16,7 +16,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 
 module Tct.StrategyInfo where
-import Tct (Config (..))
+import Tct (Config (..), processors)
 import qualified Tct.Processor as P
 import Text.PrettyPrint.HughesPJ
 import Termlib.Utils (PrettyPrintable (..))

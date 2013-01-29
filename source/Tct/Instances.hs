@@ -363,10 +363,10 @@ upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
 
 
 
-bsearch :: (P.Processor proc,res ~ P.ProofOf proc) => String -> (Maybe Int -> P.InstanceOf proc) -> P.InstanceOf (Custom.Custom Unit res (Custom.SomeCode Unit res))
+bsearch :: (P.Processor proc) => String -> (Maybe Int -> P.InstanceOf proc) -> P.InstanceOf (Custom.Custom Unit (P.ProofOf proc))
 bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
                                   , Custom.arguments = Unit 
-                                  , Custom.code = Custom.SomeCode $ \ () -> bsearch' mkinst}
+                                  , Custom.code = \ () -> bsearch' mkinst}
                     `Custom.withArgs` ()
   where bsearch' mk prob = 
           do proof <- P.solve (mk Nothing) prob
@@ -874,11 +874,11 @@ class WithProblem inp outp | inp -> outp where
 instance T.Transformer t => WithProblem (T.TheTransformer t) (T.TheTransformer (TCombinator.WithProblem t)) where
   withProblem = TCombinator.withProblem
 
-instance (P.Processor proc, P.ProofOf proc ~ res) => WithProblem (P.InstanceOf proc) (P.InstanceOf (Custom.Custom Unit res (Custom.SomeCode Unit res))) where
+instance (P.Processor proc, P.ProofOf proc ~ res) => WithProblem (P.InstanceOf proc) (P.InstanceOf (Custom.Custom Unit res)) where
    withProblem f = proc `Custom.withArgs` ()
      where proc = Custom.Custom { Custom.as = "Inspecting Problem..."
                                 , Custom.arguments = Unit
-                                , Custom.code = Custom.SomeCode $ \ () prob -> P.solve (f prob) prob}
+                                , Custom.code = \ () prob -> P.solve (f prob) prob}
 
 withWDG :: WithProblem inp outp => (DG.DG -> inp) -> outp
 withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.defaultApproximation prob)
@@ -894,6 +894,6 @@ named :: P.Processor proc => String -> P.InstanceOf proc -> P.InstanceOf P.SomeP
 named n inst = some $ proc `Custom.withArgs` ()
   where proc = Custom.Custom { Custom.as = n
                              , Custom.arguments = Unit 
-                             , Custom.code = Custom.SomeCode $ \ () -> P.solve inst }
+                             , Custom.code = \ () -> P.solve inst }
 
                

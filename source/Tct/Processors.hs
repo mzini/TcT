@@ -166,15 +166,15 @@ builtInProcessors =
     P.<|>
     S.StdProcessor uncurry
     P.<|>
-    Custom { as = "rc2012", code =  Inst.rc2012, arguments = A.Unit }
+    Custom { as = "rc2012", code = \ () -> P.solve $ Inst.rc2012, arguments = A.Unit }
     P.<|>
-    Custom { as = "dc2012", code =  Inst.dc2012, arguments = A.Unit }
+    Custom { as = "dc2012", code = \ () -> P.solve $  Inst.dc2012, arguments = A.Unit }
     P.<|>
-    Custom { as = "certify2012", code =  Inst.certify2012, arguments = A.Unit }    
+    Custom { as = "certify2012", code = \ () -> P.solve $ Inst.certify2012, arguments = A.Unit }    
     P.<|>
-    Custom { as = "rc2011", code =  Inst.rc2012, arguments = A.Unit }    
+    Custom { as = "rc2011", code = \ () -> P.solve $  Inst.rc2012, arguments = A.Unit }    
     P.<|>
-    Custom { as = "dc2011", code =  Inst.rc2012, arguments = A.Unit }    
+    Custom { as = "dc2011", code = \ () -> P.solve $  Inst.rc2012, arguments = A.Unit }    
     P.<|>
     foldr (P.<|>) P.none Preds.predicateProcessors
 

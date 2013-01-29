@@ -90,8 +90,9 @@ module Tct.Configuration (
   -- a complexity proof.
     
   , Custom.strategy
-  , Custom.Custom (..)    
+  , Custom.Strategy (..)
   -- | 
+  -- TODO: adapt 
   -- The following example defines a new processor that searches for matrix-interpretations of dimension @1@ to @3@
   -- in parallel, cf. 'Instances.matrix' and 'Instances.fastest'.  
   -- 
@@ -192,7 +193,6 @@ module Tct.Configuration (
   -- i.e. command line options overwrite the ones supplied in the config file.
     
     , Config (..)
-    , (P.<|>)
   )
 where
 
@@ -202,5 +202,5 @@ import Tct (defaultConfig, Config (..), tct)
 import qualified Tct.Processor.Args.Instances as Args
 import qualified Tct.Processor.Args as Arg ()
 import Tct.Processor.Args
-import qualified Tct.Processor as P
 import qualified Tct.Method.Custom as Custom
+

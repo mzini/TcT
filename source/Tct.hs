@@ -25,6 +25,7 @@ module Tct
     , runTct
     , runErroneous
     , tct 
+    , processors
     , haddockOptions)
 where 
 
@@ -66,6 +67,7 @@ import qualified Tct.Main.Version as Version
 import qualified Tct.Instances as Instances
 import qualified Tct.Processors as Processors
 import qualified Tct.Method.Timeout as Timeout
+import qualified Tct.Method.Custom as Custom
 
 ----------------------------------------------------------------------
 -- TCT error
@@ -128,13 +130,18 @@ data OutputMode = OnlyAnswer
 
 -- | Configuration of TcT. 
 data Config = Config { 
-  -- | New processors can be added to TcT by extending this field.
-  processors        :: AnyProcessor
   
+  -- | This field can be extended by custom strategies,                      
+  -- cf. module 'Tct.Configuration'.
+  strategies        :: [Custom.Strategy]
+    
+  -- | This fields holds the processor available in TcT
+  , allProcessors        :: AnyProcessor
+    
   -- | This field can be used to govern how a processor is 
   -- determined for the loaded problem if no processor is 
   -- supplied at the command line. The second parameter 
-  -- refers to the list of available processors. 
+  -- refers to the list of available processors.     
   , makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
 
   -- | This flag determines if the configuration file should 
@@ -203,7 +210,8 @@ data Config = Config {
 -- | This is the default configuration of TcT.
 defaultConfig :: Config
 defaultConfig = Config { makeProcessor   = defaultProcessor
-                       , processors      = Processors.builtInProcessors
+                       , allProcessors      = Processors.builtInProcessors
+                       , strategies      = []
                        , problemFile     = ""
                        , getSolver       = getDefaultSolver
                        , outputMode      = WithProof ProofOutput
@@ -247,15 +255,17 @@ findSatSolver mk nm = do fn <- findExe
         err = throwError .  SatSolverMissing
         
 processorFromString :: String -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
-processorFromString str allProcessors = case fromString allProcessors str of 
-                                          Left err    -> throwError $ StrategyParseError $ show err
-                                          Right proc' -> return proc'
+processorFromString str procs = 
+  case fromString procs str of 
+    Left err    -> throwError $ StrategyParseError $ show err
+    Right proc' -> return proc'
 
 processorFromFile :: FilePath -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
-processorFromFile fn allProcessors =  do str <- (liftIO $ readFile fn `C.catch` (\ (_ :: C.SomeException) -> return ""))
-                                         case str of 
-                                           ""  -> throwError (strMsg $ "cannot read strategy from file " ++ fn)
-                                           _   -> processorFromString str allProcessors
+processorFromFile fn procs =  do
+  str <- (liftIO $ readFile fn `C.catch` (\ (_ :: C.SomeException) -> return ""))
+  case str of 
+    ""  -> throwError (strMsg $ "cannot read strategy from file " ++ fn)
+    _   -> processorFromString str procs
 
 
 hPutPretty :: Handle -> Doc -> IO ()
@@ -357,6 +367,13 @@ options =
     }
   ]
 
+processors :: Config -> AnyProcessor
+processors cfg = 
+    fromProcessorList [ toSome s | s <- strategies cfg ]
+    <++> allProcessors cfg
+  where 
+    toSome (a Custom.::: b) = Custom.toProcessor a b
+                            
 haddockOptions :: Doc
 haddockOptions = vcat [ ppOpt opt | opt <- options]
   where ppOpt opt = 

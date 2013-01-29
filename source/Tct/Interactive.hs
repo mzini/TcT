@@ -757,10 +757,10 @@ pprint a = do putStrLn ""
               print $ indent $ U.pprint a
               putStrLn ""
 
-bordered :: Doc -> Doc
-bordered d = border $$ text "" $$ d $$ text "" $$ border
-  where border = text "----------------------------------------------------------------------"
-
+bordered :: String -> Doc -> Doc
+bordered n d = text borderUp  $$ text "" $$ d $$ text "" $$ text border
+  where border = "----------------------------------------------------------------------"
+        borderUp = n ++ " " ++ take (length border - length n - 1) border 
 --------------------------------------------------------------------------------
 --- Proof Tree
         
@@ -902,7 +902,7 @@ modifyConfig f = do c <- getConfig
                     setConfig $ f c
                     
 instance U.PrettyPrintable ST where
-  pprint st = bordered $ maybe ppEmpty ppTree $ proofTree st
+  pprint st = bordered "Current Proof State" $ maybe ppEmpty ppTree $ proofTree st
     where ppEmpty = 
             text "No system loaded"
             $+$ text ""
@@ -913,7 +913,7 @@ instance U.PrettyPrintable ST where
                     | otherwise = 
               block  "Unselected Open Problems" [ (SN i, ppProb prob) | (i,(_,prob)) <- unselecteds]
               $+$ block  "Selected Open Problems"   [ (SN i, ppProb prob) | (i,(_,prob)) <- selecteds]
-            where ppProb prob = U.pprint prob $+$ text ""
+            where ppProb prob = U.pprint prob
                   opens = enumOpenFromTree pt
                   (unselecteds,selecteds) = partition (\ (_,(sn,_)) -> isUnselected st sn) opens
           

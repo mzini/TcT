@@ -47,7 +47,6 @@ import Termlib.FunctionSymbol (Signature)
 import qualified Termlib.FunctionSymbol as FS
 
 import Tct.Certificate (certified, unknown, poly)
-import qualified Tct.Processor as P
 import Tct.Processor (ComplexityProof(..), Answer(..))
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Processor.Args as A
@@ -130,7 +129,7 @@ instance S.Processor Bounds where
                     Minimal   -> minimalInitialAutomaton strict weak st sign
 
 -- | This processor implements the bounds technique.
-bounds :: InitialAutomaton -> Enrichment -> P.InstanceOf (S.StdProcessor Bounds)
+bounds :: InitialAutomaton -> Enrichment -> S.ProcessorInstance Bounds
 bounds initialAutomaton enrichment = S.StdProcessor Bounds `S.withArgs` (initialAutomaton :+: enrichment)
 
 boundsProcessor :: S.StdProcessor Bounds

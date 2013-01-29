@@ -27,6 +27,7 @@ module Tct.Processor.Standard
          TheProcessor (..)
        , Processor (..)
        , StdProcessor (..)
+       , ProcessorInstance
        , withArgs
        , modifyArguments
        , apply
@@ -133,13 +134,15 @@ mkParseProcessor nm args = do _ <- string nm
         continueWith '\t' = True
         continueWith _    = False 
 
+
+type ProcessorInstance a = P.InstanceOf (StdProcessor a)
 -- | Constructor for instances.
-withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> P.InstanceOf (StdProcessor a)
+withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> ProcessorInstance a
 (StdProcessor p) `withArgs` a = TP $ TheProcessor { processor = p
                                                   , processorArgs = a }
 
 -- | Modifyer for arguments of instances.
-modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (P.InstanceOf (StdProcessor a) -> P.InstanceOf (StdProcessor a))
+modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (ProcessorInstance a -> ProcessorInstance a)
 modifyArguments f (TP (TheProcessor a args)) = TP (TheProcessor a (f args))
                                    
 -- | Wrapper around 'solve', constructing a 'P.Proof'. 

@@ -251,6 +251,9 @@ module Tct.Instances
     , EQuantified (..)
     , some 
     , solveBy
+      -- * Type Exports
+    , S.ProcessorInstance
+    , T.TheTransformer
     )
 where
   
@@ -355,7 +358,7 @@ step (i:is) t p = some $ p i `Combinators.before` (t i T.>>| empty `Combinators.
 -- where 
 -- @f == fastest@ if @b == True@ and @f == sequentially@ otherwise.
 upto :: (Enum n, Ord n, P.ComplexityProof (P.ProofOf p), P.Processor p) =>
-        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> P.InstanceOf (S.StdProcessor (Combinators.OneOf p))
+        (n -> P.InstanceOf p) -> (Bool :+: n :+: n) -> S.ProcessorInstance (Combinators.OneOf p)
 upto prc (fast :+: l :+: u) | l > u     = Combinators.fastest []
                             | fast      = Combinators.fastest subs
                             | otherwise = Combinators.sequentially subs
@@ -474,11 +477,11 @@ instance IsDefaultOption MatrixOptions where
                                    , on            = Weightgap.WgOnAny }
 
 -- | This processor implements matrix interpretations.     
-matrix :: MatrixOptions -> P.InstanceOf (S.StdProcessor NaturalMI.NaturalMI)
+matrix :: MatrixOptions -> S.ProcessorInstance NaturalMI.NaturalMI
 matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
 
 -- | This processor implements arctic interpretations.
-arctic :: MatrixOptions -> P.InstanceOf (S.StdProcessor ArcticMI.ArcticMI)
+arctic :: MatrixOptions -> S.ProcessorInstance ArcticMI.ArcticMI
 arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
@@ -503,7 +506,7 @@ instance IsDefaultOption PolyOptions where
                                , puseUsableArgs = True }
 
 -- | 'polys n' defines a suitable polynomial of degree 'n'
-polys :: Int -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)  
+polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
 polys 1 = poly linearPolynomial
 polys n = poly $ (customPolynomial inter) { pbits = 2, pcbits = Nothing }
   where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs']
@@ -547,7 +550,7 @@ customPolynomial :: ([Variable] -> [Poly.SimpleMonomial]) -> PolyOptions
 customPolynomial mk = defaultOptions { pkind = Poly.CustomShape mk}
 
 -- | This processor implements polynomial interpretations.
-poly :: PolyOptions -> P.InstanceOf (S.StdProcessor NaturalPI.NaturalPI)
+poly :: PolyOptions -> S.ProcessorInstance NaturalPI.NaturalPI
 poly p = NaturalPI.polyProcessor `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
 
 
@@ -860,7 +863,7 @@ some = equantify
 class TimesOut inp outp | inp -> outp where
   timeout :: Int -> inp -> outp -- ^ Lifts a processor or transformation to one that times out after given number of seconds
   
-instance (P.Processor p, outp ~ P.InstanceOf (S.StdProcessor (Timeout.Timeout p))) => TimesOut (P.InstanceOf p) outp  where
+instance (P.Processor p, outp ~ S.ProcessorInstance (Timeout.Timeout p)) => TimesOut (P.InstanceOf p) outp  where
   timeout = Timeout.timeout
 
 instance T.Transformer t => TimesOut (T.TheTransformer t) (T.TheTransformer (TCombinator.Timeout t)) where

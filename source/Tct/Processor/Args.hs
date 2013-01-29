@@ -50,14 +50,12 @@ module Tct.Processor.Args
 import qualified Tct.Processor as P
 import qualified Tct.Utils.Xml as Xml
 
-import System.IO
 
 import qualified Tct.Utils.Ask as Ask
 import Tct.Processor.Parse
 import Text.Parsec.Prim
 import Text.Parsec.Combinator hiding (optional)
 import Text.Parsec.Char
-import qualified Control.Exception as C
 import qualified Data.Map as Map
 import Data.List (partition, intersperse)
 import Data.Typeable (cast, Typeable)
@@ -288,8 +286,8 @@ opt =
 --
 -- >>> optional naturalArg "dimension" 2
 --
-optional :: String -> Domain t -> Arg t -> Arg t
-optional nm def tpe = 
+optional :: Arg t -> String -> Domain t -> Arg t
+optional tpe nm def = 
   tpe { name = nm
       , defaultValue = def
       , isOptional_ = True}

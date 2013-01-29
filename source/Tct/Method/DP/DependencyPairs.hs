@@ -101,8 +101,8 @@ instance PrettyPrintable DPProof where
     pprint NotRCProblem = paragraph "The input problem is not a RC-problem. We cannot compute dependency pairs."
     pprint ContainsDPs  = paragraph "The input problem contains already dependency pairs. "
     pprint TuplesNonInnermost  = paragraph "Dependency tuples only applicable to innermost problems."
-    pprint p            = paragraph ("We add following dependency " 
-                                     ++ (if tuplesUsed p then "tuples" else "pairs"))
+    pprint p            = paragraph ("We add following " 
+                                     ++ (if tuplesUsed p then "dependency tuples" else "weak dependency pairs") ++ ":")
                           $+$ text ""
                           $+$ ppTrs "Strict DPs" (strictDPs p)
                           $+$ ppTrs  "Weak DPs" (weakDPs p)

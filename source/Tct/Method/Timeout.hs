@@ -45,7 +45,7 @@ data Timeout p = Timeout
 
 -- | @timeout sec t@ 
 -- aborts processor @t@ after @sec@ seconds.
-timeout :: P.Processor p => Int -> (P.InstanceOf p) -> P.InstanceOf (S.StdProcessor (Timeout p))
+timeout :: P.Processor p => Int -> (P.InstanceOf p) -> S.ProcessorInstance (Timeout p)
 timeout i proc = S.StdProcessor Timeout  `S.withArgs` (Nat i :+: proc)
 
 

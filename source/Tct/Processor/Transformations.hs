@@ -439,33 +439,35 @@ someTransformation inst = inst { transformation     = SomeTransformation (transf
                                , transformationArgs = ()}
 
 
+type TransformationInstance t sub = P.InstanceOf (S.StdProcessor (Transformation t sub))
+
 infixr 2 `thenApply`
-thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+thenApply :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> TransformationInstance t sub
 thenApply ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t) `S.withArgs` (not (continue ti) :+: False :+: False :+: args :+: sub)
 
 infixr 2 >>|
 -- | The processor @t '>>|' p@ first applies the transformation @t@. If this succeeds, the processor @p@
 -- is applied on the resulting subproblems. Otherwise @t '>>|' p@ fails.
-(>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+(>>|) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> TransformationInstance t sub
 (>>|) = thenApply
 
 
 infixr 2 `thenApplyPar`
-thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+thenApplyPar :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> TransformationInstance t sub
 thenApplyPar ti@(TheTransformer t args) sub = (S.StdProcessor $ Transformation t) `S.withArgs` (not (continue ti) :+: True :+: False :+: args :+: sub)
 
 
 infixr 2 >>||
 -- | Like '>>|' but resulting subproblems are solved in parallel by the given processor.
-(>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+(>>||) :: (P.Processor sub, Transformer t) => TheTransformer t -> P.InstanceOf sub -> TransformationInstance t sub
 (>>||) = thenApplyPar
 
--- parallelSubgoals :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+-- parallelSubgoals :: (P.Processor sub, Transformer t) => TransformationInstance t sub -> TransformationInstance t sub
 -- parallelSubgoals = S.modifyArguments $ \ (str :+: _ :+: subs :+: as :+: sub) -> str :+: True :+: subs :+: as :+: sub
 
 --- utility functions for constructing and modifying transformations
 
--- checkSubsumed :: (P.Processor sub, Transformer t) => P.InstanceOf (S.StdProcessor (Transformation t sub)) -> P.InstanceOf (S.StdProcessor (Transformation t sub))
+-- checkSubsumed :: (P.Processor sub, Transformer t) => TransformationInstance t sub -> TransformationInstance t sub
 -- checkSubsumed = S.modifyArguments $ \ (str :+: par :+: _ :+: as :+: sub) -> str :+: par :+: True :+: as :+: sub
 
 

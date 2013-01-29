@@ -224,7 +224,7 @@ epostarProcessor :: S.StdProcessor EpoStar
 epostarProcessor = S.StdProcessor EpoStar
 
 -- | This processor implements exponential path orders.
-epostar :: Bool -> P.InstanceOf (S.StdProcessor EpoStar)
+epostar :: Bool -> S.ProcessorInstance EpoStar
 epostar ec = S.StdProcessor EpoStar `S.withArgs` ec
 
 --------------------------------------------------------------------------------

@@ -151,7 +151,7 @@ instance S.Processor ArcticMI where
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI
 
-arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> P.InstanceOf (S.StdProcessor ArcticMI)
+arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> S.ProcessorInstance ArcticMI
 arctic matrixdimension coefficientsize constraintbits ua =
     S.StdProcessor ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
 

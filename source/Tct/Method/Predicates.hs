@@ -185,42 +185,42 @@ predicateProcessors = [ isDuplicatingProcessor
                       , isContextSensitiveProcessor ]
 
 
-trsPredicate :: String -> (Trs -> Bool) -> WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+trsPredicate :: String -> (Trs -> Bool) -> WhichTrs -> S.ProcessorInstance Predicate
 trsPredicate s p a = (S.StdProcessor $ TrsPredicate s p) `S.withArgs` a
 
-problemPredicate :: String -> (Problem -> Bool) -> P.InstanceOf (S.StdProcessor Predicate)
+problemPredicate :: String -> (Problem -> Bool) -> S.ProcessorInstance Predicate
 problemPredicate s p = (S.StdProcessor $ ProblemPredicate s p) `S.withArgs` Union
 
 
-isDuplicating :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isDuplicating :: WhichTrs -> S.ProcessorInstance Predicate
 isDuplicating a = isDuplicatingProcessor `S.withArgs` a
-isCollapsing :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isCollapsing :: WhichTrs -> S.ProcessorInstance Predicate
 isCollapsing a = isCollapsingProcessor `S.withArgs` a
-isConstructor :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isConstructor :: WhichTrs -> S.ProcessorInstance Predicate
 isConstructor a = isConstructorProcessor `S.withArgs` a
-isGround :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isGround :: WhichTrs -> S.ProcessorInstance Predicate
 isGround a = isGroundProcessor `S.withArgs` a
-isLeftLinear :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isLeftLinear :: WhichTrs -> S.ProcessorInstance Predicate
 isLeftLinear a = isLeftLinearProcessor `S.withArgs` a
-isRightLinear :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isRightLinear :: WhichTrs -> S.ProcessorInstance Predicate
 isRightLinear a = isRightLinearProcessor `S.withArgs` a
-isWellFormed :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isWellFormed :: WhichTrs -> S.ProcessorInstance Predicate
 isWellFormed a = isWellFormedProcessor `S.withArgs` a
-isOrthogonal :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isOrthogonal :: WhichTrs -> S.ProcessorInstance Predicate
 isOrthogonal a = isOrthogonalProcessor `S.withArgs` a
-isOverlay :: WhichTrs -> P.InstanceOf (S.StdProcessor Predicate)
+isOverlay :: WhichTrs -> S.ProcessorInstance Predicate
 isOverlay a = isOverlayProcessor `S.withArgs` a
-isOutermost :: P.InstanceOf (S.StdProcessor Predicate)
+isOutermost :: S.ProcessorInstance Predicate
 isOutermost = isOutermostProcessor `S.withArgs` Union
-isInnermost :: P.InstanceOf (S.StdProcessor Predicate)
+isInnermost :: S.ProcessorInstance Predicate
 isInnermost = isInnermostProcessor `S.withArgs` Union
-isFull :: P.InstanceOf (S.StdProcessor Predicate)
+isFull :: S.ProcessorInstance Predicate
 isFull = isFullProcessor `S.withArgs` Union
-isContextSensitive :: P.InstanceOf (S.StdProcessor Predicate)
+isContextSensitive :: S.ProcessorInstance Predicate
 isContextSensitive = isContextSensitiveProcessor `S.withArgs` Union
 
-isDCProblem :: P.InstanceOf (S.StdProcessor Predicate)
+isDCProblem :: S.ProcessorInstance Predicate
 isDCProblem = isDCProblemProcessor `S.withArgs` Union
-isRCProblem :: P.InstanceOf (S.StdProcessor Predicate)
+isRCProblem :: S.ProcessorInstance Predicate
 isRCProblem = isRCProblemProcessor `S.withArgs` Union
 

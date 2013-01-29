@@ -152,15 +152,15 @@ emptyProcessor :: S.StdProcessor EmptyRules
 emptyProcessor = S.StdProcessor EmptyRules
 
 -- | This processor always returns the answer @No@.
-fail :: P.InstanceOf (S.StdProcessor Fail)
+fail :: S.ProcessorInstance Fail
 fail = S.StdProcessor Fail `S.withArgs` ()
 
 -- | This processor always returns the answer @Yes(?,?)@.
-success :: P.InstanceOf (S.StdProcessor Success)
+success :: S.ProcessorInstance Success
 success = S.StdProcessor Success `S.withArgs` ()
 
 -- | This processor returns the answer @Yes(O(1),(1))@ if the strict component is empty.
-empty :: P.InstanceOf (S.StdProcessor EmptyRules)
+empty :: S.ProcessorInstance EmptyRules
 empty = S.StdProcessor EmptyRules `S.withArgs` ()
 
 
@@ -185,7 +185,7 @@ openProcessor :: S.StdProcessor Open
 openProcessor = S.StdProcessor Open
 
 -- | This processor always returns the answer @Maybe@.
-open :: P.InstanceOf (S.StdProcessor Open)
+open :: S.ProcessorInstance Open
 open = openProcessor `S.withArgs` ()
 
 
@@ -257,7 +257,7 @@ instance ( P.Processor g
             where g :+: t :+: e = S.processorArgs inst
 
 -- | @ite g t e@ applies processor @t@ if processor @g@ succeeds, otherwise processor @e@ is applied.
-ite :: (P.Processor g, P.Processor t, P.Processor e) => P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> P.InstanceOf (S.StdProcessor (Ite g t e))
+ite :: (P.Processor g, P.Processor t, P.Processor e) => P.InstanceOf g -> P.InstanceOf t -> P.InstanceOf e -> S.ProcessorInstance (Ite g t e)
 ite g t e = S.StdProcessor Ite `S.withArgs` (g :+: t :+: e)
 
 iteProcessor :: S.StdProcessor (Ite P.AnyProcessor P.AnyProcessor P.AnyProcessor)
@@ -340,7 +340,7 @@ iteProgress :: (T.Transformer g, P.Processor t, P.Processor e) =>
               T.TheTransformer g
               -> P.InstanceOf t
               -> P.InstanceOf e
-              -> P.InstanceOf (S.StdProcessor (IteProgress g t e))
+              -> S.ProcessorInstance (IteProgress g t e)
 iteProgress g t e = S.StdProcessor (IteProgress g) `S.withArgs` (t :+: e :+: False)
 
 
@@ -447,32 +447,32 @@ sequentiallyProcessor = S.StdProcessor Sequentially
 -- | The processor @p1 `orFaster` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
 --   proof of that processor that finishes fastest.
 orFaster :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+           P.InstanceOf a -> P.InstanceOf b -> S.ProcessorInstance (OneOf P.SomeProcessor)
 a `orFaster` b = fastest [P.someInstance a, P.someInstance b]
 
 -- | The processor @p1 `orBetter` p2@ applies processor @p1@ and @p2@ in parallel. Returns the 
 --   proof that gives the better certificate.
 orBetter :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+           P.InstanceOf a -> P.InstanceOf b -> S.ProcessorInstance (OneOf P.SomeProcessor)
 a `orBetter` b = best [P.someInstance a, P.someInstance b]
 
 -- | The processor @p1 `before` p2@ first applies processor @p1@, and if that fails processor @p2@.
 before :: (P.Processor a, P.Processor b) => 
-           P.InstanceOf a -> P.InstanceOf b -> P.InstanceOf (S.StdProcessor (OneOf P.SomeProcessor))
+           P.InstanceOf a -> P.InstanceOf b -> S.ProcessorInstance (OneOf P.SomeProcessor)
 a `before` b = sequentially [P.someInstance a, P.someInstance b]
 
 -- | List version of 'orBetter'.
 -- Note that the type of all given processors need to agree. To mix processors
 -- of different type, use 'some' on the individual arguments. 
-best :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
+best :: (P.Processor p) => [P.InstanceOf p] -> S.ProcessorInstance (OneOf p)
 best ps = S.StdProcessor Best `S.withArgs` ps
 
 -- | List version of 'orFaster'.
 -- Note that the type of all given processors need to agree. To mix processors
 -- of different type, use 'some' on the individual arguments. 
-fastest :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
+fastest :: (P.Processor p) => [P.InstanceOf p] -> S.ProcessorInstance (OneOf p)
 fastest ps = S.StdProcessor Fastest `S.withArgs` ps
 
 -- | List version of 'before'. 
-sequentially :: (P.Processor p) => [P.InstanceOf p] -> P.InstanceOf (S.StdProcessor (OneOf p))
+sequentially :: (P.Processor p) => [P.InstanceOf p] -> S.ProcessorInstance (OneOf p)
 sequentially ps = S.StdProcessor Sequentially `S.withArgs` ps

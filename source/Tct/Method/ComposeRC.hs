@@ -86,8 +86,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) w
     type ArgumentsOf (DecomposeDG p1 p2) = Arg (Assoc (ExpressionSelector)) :+: Arg (Maybe (Proc p1)) :+: Arg (Maybe (Proc p2))
     type ProofOf (DecomposeDG p1 p2)     = DecomposeDGProof p1 p2
 
-    name _ = "compose-rc"
-    instanceName inst = show $ text "compose-rc" <+> parens (ppsplit)
+    name _ = "decomposeDG"
+    instanceName inst = show $ text "decomposeDG" <+> parens (ppsplit)
         where split :+: _ = T.transformationArgs inst
               ppsplit = text $ show split 
 

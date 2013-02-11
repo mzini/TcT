@@ -131,11 +131,10 @@ data OutputMode = OnlyAnswer
 -- | Configuration of TcT. 
 data Config = Config { 
   
-  -- | This field can be extended by custom strategies,                      
-  -- cf. module 'Tct.Configuration'.
+  -- | This field can be extended by custom strategies.
   strategies        :: [Custom.Strategy]
     
-  -- | This fields holds the processor available in TcT
+  -- | This fields holds the processor available in TcT.
   , allProcessors        :: AnyProcessor
     
   -- | This field can be used to govern how a processor is 
@@ -145,11 +144,11 @@ data Config = Config {
   , makeProcessor     :: Problem -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
 
   -- | This flag determines if the configuration file should 
-  -- be dynamically reloaded
+  -- be dynamically reloaded.
   , recompile         :: Bool    
     
   -- | This field specifies the configuration dir. It defaults 
-  -- to '${HOME}\/.tct'
+  -- to '${HOME}\/.tct'.
   , configDir         :: ErroneousIO FilePath
     
   -- | This field specifies the output mode under which proofs are 
@@ -369,10 +368,8 @@ options =
 
 processors :: Config -> AnyProcessor
 processors cfg = 
-    fromProcessorList [ toSome s | s <- strategies cfg ]
+    fromProcessorList [ Custom.strategyToProcessor s | s <- strategies cfg ]
     <++> allProcessors cfg
-  where 
-    toSome (a Custom.::: b) = Custom.toProcessor a b
                             
 haddockOptions :: Doc
 haddockOptions = vcat [ ppOpt opt | opt <- options]

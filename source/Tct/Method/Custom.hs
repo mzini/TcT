@@ -1,5 +1,14 @@
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE PolymorphicComponents #-}
+
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tct.Method.Custom
@@ -12,17 +21,11 @@
 -- Stability   :  unstable
 -- Portability :  unportable      
 -- 
--- This module defines lifting of instances and actions to processors.
+-- This module defines lifting from processors to strategies, which can 
+-- be used in the TcT configuration object to extend the list of available
+-- processors, cf. Module 'Tct.Configuration'.
 --------------------------------------------------------------------------------   
 
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE PolymorphicComponents #-}
 
 module Tct.Method.Custom 
     ( 
@@ -30,7 +33,8 @@ module Tct.Method.Custom
       , strategy
       , Strategy (..)
       , withArgs
-      , toProcessor
+      , strategyToProcessor
+      , AsStrategy (..)
     )
 where
 
@@ -40,10 +44,10 @@ import qualified Tct.Processor as P
 import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor.Args.Instances as AI
--- import Tct.Method.TCombinator ((>>|))
 import Termlib.Problem (Problem)
 import Termlib.Utils (underline)
 import Text.PrettyPrint.HughesPJ hiding (parens)
+
 
 -- | This processor allows lifting of actions and instances back to processors.
 data Custom args res = Custom { as :: String
@@ -83,25 +87,20 @@ instance (A.Arguments arg, P.ComplexityProof res, A.ParsableArguments arg)
          return $ TP cs args
 
 
-
+-- | Instantiate a custom processor with arguments
 withArgs :: (A.Arguments arg, P.ComplexityProof res) => Custom arg res -> A.Domains arg -> P.InstanceOf (Custom arg res)
 withArgs = TP
 
-     
 
 ----------------------------------------------------------------------
 --- strategies
 
-data Strategy = forall a b. AsStrategy a b => a ::: b
+data Strategy = forall code decl. AsStrategy code decl => code ::: decl
 
-strategy :: String -> b -> (String,b)
-strategy name b = (name,b)
-
-class AsStrategy a b | a -> b where -- FD for better error messages
-  toProcessor :: a -> b -> P.SomeProcessor
+class AsStrategy code decl | code -> decl where
+  toProcessor :: code -> decl -> P.SomeProcessor
 
 type ConstantDeclaration = A.Unit -> (String,A.Unit)
-
 type FunctionDeclaration args = (String, args)
 
 instance (P.Processor proc) => AsStrategy (P.InstanceOf proc) ConstantDeclaration where 
@@ -126,35 +125,13 @@ instance (T.Transformer trans) => AsStrategy (T.TheTransformer trans) ConstantDe
 
 instance (A.ParsableArguments args, T.Transformer trans, ds ~ A.Domains args) 
   => AsStrategy (ds -> T.TheTransformer trans) (FunctionDeclaration args) where 
-  toProcessor mkInst (name,args) = P.someProcessor $ 
+  toProcessor mkInst (name,args) = P.someProcessor $
        Custom { as = name 
               , arguments = args A.:+: AI.processorArg
-              , code = \ (ds A.:+: proc) -> P.solve $ (mkInst ds) T.>>| proc}
+              , code = \ (ds A.:+: proc) -> P.solve $ mkInst ds T.>>| proc}
 
--- ----------------------------------------------------------------------
--- --- code instances
+strategy :: String -> b -> (String,b)
+strategy name b = (name,b)
 
--- -- somecode
--- data SomeCode arg res = SomeCode (forall m. P.SolverM m => A.Domains arg -> Problem -> m res)
-
--- instance Code (SomeCode args res) args res where 
---   toCode (SomeCode f) ds = f ds
-
--- -- processor instances
--- instance (P.Processor proc, proof ~ P.ProofOf proc) => Code (P.InstanceOf proc) A.Unit proof where
---    toCode inst () = P.solve inst
-
--- -- processor instance constructors
--- instance (P.Processor proc, ds ~ A.Domains args, proof ~ P.ProofOf proc) => Code (ds -> P.InstanceOf proc) args proof where
---    toCode mkinst ds = P.solve (mkinst ds)
-
--- -- transformation instances
--- instance (T.Transformer trans, proof ~ P.ProofOf (S.StdProcessor (T.Transformation trans P.AnyProcessor))) 
---          => Code (T.TheTransformer trans) (A.Arg AI.Processor) proof where
---   toCode inst proc = P.solve $ inst T.>>| proc
-
--- -- transformation instances constructors
--- instance (T.Transformer trans, ds ~ A.Domains args, proof ~ P.ProofOf (S.StdProcessor (T.Transformation trans P.AnyProcessor))) 
---          => Code (ds -> T.TheTransformer trans) (args A.:+: A.Arg AI.Processor) proof where
---    toCode inst (ds A.:+: proc) = P.solve $ inst ds T.>>| proc
-
+strategyToProcessor :: Strategy -> P.SomeProcessor 
+strategyToProcessor (a ::: b) = toProcessor a b

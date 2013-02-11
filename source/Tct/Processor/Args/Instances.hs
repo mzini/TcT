@@ -34,6 +34,7 @@ module Tct.Processor.Args.Instances
        , naturalArg
        , boolArg
        , maybeArg
+       , listArg         
        , processorArg
        , EnumArg
        , AssocArg
@@ -187,72 +188,45 @@ instance ParsableArgument Processor where
             Just proc -> do 
               parsed <- P.parseFromArgsInteractive proc procs
               return $ Right $ P.liftOOI parsed
-    -- parseArgInteractive _ procs = parse
-    --   where parse = do 
-    --           rd <- readIndex
-    --           case rd of 
-    --             Left s -> return $ Left s
-    --             Right idx -> 
-    --               (Right `liftM` parseIth idx) `Ex.catch`  (\ (_ :: Ex.SomeException) -> parse) 
-    --         procLst = zip [(1::Int)..] (sortBy compareName $ P.toProcessorList procs)
-    --           where compareName p1 p2 = P.name p1 `compare` P.name p2            
-            
-    --         findProc i = fromJust (lookup i procLst)
-            
-    --         showProcList = 
-    --           do let putProc (i, p) = putStrLn $ "  " ++ (show i) ++ ") " ++ P.name p 
-    --              putStrLn "Available Processors:"
-    --              mapM_ putProc procLst
-            
-    --         parseIth i = 
-    --           do parsed <- P.parseFromArgsInteractive (findProc i) procs
-    --              return $ P.liftOOI parsed
-            
-            
-    --         readIndex :: IO (Either String Int)
-    --         readIndex = do 
-    --           putStrLn "Enter processor number, or type '?' for list of processors:"
-    --           putStr "  > "
-    --           r <- getLine
-    --           case r of 
-    --             "?" -> showProcList >> readIndex 
-    --             _   -> do 
-    --               mi1 <- readInt r `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
-    --               let mi2 = fst `liftM` (L.find (\ (_,p) -> P.name p == r) procLst) 
-    --               case mi1 `mplus` mi2 of
-    --                 Nothing -> do
-    --                   putStrLn $ "Processor '" ++ r ++ "' not found"
-    --                   readIndex
-    --                 Just idx -> return $ Right idx
-                             
-    --         readInt r = do 
-    --           let res = read r
-    --           if 0 < res && res <= length procLst
-    --            then return $ Just res
-    --            else return $ Nothing
 
 
 -- argument types
 
+-- | Natural argument  
 naturalArg :: Arg Nat
 naturalArg = arg
 
+-- | Boolean argument, which is parsed as either /On/ or /Off/.
 boolArg :: Arg Bool
 boolArg = arg
 
+
+-- | Argument, that additionally parses as 'none'.
 maybeArg :: Arg a -> Arg (Maybe a)
 maybeArg a = a {defaultValue = Just $ defaultValue a}
+
+
+-- | A list of arguments. 
+listArg :: Arg a -> Arg [a]
+listArg a = a {defaultValue = [defaultValue a]}
+
 
 -- | Construct an argument from an associated list, by declaring 
 -- a datatype an instance of 'AssocArgument'. 
 -- Use as follows:
+-- 
+-- >>> instance AssocArgument MyType where 
+--      assoc _ = [("nameA", valueA), ("nameB", valueB)...]
+-- 
+-- Then one can use a declaration
 --
 -- >>> arg :: AssocArg MyType
 --
--- The type 'MyType' needs to be instance of 'AssocArgument'. 
+-- which will parse /valueA/ as /nameA/, /valueB/ as /nameB/, and so on. 
 
 type AssocArg a = Arg (Assoc a)
 
+-- | Processor argument
 processorArg :: Arg Processor
 processorArg = arg
 

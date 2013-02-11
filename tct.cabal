@@ -18,7 +18,7 @@ Description:
   TcT offers both a /command line interface/ and an /interactive mode/.
   For general usage information on the command line interface, 
   refer to "Tct.CommandLine", usage of the interactive mode is described
-  in "Tct.Interactive". 
+  in "Tct.Interactive", and for configuration see "Tct.Configuration".
 
 cabal-version:      >= 1.6
 build-type:         Simple

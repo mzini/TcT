@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK prune #-}
 --------------------------------------------------------------------------------
 -- | 
 -- Module      :  Tct.Configuration
@@ -19,15 +20,17 @@ module Tct.Configuration (
   --
   -- The command line interface supports various flags that govern the
   -- behaviour of TcT.
-  -- A more expressive way to configure TcT is to alter the
-  -- configuration file @tct.hs@, usually residing in the directory @${HOME}\/.tct@. 
-  -- The configuration file is in fact a Haskell script (<http://haskell.org>), 
-  -- consequently the full expressiveness of Haskell can be used. 
-  -- Note however that this option requires a 
-  -- Haskell compiler to be installed on your system. 
-  --
-  -- In case the configuration file is missing, TcT will automatically generate
-  -- the following default configuration:
+  --   Besides basic options given on the command line, TcT can be 
+  -- configured by modifying the configuration file.
+  -- The configuration file is a Haskell source file that resides in @${HOME}/.tct/tct.hs@ by default, 
+  -- and defines the actual binary that is run each time TcT is called. 
+  -- Thus the full expressiveness of Haskell is available, 
+  -- as a downside, it requires also a working Haskell environment.
+  -- 
+  -- A minimal configuration is generated automatically on the first run of TcT. 
+  -- This initial configuration
+  -- constitutes of a set of convenient imports, 
+  -- the IO action @main@ together with a /configuration record/ 'Config'.
   -- 
   -- >>> cat ${HOME}/.tct/tct.hs
   -- #!/usr/bin/runhaskell
@@ -40,13 +43,13 @@ module Tct.Configuration (
   -- import qualified Tct.Processors as Processor
   -- import qualified Termlib.Repl as TR
   -- .
-  -- .
+  -- . 
   -- config :: Config
   -- config = defaultConfig
   -- .
   -- main :: IO ()
   -- main = tct config
-  --
+  -- 
   -- Notably, the body of the default configuration contains two definitions.
   -- 
   -- [@config :: 'Config'@]
@@ -59,7 +62,7 @@ module Tct.Configuration (
   -- 
   -- The default configuration imports following modules:
   -- 
-  -- [@"Tct.Configuration"@] This module. It defines the 'defaultConfiguration', 
+  -- [@"Tct.Configuration"@] This module. It defines the 'defaultConfig', 
   -- and operators to modify it.
   -- 
   -- [@"Tct.Interactive"@] This module exposes the functionality of the interactive mode.
@@ -74,125 +77,110 @@ module Tct.Configuration (
   --
   defaultConfig
   , tct
-  
-  -- * Adding Custom Processors to TcT
-  -- | Defining a custom processor requires defining
+  -- * The Configuration Record
+  -- | The configuration record passed in @main@ allows one 
+  -- to predefine various flags of TcT, but most importantly, 
+  -- through the field 'strategies' it allows 
+  -- the modification of the list of strategies that can be employed. 
+  -- Note that option specified at the command line 
+  -- overwrite the ones supplied in the config file.
+  , Config (..)
+      
+  -- * Adding Strategies to TcT
+  -- | Strategies are added by overwriting the field 'strategies' with a list of 
+  -- /strategy declarations/, of the form
   -- 
-  --  (1) a /name/ for the processor, 
+  -- @
+  -- /code/ ::: strategy /name/ [/parameter-declaration/]
+  -- @
   --
-  --  (2) a description of /arguments/ it accepts, and
-  --
-  --  (3) some /code/ that given a complexity problem generates a complexity proof (cf. the class 'P.ComplexityProof').
+  -- Here /code/ refers to a value that defines the actual processor, 
+  -- /name/ the name of the strategy, and the last component
+  -- is used to indicate the arguments of the defined strategy.
   -- 
-  -- The most easy way is to define a costum processor from predefined processor, 
-  -- as obtained by the constructors in module "Tct.Instances". Alternatively, 
-  -- one can also specify an action that given a complexity problem, constructs 
-  -- a complexity proof.
-    
-  , Custom.strategy
-  , Custom.Strategy (..)
-  -- | 
-  -- TODO: adapt 
-  -- The following example defines a new processor that searches for matrix-interpretations of dimension @1@ to @3@
-  -- in parallel, cf. 'Instances.matrix' and 'Instances.fastest'.  
+  -- The following depicts a modified configuration that defines two new 
+  -- strategies, called /matrices/ and /withDP/. Observe that one can 
+  -- use both transformations and processors, optionally parameterised as  
+  -- governed by the @/parameter-declaration/@, as /code/.
   -- 
-  -- >>> matrices = fastest [ matrix defaultOptions {dim = i} | i <- [1..3] ] `asStrategy` "matrices"
-  --
-  -- As defined by the given description, the name of this custom processor is /matrices/.
-  -- A processor accepts zero or more arguments, in the above example the field 'args' of the 
-  -- description states that the processor does not accept any arguments. 
-  -- 
-  -- To make the processor available through the command line, we add it the the processors 
-  -- field of the configuration using the operator 'P.<|>' as follows:
-  -- 
-  -- >>> config = defaultConfig { processors = matrices <|> processors defaultConfig }
-  -- 
-  -- On the next startup, TcT will automatically recompile the configuration file.
-  -- The above defined processor is availabe as /matrices/.
-  --
-  -- >>> tct --list matrices
-  -- Configuration '~/.tct/tct.hs' changed. Recompiling.
-  -- Program reconfiguration successful.
-  -- . 
-  -- Processor "matrices":
-  -- ---------------------
+  -- @  
+  -- config :: 'Config'
+  -- config = 'defaultConfig' { strategies = strategies } where
+  --   strategies = [ matrices ::: strategy \"matrices\" ( 'optional' 'Args.naturalArg' \"start\" 1 :+: 'Args.naturalArg' )
+  --                , withDP   ::: strategy \"withDP\" ]
   -- .  
-  --   Usage:
-  --    matrices
-  -- 
-  -- The new processor can be applied to a complexity problem using the flag '--strategy' (or '-s' for short).
-  --
-  -- >>> tct --strategy 'matrices' <problem-file>
-  --
-    
-  -- ** Adding Arguments
-  -- | So far, the new defined processor /matrices/ does not accept any arguments.
-  -- Arguments can be specified with the field 'args' of the given 'Description'. 
-  -- 
-  -- As seen above, the value 'Unit' is used to specify that a processor takes no argument. 
-  -- A single argument is described with a value of type @'Arg' t@. 
-  -- Here the type @t@ reflects the type of the argument, for instance, 
-  -- @'Arg' 'Args.Nat'@ refers to an argument which is a natural number. 
-  -- In order to be used in the description of a processor, the type @t@ must be an instance of 'ParsableArgument'.
-  -- Usually it is necessary 
-  -- to annotate the type @t@ by providing a type signature. Alternatively, 
-  -- one can use the predefined argument descriptions like 'Args.naturalArg' defined below (cf. "Tct.Configuration#predef").
-  -- Use 'optional' for constructing optional arguments.
-  -- Finally, use ':+:' to create tuples of arguments.
-  , arg 
-  , optional 
-  
-  -- | The next definition extends the /matrices/ processor as defined above by two arguments of type 'Args.Nat', 
-  -- and one argument of type 'Bool'.
-  --    
-  -- >>> ms = strategy { as = "matrices"
-  --                   , code = inst
-  --                   , args = optional "startdim" 1 naturalArg { description = "Lowest dimension." } 
-  --                            :+: optional "fast" True boolArg { description = "If 'On', return certificate of fastest processor." }
-  --                            :+: naturalArg
-  --                   }
-  --         where inst (Nat sdim :+: fast :+: Nat n) = comb [ matrix defaultOptions {dim = i} | i <- [sdim..sdim+n] ]
-  --                  where comb | fast      = fastest
-  --                             | otherwise = best    
+  -- matrices ('Nat' start ':+:' 'Nat' n) = 
+  -- fastest [ 'Tct.Instances.matrix' 'Tct.Instances.defaultOptions' { dim = d } | d <- [start..start+n] ] where
+  -- .
+  -- withDP = 
+  --   ('Tct.Instances.timeout' 5 dps 'Tct.Instances.<>' dts)
+  --   'Tct.Instances.>>>' 'Tct.Instances.try' ('Tct.Instances.exhaustively' 'Tct.Instances.partitionIndependent')
+  --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.cleanTail'
+  --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' where 
+  --     dps = 'Tct.Instances.dependencyPairs' 'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' 'Tct.Instances.>>>' wgOnUsable
+  --     dts = 'Tct.Instances.dependencyTuples'
+  --     wgOnUsable = 'Tct.Instances.weightgap' 'Tct.Instances.defaultOptions' { degree = Just 1 , on = WgOnTrs }
+  -- @ 
   --  
-  -- Note that the instance constructor @inst@ takes a triple of arguments, with elements separated by @:+:@. This corresponds with the 
-  -- number of arguments reflected in the field 'args' of the description.
-  -- The newly defined processor presents itself as follows:
-  -- 
-  -- >>> tct --list matrices
-  -- Processor "matrices":
-  -- ---------------------
-  -- .  
-  --   Usage:
-  --    matrices [:startdim <nat>] [:fast On|Off] <nat>
-  --   Arguments:
-  --    startdim: Lowest dimension. The default is set to '1'.
-  --    fast:     If 'On', return certificate of fastest processor. The default is
-  --              set to 'On'.
+  -- Consider the first strategy declaration that defines a strategy 
+  -- @matrices [:start /<nat>/] /<nat>/@.
+  -- The declaration indicates that this strategy takes two parameters, 
+  -- the left and respectively right argument to the operator ':+:'.
+  -- In general, the infix operator ':+:' can be used to 
+  -- combine an arbitrary sequence of parameters. 
+  -- In the declaration above, the defined strategy expects two natural numbers, 
+  -- as indicated by the constructor 'Args.naturalArg'. 
+  -- The first parameter is declared as an optional parameter called /start/, whose default
+  -- value is given as @1@. 
+  -- The parameters are provided to the code of @matrices@. 
+  -- Using the supplied parameters /start/ and /n/, 
+  -- the code evaluates to a processor that searches for /n/ different
+  -- matrix interpretations of increasing dimension in parallel. 
+  -- Along with other processors and combinators, both 'Tct.Instances.matrix' and 'Tct.Instances.fastest'
+  -- from the module "Tct.Instances". 
+  --     
+  -- The second strategy declaration above declares a /transformation/
+  -- called /withDP/. Transformations generate from the input problem 
+  -- a possibly empty set of /sub-problems/, in a complexity preserving manner. 
+  -- For every transformation /t/
+  -- and processor /p/, one can use
+  -- the processor @/t/ 'Tct.Instances.>>|' /p/@ 
+  -- which first applies transformation /t/
+  -- and then proceeds according to /p on all 
+  -- resulting sub-problems.
+  -- Strategy declarations perform such a lifting of transformation implicitly, 
+  -- the declaration of /withDP/ for instance results in a strategy @withDP /<processor/@.
+     
+  -- ** Parameter Declarations
+  -- | #decls#
+  -- Values of type @'Arg' /a/@ can be used to define single parameters, and can be combined with ':+:' to create a parameter list.
+  -- Note that the type variable /a/ accounts for the type of the defined parameter, and must be an instance of 'Tct.Processors.Args.ParsableArgument'.  
+  -- In Section 'Tct.Configuration#primdecls' below we provide various instances. 
+  --     
+  , Arg (..)
+  -- | Constructor for @'Arg' a@ with sensible defaults.    
+  , arg
+  , (:+:)(..)
+  , optional 
     
-  -- ** Predefined Argument Types
-  -- | #predef# 
+  -- *** Primitives
+  -- | #primdecls#
+  
   , Args.boolArg
   , Args.naturalArg
-  , Args.Nat (..)
   , Args.processorArg
-  , Args.maybeArg
   , Args.EnumArg
   , Args.AssocArg
   , Args.AssocArgument (..)      
-  -- ** Argument Lists  
-  , Unit (..)    
-  , (:+:)(..)
-  , Arg (..)
     
-  -- * The Configuration Object
-  -- | The type 'Config' reflects the configuration of 'TcT'.
-  -- Notably that the field 'processors' allows adding custom defined processors to
-  -- TcT. 
-  -- Note that option specified at the command line will be reflected in the configuration object, 
-  -- i.e. command line options overwrite the ones supplied in the config file.
-    
-    , Config (..)
+  -- *** 
+  -- | Argument that can additionally be /none/.
+  , Args.maybeArg
+  , Args.listArg
+  -- only exported
+  , Custom.strategy
+  , Custom.Strategy (..)
+  , Args.Nat (..)
   )
 where
 

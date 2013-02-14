@@ -130,24 +130,29 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
             subProgress = not (null subProgresseds)
             subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
             ppOverviews showFailed =
-              case subprobs of 
-                [(i,prob_i)] -> ppOverview i prob_i
-                _            -> vcat [ block' (show $ text "Sub-problem" <+> Util.pprint i) [ppOverview i prob_i] 
-                                    | (i, prob_i) <- subprobs]
-              where ppOverview (SN i) prob_i = 
-                      case find i r2s of 
-                        Nothing   -> Util.paragraph "We abort on this problem. THIS SHOULD NOT HAPPEN!"
-                        Just r2_i@(Progress _ _) -> 
-                          ppRes prob_i r2_i
-                        Just r2_i@(NoProgress _) 
-                          | showFailed   -> ppRes prob_i r2_i   
-                          | otherwise -> PP.empty
-                    ppRes prob_i r2_i =  
-                      Util.paragraph ("We apply the transformation '" ++ instanceName t2 ++ "' on the sub-problem:")
-                      $+$ text ""
-                      $+$ Util.pprint prob_i
-                      $+$ text ""
-                      $+$ pprintTProof t2 prob_i (proofFromResult r2_i) mde
+              case catMaybes [ ppOverview i prob_i | (i, prob_i) <- subprobs] of 
+                [(_,pp)] -> pp
+                pps  -> vcat $ punctuate (text "") 
+                        [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] 
+                        | (i, pp) <- pps ]
+              where 
+                ppOverview sn@(SN i) prob_i = 
+                  case find i r2s of 
+                    Nothing   -> 
+                      Just (sn, Util.paragraph "We abort on this problem. THIS SHOULD NOT HAPPEN!")
+                    Just r2_i@(Progress _ _) -> 
+                      Just (sn, ppRes prob_i r2_i)
+                    Just r2_i@(NoProgress _) 
+                      | showFailed -> Just (sn, ppRes prob_i r2_i)
+                      | otherwise  -> Nothing
+                                     
+                ppRes prob_i r2_i =  
+                  Util.paragraph ("We apply the transformation '" 
+                                  ++ instanceName t2 ++ "' on the sub-problem:")
+                  $+$ text ""
+                  $+$ Util.pprint prob_i
+                  $+$ text ""
+                  $+$ pprintTProof t2 prob_i (proofFromResult r2_i) mde
 
     proofToXml proof = 
       case tproof of 

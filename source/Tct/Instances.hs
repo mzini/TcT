@@ -338,7 +338,8 @@ when b t | b = some t
 -- > successive [t_1..t_n] == t_1 >>> .. >>> t_n
 
 successive :: T.Transformer t => [T.TheTransformer t] -> T.TheTransformer T.SomeTransformation
-successive [] = some $ TCombinator.idtrans
+successive [] = some TCombinator.idtrans
+successive [t] = some t
 successive (t:ts) = t >>> successive ts
 
 

@@ -149,7 +149,7 @@ class TransformationProof t where
   pprintProof proof mde = 
       ppTransformationDetails 
       $+$ case subprobs of 
-            []   -> text "No subproblems were generated"
+            []   -> text "Transformation failed, no sub-problems were generated."
             [_]  -> ppDetails Nothing
             _    -> ppOverviews
                    $+$ text ""

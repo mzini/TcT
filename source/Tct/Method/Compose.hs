@@ -110,7 +110,7 @@ instance (P.Processor p) => T.Transformer (Decompose p) where
     description _ = 
       [ unwords 
         [ "This transformation implements techniques for splitting the complexity problem"
-        , "into two complexity problems (A) and (B) so that the complexity of the input problem" 
+        , "into two complexity problems (R) and (S) so that the complexity of the input problem" 
         , "can be estimated by the complexity of the transformed problem."
         , "The processor closely follows the ideas presented in"
         , "/Complexity Bounds From Relative Termination Proofs/"
@@ -121,7 +121,7 @@ instance (P.Processor p) => T.Transformer (Decompose p) where
           , A.defaultValue = selAnyOf selStricts
           , A.description  = unwords 
                              [ "This argument of type 'Compose.Partitioning' determines strict rules of"
-                             , "problem (A). The default is to orient some strict rule."
+                             , "problem (R). The default is to orient some strict rule."
                              ]
           }
       :+: 
@@ -129,10 +129,10 @@ instance (P.Processor p) => T.Transformer (Decompose p) where
           , A.defaultValue = Add
           , A.description = unwords 
                             [ "This argument type 'Compose.DecomposeBound' determines"
-                            , "how the complexity certificate should be obtained from subproblems (A) and (B)."
-                            , "Consequently, this argument also determines the shape of (B)."
-                            , "The third argument defines a processor that is applied on problem (A)."
-                            , "If this processor succeeds, the input problem is transformed into (B)."
+                            , "how the complexity certificate should be obtained from subproblems (R) and (S)."
+                            , "Consequently, this argument also determines the shape of (S)."
+                            , "The third argument defines a processor that is applied on problem (R)."
+                            , "If this processor succeeds, the input problem is transformed into (S)."
                             , "Note that for decompose bound 'Mult' the transformation only succeeds"
                             , "if applied to non size-increasing Problems."
                             ] 
@@ -147,7 +147,7 @@ instance (P.Processor p) => T.Transformer (Decompose p) where
       :+: 
       opt { A.name = "subprocessor"
           , A.defaultValue = Nothing
-          , A.description = unlines [ "The processor applied on subproblem (A)."]
+          , A.description = unlines [ "The processor applied on subproblem (R)."]
           }
 
     transform inst prob = 
@@ -321,22 +321,21 @@ instance P.Processor p => T.TransformationProof (Decompose p) where
                   
       pprintTProof _ _ (tproof@(DecomposeStaticProof compfn _ _ (rProb,sProb))) _ = 
         if progress tproof 
-         then paragraph ("We analyse the complexity of following sub-problems (A) and (B):")
-             $+$ text ""
-             $+$ block' "Problem (A)" [pprint rProb]
-             $+$ text ""             
+         then paragraph ("We analyse the complexity of following sub-problems (R) and (S).")
              $+$ (case compfn of
-                     Add -> paragraph "Problem (B) is obtained from the input problem by shifting strict rules from (A) into the weak component:"
-                     Mult -> paragraph ("Observe that Problem (A) is non-size-increasing. "
-                                        ++ "Once the complexity of (A) has been assessed, it suffices "
-                                        ++ "to consider only rules whose complexity has not been estimated in (A) "
-                                        ++ "resulting in the following Problem (B). Overall the certificate is obtained by multiplication.")
-                     Compose -> paragraph ("Observe that weak rules from Problem (A) are non-size-increasing. "
-                                          ++ "Once the complexity of (A) has been assessed, it suffices "
-                                          ++ "to consider only rules whose complexity has not been estimated in (A) "
-                                          ++ "resulting in the following Problem (B). Overall the certificate is obtained by composition."))
-             $+$ block' "Problem (A)" [pprint rProb]
-             $+$ pprint sProb
+                     Add -> paragraph "Problem (S) is obtained from the input problem by shifting strict rules from (R) into the weak component:"
+                     Mult -> paragraph ("Observe that Problem (R) is non-size-increasing. "
+                                        ++ "Once the complexity of (R) has been assessed, it suffices "
+                                        ++ "to consider only rules whose complexity has not been estimated in (R) "
+                                        ++ "resulting in the following Problem (S). Overall the certificate is obtained by multiplication.")
+                     Compose -> paragraph ("Observe that weak rules from Problem (R) are non-size-increasing. "
+                                          ++ "Once the complexity of (R) has been assessed, it suffices "
+                                          ++ "to consider only rules whose complexity has not been estimated in (R) "
+                                          ++ "resulting in the following Problem (S). Overall the certificate is obtained by composition."))
+             $+$ text ""
+             $+$ block' "Problem (R)" [pprint rProb]
+             $+$ text ""
+             $+$ block' "Problem (S)" [pprint sProb]
              
          else text "No rule was selected."
 
@@ -360,7 +359,7 @@ decomposeProcessor :: T.Transformation (Decompose P.AnyProcessor) P.AnyProcessor
 decomposeProcessor = T.Transformation DecomposeProc
 
 -- | This transformation implements techniques for splitting the complexity problem
--- into two complexity problems (A) and (B) so that the complexity of the input problem
+-- into two complexity problems (R) and (S) so that the complexity of the input problem
 -- can be estimated by the complexity of the transformed problem. 
 -- The processor closely follows the ideas presented in
 -- /Complexity Bounds From Relative Termination Proofs/

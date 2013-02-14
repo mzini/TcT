@@ -429,7 +429,7 @@ runInteractive cfg =
        do runGhci `C.catch` (\ (_:: C.SomeException) -> return ())
           putStrLn "Bye, have a nice day!"
           return ()
-  where runGhci = system "ghci" >> return ()
+  where runGhci = system "ghci +RTS -N -RTS" >> return ()
             
 runTct :: Config -> ErroneousIO [TCTWarning]
 runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
@@ -582,7 +582,7 @@ tct conf =
              then runInteractive conf'' >> return ExitSuccess
              else do
               mv <- liftIO $ newEmptyMVar
-              _ <- liftIO $ installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing -- hPutStrLn stderr "term" >> hFlush stderr >> 
+              _ <- liftIO $ installHandler sigTERM (Catch $ tryPutMVar mv SigTerm >> return ()) Nothing
               pid <- liftIO $ forkIO $ C.mask $ \ recover -> 
                       recover (worker mv conf'') `C.catch` (\ e -> tryPutMVar mv (ExitError (SomeExceptionRaised e)) >> return ())
               e <- liftIO $ readMVar mv

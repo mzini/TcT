@@ -16,4 +16,4 @@
 module Tct.Main.Version where
 
 version :: String
-version = "1.9"
+version = "2.0"

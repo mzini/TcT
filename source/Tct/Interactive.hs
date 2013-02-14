@@ -24,14 +24,14 @@ The interactive interface is invoked from the command line as follows:
 >>> tct -i
 GHCi, version 7.4.1: http://www.haskell.org/ghc/  :? for help
 ...
-Loading package tct-1.9 ... linking ... done.
+Loading package tct-2.0 ... linking ... done.
 [1 of 1] Compiling Main             ( tct.hs, interpreted )
 Ok, modules loaded: Main.
 .
   Welcome to the TcT
   ------------------
 .  
-  This is version 1.9 of the Tyrolean Complexity Tool.
+  This is version 2.0 of the Tyrolean Complexity Tool.
 .  
   (c) Martin Avanzini <martin.avanzini@uibk.ac.at>,
       Georg Moser <georg.moser@uibk.ac.at>, and

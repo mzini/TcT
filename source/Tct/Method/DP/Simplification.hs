@@ -593,8 +593,9 @@ instance T.Transformer Trivial where
   arguments Trivial = Unit
   transform _ prob 
      | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ TrivialError $ ContainsStrictRule
-     | not $ Prob.isDPProblem prob = return $ T.NoProgress $ TrivialError $ NonDPProblemGiven
-     | cyclic    = return $ T.NoProgress proof
+     | not $ Prob.isDPProblem prob             = return $ T.NoProgress $ TrivialError $ NonDPProblemGiven
+     | cyclic                                  = return $ T.NoProgress $ proof
+     | Trs.isEmpty $ Prob.dpComponents prob    = return $ T.NoProgress $ TrivialError $ NotApplicable $ text "contains no DPs"
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
         where cyclic = any (isCyclicNode cwdg) (nodes cwdg)
               wdg   = estimatedDependencyGraph defaultApproximation prob

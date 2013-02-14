@@ -256,7 +256,6 @@ t1 >>> t2 = someTransformation inst
 exhaustively :: Transformer t => TheTransformer t -> TheTransformer SomeTransformation
 exhaustively t = t >>> try (exhaustively t)
 
-
 --------------------------------------------------------------------------------
 -- Choice
               

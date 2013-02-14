@@ -159,7 +159,8 @@ module Tct.Instances
     , (TCombinator.<||>)            
     , TCombinator.exhaustively
     , te
-    , when
+    , successive      
+    , when      
     , TCombinator.idtrans
       
       -- ** Innermost Rule Removal
@@ -332,6 +333,15 @@ when :: EQuantified inp (T.TheTransformer T.SomeTransformation) => Bool -> inp -
 when b t | b = some t
          | otherwise = some TCombinator.idtrans
 
+-- | List version of '>>>'. 
+-- 
+-- > successive [t_1..t_n] == t_1 >>> .. >>> t_n
+
+successive :: T.Transformer t => [T.TheTransformer t] -> T.TheTransformer T.SomeTransformation
+successive [] = some $ TCombinator.idtrans
+successive (t:ts) = t >>> successive ts
+
+
 -- | @
 -- step [l..u] trans proc
 -- @ 
@@ -442,8 +452,10 @@ toDP =
 
 
 
--- | removes leafs in the dependency graph, using knowledge-propagation
--- and the given processor        
+-- | tries to remove leafs in the congruence graph, 
+-- by (i) orienting using predecessor extimation and the given processor, 
+-- and (ii) using 'DPSimp.removeTails' and various sensible further simplifications. 
+-- Fails only if (i) fails.    
 removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
 removeLeaf p = 
   p `DPSimp.withPEOn` RS.selAnyLeaf

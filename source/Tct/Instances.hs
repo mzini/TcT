@@ -50,7 +50,6 @@ module Tct.Instances
       -- for using matrix interpretations with default parameters.
     , arctic
     , matrix
-      
     , MatrixOptions (..)
     , NaturalMI.NaturalMIKind (..)
     , Weightgap.WgOn (..)
@@ -77,6 +76,8 @@ module Tct.Instances
     , Poly.mono
     , Poly.boolCoefficient
     , Poly.constant
+      -- *** Options
+    , IsDefaultOption (..)
       
       -- ** Processors Based on Recursive Path Orderings
     , EpoStar.epostar
@@ -128,6 +129,87 @@ module Tct.Instances
     , Predicates.trsPredicate
     , Predicates.problemPredicate
     , Predicates.WhichTrs(..)
+            
+      -- * Transformations #MethodsTrans#
+      -- | This section list all instances of 'Transformation'. A transformation 't' 
+      -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
+      
+      -- ** Lifting Transformations to Processors
+    , (T.>>|)    
+    , (>>!)          
+    , (T.>>||)
+    , (>>!!)                
+      
+      -- ** Instances
+      -- *** Innermost Rule Removal
+    , IRR.irr
+      
+      -- *** To Innermost Transformation 
+    , TOI.toInnermost
+      
+      -- *** Uncurrying
+    , Uncurry.uncurry
+      
+      -- *** Weightgap Principle
+    , weightgap
+      
+      -- *** Decompose
+    , Compose.decompose
+    , partitionIndependent
+    , Compose.decomposeDynamic
+    , Compose.decomposeStatic      
+    , Compose.greedy      
+    , Compose.DecomposeBound (..)
+      -- *** Weak Dependency Pairs and Dependency Tuples
+    , DP.dependencyPairs
+    , DP.dependencyTuples
+    , DG.Approximation(..)
+      -- *** Path analysis
+    , pathAnalysis      
+    , linearPathAnalysis
+      -- *** Usable Rules
+    , UR.usableRules
+      -- *** Predecessor Estimation      
+    , DPSimp.simpPE
+    , DPSimp.simpPEOn
+    , DPSimp.withPEOn
+      -- *** Dependency Graph Decomposition
+    , ComposeRC.decomposeDG
+    , ComposeRC.decomposeDGselect
+    , ComposeRC.solveUpperWith
+    , ComposeRC.solveLowerWith
+      -- *** DP Simplifications
+    , DPSimp.removeTails
+    , DPSimp.removeHeads
+    , DPSimp.trivial
+    , DPSimp.removeInapplicable  
+    , DPSimp.simpDPRHS      
+      
+    -- ** Combinators     
+    -- | Following Combinators work on transformations.
+    , TCombinator.try
+    , TCombinator.force      
+    , (TCombinator.>>>)
+    , (TCombinator.<>)      
+    , (TCombinator.<||>)            
+    , TCombinator.exhaustively
+    , te
+    , successive      
+    , when      
+    , TCombinator.idtrans
+      
+
+      -- ** Abbreviations
+    , toDP
+    , dpsimps
+    , removeLeaf
+    , cleanTail
+      
+      -- * Inspecting Combinators
+    , TimesOut (..)
+    , WithProblem (..)
+    , withWDG
+    , withCWDG
       
       -- * Competition Strategies 
     , rc2011
@@ -141,120 +223,13 @@ module Tct.Instances
     , certify2012
       -- | Strategy for certification employed in the competition 2012.
       
-      -- * Transformations #MethodsTrans#
-      -- | This section list all instances of 'Transformation'. A transformation 't' 
-      -- is lifted to a 'P.Processor' using the combinator '>>|' or '>>||'.
-      
-      -- ** Lifting of Transformations to Processors
-    , (T.>>|)    
-    , (>>!)          
-    , (T.>>||)
-    , (>>!!)                
-      
-      -- ** Combinators     
-      -- | Following Combinators work on transformations.
-    , TCombinator.try
-    , (TCombinator.>>>)
-    , (TCombinator.<>)      
-    , (TCombinator.<||>)            
-    , TCombinator.exhaustively
-    , te
-    , successive      
-    , when      
-    , TCombinator.idtrans
-      
-      -- ** Innermost Rule Removal
-    , IRR.irr
-      
-      -- ** 
-    , TOI.toInnermost
-      
-      -- ** Uncurrying
-    , Uncurry.uncurry
-      
-      -- ** Weightgap
-    , weightgap
-      
-      -- ** Decompose
-    , Compose.decompose
-    , partitionIndependent
-    , Compose.decomposeDynamic
-    , Compose.decomposeStatic      
-    , Compose.greedy      
-    , Compose.DecomposeBound (..)
-    , ComposeRC.decomposeDG
-    , ComposeRC.decomposeDGselect
-    , ComposeRC.solveUpperWith
-    , ComposeRC.solveLowerWith
-    -- *** RuleSelector
-    -- | A 'Compose.RuleSelector' is used to select 
-    -- rules from a problem. Various combinators 
-    -- are implemented.
-    , RS.RuleSelector (..)
-    , RS.RuleSetSelector
-    , RS.ExpressionSelector
-      
-      -- * Primitives
-    , RS.selRules
-    , RS.selDPs
-    , RS.selStricts
-    , RS.selWeaks
-      -- * Constructors
-    , RS.selFromWDG
-    , RS.selFromCWDG
-      -- * Combinators
-    , RS.selInverse
-    , RS.selCombine
-    , RS.selUnion
-    , RS.selInter
-      -- * Rule-selectors based on dependency graphs
-    , RS.selFirstCongruence
-    , RS.selFirstStrictCongruence
-    , selFWBWstrict
-      -- * Boolean Selectors
-    , RS.selAnyOf
-    , RS.selAllOf
-    , RS.selAnd
-    , RS.selOr
-      -- ** Weak Dependency Pairs
-    , DP.dependencyPairs
-    , DP.dependencyTuples
-      -- ** DP Transformations      
-      -- | The following transformations only work on dependency pair problems, 
-      -- as obtained by 'DP.dependencyPairs' and 'DP.dependencyTuples'.
-    , pathAnalysis      
-    , linearPathAnalysis
-    , UR.usableRules
-    , DPSimp.removeTails
-    , DPSimp.removeHeads      
-    , DPSimp.trivial      
-    , DPSimp.removeInapplicable      
-    , DPSimp.simpDPRHS      
-    , DPSimp.simpPE
-    , DPSimp.simpPEOn
-    , DPSimp.withPEOn
-    , cleanTail
-    -- , DPSimp.inline      
-    , dpsimps
-    , toDP
-    , removeLeaf
-    , DG.Approximation(..)
-
-      
-    -- * Default Options
-    , IsDefaultOption (..)
-      
-      -- * Operations on Processors and Transformations
-    , TimesOut (..)
-    , WithProblem (..)
-    , withWDG
-    , withCWDG
-    , EQuantified (..)
-    , some 
-    , solveBy
+    -- * RuleSelector
+    , module Tct.Method.RuleSelector 
       -- * Type Exports
     , S.ProcessorInstance
     , T.TheTransformer
+    , EQuantified (..)
+    , some 
     )
 where
   
@@ -284,17 +259,16 @@ import qualified Tct.Method.Weightgap as Weightgap
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Method.InnermostRuleRemoval as IRR
 import qualified Tct.Method.ToInnermost as TOI
-import qualified Tct.Method.RuleSelector as RS
+import Tct.Method.RuleSelector
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Method.Timeout as Timeout
-import Tct.Processor (solveBy)
 import Tct.Processor.Args ((:+:)(..), Unit(..))
 import Tct.Processor.Args.Instances (nat)
 import Tct.Processor.Transformations ((>>|), (>>||))
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Method.TCombinator as TCombinator
-import Tct.Method.TCombinator ((>>>),(<>),(<||>),try, exhaustively)
+import Tct.Method.TCombinator ((>>>),(<>),(<||>),try, force, exhaustively)
 
 import Tct.Method.Combinator (ite, empty, fastest,sequentially)
 import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
@@ -305,13 +279,13 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
 import qualified Data.List as List
-import qualified Data.Set as Set
 
--- TODO doc
+-- | Path Analysis 
 pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
 pathAnalysis = PathAnalysis.pathAnalysis False
 
--- TODO doc
+-- | Variation of 'pathAnalysis' that generates only a linear number
+-- of sub-problems, in the size of the dependency graph
 linearPathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
 linearPathAnalysis = PathAnalysis.pathAnalysis True
 
@@ -402,51 +376,57 @@ bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
                       _           -> Nothing
 
 
-partitionIndependent :: T.TheTransformer (Compose.Decompose P.AnyProcessor)
-partitionIndependent = Compose.decomposeStatic selFWBWstrict Compose.Add
-
-selFWBWstrict :: RS.ExpressionSelector
-selFWBWstrict = RS.selAllOf $ RS.selFromWDG "forward and backward closed partitioning of WDG" f
-  where f wdg = case stricts of 
-                  [] -> Prob.emptyRuleset 
-                  n:_ -> Prob.emptyRuleset 
-                          {Prob.sdp = Trs.fromRules [ r | (_,(DG.StrictDP, r)) <- DG.withNodeLabels' wdg $ rs n] }
-          where stricts = [n | (n,(DG.StrictDP,_)) <- DG.lnodes wdg]
-                iwdg = DG.inverse wdg
-                rs n = DG.reachablesBfs wdg [n] `union` DG.reachablesBfs iwdg [n]
-        a `union` b = Set.toList $ Set.fromList a `Set.union` Set.fromList b
-
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
-dpsimps   = try DPSimp.removeTails 
-            -- >>> try DPSimp.inline
-            >>> te DPSimp.removeHeads
-            >>> te DPSimp.removeInapplicable
-            >>> try DPSimp.simpDPRHS 
-            >>> try UR.usableRules
-            >>> try DPSimp.trivial
+dpsimps = some $ force $ 
+  try DPSimp.removeTails 
+  >>> te DPSimp.removeHeads
+  >>> te DPSimp.removeInapplicable
+  >>> try DPSimp.simpDPRHS 
+  >>> try UR.usableRules
+  >>> try DPSimp.trivial
             
 -- | use 'DPSimp.simpPEOn' and 'DPSimp.removeTails' to remove leafs from the dependency graph. 
 cleanTail :: T.TheTransformer T.SomeTransformation
-cleanTail = 
-  te (DPSimp.simpPEOn RS.selStrictLeafs) 
-  >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
-            
--- | Tries dependency pairs with weightgap, otherwise uses dependency tuples. 
+cleanTail = some $ force $ 
+            te (DPSimp.simpPEOn sel)
+            >>> te (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+  where 
+    sel = selAllOf $ selFromWDG "simple predecessor estimation selector" f
+    f wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
+      where 
+        rs = [ r | (n,(DG.StrictDP, r)) <- DG.lnodes wdg
+                 , all isWeak $ DG.lsuccessors wdg n ]
+        isWeak (_,(DG.WeakDP,_),_) = True
+        isWeak _ = False
+        
+partitionIndependent :: T.TheTransformer T.SomeTransformation
+partitionIndependent = some $ 
+  Compose.decomposeStatic (selAllOf selIndependentSG) Compose.Add
+  >>> try cleanTail
+
+
+-- | Tries dependency pairs for RC, and dependency pairs with weightgap, otherwise uses dependency tuples for IRC. 
 -- Simpifies the resulting DP problem as much as possible.
 toDP :: T.TheTransformer T.SomeTransformation
 toDP = 
-  try (timeout 5 dps <> dts)
+  try (withStrategy toDP')
   >>> try DPSimp.removeInapplicable
   >>> try cleanTail
   >>> te DPSimp.removeHeads
-  >>> te partitionIndependent
+  >>> te (withStrategy partIndep)
   >>> try cleanTail
   >>> try DPSimp.trivial
   >>> try UR.usableRules
   where 
-    dps = DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable
-    dts = DP.dependencyTuples
+    toDP' Prob.Innermost = 
+      timeout 5 (DP.dependencyPairs >>> try UR.usableRules >>> wgOnUsable)
+      <> DP.dependencyTuples
+    toDP' _ = DP.dependencyPairs >>> try UR.usableRules >>> try wgOnUsable
+    
+    partIndep Prob.Innermost = partitionIndependent
+    partIndep _ = some $ linearPathAnalysis
+    
     wgOnUsable = weightgap defaultOptions { dim = 2
                                           , degree = (Just 1)
                                           , on = Weightgap.WgOnTrs }
@@ -459,11 +439,11 @@ toDP =
 -- Fails only if (i) fails.    
 removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
 removeLeaf p = 
-  p `DPSimp.withPEOn` RS.selAnyLeaf
+  p `DPSimp.withPEOn` selAnyOf strictLeafs
   >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
   >>> try UR.usableRules
   >>> try DPSimp.trivial
-
+  where strictLeafs = selLeafCWDG `selInter` selStricts
 class IsDefaultOption a where
     defaultOptions :: a
 
@@ -815,7 +795,7 @@ rc2012 = named "rc2012" $
                         >>| withProblem (rc2012DP (i + 1))
                        
           where cmp p = Compose.decompose selStrictRule Compose.Add p
-                selStrictRule = RS.selAnyOf (RS.selStricts `RS.selInter` RS.selRules)
+                selStrictRule = selAnyOf (selStricts `selInter` selRules)
 
         rc2012DPi = 
           toDP >>!! te (withCWDG trans) >>! basics
@@ -895,6 +875,9 @@ instance (P.Processor proc, P.ProofOf proc ~ res) => WithProblem (P.InstanceOf p
      where proc = Custom.Custom { Custom.as = "Inspecting Problem..."
                                 , Custom.arguments = Unit
                                 , Custom.code = \ () prob -> P.solve (f prob) prob}
+
+withStrategy :: WithProblem inp outp => (Prob.Strategy -> inp) -> outp
+withStrategy f = withProblem $ \ prob -> f (Prob.strategy prob)
 
 withWDG :: WithProblem inp outp => (DG.DG -> inp) -> outp
 withWDG f = withProblem $ \ prob -> f (DG.estimatedDependencyGraph DG.defaultApproximation prob)

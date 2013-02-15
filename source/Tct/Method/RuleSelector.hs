@@ -17,40 +17,40 @@ Rule selectors give a general method to select rules from a problem.
 
 module Tct.Method.RuleSelector 
        (
-       SelectorExpression (..)
-         -- | A 'RuleSelector' is used to select 
-         -- rules from a problem. Various combinators 
-         -- are implemented.
-       , RuleSelector (..)
+       RuleSelector (..)
+       -- * RuleSet Selectors  
        , RuleSetSelector
-       , ExpressionSelector
-         
-       -- * Primitives
+       -- ** Constructors
        , selRules
        , selDPs
        , selStricts
        , selWeaks
-         -- * Constructors
        , selFromWDG
        , selFromCWDG
-         -- * Combinators
+         -- ** Combinators
        , selInverse
        , selCombine
        , selUnion
        , selInter
-         -- * Rule-selectors based on dependency graphs
+         -- ** Instances Based on DG Analysis
        , selFirstCongruence
        , selFirstStrictCongruence
-         -- * Boolean Selectors
+       , selLeafCWDG
+       , selLeafWDG
+       , selIndependentSG
+       , selCloseForward
+       , selCloseBackward
+       -- * Selector Expressions
+       , SelectorExpression (..)
+       , ExpressionSelector
+       -- ** Boolean Selectors
        , selAnyOf
        , selAllOf
        , selAnd
        , selOr
-        -- * Misc
-       , selAnyLeaf
-       , selStrictLeafs
-       , selFirstAlternative         
+       -- ** Misc         
        , rules
+       , selFirstAlternative         
        , onSelectedRequire
        ) where
 
@@ -70,7 +70,7 @@ import Termlib.Problem (Problem)
 -- | This datatype is used to select a subset of rules recorded in a problem.
 data RuleSelector a = RuleSelector { rsName :: String -- ^ Name of the rule selector.
                                    , rsSelect :: Problem -> a -- ^ Given a problem, computes an 'SelectorExpression' that 
-                                                            -- determines which rules to selct.
+                                                              -- determines which rules to selct.
                          } deriving Typeable
 
 type RuleSetSelector = RuleSelector Prob.Ruleset
@@ -182,21 +182,55 @@ selFirstCongruence = selFromCWDG "first congruence from CWDG" fn
 -- there is no node between a root of the CWDG and @n@ containing a strict rule.
 selFirstStrictCongruence :: RuleSetSelector
 selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from CWDG" fn
-    where fn cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
-              where ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg
-                                  , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
+    where 
+      fn cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
+        where 
+          ns = take 1 $ [ n | n <- bfsn (roots cdg) cdg
+                            , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
 
-selAnyLeaf :: ExpressionSelector
-selAnyLeaf = selAnyOf $ selFromCWDG "strict leaf in CWDG" sel
-  where sel cwdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (DG.StrictDP, r) <- leafRules cwdg] }
-        leafRules cwdg = DG.allRulesFromNodes cwdg (DG.leafs cwdg)
+selLeafCWDG :: RuleSetSelector
+selLeafCWDG = selFromCWDG "rules of CWDG leaf" sel
+  where 
+    sel cwdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (_, r) <- leafRules cwdg] }
+    leafRules cwdg = DG.allRulesFromNodes cwdg (DG.leafs cwdg)
+    
+selLeafWDG :: RuleSetSelector    
+selLeafWDG = selFromWDG "leafs in WDG" sel
+  where 
+    sel wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (_, r) <- leafRules wdg] }
+    leafRules wdg = [r | (_,r) <- DG.withNodeLabels' wdg $ DG.leafs wdg]
 
-selStrictLeafs :: ExpressionSelector
-selStrictLeafs = selAllOf $ selFromWDG "all leaf rules from WDG" sel
-          where sel wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
-                  where stricts = [ (n,r) | (n,(DG.StrictDP,r)) <- DG.withNodeLabels' wdg (DG.nodes wdg)]
-                        rs = [ r | (n, r) <- stricts
-                                 , all (\ (m, (strictness, _)) -> n == m || strictness == DG.WeakDP) $ DG.withNodeLabels' wdg $ DG.reachablesDfs wdg [n] ]
+selIndependentSGs :: RuleSetSelector
+selIndependentSGs = selFromWDG "independent sub-graph" f
+  where 
+    f wdg = 
+      case DG.nodes wdg' of 
+        [] -> Prob.emptyRuleset
+        n:_ -> Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (_,(DG.StrictDP, r)) <- rs] 
+                                 , Prob.wdp = Trs.fromRules [r | (_,(DG.WeakDP, r)) <- rs] }
+          where rs = DG.withNodeLabels' wdg' $ DG.reachablesBfs wdg' [n]
+      where wdg' = DG.undirect wdg
+
+selCloseWith :: (Problem -> DG) -> (String -> String) -> RuleSetSelector -> RuleSetSelector
+selCloseWith mkWdg mkName rs = 
+  RuleSelector {rsName = mkName $ rsName rs
+               , rsSelect = f } 
+  where
+    f prob = sel { Prob.sdp = Trs.fromRules [r | (DG.StrictDP, r) <- fwclosed] `Trs.union` Prob.sdp sel
+                 , Prob.wdp = Trs.fromRules [r | (DG.WeakDP, r) <- fwclosed] `Trs.union` Prob.wdp sel}
+      where sel = rsSelect rs prob
+            fwclosed = map snd $ DG.withNodeLabels' wdg $ DG.reachablesBfs wdg ns
+            wdg = mkWdg prob
+            ns = [ n | (n,(_,r)) <- lnodes wdg, Trs.member dps r ]
+            dps = Prob.sdp sel `Trs.union` Prob.wdp sel
+  
+selCloseForward :: RuleSetSelector -> RuleSetSelector
+selCloseForward = selCloseWith mkWdg (\n -> n ++ ", forward closed")
+  where mkWdg = DG.estimatedDependencyGraph DG.defaultApproximation
+
+selCloseBackward :: RuleSetSelector -> RuleSetSelector
+selCloseBackward = selCloseWith mkWdg (\n -> n ++ ", backward closed")
+  where mkWdg = DG.inverse . DG.estimatedDependencyGraph DG.defaultApproximation
 
 selAnyOf :: RuleSetSelector -> ExpressionSelector
 selAnyOf s = RuleSelector { rsName = "any " ++ rsName s

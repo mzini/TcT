@@ -252,16 +252,6 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (DecomposeDG 
 
 -- | This is the default 'RuleSelector' used with 'decomposeDG'.
 decomposeDGselect :: ExpressionSelector
--- decomposeDGselect = selAllOf $ selFromCWDG "below first cut in CWDG" fn
---   where fn cwdg = 
---           case DG.roots cwdg of 
---             (r:_) -> selBelow cwdg r
---             _ -> Prob.emptyRuleset
---         selBelow cwdg r = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ rl | (DG.StrictDP, rl) <- rs ]
---                                             , Prob.wdp = Trs.fromRules [ rl | (DG.WeakDP, rl) <- rs ] }
---           where rs = DG.allRulesFromNodes cwdg strictSuccs
---                 strictSuccs = [ n | n <- DG.successors cwdg r
---                                   , any (\ (s,_) -> s == DG.StrictDP) $ DG.allRulesFromNodes cwdg $ DG.reachablesDfs cwdg [n] ]
 decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
     where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
                                     , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}

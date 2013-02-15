@@ -200,8 +200,8 @@ selLeafWDG = selFromWDG "leafs in WDG" sel
     sel wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (_, r) <- leafRules wdg] }
     leafRules wdg = [r | (_,r) <- DG.withNodeLabels' wdg $ DG.leafs wdg]
 
-selIndependentSGs :: RuleSetSelector
-selIndependentSGs = selFromWDG "independent sub-graph" f
+selIndependentSG :: RuleSetSelector
+selIndependentSG = selFromWDG "independent sub-graph" f
   where 
     f wdg = 
       case DG.nodes wdg' of 

@@ -57,15 +57,19 @@ module Tct.Method.DP.DependencyGraph
      , inverse
      -- | Returns the same graph with edges inversed.
      , topsort
-     -- | returns a topologically sorted set of nodes.
+     -- | returns a /topologically sorted/ set of nodes.
+     , sccs
+     -- | returns the list of /strongly connected components/, including trivial ones. 
+     , undirect
+     -- | Make the graph undirected, i.e. for every edge from A to B, there exists an edge from B to A. 
      , successors
     -- | Returns the list of successors in a given node.
      , reachablesDfs
     -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- the successor relation with respect to @ns@ in a depth-first manner
+    -- the successor relation with respect to @ns@ in a depth-first manner.
      , reachablesBfs
     -- | @reachable gr ns@ closes the list of nodes @ns@ under 
-    -- the successor relation with respect to @ns@ in a breath-first manner
+    -- the successor relation with respect to @ns@ in a breath-first manner.
      , lsuccessors
     -- | Returns the list of successors in a given node, including their labels.
      , predecessors
@@ -135,10 +139,10 @@ module Tct.Method.DP.DependencyGraph
 where
 
 import qualified Data.Graph.Inductive.Graph as Graph
+import Data.Graph.Inductive.Basic (undir)
 import qualified Data.Graph.Inductive.Tree as GraphT
 import Data.Graph.Inductive.Query.DFS (dfs)
 import qualified Data.Graph.Inductive.Query.DFS as DFS
-import qualified Data.Graph.Inductive.Query.DFS as GraphDFS
 import Data.Graph.Inductive.Query.BFS (bfsn)
 
 import qualified Data.GraphViz.Types.Monadic as GV
@@ -231,6 +235,12 @@ inverse gr = Graph.mkGraph ns es
 
 topsort :: DependencyGraph n e -> [NodeId]
 topsort = DFS.topsort
+
+sccs :: DependencyGraph n e -> [[NodeId]]
+sccs = DFS.scc
+
+undirect :: Eq e => DependencyGraph n e -> DependencyGraph n e
+undirect = undir
 
 successors :: DependencyGraph n e -> NodeId -> [NodeId]
 successors = Graph.suc
@@ -354,7 +364,7 @@ isCyclicNode cdg n = isCyclic $ lookupNodeLabel' cdg n
 
 toCongruenceGraph :: DG -> CDG
 toCongruenceGraph gr = Graph.mkGraph ns es
-    where ns    = zip [1..] [sccNode scc | scc <- GraphDFS.scc gr]
+    where ns    = zip [1..] [sccNode scc | scc <- DFS.scc gr]
           es    = [ (n1, n2, i) | (n1, cn1) <- ns
                                  , (n2, cn2) <- ns
                                  , n1 /= n2
@@ -526,7 +536,7 @@ toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
           if showLabels then graphM >> labelM else graphM
           where nds   = nodes dg
                 graphM = do
-                  mapM_ sccToGV $ zip [(1::Int)..] (GraphDFS.scc dg)
+                  mapM_ sccToGV $ zip [(1::Int)..] (DFS.scc dg)
                   mapM_ edgesToGV nds
                 labelM = GV.graphAttrs [GVattribs.toLabel pplabel]
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]

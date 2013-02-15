@@ -21,6 +21,7 @@ module Tct.Method.TCombinator (
        timeout
        , Timeout         
        , try
+       , force         
        , Try
        , (>>>)
        , (<>)
@@ -180,7 +181,7 @@ mkComposeProof sub t1 t2 input r1 r2s subproofs =
           , appliedSubprocessor = t2try `thenApply` sub
           , subProofs           = mkSubProof1 `map` r2s }
 
-      where t2try = case t2 of TheTransformer t2' as -> TheTransformer (Try t2') as
+      where t2try = case t2 of TheTransformer t2' as -> TheTransformer (Try True t2') as
             mkSubProof1 (SN i, r2_i) = (SN i, P.Proof { P.appliedProcessor = t2try `thenApply` sub
                                                        , P.inputProblem     = prob_i
                                                        , P.result           = proof_i })
@@ -188,13 +189,13 @@ mkComposeProof sub t1 t2 input r1 r2s subproofs =
                                  NoProgress _        -> input
                                  Progress _ subprobs -> fromMaybe (error "mkComposeProof problem not found") (find i subprobs)
                       proof_i = case r2_i of 
-                                  NoProgress p2_i          -> Proof { transformationResult = NoProgress (TryProof p2_i)
+                                  NoProgress p2_i          -> Proof { transformationResult = NoProgress (TryProof True p2_i)
                                                                    , inputProblem         = prob_i
                                                                    , appliedTransformer   = t2try
                                                                    , appliedSubprocessor  = mkSubsumed sub
                                                                    , subProofs            = enumeration' $ catMaybes [liftMS Nothing `liftM` find (One i) subproofs] } 
 
-                                  Progress p2_i subprobs_i -> Proof { transformationResult = Progress (TryProof p2_i) subprobs_i
+                                  Progress p2_i subprobs_i -> Proof { transformationResult = Progress (TryProof True p2_i) subprobs_i
                                                                    , inputProblem         = prob_i
                                                                    , appliedTransformer   = t2try
                                                                    , appliedSubprocessor  = mkSubsumed sub
@@ -373,17 +374,17 @@ t1 <||> t2 = someTransformation inst
 --------------------------------------------------------------------------------
 -- Try Transformation
 
-data Try t = Try t
-data TryProof t = TryProof (ProofOf t)
+data Try t = Try Bool t
+data TryProof t = TryProof Bool (ProofOf t)
 
 fromTry :: TheTransformer (Try t) -> TheTransformer t
-fromTry (TheTransformer (Try t) as) = TheTransformer t as
+fromTry (TheTransformer (Try _ t) as) = TheTransformer t as
 
 
 instance (Transformer t, TransformationProof t) => TransformationProof (Try t) where
     pprintProof proof mde = 
         case result of 
-          NoProgress (TryProof p) 
+          NoProgress (TryProof True p) 
               | mde == P.StrategyOutput -> 
                   pprintTProof t' (inputProblem proof) p mde
                   $+$ text ""
@@ -393,9 +394,12 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
                   $+$ text ""
                   $+$ ppsub
               | otherwise -> ppsub
-                  
-          Progress (TryProof p) _ -> pprintProof proof { appliedTransformer  = t'
-                                                      , transformationResult = const p `mapResult` result } mde
+          NoProgress (TryProof False _) -> ppsub
+            
+          Progress (TryProof _ p) _ -> 
+            pprintProof proof { appliedTransformer  = t'
+                              , transformationResult = const p `mapResult` result } mde
+            
       where t         = appliedTransformer proof
             t'        = fromTry t
             msubproof = case subProofs proof of 
@@ -407,14 +411,16 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
                       Nothing -> text "No further proof was generated, we abort!"
     answer proof = 
         case transformationResult proof of 
-          Progress (TryProof p) ps -> answer $ proof { appliedTransformer   = fromTry t
-                                                    , transformationResult = Progress p ps}
-          NoProgress (TryProof _)  -> case subProofs proof of 
-                                       [(_,subproof)] -> P.answer subproof
-                                       _              -> P.MaybeAnswer
+          Progress (TryProof _ p) ps -> 
+            answer $ proof { appliedTransformer   = fromTry t
+                           , transformationResult = Progress p ps}
+          NoProgress (TryProof _ _)  -> 
+            case subProofs proof of 
+              [(_,subproof)] -> P.answer subproof
+              _              -> P.MaybeAnswer
       where t = appliedTransformer proof
 
-    pprintTProof t prob (TryProof p) = pprintTProof (fromTry t) prob p
+    pprintTProof t prob (TryProof _ p) = pprintTProof (fromTry t) prob p
 
     -- tproofToXml t prob (TryProof p) = 
       
@@ -424,30 +430,36 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
       where t'        = fromTry $ appliedTransformer proof
             result    = transformationResult proof
             p = case transformationResult proof of 
-                  NoProgress (TryProof p') -> p'
-                  Progress (TryProof p') _ -> p'                 
+                  NoProgress (TryProof _ p') -> p'
+                  Progress (TryProof _ p') _ -> p'                 
 
 
 
 instance (Transformer t) => Transformer (Try t) where
-    name (Try t) = name t
-    continue _ = True
+    name (Try _ t) = name t
+    continue inst = cont
+      where Try cont _ = transformation inst
     instanceName inst = instanceName (fromTry inst)
-    description (Try t) = description t
+    description (Try _ t) = description t
     type ArgumentsOf  (Try t) = ArgumentsOf t
     type ProofOf (Try t) = TryProof t
-    arguments (Try t) = arguments t
+    arguments (Try _ t) = arguments t
     transform inst prob = mk `liftM` transform tinst prob
-        where mk (Progress p ps) = Progress (TryProof p) ps
-              mk (NoProgress p)  = NoProgress (TryProof p)
-              Try t = transformation inst
+        where mk (Progress p ps) = Progress (TryProof cont p) ps
+              mk (NoProgress p)  = NoProgress (TryProof cont p)
+              Try cont t = transformation inst
               tinst = TheTransformer { transformation = t
                                      , transformationArgs = transformationArgs inst }
 
 -- | The transformer @try t@ behaves like @t@ but succeeds even if @t@ fails. When @t@ fails
 -- the input problem is returned.
 try :: Transformer t => TheTransformer t -> TheTransformer (Try t)
-try (TheTransformer t args) = TheTransformer (Try t) args
+try (TheTransformer t args) = TheTransformer (Try True t) args
+
+-- | The transformer @force t@ behaves like @t@ but fails always whenever no 
+-- progress is achieved.
+force :: Transformer t => TheTransformer t -> TheTransformer (Try t)
+force (TheTransformer t args) = TheTransformer (Try False t) args
 
 --------------------------------------------------------------------------------
 -- Timeout Transformation

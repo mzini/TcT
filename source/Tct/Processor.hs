@@ -114,8 +114,9 @@ import qualified Tct.Processor.Parse as Parse
 -- | Representation of a SAT-solver. Currently, only 'minisat' (cf. <http://minisat.se>) is supported.
 data SatSolver = MiniSat FilePath
 
--- | These expressions determine which rules to orient for partial application, 
---   c.f. solvePartial
+-- | Defines a notion of selected rules, specified as monotone Boolean Formula. 
+-- 'SelectorExpressions' are used for instance in 'solvePartial' to determine 
+-- which rules should be oriented by a processor.
 data SelectorExpression = 
   SelectDP Rule
   | SelectTrs Rule  

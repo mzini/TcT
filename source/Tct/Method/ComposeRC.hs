@@ -49,7 +49,7 @@ import Tct.Processor.Args
 import Tct.Processor.Args.Instances
 import qualified Tct.Certificate as Cert
 
-import Termlib.Utils (PrettyPrintable (..), paragraph, snub)
+import Termlib.Utils (PrettyPrintable (..), paragraph)
 import qualified Termlib.Term as Term
 import qualified Termlib.Trs as Trs
 import Termlib.Rule (Rule(..))
@@ -60,6 +60,7 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
 import Data.Typeable ()
+import Data.List ((\\))
 
 data DecomposeDG p1 p2 = DecomposeDG
 data DecomposeDGProof p1 p2 = DecomposeDGProof 
@@ -252,16 +253,22 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (DecomposeDG 
 
 -- | This is the default 'RuleSelector' used with 'decomposeDG'.
 decomposeDGselect :: ExpressionSelector
-decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
-    where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
-                                    , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
-              where nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, n `elem` DG.reachablesBfs dg [m] ]
-                    cutEdges n =    Set.fromList [ i | (_,_,i) <- DG.lsuccessors dg n, not (i `Set.member` nonCutEdges n) ]
-                    admitCuts = [ n | n <- DG.nodes dg , not (Set.null $ cutEdges n) && not (Set.null $ nonCutEdges n) ]
-                    highestCuts = snub $ concatMap (DG.congruence subcdg) $ DG.roots subcdg
-                    subcdg = DG.toCongruenceGraph $ DG.subGraph dg admitCuts
-                    selectedNodes = Set.unions [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
-                    selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
+decomposeDGselect = selAllOf $ selFromCWDG "below first cut in CWDG" f
+  where f cwdg = 
+          Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
+                            , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
+          where 
+            selectedRules = DG.allRulesFromNodes cwdg (DG.nodes cwdg \\ DG.roots cwdg)
+-- decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
+--     where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
+--                                     , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
+--               where nonCutEdges n = Set.fromList [ i | (m,_,i) <- DG.lsuccessors dg n, n `elem` DG.reachablesBfs dg [m] ]
+--                     cutEdges n =    Set.fromList [ i | (_,_,i) <- DG.lsuccessors dg n, not (i `Set.member` nonCutEdges n) ]
+--                     admitCuts = [ n | n <- DG.nodes dg , not (Set.null $ cutEdges n) && not (Set.null $ nonCutEdges n) ]
+--                     highestCuts = snub $ concatMap (DG.congruence subcdg) $ DG.roots subcdg
+--                     subcdg = DG.toCongruenceGraph $ DG.subGraph dg admitCuts
+--                     selectedNodes = Set.unions [ Set.fromList [ m | (m,_,i) <- DG.lsuccessors dg n, i `Set.member` cutEdges n] | n <- highestCuts ]
+--                     selectedRules = map snd $ DG.withNodeLabels' dg (Set.toList selectedNodes)
 
 
 decomposeDGProcessor :: T.Transformation (DecomposeDG P.AnyProcessor P.AnyProcessor) P.AnyProcessor

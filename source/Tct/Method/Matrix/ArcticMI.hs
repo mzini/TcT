@@ -123,37 +123,14 @@ instance S.Processor ArcticMI where
                         | otherwise                            = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
               allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
 
-    -- solvePartial inst oblrules problem | not isMonadic = return $ P.PartialProof { P.ppInputProblem = problem
-    --                                                                     , P.ppResult       = Inapplicable "Arctic Interpretations only applicable for monadic problems"
-    --                                                                     , P.ppRemovableDPs = []
-    --                                                                     , P.ppRemovableTrs = [] }
-    --                                    | Trs.isEmpty (Prob.strictTrs problem) = mkProof sdps strs `liftM` orientPartialDp oblrules strat st sr wr sig' inst
-    --                                    | otherwise = mkProof sdps strs `liftM` orientPartialRelative oblrules strat st sr wr sig' inst
-    --   where sig   = Prob.signature problem
-    --         sig'  = sig `F.restrictToSymbols` Trs.functionSymbols (Prob.allComponents problem)
-    --         st    = Prob.startTerms problem
-    --         strat = Prob.strategy problem
-    --         sr    = Prob.strictComponents problem
-    --         wr    = Prob.weakComponents problem
-    --         sdps  = Prob.strictDPs problem
-    --         strs  = Prob.strictTrs problem
-    --         mkProof dps trs res@(Order (ArcticOrder mi _)) = P.PartialProof { P.ppInputProblem = problem
-    --                                                                         , P.ppResult       = res 
-    --                                                                         , P.ppRemovableDPs = Trs.toRules $ strictRules mi dps
-    --                                                                         , P.ppRemovableTrs = Trs.toRules $ strictRules mi trs }
-    --         mkProof _   _   res                            = P.PartialProof { P.ppInputProblem = problem
-    --                                                                         , P.ppResult       = res
-    --                                                                         , P.ppRemovableDPs = []
-    --                                                                         , P.ppRemovableTrs = [] }
-    --         isMonadic = allMonadic $ Trs.functionSymbols $ Prob.allComponents problem
-    --         allMonadic = all (\ f -> F.arity sig f Prelude.<= 1) . Set.toList
 
 arcticProcessor :: S.StdProcessor ArcticMI
 arcticProcessor = S.StdProcessor ArcticMI
 
-arctic :: Nat -> AS.Size -> Maybe Nat -> Bool -> S.ProcessorInstance ArcticMI
-arctic matrixdimension coefficientsize constraintbits ua =
-    S.StdProcessor ArcticMI `S.withArgs` (matrixdimension :+: Nat (AS.intbound coefficientsize) :+: Nothing :+: constraintbits :+: ua)
+
+-- | This processor implements arctic interpretations.
+arctic :: S.ProcessorInstance ArcticMI
+arctic = S.StdProcessor ArcticMI `S.withArgs` (nat 2 :+: (nat $ AS.intbound $ AS.Bits 2) :+: Nothing :+: (Just (nat 3)) :+: True)
 
 -- argument accessors
 

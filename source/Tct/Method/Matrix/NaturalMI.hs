@@ -250,6 +250,10 @@ instance S.Processor NaturalMI where
 matrixProcessor :: S.StdProcessor NaturalMI
 matrixProcessor = S.StdProcessor NaturalMI
 
+-- | This processor implements matrix interpretations.     
+matrix :: S.ProcessorInstance NaturalMI
+matrix = S.StdProcessor NaturalMI `S.withArgs` (Algebraic :+: Nothing :+: nat 2 :+: nat 2 :+: Nothing :+: Just (nat 3) :+: True :+: True)
+
 -- argument accessors
 
 kind :: Domains (S.ArgumentsOf NaturalMI) -> Prob.StartTerms -> MatrixKind

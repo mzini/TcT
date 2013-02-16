@@ -50,35 +50,40 @@ module Tct.Instances
       -- for using matrix interpretations with default parameters.
     , arctic
     , matrix
-    , MatrixOptions (..)
-    , NaturalMI.NaturalMIKind (..)
-    , Weightgap.WgOn (..)
 
       -- *** Polynomial Interpretations
       -- | TcT implements /polynomial interpretations over natural numbers/.
       -- Configuration parameters are collected in 'PolyOptions', supply 'defaultOptions'
       -- for using plynomial interpretations with default parameters.
-    , poly
+    , NaturalPI.poly
     , polys
-    , PolyOptions (..)
       -- | The shape of a polynomial influences the computed certificate, 
       -- but has also severe impacts on the time spend on proof search.
       -- In the following, we collect some common shapes of polynomials found
       -- in the literature. Custom shapes can be used with options 'customPolynomial'.
-    , simplePolynomial 
-    , linearPolynomial
-    , stronglyLinearPolynomial
-    , simpleMixedPolynomial
-    , quadraticPolynomial
-    , customPolynomial
+    , NaturalPI.simplePolynomial 
+    , NaturalPI.linearPolynomial
+    , NaturalPI.stronglyLinearPolynomial
+    , NaturalPI.simpleMixedPolynomial
+    , NaturalPI.quadraticPolynomial
+      -- **** Custom Polynomial Shapes
+    , NaturalPI.customPolynomial
     , Poly.SimpleMonomial
     , (Poly.^^^)
     , Poly.mono
     , Poly.boolCoefficient
     , Poly.constant
-      -- *** Options
-    , IsDefaultOption (..)
-      
+      -- *** Modifying Options
+    , HasDimension (..)
+    , HasCertBy (..)
+    , NaturalMI.NaturalMIKind (..)
+    , HasDegree (..)
+    , HasBits (..)
+    , HasCBits (..)
+    , HasUsableArgs (..)
+    , HasUsableRules (..)
+    , HasKind (..)
+    , Poly.PolyShape (..)
       -- ** Processors Based on Recursive Path Orderings
     , EpoStar.epostar
     , PopStar.popstar
@@ -152,6 +157,8 @@ module Tct.Instances
       
       -- *** Weightgap Principle
     , weightgap
+    , Weightgap.WgOn(..)
+    , wgOn
       
       -- *** Decompose
     , Compose.decompose
@@ -234,7 +241,6 @@ module Tct.Instances
 where
   
 import Control.Monad (liftM)
-import Termlib.Variable (Variable)
 import qualified Tct.Method.Combinator as Combinators
 import qualified Tct.Method.PopStar as PopStar
 import qualified Tct.Method.Mpo as Mpo
@@ -243,10 +249,10 @@ import qualified Tct.Method.Compose as Compose
 import qualified Tct.Method.ComposeRC as ComposeRC
 import qualified Tct.Method.Bounds as Bounds
 import qualified Tct.Method.Bounds.Automata as Bounds.Automata
-import qualified Tct.Method.Matrix.ArcticMI as ArcticMI
-import qualified Qlogic.ArcSat as ArcSat
 import qualified Tct.Method.DP.Simplification as DPSimp
 import qualified Tct.Method.Matrix.NaturalMI as NaturalMI
+import Tct.Method.Matrix.NaturalMI (matrix)
+import Tct.Method.Matrix.ArcticMI (arctic)
 import qualified Tct.Method.Poly.PolynomialInterpretation as Poly
 import qualified Tct.Method.Poly.NaturalPI as NaturalPI
 import qualified Tct.Method.Custom as Custom
@@ -256,6 +262,7 @@ import qualified Tct.Method.DP.UsableRules as UR
 import qualified Tct.Method.DP.DependencyPairs as DP
 import qualified Tct.Method.DP.PathAnalysis as PathAnalysis
 import qualified Tct.Method.Weightgap as Weightgap
+import Tct.Method.Weightgap (weightgap,wgOn)
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Method.InnermostRuleRemoval as IRR
 import qualified Tct.Method.ToInnermost as TOI
@@ -427,9 +434,7 @@ toDP =
     partIndep Prob.Innermost = partitionIndependent
     partIndep _ = some $ linearPathAnalysis
     
-    wgOnUsable = weightgap defaultOptions { dim = 2
-                                          , degree = (Just 1)
-                                          , on = Weightgap.WgOnTrs }
+    wgOnUsable = weightgap `wgOn` Weightgap.WgOnTrs
 
 
 
@@ -444,107 +449,142 @@ removeLeaf p =
   >>> try UR.usableRules
   >>> try DPSimp.trivial
   where strictLeafs = selLeafCWDG `selInter` selStricts
-class IsDefaultOption a where
-    defaultOptions :: a
-
--- * defaultMatrix
-
-data MatrixOptions = MatrixOptions { cert :: NaturalMI.NaturalMIKind -- ^ defines how the induced certificate is computed.
-                                   , dim  :: Int -- ^ dimension of matrix coefficients. The default is 'Algebraic'.
-                                   , degree :: Maybe Int -- ^ upper bound on degree of induced certificate, cf. also cert. The default is @2@.
-                                   , bits :: Int -- ^ number of bits used for encoding entries in coefficient matrix. The default is @2@.
-                                   , cbits :: Maybe Int -- ^ number of bits used for intermediate results. The default is @Just 3@. If @Nothing@ is given then sizes of intermediate results are not restricted.
-                                   , on :: Weightgap.WgOn -- ^ option solely for weightgap
-                                   , useUsableArgs :: Bool -- ^ Defines whether monotonicity-constraints are weakened by taking usable argument positions into account. The default is @True@ 
-                                   , useUsableRules :: Bool -- ^ Defines wether usable rules modula argument filtering should be used. (only NaturalMI)
-                                   }
-
-instance IsDefaultOption MatrixOptions where 
-    defaultOptions = MatrixOptions { cert   = NaturalMI.Algebraic
-                                   , dim    = 2
-                                   , degree = Nothing
-                                   , bits   = 2
-                                   , cbits  = Just $ 3
-                                   , useUsableArgs = True
-                                   , useUsableRules = True
-                                   , on            = Weightgap.WgOnAny }
-
--- | This processor implements matrix interpretations.     
-matrix :: MatrixOptions -> S.ProcessorInstance NaturalMI.NaturalMI
-matrix m = S.StdProcessor NaturalMI.NaturalMI `S.withArgs` (cert m :+: (nat `liftM` degree m) :+: nat (dim m) :+: nat (bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
-
--- | This processor implements arctic interpretations.
-arctic :: MatrixOptions -> S.ProcessorInstance ArcticMI.ArcticMI
-arctic m = S.StdProcessor ArcticMI.ArcticMI `S.withArgs` (nat (dim m) :+: (nat $ ArcSat.intbound $ ArcSat.Bits $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m)
 
 
--- | This processor implements the weightgap principle.   
-weightgap :: MatrixOptions -> T.TheTransformer (Compose.Decompose (S.StdProcessor Weightgap.WeightGap))
-weightgap m = Compose.decomposeDynamic Compose.Add wg
-  where wg = S.StdProcessor Weightgap.WeightGap `S.withArgs` (on m :+: (cert m) :+: (nat `liftM` degree m) :+: (nat $ dim m) :+: (nat $ bits m) :+: Nothing :+: (nat `liftM` cbits m) :+: useUsableArgs m :+: useUsableRules m)
+-- default Options
 
--- * defaultPoly
+class HasDimension a where 
+  -- | Modify dimesion of method.
+  withDimension :: a -> Int -> a
+  
+class HasCertBy a where 
+  -- | Defines under which method a certificate should be obtained
+  withCertBy :: a -> NaturalMI.NaturalMIKind -> a
+  
+class HasDegree a where 
+  -- | Specifies an upper bound on the estimated degree, or ounbounded degree if given 'Nothing'.
+  withDegree :: a -> Maybe Int -> a
+  
+class HasBits a where  
+  -- | Specifies the number of bits for coefficients.
+  withBits :: a -> Int -> a
+  
+class HasCBits a where  
+  -- | Specifies an upper bound on intermediate coefficients, when constructing the interpretation, or unbouneded coefficients if given 'Nothing'
+  withCBits :: a -> Maybe Int -> a
 
-data PolyOptions = PolyOptions { pkind :: Poly.PolyShape -- ^ The shape of the constructed polynomial interpretation. The default is the simple shape 'Poly.Simple'.
-                               , pbits :: Int -- ^ Number of bits for coefficients in SAT encoding. The default is '2'.
-                               , pcbits :: Maybe Int -- ^ Number of bits for intermediate results in SAT encoding. 
-                                                    -- Set to 'Nothing' for no bound on number of bits. The default is 'Just 3'.
-                               , puseUsableArgs :: Bool -- ^ Defines whether monotonicity-constraints are weakened by taking usable argument positions into account. The default is True 
-                               }
+class HasUsableArgs a where 
+  -- | Specifies that the /usable arguments/ criterion should be employed to weaken monotonicity requirements.
+  withUsableArgs :: a -> Bool -> a
+  
+class HasUsableRules a where 
+  -- | Specifies that the /usable rules modulo interpretation/ criterion should be considered.  
+  withUsableRules :: a -> Bool -> a
 
-instance IsDefaultOption PolyOptions where
-  defaultOptions = PolyOptions { pkind          = Poly.SimpleShape Poly.Simple
-                               , pbits          = 2
-                               , pcbits         = Just 3
-                               , puseUsableArgs = True }
+class HasKind a k | a -> k where
+  -- | Specify the kind of the interpretation.  
+  ofKind :: a -> k -> a
+  
+
+
+-- matrices
+
+instance HasDimension (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withDimension` d = S.modifyArguments f mx
+    where f (cert :+: deg :+: _ :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (cert :+: deg :+: nat d :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    
+instance HasCertBy (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withCertBy` c = S.modifyArguments f mx
+    where f (_ :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (c :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    
+instance HasDegree (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withDegree` deg = S.modifyArguments f mx
+    where f (cert :+: _ :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (cert :+: nat `liftM` deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+
+instance HasBits (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withBits` bits = S.modifyArguments f mx
+    where f (cert :+: deg :+: dim :+: _        :+: bound :+: cbits :+: uargs :+: urules) = 
+            (cert :+: deg :+: dim :+: nat bits :+: bound :+: cbits :+: uargs :+: urules)
+
+instance HasCBits (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withCBits` cbits = S.modifyArguments f mx
+      where f (cert :+: deg :+: dim :+: bits :+: bound :+: _ :+: uargs :+: urules) = 
+              (cert :+: deg :+: dim :+: bits :+: bound :+: nat `liftM` cbits :+: uargs :+: urules)
+
+instance HasUsableArgs (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withUsableArgs` uargs = S.modifyArguments f mx
+    where f (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: _ :+: urules) = 
+            (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+
+instance HasUsableRules (S.ProcessorInstance NaturalMI.NaturalMI) where
+  mx `withUsableRules` urules = S.modifyArguments f mx
+    where f (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: _) = 
+            (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+
+-- weightgap
+
+instance HasDimension (T.TheTransformer Weightgap.WeightGap) where
+  wg `withDimension` d = T.modifyArguments f wg
+    where f (on :+: rs :+: cert :+: deg :+: _ :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: nat d :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    
+instance HasCertBy (T.TheTransformer Weightgap.WeightGap) where
+  wg `withCertBy` c = T.modifyArguments f wg
+    where f (on :+: rs :+: _ :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: c :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    
+instance HasDegree (T.TheTransformer Weightgap.WeightGap) where
+  wg `withDegree` deg = T.modifyArguments f wg
+    where f (on :+: rs :+: cert :+: _ :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: nat `liftM` deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+
+instance HasBits (T.TheTransformer Weightgap.WeightGap) where
+  wg `withBits` bits = T.modifyArguments f wg
+    where f (on :+: rs :+: cert :+: deg :+: dim :+: _        :+: bound :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: dim :+: nat bits :+: bound :+: cbits :+: uargs :+: urules)
+
+instance HasCBits (T.TheTransformer Weightgap.WeightGap) where
+  wg `withCBits` cbits = T.modifyArguments f wg
+      where f (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: _ :+: uargs :+: urules) = 
+              (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: nat `liftM` cbits :+: uargs :+: urules)
+
+instance HasUsableArgs (T.TheTransformer Weightgap.WeightGap) where
+  wg `withUsableArgs` uargs = T.modifyArguments f wg
+    where f (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: _ :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+
+-- poly
+
+
+instance HasKind (S.ProcessorInstance NaturalPI.NaturalPI) Poly.PolyShape where
+  p `ofKind` k = S.modifyArguments f p 
+    where f (_ :+: as) = (k :+: as)
+
+instance HasBits (S.ProcessorInstance NaturalPI.NaturalPI) where
+  p `withBits` bits = S.modifyArguments f p 
+    where f (k :+: bound :+: _ :+: cbits :+: uargs) = (k :+: bound :+: Just (nat bits) :+: cbits :+: uargs)
+
+instance HasCBits (S.ProcessorInstance NaturalPI.NaturalPI) where
+  p `withCBits` cbits = S.modifyArguments f p 
+    where f (k :+: bound :+: bits :+: _ :+: uargs) = (k :+: bound :+: bits :+: nat `liftM` cbits :+: uargs)
+
+instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
+  p `withUsableArgs` uargs = S.modifyArguments f p
+    where f (k :+: bound :+: bits :+: cbits :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs)  
+
 
 -- | 'polys n' defines a suitable polynomial of degree 'n'
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
-polys 1 = poly linearPolynomial
-polys n = poly $ (customPolynomial inter) { pbits = 2, pcbits = Nothing }
+polys 1 = NaturalPI.linearPolynomial
+polys n = NaturalPI.customPolynomial inter `withBits` 2 `withCBits` Nothing
   where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs']
                    | vs' <- List.subsequences vs
                    , length vs <= n ]
                    ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
 
--- | Options for @simple@ polynomial interpretations.
-simplePolynomial :: PolyOptions
-simplePolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Simple }
-
--- | Options for @linear@ polynomial interpretations.
-linearPolynomial :: PolyOptions
-linearPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Linear }
-
--- | Options for @strongly linear@ polynomial interpretations.
-stronglyLinearPolynomial :: PolyOptions
-stronglyLinearPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.StronglyLinear }
-
--- | Options for @simple mixed@ polynomial interpretations.
-simpleMixedPolynomial :: PolyOptions
-simpleMixedPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.SimpleMixed }
-
--- | Options for @quadratic mixed@ polynomial interpretations.
-quadraticPolynomial :: PolyOptions
-quadraticPolynomial = defaultOptions { pkind = Poly.SimpleShape Poly.Quadratic } 
-
--- | Option for polynomials of custom shape, as defined by the first argument.
--- This function receives a list of variables 
--- denoting the @n@ arguments of the interpretation function. The return value of type ['Poly.SimpleMonomial']
--- corresponds to the list of monomials of the constructed interpretation function.
--- A polynomial is a list of unique 'Poly.SimpleMonomial', where 'Poly.SimpleMonomial' are 
--- considered equal if the set variables together with powers match.
--- 'SimpleMonomial' can be build using 'Poly.^^^', 'Poly.constant' and 'Poly.mono'.
--- For instance, linear interpretations are constructed using the function 
--- @ 
--- \vs -> [constant] ++ [ v^^^1 | v <- vs]
--- @
--- . 
-customPolynomial :: ([Variable] -> [Poly.SimpleMonomial]) -> PolyOptions
-customPolynomial mk = defaultOptions { pkind = Poly.CustomShape mk}
-
--- | This processor implements polynomial interpretations.
-poly :: PolyOptions -> S.ProcessorInstance NaturalPI.NaturalPI
-poly p = NaturalPI.polyProcessor `S.withArgs` (pkind p :+: nat 3 :+: Just (nat (pbits p)) :+: nat `liftM` pcbits p :+: puseUsableArgs p)
 
 
 -- * Competition Strategies
@@ -556,9 +596,9 @@ te = try . exhaustively
 dc2011 :: P.InstanceOf P.SomeProcessor
 dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail strategy
       where matrices simple c 
-              | simple = empty `Combinators.before` fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=c} 
-                                                            | i <- [1..bound]]
-              | otherwise = empty `Combinators.before` fastest [ matrix defaultOptions {dim = i, degree = Just j, cbits= Just 4, bits=3, cert=c} 
+              | simple = empty `Combinators.before` fastest [ matrix `withDimension` i `withDegree` Nothing `withCBits` Just 4 `withBits` 3 `withCertBy` c
+                                                            | i <- [1..bound] ]
+              | otherwise = empty `Combinators.before` fastest [ matrix `withDimension` i `withDegree` Just j `withCBits` Just 4 `withBits` 3 `withCertBy` c
                                                                | (i,j) <- zip [1..bound] [1..]]
             bound       = 6
             direct      = matrices False NaturalMI.Algebraic
@@ -566,19 +606,12 @@ dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail str
             matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                           `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
                           
-            dos   = defaultOptions { cbits = Just 4, bits = 3}
-            lin   = dos { dim = 1, degree = Just 1}
-            quad  = dos { dim = 2, degree = Nothing}
-            cubic = dos { dim = 3, degree = Nothing}
-            quartic = dos { dim = 4, degree = Nothing}
-            quintic = dos { dim = 5, degree = Nothing}
-                          
-            wgs         = wg lin
-                          <> wg quad
-                          <> wg cubic
-                          <> wg quartic
-                          <> wg quintic
-            wg = weightgap
+            wgs         = wg `withDimension` 1 `withDegree` Just 1
+                          <> wg `withDimension` 2
+                          <> wg `withDimension` 3
+                          <> wg `withDimension` 4
+                          <> wg `withDimension` 5
+            wg = weightgap `withCBits` Just 4 `withBits` 3
             strategy    = try IRR.irr 
                           >>| try Uncurry.uncurry 
                           >>| (direct 
@@ -588,7 +621,7 @@ dc2011 = some $ named "dc2011" $ ite (isDuplicating Strict) Combinators.fail str
 rc2011 :: P.InstanceOf P.SomeProcessor
 rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTuples) (rc DP.dependencyPairs)
     where rc mkdp = try IRR.irr >>| matricesBlockOf 2 `Combinators.orFaster` matchbounds `Combinators.orFaster` dp mkdp
-          matricesForDegree deg = [ matrix defaultOptions {dim = n, degree = Just deg} | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
+          matricesForDegree deg = [ matrix `withDimension` n `withDegree` Just deg | n <- [deg..if deg > 3 then deg else (deg + 3)]] -- matrices for degree deg
           
           matricesBlockOf l = fastest [ sequentially $ concatMap (\ j -> matricesForDegree (i + (j * l))) [0..] | i <- [1..max 1 l]] 
           -- fastest [ sequentially (matricesForDegree 1 ++ matricesForDegree (1 + l) ++ matricesForDegree (1 + 2l) ...  ] 
@@ -600,11 +633,6 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
           matchbounds = Timeout.timeout 5 (Bounds.bounds Bounds.Minimal Bounds.Match 
                                            `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match)
                         
-          dos   = defaultOptions { cbits = Just 4, bits = 3}
-          lin   = dos { dim = 1, degree = Just 1}
-          quad  = dos { dim = 2, degree = Nothing}
-          cubic = dos { dim = 3, degree = Nothing}
-          
           dp mkdp = mkdp
                      >>| UR.usableRules 
                      >>| (insideDP 
@@ -613,15 +641,14 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    dpsimps'  = try DPSimp.removeTails 
                                >>> try DPSimp.simpDPRHS 
                                >>> try DPSimp.simpPE                   
-                   wgAll     = wg lin 
-                               <> wg quad
-                               <> wg cubic
-                   wgUsables = wg lin {on = Weightgap.WgOnTrs} 
-                               <> wg quad {on = Weightgap.WgOnTrs} 
-                               <> wg cubic {on = Weightgap.WgOnTrs}
-                   wg = weightgap                               
-                   -- decomposeMult = decompose splitWithoutLeafs Mult elim 
-                   -- elim     = P.someInstance (try dpsimp >>| directs `Combinators.before` insideDP) -- arrr
+                   wgAll     = wg  `withDimension` 1
+                               <> wg `withDimension` 2
+                               <> wg `withDimension` 3
+                   wgUsables = wgUsable `withDimension` 1
+                               <> wgUsable `withDimension` 2
+                               <> wgUsable `withDimension` 3
+                   wg = weightgap `withCBits` Just 4 `withBits` 3
+                   wgUsable = wg `wgOn` Weightgap.WgOnTrs
                    
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
 
@@ -635,7 +662,7 @@ dc2012 =
     >>| dc2012' Combinators.best 
   where dc2012' combinator = 
           combinator [ some empty
-                     , some $ timeout 59 $ fastest [matrix defaultOptions {dim = i, degree = Nothing, cbits= Just 4, bits=3, cert=NaturalMI.Algebraic} 
+                     , some $ timeout 59 $ fastest [matrix `withDimension` i `withDegree` Nothing `withCBits` Just 4 `withBits` 3 `withCertBy` NaturalMI.Algebraic 
                                                    | i <- [1..3] ]
                      , some $ timeout 59 $ bsearch "matrix" (mmx 4)
                      , some $ timeout 59 $ Combinators.iteProgress mxs (dc2012' fastest) empty
@@ -646,24 +673,24 @@ dc2012 =
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                       `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
 
-        dos dimension degr = defaultOptions { cbits = Just (bits' + 1)
-                                            , bits = bits'
-                                            , cert = cert'
-                                            , dim = dim'
-                                            , degree = if dim' > deg' then Just deg' else Nothing }
-          where bits' | dimension <= 3 = 3
-                      | otherwise = 1
-                dim' = max 1 dimension
-                deg' = max 0 degr
-                cert' | deg' == 0 = NaturalMI.Algebraic
-                      | otherwise = NaturalMI.Automaton
-
         whenNonTrivial t = withProblem $ \ prob ->
           when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
 
-        wg dimension deg = weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
+        wg dim deg = weightgap `withCertBy` cert' `withDimension` dim' `withDegree` deg' `withCBits` Just (bits' + 1) `withBits` bits' `wgOn` Weightgap.WgOnAny
+          where bits' | dim <= 3 = 3
+                      | otherwise = 1
+                dim' = max 1 dim
+                deg' = if dim' > deg then Nothing else Just (max 0 deg)                
+                cert' | deg' == Just 0 = NaturalMI.Algebraic
+                      | otherwise = NaturalMI.Automaton
                      
-        mx dimension deg = matrix $ dos dimension deg
+        mx dim deg = matrix `withCertBy` cert' `withDimension` dim' `withDegree` deg' `withCBits` Just (bits' + 1) `withBits` bits'
+          where bits' | dim <= 3 = 3
+                      | otherwise = 1
+                dim' = max 1 dim
+                deg' = if dim' > deg then Nothing else Just (max 0 deg)
+                cert' | deg' == Just 0 = NaturalMI.Algebraic
+                      | otherwise = NaturalMI.Automaton
 
         mmx d Nothing  = mx d d
         mmx d (Just i) = mx d i
@@ -701,31 +728,29 @@ rc2012 = named "rc2012" $
              Prob.Innermost -> some rc2012RCi
              _ -> some $ Combinators.iteProgress TOI.toInnermost rc2012RCi rc2012RC
     
-  where wgOnUsable = weightgap defaultOptions { dim = 2
-                                              , degree = (Just 1)
-                                              , on = Weightgap.WgOnTrs }
+  where wgOnUsable = wg 2 1 `wgOn` Weightgap.WgOnTrs
           
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                       `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
                       
         spopstar = PopStar.popstarSmallPS . Just                    
 
-        dos dimension degr = defaultOptions { cbits = Just (bits' + 1)
-                                            , bits = bits'
-                                            , cert = cert'
-                                            , dim = dim'
-                                            , degree = if dim' > deg' then Just deg' else Nothing }
-          where bits' | dimension <= 3 = 3
+        wg dim deg = weightgap `withCertBy` cert' `withDimension` dim' `withDegree` deg' `withCBits` Just (bits' + 1) `withBits` bits' `wgOn` Weightgap.WgOnAny
+          where bits' | dim <= 3 = 3
                       | otherwise = 1
-                dim' = max 1 dimension
-                deg' = max 0 degr
-                cert' | deg' == 0 = NaturalMI.Algebraic
+                dim' = max 1 dim
+                deg' = if dim' > deg then Nothing else Just (max 0 deg)                
+                cert' | deg' == Just 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
-
-        wg dimension deg = weightgap $ (dos dimension deg)  { on = Weightgap.WgOnAny }
                      
-        mx dimension deg = matrix $ dos dimension deg
-
+        mx dim deg = matrix `withCertBy` cert' `withDimension` dim' `withDegree` deg' `withCBits` Just (bits' + 1) `withBits` bits'
+          where bits' | dim <= 3 = 3
+                      | otherwise = 1
+                dim' = max 1 dim
+                deg' = if dim' > deg then Nothing else Just (max 0 deg)
+                cert' | deg' == Just 0 = NaturalMI.Algebraic
+                      | otherwise = NaturalMI.Automaton
+                     
         whenNonTrivial t = withProblem $ \ prob ->
           when (not $ Trs.isEmpty $ Prob.strictComponents prob) t
 
@@ -814,23 +839,17 @@ certify2012 :: P.InstanceOf P.SomeProcessor
 certify2012 = some $ try IRR.irr >>| step [1..] (te . t) (const empty)
   where t d = some $ Compose.decomposeDynamic Compose.Add (vmx d)
                      -- <> decomposeDynamic Add (vps d)
-        vmx dimension = matrix $ 
-                        defaultOptions { cbits = Just (bits' + 1)
-                                       , bits = bits'
-                                       , cert = NaturalMI.Triangular
-                                       , dim = dimension
-                                       , useUsableArgs = False
-                                       , degree = Nothing }
+        vmx dimension = matrix 
+                        `withCertBy` NaturalMI.Triangular 
+                        `withDimension` dimension
+                        `withDegree` Nothing 
+                        `withCBits` Just (bits' + 1) 
+                        `withBits` bits' 
+                        `withUsableArgs` False 
+                        `withUsableRules` False
           where bits' | dimension <= 2 = 3
                       | dimension <= 4 = 2
                       | otherwise = 1
-        -- vps 1 = poly linearPolynomial { puseUsableArgs = False }
-        -- vps n = poly (customPolynomial inter) { pbits = 2
-        --                                       , pcbits = Just 3
-        --                                       , puseUsableArgs = False }
-        --   where inter vs = [Poly.mono [(Poly.^^^) v 1 | v <- vs'] | vs' <- List.subsequences vs
-        --                                            , length vs <= n]
-        --                    ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
 
 
 -- * existential quantification 

@@ -62,11 +62,11 @@ import Tct.Method.EpoStar hiding (epostar)
 import Tct.Method.InnermostRuleRemoval hiding (irr)
 import Tct.Method.ToInnermost hiding (toInnermost)
 import Tct.Method.Matrix.ArcticMI hiding (arctic)
-import Tct.Method.Matrix.NaturalMI
-import Tct.Method.Poly.NaturalPI
+import Tct.Method.Matrix.NaturalMI hiding (matrix)
+import Tct.Method.Poly.NaturalPI hiding (poly)
 import Tct.Method.PopStar hiding (popstar, lmpo)
 import Tct.Method.Uncurry hiding (uncurry)
-import Tct.Method.Weightgap
+import Tct.Method.Weightgap hiding (weightgap)
 import Tct.Method.Timeout hiding (timeout)
 import Tct.Method.Mpo hiding (mpo)
 import qualified Tct.Instances as Inst
@@ -138,7 +138,7 @@ builtInProcessors =
     P.<|>
     timeout
     P.<|> 
-    weightgap
+    S.StdProcessor weightgap
     P.<|>
     S.StdProcessor irr
     P.<|>
@@ -719,8 +719,8 @@ in order to relax the monotonicity constraints on the interpretation.
 
 
 -}
-weightgap :: S.StdProcessor WeightGap
-weightgap = S.StdProcessor WeightGap
+weightgap :: T.Transformation WeightGap P.AnyProcessor
+weightgap = T.Transformation WeightGap
 
 {- |
 This transformation implements techniques for splitting the

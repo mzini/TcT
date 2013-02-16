@@ -43,6 +43,7 @@ module Tct.Processor.Transformations
        , TransformationProof (..)         
        , Transformation (..)
        , withArgs
+       , modifyArguments
        , transformationProcessor
          -- ** Transformation Result
        , Result (..)
@@ -425,6 +426,10 @@ instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) w
 -- | Constructor for instances.
 withArgs :: (Transformer t) => (Transformation t sub) -> (Domains (ArgumentsOf t)) -> TheTransformer t
 (Transformation t) `withArgs` as = TheTransformer t as 
+
+-- | Modify parameters of instance
+modifyArguments :: (Transformer t) => (Domains (ArgumentsOf t) -> Domains (ArgumentsOf t)) -> (TheTransformer t -> TheTransformer t)
+modifyArguments f (TheTransformer t as) = TheTransformer t (f as)
 
 -- | Lifts transformations to standard processors.
 transformationProcessor :: (Arguments (ArgumentsOf t), ParsableArguments (ArgumentsOf t), Transformer t) => t -> S.StdProcessor (Transformation t sub)

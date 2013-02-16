@@ -27,6 +27,13 @@ module Tct.Method.Poly.NaturalPI
          PolynomialOrder (..)
        , NaturalPI
        , polyProcessor
+       , poly
+       , simplePolynomial
+       , linearPolynomial
+       , stronglyLinearPolynomial
+       , simpleMixedPolynomial
+       , quadraticPolynomial
+       , customPolynomial
        ) 
        where
 
@@ -55,7 +62,7 @@ import Termlib.Utils
 import qualified Termlib.Variable as V
 
 import qualified Tct.Method.RuleSelector as RS
-import Tct.Certificate (poly, expo, certified, unknown)
+import qualified Tct.Certificate as C
 import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Natring ()
 import Tct.Encoding.Polynomial as Poly
@@ -101,12 +108,12 @@ instance P.ComplexityProof PolynomialOrder where
           sig = Prob.signature prob
           vars = Prob.variables prob
 
-  answer order = CertAnswer $ certified (unknown, ub)
+  answer order = CertAnswer $ C.certified (C.unknown, ub)
     where ub = case knd of 
-                 ConstructorBased _ _ -> poly (Just degree)
-                 UnrestrictedPoly _ | isStrong && degree <= 1 -> poly (Just 1)
-                                    | degree <= 1            -> expo (Just 1)
-                                    | otherwise             -> expo (Just 2)
+                 ConstructorBased _ _ -> C.poly (Just degree)
+                 UnrestrictedPoly _ | isStrong && degree <= 1 -> C.poly (Just 1)
+                                    | degree <= 1            -> C.expo (Just 1)
+                                    | otherwise             -> C.expo (Just 2)
                  
           degree = foldl max 0 [ d |  (f, d) <- degrees pint, consider f ]
             where consider f = 
@@ -335,3 +342,43 @@ instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
                                             r   = restrict x
                                             fun = varfun x
                                             vs  = argpos x
+
+-- | This processor implements polynomial interpretations.
+poly :: PolyShape -> S.ProcessorInstance NaturalPI
+poly k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True)
+
+
+-- | Options for @simple@ polynomial interpretations.
+simplePolynomial :: S.ProcessorInstance NaturalPI
+simplePolynomial =  poly $ SimpleShape Simple
+
+-- | Options for @linear@ polynomial interpretations.
+linearPolynomial :: S.ProcessorInstance NaturalPI
+linearPolynomial = poly $ SimpleShape Linear
+
+-- | Options for @strongly linear@ polynomial interpretations.
+stronglyLinearPolynomial :: S.ProcessorInstance NaturalPI
+stronglyLinearPolynomial = poly $ SimpleShape StronglyLinear
+
+-- | Options for @simple mixed@ polynomial interpretations.
+simpleMixedPolynomial :: S.ProcessorInstance NaturalPI
+simpleMixedPolynomial = poly $ SimpleShape SimpleMixed
+
+-- | Options for @quadratic mixed@ polynomial interpretations.
+quadraticPolynomial :: S.ProcessorInstance NaturalPI
+quadraticPolynomial = poly $ SimpleShape Quadratic
+
+-- | Option for polynomials of custom shape, as defined by the first argument.
+-- This function receives a list of variables 
+-- denoting the @n@ arguments of the interpretation function. The return value of type ['SimpleMonomial']
+-- corresponds to the list of monomials of the constructed interpretation function.
+-- A polynomial is a list of unique 'SimpleMonomial', where 'SimpleMonomial' are 
+-- considered equal if the set variables together with powers match.
+-- 'SimpleMonomial' can be build using '^^^', 'constant' and 'mono'.
+-- For instance, linear interpretations are constructed using the function 
+-- @ 
+-- \vs -> [constant] ++ [ v^^^1 | v <- vs]
+-- @
+-- . 
+customPolynomial :: ([V.Variable] -> [SimpleMonomial]) -> S.ProcessorInstance NaturalPI
+customPolynomial mk = poly $ CustomShape mk

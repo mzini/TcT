@@ -543,7 +543,7 @@ instance (P.Processor p) => T.Transformer (SimpPE p) where
                                           , all (\ (_,(_,rl'),_) -> Trs.member seen rl') preds]
 
                            shiftWeak = sdps `Trs.intersect` known
-                           progressed = not (Trs.isEmpty shiftWeak)
+                           progressed = P.succeeded p && not (Trs.isEmpty shiftWeak)
                            prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak)
                                         , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) }
          

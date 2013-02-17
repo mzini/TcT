@@ -72,6 +72,11 @@
   :type 'string
   :group 'tct)
 
+(defcustom tct-proof-file "~/.tct/proof.org"
+  "The tct proof file."
+  :type 'string
+  :group 'tct)
+
 (defcustom tct.hs (concatenate 'string tct-base "/tct.hs")
   "The path to tct configuration file"
   :type 'string
@@ -238,6 +243,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-ch" 'tcti-symbols)
     (define-key map "\C-cs" 'tct-state-buffer)
+    (define-key map "\C-cp" 'tct-proof-buffer)
     (define-key map "\C-crr" 'tcti-reload)
     (define-key map "\C-cq" 'tcti-quit)
     map))
@@ -249,6 +255,7 @@
     ,tct-measure-menu
     ,tct-doc-menu
     ["Show State "                tct-state-buffer  t]
+    ["Show Proof "                tct-proof-buffer  t]
     ["Show Symbols"               tcti-symbols      t]
     ["Reset Session"              tcti-reset       t]
     ["Open tct.hs"                tct-open-hs       t]
@@ -344,24 +351,28 @@
   (interactive)
   (tcti-load-file (dired-get-file-for-visit)))
 
-
-;; (defvar tct-state-buffer nil
-;;   "The buffer in which the tct state is shown.")
-
-(defun tct-state-buffer ()
-  (interactive)
-  (let ((file (concat (expand-file-name tct-base) "/state.org")))
-    (if (and (file-exists-p file) (file-readable-p file))
-	(progn
-	  (let ((buffer (find-file-noselect "~/.tct/state.org")))
+(defun tct-visit-org-output (file name)
+  (if (and (file-exists-p file) (file-readable-p file))
+      (progn
+	(let ((buffer (find-file-noselect file)))
 	    (with-current-buffer buffer
-	      (rename-buffer "*tcti-state*")
+	      (rename-buffer (concat "*" name "*"))
 	      (auto-revert-mode 1) 
 	      (org-display-inline-images) 
 	      (add-hook 'after-revert-hook 'org-display-inline-images) 
 	      (setq auto-revert-interval 1)
 	      (view-buffer-other-frame buffer))))
-        (message "TcTi state not available"))))
+    (message "TcTi output not available")))
+
+
+(defun tct-state-buffer ()
+  (interactive)
+  (tct-visit-org-output tct-state-file "state"))
+
+(defun tct-proof-buffer ()
+  (interactive)
+  (tct-visit-org-output tct-proof-file "proof"))
+
       
 
 ;; ----------------------------------------------------------------------

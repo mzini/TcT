@@ -214,6 +214,7 @@ module Tct.Instances
       
       -- * Inspecting Combinators
     , TimesOut (..)
+    , Timed (..)      
     , WithProblem (..)
     , withWDG
     , withCWDG
@@ -873,13 +874,26 @@ some = equantify
 -- ** timeout
 
 class TimesOut inp outp | inp -> outp where
-  timeout :: Int -> inp -> outp -- ^ Lifts a processor or transformation to one that times out after given number of seconds
+  -- | Lifts a processor or transformation to one that times out after given number of seconds
+  timeout :: Int -> inp -> outp 
   
 instance (P.Processor p, outp ~ S.ProcessorInstance (Timeout.Timeout p)) => TimesOut (P.InstanceOf p) outp  where
   timeout = Timeout.timeout
 
 instance T.Transformer t => TimesOut (T.TheTransformer t) (T.TheTransformer (TCombinator.Timeout t)) where
   timeout = TCombinator.timeout
+
+-- ** timeout
+
+class Timed inp outp | inp -> outp where
+  -- | Additionally present timing information
+  timed :: inp -> outp 
+  
+instance (P.Processor p, outp ~ S.ProcessorInstance (Combinators.Timed p)) => Timed (P.InstanceOf p) outp  where
+  timed = Combinators.timed
+
+instance T.Transformer t => Timed (T.TheTransformer t) (T.TheTransformer (TCombinator.Timed t)) where
+  timed = TCombinator.timed
 
 -- ** With Problem
 

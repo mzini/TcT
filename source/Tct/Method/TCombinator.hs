@@ -30,6 +30,8 @@ module Tct.Method.TCombinator (
        , idtrans
        , WithProblem
        , withProblem
+       , timed
+       , Timed
        ) 
 where
 
@@ -37,9 +39,9 @@ import Tct.Processor.Transformations
 
 import Control.Monad (liftM)
 import qualified System.Timeout as TO
-
+import System.CPUTime (getCPUTime)
 import Control.Monad.Trans (liftIO)
-
+import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Data.Maybe (catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty, (<>))
 import qualified Text.PrettyPrint.HughesPJ as PP
@@ -460,6 +462,82 @@ try (TheTransformer t args) = TheTransformer (Try True t) args
 -- progress is achieved.
 force :: Transformer t => TheTransformer t -> TheTransformer (Try t)
 force (TheTransformer t args) = TheTransformer (Try False t) args
+
+
+--------------------------------------------------------------------------------
+-- Timed 
+
+data Timed t = Timed t
+
+data TimedProof t = 
+  TimedProof { tpCpu :: Double 
+             , tpWall :: Double
+             , tpProof :: (ProofOf t) }
+
+fromTimed :: TheTransformer (Timed t) -> TheTransformer t
+fromTimed inst = TheTransformer { transformation = t
+                                , transformationArgs = transformationArgs inst }
+  where Timed t = transformation inst
+        
+fromTimedProof :: Proof (Timed t) sub -> Proof t sub
+fromTimedProof proof = 
+  case transformationResult proof of 
+    Progress p ps -> 
+      proof { appliedTransformer   = tinst
+            , transformationResult = Progress (tpProof p) ps}
+    NoProgress p  -> 
+      proof { appliedTransformer   = tinst
+            , transformationResult = NoProgress $ tpProof p}
+  where tinst = fromTimed $ appliedTransformer proof
+
+
+
+instance (Transformer t, TransformationProof t) => TransformationProof (Timed t) where
+    pprintProof proof mde = 
+      pprintProof (fromTimedProof proof) mde 
+      $+$ text ""
+      $+$ ( text "Wall-time:" <+> text (show (tpWall p)) PP.<> text "s"
+            $+$ text "CPU-time:" <+> text (show (tpCpu p)) PP.<> text "s")
+
+      where p = transformationProof proof
+    answer = answer . fromTimedProof
+
+    pprintTProof t prob p mde = 
+      pprintTProof (fromTimed t) prob (tpProof p) mde
+      $+$ text ""
+      $+$ text "Execution time:" <+> ( text "Wall-time:" <+> text (show (tpWall p)) 
+                                       $+$ text "CPU-time:" <+> text (show (tpCpu p)) PP.<> text "s")
+
+    proofToXml = proofToXml . fromTimedProof
+
+instance (Transformer t) => Transformer (Timed t) where
+    name (Timed t) = name t
+    
+    continue = continue . fromTimed
+    
+    instanceName = instanceName . fromTimed
+    
+    description (Timed t) = description t
+    
+    type ArgumentsOf  (Timed t) = ArgumentsOf t
+    
+    type ProofOf (Timed t) = TimedProof t
+    
+    arguments (Timed t) = arguments t
+    
+    transform inst prob = do 
+      startCpuTime <- liftIO $ getCPUTime
+      startWallTime <- liftIO $ getCurrentTime 
+      res <- transform (fromTimed inst) prob
+      endCpuTime <- liftIO $ getCPUTime 
+      endWallTime <- liftIO $ getCurrentTime        
+      let cputime = fromInteger (endCpuTime - startCpuTime) / fromInteger ((10 :: Integer)^(12 :: Integer))
+          walltime = fromRational $ toRational $ diffUTCTime endWallTime startWallTime
+      return $ mapResult (\ p -> TimedProof { tpCpu = cputime, tpWall = walltime, tpProof = p}) res
+
+-- | The transformer @timed t@ behaves like @t@ but additionally measures the execution time.
+timed :: Transformer t => TheTransformer t -> TheTransformer (Timed t)
+timed (TheTransformer t args) = TheTransformer (Timed t) args
 
 --------------------------------------------------------------------------------
 -- Timeout Transformation

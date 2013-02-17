@@ -47,7 +47,7 @@ module Tct.Method.Combinator
        , sequentially
        , fastest
        , best       
-         -- ** Proof Object         
+         -- ** Proof Object        
        , OneOfProof (..)
          -- ** Processor Definition         
        , OneOf (..)
@@ -55,6 +55,12 @@ module Tct.Method.Combinator
        , fastestProcessor
        , bestProcessor
 
+       -- * Measure Time
+       , timed
+         -- ** Proof Object                  
+       , TimedProof (..) 
+         -- ** Processor Definition 
+       , Timed (..)
          -- * Conditional
        , ite
        , IteProof (..)
@@ -67,10 +73,13 @@ module Tct.Method.Combinator
        )
 where
 import Prelude hiding (fail)
+import System.CPUTime (getCPUTime)
 import Text.PrettyPrint.HughesPJ hiding (parens, empty)
 import Control.Concurrent.PFold (pfoldA, Return (..))
 import Control.Monad (forM)
 import Control.Monad.Trans (liftIO)
+
+import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 import qualified Termlib.Trs as Trs
 import Termlib.Problem (strictComponents) 
@@ -342,6 +351,51 @@ iteProgress :: (T.Transformer g, P.Processor t, P.Processor e) =>
               -> P.InstanceOf e
               -> S.ProcessorInstance (IteProgress g t e)
 iteProgress g t e = S.StdProcessor (IteProgress g) `S.withArgs` (t :+: e :+: False)
+
+
+
+-- additing time information
+
+data Timed p = Timed
+
+data TimedProof p = 
+  TimedProof { tpCpu :: Double 
+             , tpWall :: Double
+             , tpProof :: (P.ProofOf p) }
+
+instance (P.Processor p) => P.ComplexityProof (TimedProof p) where
+  answer = P.answer . tpProof
+  pprintProof p mde = 
+    P.pprintProof (tpProof p) mde
+    $+$ text ""
+    $+$ ( text "Wall-time:" <+> text (show (tpWall p)) <> text "s" 
+          $+$ text "CPU-time:" <+> text (show (tpCpu p)) <> text "s")
+          
+  toXml = P.toXml . tpProof
+
+instance ( P.Processor p) => S.Processor (Timed p) where
+  type ProofOf (Timed p) = TimedProof p
+  type ArgumentsOf (Timed p) = Arg (Proc p)
+  name _ = "timed"
+  arguments _ = arg { A.name = "sub-processor"
+                    , A.description = "The processor to measure execution time." }
+
+  solve inst prob = do
+    startCpuTime <- liftIO $ getCPUTime
+    startWallTime <- liftIO $ getCurrentTime 
+    res <- P.solve_ sub prob
+    endCpuTime <- liftIO $ getCPUTime 
+    endWallTime <- liftIO $ getCurrentTime        
+    let cputime = fromInteger (endCpuTime - startCpuTime) / fromInteger ((10 :: Integer)^(12 :: Integer))
+        walltime = fromRational $ toRational $ diffUTCTime endWallTime startWallTime
+    return $ TimedProof { tpCpu = cputime 
+                        , tpWall = walltime
+                        , tpProof = res }
+
+    where sub = S.processorArgs inst
+          
+timed :: P.Processor p => P.InstanceOf p -> S.ProcessorInstance (Timed p)
+timed p = S.StdProcessor Timed `S.withArgs` p
 
 
 -- parallel combinators

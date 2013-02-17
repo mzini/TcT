@@ -60,7 +60,7 @@ import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
 import Data.Typeable ()
-import Data.List ((\\))
+import Termlib.Utils (snub) 
 
 data DecomposeDG p1 p2 = DecomposeDG
 data DecomposeDGProof p1 p2 = DecomposeDGProof 
@@ -127,6 +127,7 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) w
          | not (Trs.isEmpty $ Prob.strictTrs prob) = return $ T.NoProgress $ DecomposeDGInapplicable "strict rules of input problem are empty" 
          | Trs.isEmpty initialDPs  = return $ T.NoProgress $ DecomposeDGInapplicable "no rules were selected" 
          | not (any isCut unselectedNodes) = return $ T.NoProgress $ DecomposeDGInapplicable "no rule was cut"
+         | prob `subsetDP` probA = return $ T.NoProgress $ DecomposeDGInapplicable "lower component not simpler"
          | otherwise = 
              do mProofA <- mapply mProcA probA
                 mProofB <- case maybe True P.succeeded mProofA of 
@@ -192,7 +193,11 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) w
                                                     ++ [ r | (_, r) <- cutWeakDPs]
               unselectedWeakDPs = Trs.fromRules [ r | (_, r) <- uncutWeakDPs]
 
-              
+              prob1 `subsetDP` prob2 = 
+                  all (Trs.member $ Prob.strictDPs prob2) (Trs.toRules $ Prob.strictDPs prob1)
+                  && all (Trs.member $ Prob.weakDPs prob2) (Trs.toRules $ Prob.weakDPs prob1)
+               
+
               mapply :: (P.Processor p, P.SolverM m) => Maybe (P.InstanceOf p) -> Prob.Problem -> m (Maybe (P.Proof p))
               mapply Nothing      _     = return Nothing
               mapply (Just proci) probi = Just `liftM` P.apply proci probi
@@ -258,7 +263,13 @@ decomposeDGselect = selAllOf $ selFromCWDG "below first cut in CWDG" f
           Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
                             , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
           where 
-            selectedRules = DG.allRulesFromNodes cwdg (DG.nodes cwdg \\ DG.roots cwdg)
+            selectedRules = DG.allRulesFromNodes cwdg (snub $ concat $ [DG.successors cwdg n | n <-  Set.toList cutNodes])
+            cutNodes = Set.unions [ cutNodesFrom r | r <- DG.roots cwdg ] 
+              where 
+                cutNodesFrom n 
+                  | isCut n = Set.singleton n
+                  | otherwise = Set.unions [ cutNodesFrom m | m <- DG.successors cwdg n ]
+                isCut n = DG.isCyclicNode cwdg n
 -- decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
 --     where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
 --                                     , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}

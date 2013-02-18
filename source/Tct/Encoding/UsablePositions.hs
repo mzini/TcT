@@ -139,10 +139,12 @@ usableSubtermsOf up t@(Fun f ts) = t : usables ++ concatMap (usableSubtermsOf up
 
 
 instance PrettyPrintable (UsablePositions, Signature) where 
-  pprint (up, sig) = fsep $ punctuate (text ",") [ pp sym | sym <- Set.toList $ Set.filter (\sym -> arity sig sym > 0) $ symbols sig]
+  pprint (up, sig) 
+      | null syms = text "none" 
+      | otherwise = fsep $ punctuate (text ",") [ pp sym | sym <- syms]
     where pp sym = text "Uargs" <> parens (pprint (sym, sig)) <+> text "=" 
                    <+> (braces . fsep . punctuate (text ",") $ [ text $ show i | i <- usablePositions sym up])
-
+          syms = Set.toList $ Set.filter (\sym -> arity sig sym > 0 && not (null $ usablePositions sym up) ) $ symbols sig
 data UArgStrategy = UArgByFun | UArgByCap deriving (Typeable, Bounded, Enum)
 
 instance Show UArgStrategy where

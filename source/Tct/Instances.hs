@@ -681,7 +681,7 @@ dc2012 =
           where bits' | dim <= 3 = 3
                       | otherwise = 1
                 dim' = max 1 dim
-                deg' = if dim' > deg then Nothing else Just (max 0 deg)                
+                deg' = if dim' <= deg then Nothing else Just (max 0 deg)                
                 cert' | deg' == Just 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
                      
@@ -689,7 +689,7 @@ dc2012 =
           where bits' | dim <= 3 = 3
                       | otherwise = 1
                 dim' = max 1 dim
-                deg' = if dim' > deg then Nothing else Just (max 0 deg)
+                deg' = if dim' <= deg then Nothing else Just (max 0 deg)
                 cert' | deg' == Just 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
 
@@ -740,7 +740,7 @@ rc2012 = named "rc2012" $
           where bits' | dim <= 3 = 3
                       | otherwise = 1
                 dim' = max 1 dim
-                deg' = if dim' > deg then Nothing else Just (max 0 deg)                
+                deg' = if dim' <= deg then Nothing else Just (max 0 deg)                
                 cert' | deg' == Just 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
                      
@@ -748,7 +748,7 @@ rc2012 = named "rc2012" $
           where bits' | dim <= 3 = 3
                       | otherwise = 1
                 dim' = max 1 dim
-                deg' = if dim' > deg then Nothing else Just (max 0 deg)
+                deg' = if dim' <= deg then Nothing else Just (max 0 deg)
                 cert' | deg' == Just 0 = NaturalMI.Algebraic
                       | otherwise = NaturalMI.Automaton
                      

@@ -69,7 +69,7 @@ import qualified Data.Set as Set
 import Data.List (partition, find)
 import Data.Maybe (catMaybes)
 import Text.PrettyPrint.HughesPJ hiding (empty)
-import qualified Text.PrettyPrint.HughesPJ as PP
+import Control.Monad (mplus)
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Signature as Sig
@@ -395,20 +395,21 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
       $+$ text ""
       $+$ if null sel
            then paragraph "The strictly oriented rules are moved into the corresponding weak component(s)."
-           else paragraph (show $ text "Processor" 
+           else text "Consider the set of all dependency pairs"
+                $+$ text ""
+                $+$ pprintLabeledRules "DPs" sig vars [(n,r) | (n, (_, r)) <- lnodes dg]
+                $+$ text ""
+                $+$ paragraph (show $ text "Processor" 
                                    <+> text pName 
                                    <+> text "induces the complexity certificate "
                                    <+> pprint ans
-                                   <+> text "on application of rules" 
-                                   <+> pprintNodeSet (Set.toList orientedNodes) <> text ".")
-                $+$ ppPropagates orientedNodes sel
-                $+$ text ""
-                $+$ paragraph (show $ text "Overall, we obtain that"
-                                  <+> text "the number of applications of rules" 
-                                  <+> pprintNodeSet (Set.toList knownNodes)
-                                  <+> text "is given by"
-                                  <+> pprint ans <> text "."
-                                  <+> text "The rules are shifted into the corresponding weak component(s).")
+                                   <+> text "on application of dependency pairs" 
+                                   <+> pprintNodeSet (Set.toList orientedNodes) <> text "."
+                                   <+> text "These cover all (indirect) predecessors of dependency pairs"
+                                   <+> pprintNodeSet (Set.toList knownNodes) <> text ","
+                                   <+> text "their number of application is equally bounded."
+                                   <+> text "The dependency pairs are shifted into the corresponding weak component(s).")
+
     where vars  = skpVars p                              
           sig   = skpSig p
           dg    = skpDG p
@@ -424,23 +425,24 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
           ppSub | not $ P.progressed pproof = paragraph $ "Application of processor " ++ pName ++ " failed."
                 | otherwise =                 
              paragraph ("We use the processor " 
-                        ++ pName ++ " to orient following rules strictly. ")
+                        ++ pName 
+                        ++ " to orient following rules strictly. ")
              $+$ text ""
              $+$ pprintLabeledRules "DPs" sig vars ldps
              $+$ pprintNamedTrs sig vars "Trs" trs
              $+$ text ""
              $+$ block' "Sub-proof" [P.pprintProof pproof P.ProofOutput]
 
-          ppPropagates _ [] = PP.empty
-          ppPropagates sofar ss =
-            text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
-                                    ++ "These cover all predecessors of " ++ (sns newnodes) 
-                                    ++ " from in the estimated DG, their complexity is equally bounded.")
-            $+$ ppPropagates (sofar `Set.union` newnodes) ss'
-            where sns = show . pprintNodeSet . Set.toList
-                  (new,ss') = partition predsCovered ss
-                  predsCovered s = all (\ (n,_) -> n `Set.member` sofar) $ skpPredecessors s
-                  newnodes = Set.fromList [skpNode s | s <- new]
+          -- ppPropagates _ [] = PP.empty
+          -- ppPropagates sofar ss =
+          --   text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
+          --                           ++ "These cover all predecessors of " ++ (sns newnodes) 
+          --                           ++ " from in the estimated DG, their complexity is equally bounded.")
+          --   $+$ ppPropagates (sofar `Set.union` newnodes) ss'
+          --   where sns = show . pprintNodeSet . Set.toList
+          --         (new,ss') = partition predsCovered ss
+          --         predsCovered s = all (\ (n,_) -> n `Set.member` sofar) $ skpPredecessors s
+          --         newnodes = Set.fromList [skpNode s | s <- new]
             
 
 instance (P.Processor p) => T.Transformer (SimpPE p) where 
@@ -503,12 +505,12 @@ instance (P.Processor p) => T.Transformer (SimpPE p) where
           transform' (Just pinst) = do
                 pp <- P.solvePartial pinst (withPredecessors $ RS.rsSelect selector prob) prob
                 return $ mkProof pinst pp
-            where withPredecessors (P.SelectDP d) = P.BigOr [ P.SelectDP d, oneOfPreds]
-                       where oneOfPreds = 
-                               case lookupNode wdg (StrictDP, d) of 
-                                  Just n -> P.BigOr [ P.SelectDP d, withPreds n (Set.singleton n)]
-                                  Nothing -> P.BigAnd []
-                  withPredecessors (P.SelectTrs _) = P.BigAnd []
+            where withPredecessors (P.SelectDP d) = P.BigOr $ P.SelectDP d : preds
+                       where preds = 
+                               case lookupNode wdg (StrictDP, d) `mplus` lookupNode wdg (WeakDP, d) of 
+                                  Just n -> [ withPreds n (Set.singleton n)]
+                                  Nothing -> []
+                  withPredecessors (P.SelectTrs ss) = P.SelectTrs ss
                   withPredecessors (P.BigOr ss) = P.BigOr [withPredecessors s | s <- ss]
                   withPredecessors (P.BigAnd ss) = P.BigAnd [withPredecessors s | s <- ss]
 
@@ -543,7 +545,7 @@ instance (P.Processor p) => T.Transformer (SimpPE p) where
                                           , all (\ (_,(_,rl'),_) -> Trs.member seen rl') preds]
 
                            shiftWeak = sdps `Trs.intersect` known
-                           progressed = P.succeeded p && not (Trs.isEmpty shiftWeak)
+                           progressed = P.progressed p && not (Trs.isEmpty shiftWeak)
                            prob' = prob { Prob.strictDPs = (sdps Trs.\\ shiftWeak)
                                         , Prob.weakDPs   = (wdps `Trs.union` shiftWeak) }
          

@@ -83,9 +83,10 @@ module Tct.Processor
     , fromString
     , liftOOI
     , SynElt (..)
-    , mrSynopsis
     , haddockComment
     , parseAnyProcessor
+    , pprintArgDescrs
+      
     ) 
 where
 
@@ -102,7 +103,7 @@ import Qlogic.SatSolver (Decoder)
 import Qlogic.MiniSat (setCmd, MiniSat)
 
 import Termlib.Problem
-import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext)
+import Termlib.Utils (PrettyPrintable(..), paragraph, ($++$), qtext, underline)
 import qualified Termlib.Utils as Utils
 import Termlib.Rule (Rule)
 
@@ -244,18 +245,9 @@ data ArgDescr = ArgDescr { adIsOptional :: Bool
                          , adName       :: String
                          , adDefault    :: Maybe String
                          , adDescr      :: String
-                         , adSynopsis   :: String }
+                         , adSynopsis   :: String 
+                         , adValue      :: Maybe String}
               
-instance PrettyPrintable ArgDescr where
-    pprint d = text "Argument" 
-               <+> braces (vcat $ [ attrib "name"         (show $ adName d)
-                                  , attrib "isOptional"   (show $ adIsOptional d)
-                                  , attrib "description"  (show $ adDescr d)
-                                  , attrib "values"       (show $ adSynopsis d)]
-                           ++ case adDefault d of 
-                                (Just dv) -> [attrib "default" dv]
-                                _         -> [])
-        where attrib n s = nest 1 $ text n <+> text "=" <+> text s <> text ";"
 
 -- | Parsable processors provide additional information for parsing.
 class Processor a => ParsableProcessor a where
@@ -266,11 +258,6 @@ class Processor a => ParsableProcessor a where
     parseProcessor_ :: a -> ProcessorParser (InstanceOf a)
     parseFromArgsInteractive :: a -> AnyProcessor -> IO (InstanceOf a)
 
-mrSynopsis :: ParsableProcessor a => a -> String
-mrSynopsis p = unwords $ map f (synString p)
-    where f (Token str) = str
-          f (PosArg i) = "#" ++ show i
-          f (OptArgs)  = "#OPTIONALARGS"
 
 synopsis :: ParsableProcessor a => a -> String
 synopsis p = unwords $ deleteAll "" $ map f (synString p)
@@ -282,6 +269,25 @@ synopsis p = unwords $ deleteAll "" $ map f (synString p)
           deleteAll _ [] = []
           deleteAll x (y:ys) | x == y    = deleteAll x ys
                              | otherwise = y : deleteAll x ys
+
+pprintArgDescrs :: [(Int, ArgDescr)] -> [ArgDescr] -> Doc
+pprintArgDescrs [] [] = empty
+pprintArgDescrs posargs optargs = 
+  Utils.block "Arguments" $ vcat $ punctuate (text "" $+$ text "") pps
+  where
+    pps = [ ppArg ("#" ++ show i) d | (i,d) <- posargs ] 
+          ++ [ ppArg (adName d) d | d <- optargs ]
+    ppArg n d = 
+      text n <> text ":" 
+      $+$ nest 3 (text (mshow (adValue d) (adDefault d))
+                  $+$ text ""
+                  $+$ nest 2 (paragraph (adDescr d)))
+      where 
+        mshow Nothing    Nothing    = "" 
+        mshow Nothing    (Just def) = "The default is set to '" ++ def ++ "'."
+        mshow (Just val) _          = "This argument is bound to '" ++ val ++ "'."
+
+
 
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
 parseProcessor a =  Parse.whiteSpace >> (Parse.parens parse Parsec.<|> parse)
@@ -407,22 +413,18 @@ instance ParsableProcessor SomeProcessor where
       do prs <- parseFromArgsInteractive proc procs
          return $ SPI $ SomeInstance $ prs
 
-
 instance PrettyPrintable SomeProcessor where
-    pprint (SomeProcessor proc) = (ppheading $+$ underline) $$ (nest 2 $ ppdescr $++$ ppsyn $++$ ppargdescr)
-        where ppheading = (text "Processor" <+> doubleQuotes (text sname) <> text ":")
-              underline = text (take (length $ show ppheading) $ repeat '-')
+    pprint (SomeProcessor proc) = 
+         underline ppheading 
+         $$ nest 2 (ppdescr 
+                    $++$ Utils.block "Usage" (text (synopsis proc))
+                    $++$ pprintArgDescrs (posArgs proc) (optArgs proc))
+        where ppheading = text "Processor" <+> doubleQuotes (text sname) <> text ":"
               ppdescr   | null descr = empty 
                         | otherwise  = vcat [paragraph s | s <- descr]
-              ppsyn     = block "Usage" $ text (synopsis proc)
-              ppargdescr | length l == 0 = empty
-                         | otherwise     = block "Arguments" $ vcat l
-                  where l = punctuate (text "" $+$ text "") [hang (text (adName d) <> text ":") 10 (paragraph (adDescr d ++ mshow (adDefault d))) | d <- optArgs proc]
-                        mshow Nothing    = "" 
-                        mshow (Just def) = " The default is set to '" ++ def ++ "'."
               sname = name proc 
               descr = description proc 
-              block n d = text n <> text ":" $+$ nest 1 d
+              
 
 haddockComment :: ParsableProcessor p => p -> Doc
 haddockComment proc = 

@@ -33,6 +33,7 @@ module Tct.Processor.Standard
        , apply
          -- unexported
        , mkParseProcessor
+       , theProcessorFromInstance
        )
 where
 
@@ -106,8 +107,8 @@ instance (Processor a, ParsableArguments (ArgumentsOf a)) => P.ParsableProcessor
     description     (StdProcessor a) = description a
     synString     s@(StdProcessor a) = [ P.Token (name a) , P.OptArgs] ++ [ P.PosArg i | (i,_) <- P.posArgs s ]
     posArgs         (StdProcessor a) = zip [1..] ds
-        where ds = filter (not . P.adIsOptional) (descriptions $ arguments a)
-    optArgs         (StdProcessor a) = filter P.adIsOptional (descriptions $ arguments a)
+        where ds = filter (not . P.adIsOptional) (descriptions (arguments a) Nothing)
+    optArgs         (StdProcessor a) = filter P.adIsOptional (descriptions (arguments a) Nothing)
     parseProcessor_ (StdProcessor a) = do args <- mkParseProcessor (name a) (arguments a)
                                           return $ TP $ TheProcessor { processor = a
                                                                      , processorArgs = args}
@@ -140,6 +141,9 @@ type ProcessorInstance a = P.InstanceOf (StdProcessor a)
 withArgs :: Processor a => (StdProcessor a) -> Domains (ArgumentsOf a) -> ProcessorInstance a
 (StdProcessor p) `withArgs` a = TP $ TheProcessor { processor = p
                                                   , processorArgs = a }
+
+theProcessorFromInstance :: ProcessorInstance p -> TheProcessor p
+theProcessorFromInstance (TP p) = p
 
 -- | Modifyer for arguments of instances.
 modifyArguments :: Processor a => (Domains (ArgumentsOf a) -> Domains (ArgumentsOf a)) -> (ProcessorInstance a -> ProcessorInstance a)

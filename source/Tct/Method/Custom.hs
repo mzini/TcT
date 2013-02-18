@@ -74,8 +74,8 @@ instance (A.Arguments arg, P.ComplexityProof res, A.ParsableArguments arg)
     description _ = []
     synString cs = [ P.Token (as cs) , P.OptArgs] ++ [ P.PosArg i | (i,_) <- P.posArgs cs ]
     posArgs cs = zip [1..] ds
-        where ds = filter (not . P.adIsOptional) (A.descriptions $ arguments cs)
-    optArgs cs = filter P.adIsOptional (A.descriptions $ arguments cs)
+        where ds = filter (not . P.adIsOptional) (A.descriptions (arguments cs) Nothing)
+    optArgs cs = filter P.adIsOptional (A.descriptions (arguments cs) Nothing)
     parseProcessor_ cs = do 
       args <- S.mkParseProcessor (as cs) (arguments cs)
       return $ TP cs args

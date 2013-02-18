@@ -1182,6 +1182,43 @@ instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.S
     where showLnk lnk = text "For documentation concerning creation of instances, consult:"
                         $+$ indent (text lnk)
                         
+ppInstanceDescr :: String -> [String] -> Maybe String -> [P.ArgDescr] -> Doc          
+ppInstanceDescr name descr mlnk args = 
+  pphead $+$ indent (ppDescr $+$ ppLnk $+$ text "" $+$ ppArgs)
+  where 
+    posArgs = zip [1..] $ filter (not . P.adIsOptional) args
+    optArgs = filter P.adIsOptional args
+    
+    pphead = U.underline (text name <+> text ":")
+    ppDescr 
+      | null descr = empty
+      | otherwise  = vcat [ U.paragraph s | s <- descr ]               
+    ppLnk = 
+      case mlnk of 
+        Nothing -> empty
+        Just lnk -> text "For documentation concerning creation of instances, consult:"
+                    $+$ indent (text lnk)
+    ppArgs = P.pprintArgDescrs posArgs optArgs
+    
+instance (S.Processor p, A.ParsableArguments (S.ArgumentsOf p)) => Describe (S.ProcessorInstance p) where
+  describe inst = 
+    do mlnk <- haddockInstances (S.name proc)
+              `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+       pprint $ ppInstanceDescr (S.name proc) (S.description proc) mlnk args
+    where 
+      theproc = S.theProcessorFromInstance inst
+      proc = S.processor theproc
+      args = A.descriptions (S.arguments proc) (Just $ S.processorArgs theproc)
+
+instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.TheTransformer t) where
+  describe inst = 
+    do mlnk <- haddockInstances (T.name trans)
+              `Ex.catch` (\ (_ :: Ex.SomeException) -> return Nothing)
+       pprint $ ppInstanceDescr (T.name trans) (T.description trans) mlnk args
+    where 
+      trans = T.transformation inst
+      args = A.descriptions (T.arguments trans) (Just $ T.transformationArgs inst)
+          
 instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
   describe = describe . S.StdProcessor
 

@@ -111,7 +111,7 @@ class Arguments a where
     toXml :: a -> Domains a -> [Xml.XmlContent]
 
 class Arguments a => ParsableArguments a where
-    descriptions :: a -> [P.ArgDescr]
+    descriptions :: a -> Maybe (Domains a) -> [P.ArgDescr]
     parseArgs :: a -> ParsedOptionals -> P.ProcessorParser (Domains a)
     optionalParsers :: a -> [OptionalParser]
     parseInteractive :: a -> P.AnyProcessor -> IO (Domains a)
@@ -152,7 +152,7 @@ instance (Arguments a, Arguments b) => Arguments (a :+: b) where
 instance ParsableArguments Unit where
     parseArgs Unit _ = return ()
     optionalParsers Unit = []
-    descriptions Unit = []
+    descriptions Unit _ = []
     parseInteractive _ _ = return ()
 
 
@@ -172,14 +172,16 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
                                              return (name a, SomeDomainElt e) ]
                       | otherwise     = []
 
-    descriptions a = [P.ArgDescr { P.adIsOptional = isOptional_ a
-                                 , P.adName       = name a
-                                 , P.adDefault    = 
-                                     if isOptional_ a 
-                                     then Just $ showArg (Phantom :: Phantom a) (defaultValue a)
-                                     else Nothing
-                                 , P.adDescr      = description a
-                                 , P.adSynopsis   = domainName (Phantom :: Phantom a) }]
+    descriptions a mval = 
+      [P.ArgDescr { P.adIsOptional = isOptional_ a
+                  , P.adName       = name a
+                  , P.adDefault    = 
+                       if isOptional_ a 
+                        then Just $ showArg (Phantom :: Phantom a) (defaultValue a)
+                        else Nothing
+                  , P.adDescr      = description a
+                  , P.adSynopsis   = domainName (Phantom :: Phantom a)
+                  , P.adValue      = showArg (Phantom :: Phantom a) `liftM` mval } ]
 
     parseInteractive pa procs = do 
         putStrLn $ show $ text "- Argument '" <> text (name pa) <> text "' (type :h for help)"
@@ -234,7 +236,10 @@ instance (ParsableArguments a, ParsableArguments b) => ParsableArguments (a :+: 
 
     optionalParsers (a :+: b) = optionalParsers a ++ optionalParsers b
 
-    descriptions (a :+: b) = descriptions a ++ descriptions b
+    descriptions (a :+: b) mab = descriptions a ma ++ descriptions b mb
+      where (ma,mb) = case mab of 
+                       Nothing -> (Nothing,Nothing)
+                       Just (va :+: vb) -> (Just va, Just vb)
 
     parseInteractive (a :+: b) procs = 
      do pa <- parseInteractive a procs
@@ -256,7 +261,7 @@ synopsis :: ParsableArguments a => a -> String
 synopsis a = ofList oSyn `app` ofList nSyn
     where oSyn = [ "[:" ++ P.adName d ++ " " ++ P.adSynopsis d ++ "]"| d <- opts]
           nSyn = [ P.adSynopsis d | d <- nonopts]
-          (opts, nonopts) = partition P.adIsOptional (descriptions a)
+          (opts, nonopts) = partition P.adIsOptional (descriptions a Nothing)
           ofList l = concat $ intersperse " " l
           "" `app` n = n
           n `app` "" = n

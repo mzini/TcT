@@ -55,7 +55,6 @@ import qualified Termlib.Trs as Trs
 import Termlib.Rule (Rule(..))
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
-import Tct.Method.DP.DependencyGraph
 import qualified Tct.Method.DP.DependencyGraph as DG
 import Tct.Method.RuleSelector
 import Data.Graph.Inductive.Query.DFS (dfs)
@@ -136,8 +135,8 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) w
                 return $ mkProof mProofA mProofB
 
         where s :+: mProcA :+: mProcB = T.transformationArgs inst 
-              wdg = estimatedDependencyGraph DG.defaultApproximation prob
-              allLabeledNodes = lnodes wdg
+              wdg = DG.estimatedDependencyGraph DG.defaultApproximation prob
+              allLabeledNodes = DG.lnodes wdg
               sig = Prob.signature prob
 
               mkProof mProofA mProofB 
@@ -180,12 +179,12 @@ instance (P.Processor p1, P.Processor p2) => T.Transformer (DecomposeDG p1 p2) w
                             where separate (stricts,weaks) (DG.StrictDP,r) = (r : stricts,weaks)
                                   separate (stricts,weaks) (DG.WeakDP,r)   = (stricts,r : weaks)
                         selected = closeBySuccessor $ initialDPs
-                        closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- withNodeLabels' wdg (dfs initials wdg) ]
+                        closeBySuccessor rs = [(n,dpnode) | (n, dpnode) <- DG.withNodeLabels' wdg (dfs initials wdg) ]
                             where initials = [ n | (n, (_, r)) <- allLabeledNodes, rs `Trs.member` r ]
 
               unselectedNodes = [n | n <- DG.nodes wdg, not (n `Set.member` selectedNodes)]
 
-              isCut n = any (`Set.member` selectedNodes) (successors wdg n)
+              isCut n = any (`Set.member` selectedNodes) (DG.successors wdg n)
 
               unselectedLabeledNodes = DG.withNodeLabels' wdg $ unselectedNodes
               (cutWeakDPs, uncutWeakDPs) = List.partition (\ (n,_) -> isCut n) [ (n,r) | (n,(DG.WeakDP, r)) <- unselectedLabeledNodes ]
@@ -258,18 +257,29 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (DecomposeDG 
 
 -- | This is the default 'RuleSelector' used with 'decomposeDG'.
 decomposeDGselect :: ExpressionSelector
-decomposeDGselect = selAllOf $ selFromCWDG "below first cut in CWDG" f
-  where f cwdg = 
-          Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
-                            , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}
+decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" f
+  where f wdg = 
+          Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
+                            , Prob.wdp = Trs.fromRules [r | (DG.WeakDP,r) <- selectedRules ]}
           where 
+            cwdg = DG.toCongruenceGraph wdg
             selectedRules = DG.allRulesFromNodes cwdg (snub $ concat $ [DG.successors cwdg n | n <-  Set.toList cutNodes])
-            cutNodes = Set.unions [ cutNodesFrom r | r <- DG.roots cwdg ] 
+            cutNodes = Set.unions [ cutNodesFrom r (cyclic r) | r <- DG.roots cwdg ] 
               where 
-                cutNodesFrom n 
-                  | isCut n = Set.singleton n
-                  | otherwise = Set.unions [ cutNodesFrom m | m <- DG.successors cwdg n ]
-                isCut n = DG.isCyclicNode cwdg n
+                cyclic = DG.isCyclicNode cwdg
+                
+                cutNodesFrom n isCyclic
+                  | isCutCongruence n = Set.singleton n
+                  | otherwise = Set.unions [ cutNodesFrom m (isCyclic || cyclic m) | m <- DG.successors cwdg n ]
+                isCutCongruence n = any isCut ms
+                  where ms = [ m | (m,_) <- DG.theSCC $ DG.lookupNodeLabel' cwdg n ]
+                        isCut m = not $ null $ 
+                                  [ (m1,m2) | (m1, _, i) <- lsuccs
+                                            , m1 `elem` ms
+                                            , (m2, _, j) <- lsuccs
+                                            , i /= j                                                                           
+                                            , m2 `notElem` ms ]
+                          where lsuccs = DG.lsuccessors wdg m
 -- decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" fn
 --     where fn dg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (StrictDP,r) <- selectedRules ]
 --                                     , Prob.wdp = Trs.fromRules [r | (WeakDP,r) <- selectedRules ]}

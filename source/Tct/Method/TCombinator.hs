@@ -505,7 +505,7 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Timed t)
     pprintTProof t prob p mde = 
       pprintTProof (fromTimed t) prob (tpProof p) mde
       $+$ text ""
-      $+$ ( text "Wall-time:" <+> text (show (tpWall p) PP.<> text "s") 
+      $+$ ( text "Wall-time:" <+> text (show (tpWall p)) PP.<> text "s"
             $+$ text "CPU-time:" <+> text (show (tpCpu p)) PP.<> text "s")
 
     proofToXml = proofToXml . fromTimedProof

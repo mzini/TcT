@@ -18,21 +18,39 @@
 --------------------------------------------------------------------------------   
 
 module Tct.Method.TCombinator (
+       -- * Timeout
        timeout
-       , Timeout         
-       , try
-       , force         
-       , Try
-       , (>>>)
-       , (<>)
-       , (<||>)
-       , exhaustively
-       , idtrans
-       , WithProblem
-       , withProblem
+       , Timeout (..)        
+       , TimeoutProof(..)
+       -- * Timed 
        , timed
        , Timed
-       ) 
+       , TimedProof (..)
+       -- * Try  
+       , try
+       , force         
+       , Try (..)
+       , TryProof (..)
+       -- * Composition
+       , (>>>)
+       , exhaustively
+       , (:>>>:)(..)
+       , ComposeProof(..)
+       , mkComposeProof
+       -- * Choice
+       , (<>)
+       , (<||>)
+       , (:<>:)(..)
+       , ChoiceProof (..)
+       -- * WithProblem 
+       , withProblem
+       , WithProblem (..)
+       , WithProblemProof (..)
+         
+       -- * ID
+       , idtrans
+       , Unique (..) --TODO hide
+       )
 where
 
 import Tct.Processor.Transformations
@@ -109,7 +127,7 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
     answer proof = 
       case tproof of 
          ComposeProof _  Nothing    -> P.MaybeAnswer
-         ComposeProof r1 (Just r2s) -> answer $ mkComposeProof sub t1 t2 input r1 r2s subproofs
+         ComposeProof r1 (Just r2s) -> P.answer $ mkComposeProof sub t1 t2 input r1 r2s subproofs
       where tproof    = transformationProof proof
             input     = inputProblem proof
             subproofs = P.someProcessorProof `mapEnum` subProofs proof
@@ -213,6 +231,8 @@ data Unique a = One a
 instance Numbering a => Numbering (Unique a) where 
     ppNumbering (One a) = ppNumbering a
     ppNumbering (Two a) = ppNumbering a
+    -- ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
+    -- ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     name (TheTransformer t1 _ :>>>: _) = name t1
@@ -238,7 +258,7 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
                                                    | otherwise   = all isProgressResult [r2_i | (_,r2_i,_) <- r2s]
                                         proof | progressed = Progress tproof esubprobs
                                               | otherwise  = NoProgress tproof
-                                    return $ proof
+                                    return proof
                   where trans (e1, prob_i) = do {r2_i <- transform t2 prob_i; return (e1, r2_i, prob_i)}
 
                         mkSubProbs (SN e1, Progress _ subprobs, _     ) = [(SN (Two (e1,e2)), subprob) | (SN e2, subprob) <- subprobs]
@@ -293,12 +313,12 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
     
   answer proof = 
     case transformationProof proof of 
-      ChoiceOne r1 -> answer $ proof { transformationResult = r1 
-                                    , appliedTransformer   = t1}
-      ChoiceTwo r2 -> answer $ proof { transformationResult = r2
-                                    , appliedTransformer   = t2}
-      ChoiceSeq _ r2 -> answer $ proof { transformationResult = r2
-                                      , appliedTransformer   = t2}
+      ChoiceOne r1 -> P.answer $ proof { transformationResult = r1 
+                                       , appliedTransformer   = t1}
+      ChoiceTwo r2 -> P.answer $ proof { transformationResult = r2
+                                       , appliedTransformer   = t2}
+      ChoiceSeq _ r2 -> P.answer $ proof { transformationResult = r2
+                                         , appliedTransformer   = t2}
     where (TheTransformer t _) = appliedTransformer proof
           t1 = fstChoice t
           t2 = sndChoice t
@@ -404,28 +424,21 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
             
       where t         = appliedTransformer proof
             t'        = fromTry t
-            msubproof = case subProofs proof of 
-                          [(_,sp)] -> Just $ P.result sp
-                          _        -> Nothing
+            ppsub = case subProofs proof of 
+                          [(_,sp)] -> P.pprintProof (P.result sp) mde
+                          _        -> text "No further proof was generated, we abort!"
             result    = transformationResult proof
-            ppsub = case msubproof of 
-                      Just sp -> P.pprintProof sp mde
-                      Nothing -> text "No further proof was generated, we abort!"
     answer proof = 
         case transformationResult proof of 
           Progress (TryProof _ p) ps -> 
-            answer $ proof { appliedTransformer   = fromTry t
-                           , transformationResult = Progress p ps}
+            P.answer $ proof { appliedTransformer   = fromTry t
+                             , transformationResult = Progress p ps}
           NoProgress (TryProof _ _)  -> 
-            case subProofs proof of 
-              [(_,subproof)] -> P.answer subproof
-              _              -> P.MaybeAnswer
+            answerFromSubProof proof
       where t = appliedTransformer proof
 
     pprintTProof t prob (TryProof _ p) = pprintTProof (fromTry t) prob p
 
-    -- tproofToXml t prob (TryProof p) = 
-      
     proofToXml proof = 
       proofToXml proof { appliedTransformer  = t'
                        , transformationResult = const p `mapResult` result }
@@ -500,7 +513,7 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Timed t)
             $+$ text "CPU-time:" <+> text (show (tpCpu p)) PP.<> text "s")
 
       where p = transformationProof proof
-    answer = answer . fromTimedProof
+    answer = P.answer . fromTimedProof
 
     pprintTProof t prob p mde = 
       pprintTProof (fromTimed t) prob (tpProof p) mde
@@ -552,10 +565,10 @@ fromTimeout (TheTransformer (Timeout t _) as) = TheTransformer t as
 instance (Transformer t, TransformationProof t) => TransformationProof (Timeout t) where
     answer proof = 
         case transformationResult proof of 
-          Progress (NoTimeout p) ps -> answer $ proof { appliedTransformer   = t
-                                                     , transformationResult = Progress p ps}
-          NoProgress (NoTimeout p)  -> answer $ proof { appliedTransformer   = t
-                                                     , transformationResult = NoProgress p }
+          Progress (NoTimeout p) ps -> P.answer $ proof { appliedTransformer   = t
+                                                        , transformationResult = Progress p ps}
+          NoProgress (NoTimeout p)  -> P.answer $ proof { appliedTransformer   = t
+                                                        , transformationResult = NoProgress p }
           _                         -> P.MaybeAnswer
           where t = fromTimeout $ appliedTransformer proof
     pprintTProof tinst prob (NoTimeout p) mde = pprintTProof (fromTimeout tinst) prob p mde
@@ -621,7 +634,7 @@ f `liftWPProof` p = f p { appliedTransformer = tinst
   where WithProblemProof tinst tproof = transformationProof p
 
 instance (Transformer t) => TransformationProof (WithProblem t) where
-    answer proof = answer `liftWPProof` proof
+    answer proof = P.answer `liftWPProof` proof
     pprintProof proof = pprintProof `liftWPProof` proof          
     pprintTProof _ prob (WithProblemProof tinst proof) = pprintTProof tinst prob proof
     proofToXml proof = proofToXml `liftWPProof` proof  

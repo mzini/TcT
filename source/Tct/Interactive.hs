@@ -697,6 +697,8 @@ module Tct.Interactive
     -- * Silent Versions
     , wdgs'
     , problems' 
+    -- * Misc 
+    , runTct
     )
 where
 

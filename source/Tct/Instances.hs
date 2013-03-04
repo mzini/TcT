@@ -218,6 +218,7 @@ module Tct.Instances
     , WithProblem (..)
     , withWDG
     , withCWDG
+    , withStrategy
       
       -- * Competition Strategies 
     , rc2011
@@ -387,7 +388,7 @@ bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps = some $ force $ 
-  try DPSimp.removeTails 
+  try cleanTail
   >>> te DPSimp.removeHeads
   >>> te DPSimp.removeInapplicable
   >>> try DPSimp.simpDPRHS 

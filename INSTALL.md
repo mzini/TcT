@@ -7,17 +7,19 @@ TcT can currently only be installed under GNU/Linux.
 
 Installation
 ------------
-- The [Glasgow Haskell Compiler, version 7.4](http://www.haskell.org/ghc/) or above
+- The [Glasgow Haskell Compiler, version 7.4](http://www.haskell.org/ghc/)
 - [Cabal Install, version 0.14.0](http://hackage.haskell.org/package/cabal-install) 
   or above for installation using cabal
 - The latest versions of packages 'parfold', 'qlogic' and 'termlib', available from 
   the [TcT subproject page](http://cl-informatik.uibk.ac.at/software/tct/projects/index.php).
   These packages are provided by the 
   [TcT bundle](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-current-bundle.tar.gz).
+- To compile TcT with support for the exponential path order EPO*, you need additionally the satchmo libraries (1.10)
 
 Running
 -------
-To run TcT, [Minisat version 2.2](http://minisat.se/MiniSat.html) is required.
+- [Minisat version 2.2](http://minisat.se/MiniSat.html) is required.
+- For a graphical presentation of the dependency graph, the binary 'dot' from the [Graphviz distribution](http://www.graphviz.org) is required.
 
 
 Installation
@@ -38,6 +40,7 @@ Alternatively, one can install the packages 'parfold', 'qlogic', 'termlib' and '
 separately using cabal-install. This is the preferred way if you are not interested
 with cabal-install defaults. To install the packages, follow the general 
 [cabal install](http://www.haskell.org/haskellwiki/Cabal/How_to_install_a_Cabal_package) procedure.
+To compile support for EPO*, use the flag 'epostar'. 
 To install documentation, use the command `cabal haddock` before `cabal install`.
 
 

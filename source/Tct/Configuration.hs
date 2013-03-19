@@ -22,7 +22,11 @@ module Tct.Configuration (
   -- behaviour of TcT.
   --   Besides basic options given on the command line, TcT can be 
   -- configured by modifying the configuration file.
-  -- The configuration file is a Haskell source file that resides in @${HOME}/.tct/tct.hs@ by default, 
+  -- The configuration file is a Haskell source file that resides in 
+  -- 
+  -- > ${HOME}/.tct/tct.hs
+  --  
+  -- by default, 
   -- and defines the actual binary that is run each time TcT is called. 
   -- Thus the full expressiveness of Haskell is available, 
   -- as a downside, it requires also a working Haskell environment.
@@ -106,11 +110,11 @@ module Tct.Configuration (
   -- @  
   -- config :: 'Config'
   -- config = 'defaultConfig' { strategies = strategies } where
-  --   strategies = [ matrices ::: strategy \"matrices\" ( 'optional' 'Args.naturalArg' \"start\" 1 :+: 'Args.naturalArg' )
+  --   strategies = [ matrices ::: strategy \"matrices\" ( 'optional' 'Args.naturalArg' \"start\" (Nat 1) :+: 'Args.naturalArg' )
   --                , withDP   ::: strategy \"withDP\" ]
   -- .  
   -- matrices ('Nat' start ':+:' 'Nat' n) = 
-  -- fastest [ 'Tct.Instances.matrix' 'Tct.Instances.defaultOptions' { dim = d } | d <- [start..start+n] ] where
+  --   fastest [ 'Tct.Instances.matrix' ` 'Tct.Instances.withDimension' ` d | d <- [start..start+n] ] where
   -- .
   -- withDP = 
   --   ('Tct.Instances.timeout' 5 dps 'Tct.Instances.<>' dts)
@@ -119,7 +123,7 @@ module Tct.Configuration (
   --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' where 
   --     dps = 'Tct.Instances.dependencyPairs' 'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' 'Tct.Instances.>>>' wgOnUsable
   --     dts = 'Tct.Instances.dependencyTuples'
-  --     wgOnUsable = 'Tct.Instances.weightgap' 'Tct.Instances.defaultOptions' { degree = Just 1 , on = WgOnTrs }
+  --     wgOnUsable = 'Tct.Instances.weightgap' ` 'Tct.Instances.wgOn' ` WgOnTrs }
   -- @ 
   --  
   -- Consider the first strategy declaration that defines a strategy 

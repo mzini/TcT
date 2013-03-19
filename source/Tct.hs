@@ -238,19 +238,20 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
 
 
 findSatSolver :: (String -> SatSolver) -> String -> ErroneousIO SatSolver
-findSatSolver mk nm = do fn <- findExe 
-                         checkExe fn
-                         return $ mk fn
+findSatSolver mk nm = do 
+  fn <- findExe 
+  checkExe fn
+  return $ mk fn
   where findExe :: ErroneousIO FilePath 
         findExe = do mr <- liftIO $ findExecutable nm
                      case mr of 
                        Just s  -> return s 
-                       Nothing -> err $ "Cannot find sat-solver executable " ++ nm
+                       Nothing -> err $ "Cannot find sat-solver executable minisat or minisat2 in your path"
         checkExe :: FilePath -> ErroneousIO ()
         checkExe fn = do exists <- liftIO $ doesFileExist fn
-                         unless exists (err $ "Given filename " ++ fn ++ " is not executable")
+                         unless exists (err $ "Minisat executable '" ++ fn ++ "' is not executable")
                          p <- liftIO $ getPermissions fn
-                         unless (executable p) (err $ "Given executable " ++ fn ++ " does not exist")
+                         unless (executable p) (err $ "Given executable '" ++ fn ++ "' does not exist")
         err = throwError .  SatSolverMissing
         
 processorFromString :: String -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
@@ -539,7 +540,7 @@ tct conf =
            let dyreConf = 
                  Dyre.defaultParams { Dyre.projectName = "tct"
                                     , Dyre.configCheck = recompile conf
-                                    , Dyre.realMain    = \ cfg -> withHandledErrors $ realMain cfg
+                                    , Dyre.realMain    = \ cfg -> withHandledErrors $ checkSat cfg >> realMain cfg
                                     , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
                                     , Dyre.configDir   = Just $ return dir
                                     , Dyre.cacheDir    = Just $ return dir
@@ -563,8 +564,8 @@ tct conf =
             Left err -> putErrorMsg err >> exitWith exitFail
             Right ret -> exitWith ret
             
-        worker mv conf'' = do
-          r <- runErroneous $ runTct conf''
+        worker mv conf' = do
+          r <- runErroneous $ runTct conf'
           case r of 
             Left err -> do 
               _ <- tryPutMVar mv $ ExitError $ err
@@ -574,6 +575,8 @@ tct conf =
               _ <- tryPutMVar mv ExitNormal
               return ()
           
+        checkSat conf' = void (getSolver conf')
+        
         realMain conf'
           | not (null (errorMsg conf')) = throwError $ UnknownError $ show $ unlines $ errorMsg conf'
           | otherwise = do 

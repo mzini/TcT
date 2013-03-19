@@ -1144,7 +1144,12 @@ apply a = app `Ex.catch`
                       --           Just pt' -> U.pprint pt')]
 
 runTct :: P.StdSolverM a -> IO a
-runTct = P.runSolver (P.SolverState $ P.MiniSat "minisat2")
+runTct m = do 
+  c <- getConfig
+  es <- Tct.runErroneous (Tct.getSolver c)
+  case es of 
+    Left e -> error (show e)
+    Right (P.MiniSat slver) -> P.runSolver (P.SolverState $ P.MiniSat slver) m
 
 instance T.Transformer t => Apply (T.TheTransformer t) where
   apply' t selected = 

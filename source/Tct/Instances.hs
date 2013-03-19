@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE CPP #-}
 
 --------------------------------------------------------------------------------
 -- | 
@@ -96,7 +97,9 @@ module Tct.Instances
     , HasKind (..)
     , Poly.PolyShape (..)
       -- ** Processors Based on Recursive Path Orderings
+#ifdef WithEpoStar
     , EpoStar.epostar
+#endif
     , PopStar.popstar
     , PopStar.popstarPS
     , PopStar.lmpo     
@@ -257,7 +260,9 @@ import Control.Monad (liftM)
 import qualified Tct.Method.Combinator as Combinators
 import qualified Tct.Method.PopStar as PopStar
 import qualified Tct.Method.Mpo as Mpo
+#ifdef WithEpoStar
 import qualified Tct.Method.EpoStar as EpoStar
+#endif
 import qualified Tct.Method.Compose as Compose
 import qualified Tct.Method.ComposeRC as ComposeRC
 import qualified Tct.Method.Bounds as Bounds

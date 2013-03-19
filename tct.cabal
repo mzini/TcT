@@ -23,35 +23,65 @@ Description:
 cabal-version:      >= 1.6
 build-type:         Simple
 
+Flag epostar
+ description:  include exponential path order in build; requires satchmo libraries
+ default:      False
+
 Executable tct
  main-is:           Tct/Main.hs
 
- build-depends:     
-  base == 4.*, 
-  containers >= 0.4.2 && < 0.5, 
-  mtl == 2.1.*, 
-  pretty == 1.1.*, 
-  text == 0.11.*,
-  fgl == 5.4.*, 
-  parsec == 3.1.*,
-  filepath >= 1.2 && < 1.4,
-  HaXml == 1.22.*,
-  xhtml == 3000.*,
-  graphviz == 2999.13.*,
-  regex-compat == 0.95.*, 
-  array == 0.4.*, 
-  dyre == 0.8.*,
-  unix == 2.5.*,
-  time == 1.4.*,
-  directory >= 1.0 && < 1.2, 
-  process == 1.1.*,
-  satchmo == 1.10.*,
-  satchmo-backends == 1.9.1,
-  old-locale == 1.0.*,
-  qlogic == 0.9, 
-  parfold == 0.9,
-  termlib == 0.9,
-  haskeline
+ If flag(epostar)
+   build-depends:     
+    base == 4.*, 
+    containers >= 0.4.2 && < 0.5, 
+    mtl == 2.1.*, 
+    pretty == 1.1.*, 
+    text == 0.11.*,
+    fgl == 5.4.*, 
+    parsec == 3.1.*,
+    filepath >= 1.2 && < 1.4,
+    HaXml == 1.22.*,
+    xhtml == 3000.*,
+    graphviz == 2999.13.*,
+    regex-compat == 0.95.*, 
+    array == 0.4.*, 
+    dyre == 0.8.*,
+    unix == 2.5.*,
+    time == 1.4.*,
+    directory >= 1.1, 
+    process == 1.1.*,
+    old-locale == 1.0.*,
+    qlogic == 0.9, 
+    parfold == 0.9,
+    termlib == 0.9, 
+    haskeline, 
+    satchmo == 1.10.*,
+    satchmo-backends == 1.9.1
+ Else 
+   build-depends:     
+    base == 4.*, 
+    containers >= 0.4.2 && < 0.5, 
+    mtl == 2.1.*, 
+    pretty == 1.1.*, 
+    text == 0.11.*,
+    fgl == 5.4.*, 
+    parsec == 3.1.*,
+    filepath >= 1.2 && < 1.4,
+    HaXml == 1.22.*,
+    xhtml == 3000.*,
+    graphviz == 2999.13.*,
+    regex-compat == 0.95.*, 
+    array == 0.4.*, 
+    dyre == 0.8.*,
+    unix == 2.5.*,
+    time == 1.4.*,
+    directory >= 1.1, 
+    process == 1.1.*,
+    old-locale == 1.0.*,
+    qlogic == 0.9, 
+    parfold == 0.9,
+    termlib == 0.9, 
+    haskeline
 
  hs-source-dirs:    
   source
@@ -64,7 +94,8 @@ Executable tct
       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
 
 Library
- exposed-modules:   
+ if flag(epostar)
+  exposed-modules:   
    Tct
    Tct.Certificate
    Tct.Main.Flags
@@ -102,7 +133,73 @@ Library
    Tct.Method.ToInnermost
    Tct.Method.PopStar
    Tct.Method.Mpo
-   Tct.Method.EpoStar
+   Tct.Method.EpoStar 
+   Tct.Method.Compose
+   Tct.Method.ComposeRC
+   Tct.Method.Uncurry
+   Tct.Method.Matrix.MatrixInterpretation
+   Tct.Method.Matrix.NaturalMI
+   Tct.Method.Matrix.ArcticMI
+   Tct.Method.Poly.NaturalPI
+   Tct.Method.Poly.PolynomialInterpretation
+   Tct.Method.Bounds
+   Tct.Method.Bounds.Automata
+   Tct.Method.Bounds.Violations
+   Tct.Method.Bounds.Violations.Find
+   Tct.Method.Bounds.Violations.Fix
+   Tct.Method.Weightgap
+   Tct.Method.DP.DependencyGraph
+   Tct.Method.DP.UsableRules
+   Tct.Method.DP.DependencyPairs
+   Tct.Method.DP.Simplification
+   Tct.Method.DP.PathAnalysis
+   Tct.Method.DP.Utils
+   Tct.Method.Custom
+   Tct.Method.Predicates
+   Tct.Instances
+   Tct.Processors
+   Tct.Configuration
+   Tct.CommandLine
+   Tct.Interactive
+ else
+  exposed-modules:   
+   Tct
+   Tct.Certificate
+   Tct.Main.Flags
+   Tct.Main.Debug
+   Tct.Main.Version
+   Tct.Proof
+   Tct.Processor
+   Tct.Processor.Parse
+   Tct.Processor.Orderings
+   Tct.Processor.Standard
+   Tct.Processor.Args
+   Tct.Processor.Args.Instances
+   Tct.Processor.Transformations
+   Tct.Processor.LoggingSolver
+   Tct.Utils.Enum
+   Tct.Utils.Ask
+   Tct.Utils.Xml
+   Tct.Utils.PPrint
+   Tct.Encoding.ArgumentFiltering
+   Tct.Encoding.UsableRules
+   Tct.Encoding.Precedence
+   Tct.Encoding.SafeMapping
+   Tct.Encoding.UsablePositions
+   Tct.Encoding.Matrix
+   Tct.Encoding.Polynomial
+   Tct.Encoding.Relative
+   Tct.Encoding.Natring
+   Tct.Encoding.AbstractInterpretation
+   Tct.Encoding.HomomorphicInterpretation
+   Tct.Method.Timeout
+   Tct.Method.RuleSelector
+   Tct.Method.Combinator
+   Tct.Method.TCombinator
+   Tct.Method.InnermostRuleRemoval
+   Tct.Method.ToInnermost
+   Tct.Method.PopStar
+   Tct.Method.Mpo
    Tct.Method.Compose
    Tct.Method.ComposeRC
    Tct.Method.Uncurry
@@ -131,35 +228,65 @@ Library
    Tct.CommandLine
    Tct.Interactive
 
- build-depends:     
-  base == 4.*, 
-  containers >= 0.4.2 && < 0.5, 
-  mtl == 2.1.*, 
-  pretty == 1.1.*, 
-  text == 0.11.*,
-  fgl == 5.4.*, 
-  parsec == 3.1.*,
-  filepath >= 1.2 && < 1.4,
-  HaXml == 1.22.*,
-  xhtml == 3000.*,
-  graphviz == 2999.13.*,
-  regex-compat == 0.95.*, 
-  array == 0.4.*, 
-  dyre == 0.8.*,
-  unix == 2.5.*,
-  time == 1.4.*,
-  directory >= 1.1, 
-  process == 1.1.*,
-  satchmo == 1.10.*,
-  satchmo-backends == 1.9.1,
-  old-locale == 1.0.*,
-  qlogic == 0.9, 
-  parfold == 0.9,
-  termlib == 0.9, 
-  haskeline
+ If flag(epostar)
+   build-depends:     
+    base == 4.*, 
+    containers >= 0.4.2 && < 0.5, 
+    mtl == 2.1.*, 
+    pretty == 1.1.*, 
+    text == 0.11.*,
+    fgl == 5.4.*, 
+    parsec == 3.1.*,
+    filepath >= 1.2 && < 1.4,
+    HaXml == 1.22.*,
+    xhtml == 3000.*,
+    graphviz == 2999.13.*,
+    regex-compat == 0.95.*, 
+    array == 0.4.*, 
+    dyre == 0.8.*,
+    unix == 2.5.*,
+    time == 1.4.*,
+    directory >= 1.1, 
+    process == 1.1.*,
+    old-locale == 1.0.*,
+    qlogic == 0.9, 
+    parfold == 0.9,
+    termlib == 0.9, 
+    haskeline, 
+    satchmo == 1.10.*,
+    satchmo-backends == 1.9.1
+ Else 
+   build-depends:     
+    base == 4.*, 
+    containers >= 0.4.2 && < 0.5, 
+    mtl == 2.1.*, 
+    pretty == 1.1.*, 
+    text == 0.11.*,
+    fgl == 5.4.*, 
+    parsec == 3.1.*,
+    filepath >= 1.2 && < 1.4,
+    HaXml == 1.22.*,
+    xhtml == 3000.*,
+    graphviz == 2999.13.*,
+    regex-compat == 0.95.*, 
+    array == 0.4.*, 
+    dyre == 0.8.*,
+    unix == 2.5.*,
+    time == 1.4.*,
+    directory >= 1.1, 
+    process == 1.1.*,
+    old-locale == 1.0.*,
+    qlogic == 0.9, 
+    parfold == 0.9,
+    termlib == 0.9, 
+    haskeline
 
  hs-source-dirs:    
   source
+
+ if flag(epostar)
+  cpp-options: -DWithEpoStar
+
  if impl(ghc < 7.0)
     ghc-options:       
       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count

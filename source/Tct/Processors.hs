@@ -58,7 +58,9 @@ import Tct.Method.DP.DependencyPairs hiding (dependencyPairs)
 import Tct.Method.DP.PathAnalysis hiding (pathAnalysis)
 import Tct.Method.DP.Simplification hiding (simpDPRHS, simpPE)
 import Tct.Method.DP.UsableRules hiding (usableRules)
+#ifdef WithEpoStar
 import Tct.Method.EpoStar hiding (epostar)
+#endif
 import Tct.Method.InnermostRuleRemoval hiding (irr)
 import Tct.Method.ToInnermost hiding (toInnermost)
 import Tct.Method.Matrix.ArcticMI hiding (arctic)
@@ -126,8 +128,10 @@ builtInProcessors =
     P.<|>
     sequentially
     P.<|>
+#ifdef WithEpoStar    
     epostar
     P.<|>
+#endif    
     matrix
     P.<|>
     arctic
@@ -445,6 +449,7 @@ sequentially and returns the first successful proof.
 sequentially :: S.StdProcessor (OneOf P.AnyProcessor)
 sequentially = sequentiallyProcessor
 
+#ifdef WithEpoStar
 {- |
 This processor implements orientation of the input problem using
 \'exponential path orders\', a technique applicable for innermost
@@ -457,6 +462,7 @@ that compatibility assesses exponential runtime complexity.
 -}
 epostar :: S.StdProcessor EpoStar
 epostar = epostarProcessor
+#endif
 
 {- |
 This processor orients the problem using matrix-interpretation over

@@ -33,16 +33,26 @@
   :group 'tools
   :prefix "tct-")
 
-(defvar tct-answer-type "rc")
-(defvar input-system nil)
 
-(defvar tct-strategy nil)
-
-(defcustom tct-program "~/.tct/tct.hs"
-  "The path to TCT"
+(defcustom tct-executable "tct"
+  "Path to TcT executable file"
   :type 'string
   :group 'tct)
 
+(defcustom tct-base "~/.tct"
+  "The TcT configuration directory."
+  :type 'string
+  :group 'tct)
+
+(defcustom tct.hs (concatenate 'string tct-base "/tct.hs")
+  "The path to TcT configuration file"
+  :type 'string
+  :group 'tct)
+
+(defcustom tct-home-folder tct-base
+  "The path that is used as home folder"
+  :type 'string
+  :group 'tct)
 
 (defcustom xtc2tpdb-xsl "http://termcomp.uibk.ac.at/status/xtc2tpdb.xsl"
   "The path to xtc2tpdb"
@@ -50,42 +60,12 @@
   :group 'tct)
 
 
-(defcustom tcti-program-name "tcti"
-  "The name of the GHCi interpreter program."
-  :type 'string
-  :group 'tct)
+(defvar tct-state-file "~/.tct/state.org")
+(defvar tct-proof-file "~/.tct/proof.org")
+(defvar tct-answer-type "rc")
+(defvar input-system nil)
+(defvar tct-strategy nil)
 
-
-(defcustom tct-base "~/.tct"
-  "The tct config directory."
-  :type 'string
-  :group 'tct)
-
-(defcustom tct-executable "tct"
-  "The tct executable file"
-  :type 'string
-  :group 'tct)
-
-
-(defcustom tct-state-file "~/.tct/state.org"
-  "The tct state file."
-  :type 'string
-  :group 'tct)
-
-(defcustom tct-proof-file "~/.tct/proof.org"
-  "The tct proof file."
-  :type 'string
-  :group 'tct)
-
-(defcustom tct.hs (concatenate 'string tct-base "/tct.hs")
-  "The path to tct configuration file"
-  :type 'string
-  :group 'tct)
-
-(defcustom tct-home-folder (concatenate 'string tct-base "/TRS")
-  "The path that is used as home folder"
-  :type 'string
-  :group 'tct)
 
 
 (defvar tct-output-buffer-name "TcT-output")
@@ -133,6 +113,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map [return] 'tct-dired-find-file)
     (define-key map [mouse-1] 'tct-dired-find-file)
+    (define-key map [mouse-2] 'tct-dired-find-file)
     (define-key map "x"        'tct-dired-on-file)
     (define-key map "l" 'tct-dired-load-interactive)
     (define-key map "s" 'tct-dired-show-trs)
@@ -177,7 +158,11 @@
       (switch-to-buffer-other-window tct-dired-buffer)
     (progn 
       (if tct-dired-buffer (kill-buffer tct-dired-buffer))
-      (enable-tct-dired-mode (dired tct-home-folder)))))
+	(if (file-exists-p tct-home-folder)
+	    (enable-tct-dired-mode (dired tct-home-folder))
+	  (message (concat "Directory " 
+			   tct-home-folder 
+			   " does not exist. Please configure variable tct-home-folder from the tct configuration group"))))))
 
 
 (defun tct-dired-find-file ()
@@ -223,11 +208,13 @@
 			 "" 
 		       (concat "-s \"" strat "\""))))
     (if output-buffer (kill-buffer output-buffer))
-    (start-process-shell-command tct-executable tct-output-buffer-name 
-				 tct-program 
-				 strategyarg
-				 "-a" tct-answer-type
-				 input-system)
+    (start-process-shell-command tct-executable 
+				 tct-output-buffer-name 
+				 (concat 
+				  tct-executable
+				  strategyarg
+				  "-a" tct-answer-type
+				  input-system))
     (save-excursion
       (set-buffer (get-buffer tct-output-buffer-name))
       (org-mode)

@@ -46,11 +46,10 @@ module Tct.Instances
       -- ** Processors Based on Interpretations 
       -- *** Matrix Interpretations
       -- | TcT implements both /matrix interpretations over natural numbers/ and /arctic matrix interpretations/.
-      -- Configuration parameters for both types of options are collected in 'MatrixOptions', supply 'defaultOptions'
-      -- for using matrix interpretations with default parameters.
     , arctic
     , matrix
-
+      -- | Further customisation of these processors is possible as described in "Tct.Instances#customise"
+      
       -- *** Polynomial Interpretations
       -- | TcT implements /polynomial interpretations over natural numbers/.
       -- Configuration parameters are collected in 'PolyOptions', supply 'defaultOptions'
@@ -61,11 +60,13 @@ module Tct.Instances
       -- but has also severe impacts on the time spend on proof search.
       -- In the following, we collect some common shapes of polynomials found
       -- in the literature. Custom shapes can be used with options 'customPolynomial'.
+      -- Further customisation of is also possible as described in "Tct.Instances#customise"
     , NaturalPI.simplePolynomial 
     , NaturalPI.linearPolynomial
     , NaturalPI.stronglyLinearPolynomial
     , NaturalPI.simpleMixedPolynomial
     , NaturalPI.quadraticPolynomial
+      
       -- **** Custom Polynomial Shapes
     , NaturalPI.customPolynomial
     , Poly.SimpleMonomial
@@ -73,7 +74,17 @@ module Tct.Instances
     , Poly.mono
     , Poly.boolCoefficient
     , Poly.constant
-      -- *** Modifying Options
+      -- *** Customising Interpretations
+      -- | #customise# The following classes allow the costumisation of interpretation
+      -- techniques implemented in TcT, 
+      -- cf., 'arctic', 'matrix' and 'polys' that construct various processors
+      -- based on sensible defaults.
+      -- To exemplify the usage, 
+      -- 
+      -- > matrix `withDimension` 3 `withCertBy` Automaton
+      -- 
+      -- defines an matrix interpretation of dimension @3@, whose complexity certificate
+      -- is inferred using automaton techniques. 
     , HasDimension (..)
     , HasCertBy (..)
     , NaturalMI.NaturalMIKind (..)

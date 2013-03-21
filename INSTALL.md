@@ -15,6 +15,7 @@ Installation
   These packages are provided by the 
   [TcT bundle](http://cl-informatik.uibk.ac.at/software/tct/projects/tct/archive/tct-current-bundle.tar.gz).
 - To compile TcT with support for the exponential path order EPO*, you need additionally the satchmo libraries (1.10)
+- To compile documentation, you need [haddock](http://www.haskell.org/haddock/)(version >=0.6). Haddock is available through cabal. 
 
 Running
 -------

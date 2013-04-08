@@ -90,8 +90,9 @@ instance TransformationProof Id where
   answer = answerFromSubProof
   proofToXml proof = 
     case subProofs proof of 
+      [] -> Xml.elt "idtrans" [] [Xml.text "no sub-problem generated"]
       [(_,p)] -> P.toXml p
-      _   -> error "proof of Id-trans does not contain subproof"
+      _   -> error "proof of Id-trans contains more than one subproof"
     
   
 instance Transformer Id where 

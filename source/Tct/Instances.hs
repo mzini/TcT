@@ -598,10 +598,10 @@ instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
 polys 1 = NaturalPI.linearPolynomial
 polys n = NaturalPI.customPolynomial inter `withBits` 2 `withCBits` Nothing
-  where inter vs = [ Poly.mono [(Poly.^^^) v 1 | v <- vs']
+  where inter vs = [ Poly.mono [ v Poly.^^^ 1 | v <- vs']
                    | vs' <- List.subsequences vs
-                   , length vs <= n ]
-                   ++ [Poly.mono [(Poly.^^^) v 2] | v <- vs] 
+                   , length vs' <= n ]
+                   ++ [Poly.mono [ v Poly.^^^ 2] | v <- vs] 
 
 
 

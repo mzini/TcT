@@ -222,7 +222,7 @@ orientProblem prod prob = maybe Incompatible Order `liftM` slv
             
           
           validArgumentFiltering = return $ AFEnc.validSafeArgumentFiltering fs sig
-          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM fs Nothing
+          validPrecedence        = liftSat $ PrecEnc.validPrecedenceM fs
           validUsableRules = liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
             where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
                                    | otherwise = top

@@ -21,6 +21,8 @@ module Tct.Encoding.Precedence
     ( 
       validPrecedenceM
       -- | Add this constraint for a valid SAT encoding.      
+    , restrictRecDepthM      
+      -- | Restrict the recursion depth to a given bound
     , precGt
       -- | 'f ``precGt`` g` asserts that 'f' is strictly 
       -- above 'g' in the precedence
@@ -86,30 +88,38 @@ f `precEq` g | f == g     = Top
 isRecursive :: Eq l => Symbol -> PropFormula l
 isRecursive = propAtom . IsRecursive
 
-validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Maybe Int -> SatSolver s l (PropFormula l)
-validPrecedenceM []   _      = return $ Top
-validPrecedenceM syms mbound = toFormula constraint
+validPrecedenceM :: (Eq l, Monad s, Solver s l) => [Symbol] -> SatSolver s l (PropFormula l)
+validPrecedenceM []   = return $ Top
+validPrecedenceM syms = toFormula constraint
     where rank sym     = natAtom size (Rank sym)
-          recdepth sym = natAtom size (RecDepth sym)
           size         = Bound $ length syms
           constraint   = bigAnd [ bigAnd [ f `mgt` g --> rank f `mGrt` rank g
                                          , g `mgt` f --> rank g `mGrt` rank f
                                          , f `meq` g --> rank f `mEqu` rank g]
                                 | f <- syms, g <- syms,  f < g ]
-                         && maybe top restrictDepths mbound
-          restrictDepths bound = bigAnd [ natToFormula (bound + 1) `mGrt` recdepth f 
-                                          && (isRecursiveM f --> recdepth f `mGrt` natToFormula 0)
-                                        | f <- syms]
-                                 && bigAnd [ bigAnd [ f `mgt` g --> f `recGt` g
-                                                   , g `mgt` f --> g `recGt` f
-                                                   , f `meq` g --> (recdepth f `mEqu` recdepth g)]
-                                          | f <- syms, g <- syms,  f < g ]
           f `mgt` g = return $ f `gt` g
           f `meq` g = return $ f `eq` g
-          isRecursiveM = return . isRecursive
-          isNonRecursiveM = not . isRecursiveM 
-          f `recGt` g = recdepth f `mGrt` recdepth g 
-                        || (isNonRecursiveM f && recdepth f `mEqu` recdepth g)
+          
+          
+restrictRecDepthM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Int -> SatSolver s l (PropFormula l)
+restrictRecDepthM syms bound = toFormula $ 
+  bigAnd [ natToFormula (bound + 1) `mGrt` recdepth f 
+           && (isRecursiveM f --> recdepth f `mGrt` natToFormula 0)
+         | f <- syms]
+  && bigAnd [ bigAnd [ f `mgt` g --> f `recGt` g
+                     , g `mgt` f --> g `recGt` f
+                     , f `meq` g --> (recdepth f `mEqu` recdepth g)]
+            | f <- syms, g <- syms,  f < g ]
+  where
+    size         = Bound $ length syms    
+    recdepth sym = natAtom size (RecDepth sym)
+    isRecursiveM = return . isRecursive
+    isNonRecursiveM = not . isRecursiveM 
+    f `recGt` g = recdepth f `mGrt` recdepth g 
+                  || (isNonRecursiveM f && recdepth f `mEqu` recdepth g)
+    f `mgt` g = return $ f `gt` g
+    f `meq` g = return $ f `eq` g
+
           
 instance Decoder Precedence (Order Symbol) where
   add = Prec.insert

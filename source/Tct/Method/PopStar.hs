@@ -435,6 +435,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                  return $ makeResult `liftM` r
           
           form = validPrecedence -- fm maybeOrientable 
+                 && validRecDepth
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
                  && orderingConstraints allrules allrules
@@ -455,21 +456,23 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           
           fs = Set.toList $ Trs.functionSymbols allrules
           
-          nonCollapsingAf = bigAnd [ not (AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
-          
           validArgumentFiltering = 
             return $ AFEnc.validSafeArgumentFiltering fs sig
-                     && (case bnd of 
-                           Just (Nat 0) -> nonCollapsingAf
-                           _            -> top)
           
-          validPrecedence = 
-            liftSat (PrecEnc.validPrecedenceM (Set.toList quasiDefineds) (adjustRecdepth `liftM` bnd))
-            where adjustRecdepth (Nat b) 
-                    | allCompoundsMonadic prob = b
-                    | allowAF = floor (fromIntegral b / 2 :: Double)
-                    | otherwise = b
+          validPrecedence = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
                     
+          validRecDepth =  
+            case bnd of 
+              Just (Nat 0) -> nonCollapsingAF && bindRD 0
+              Just (Nat b) 
+                | allCompoundsMonadic prob -> bindRD b
+                | allowAF -> bindRD (floor (fromIntegral b / 2 :: Double))
+                             || (nonCollapsingAF && bindRD b)
+                | otherwise -> bindRD b
+              Nothing -> top
+            where 
+              bindRD = liftSat . PrecEnc.restrictRecDepthM (Set.toList quasiDefineds)
+              nonCollapsingAF = bigAnd [ not (return $ AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
           validUsableRules = 
             liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
               where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i

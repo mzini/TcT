@@ -597,7 +597,7 @@ instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
 -- | 'polys n' defines a suitable polynomial of degree 'n'
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
 polys 1 = NaturalPI.linearPolynomial
-polys n = NaturalPI.customPolynomial inter `withBits` 2 `withCBits` Nothing
+polys n = NaturalPI.customPolynomial inter `withBits` 2 `withCBits` Just 3
   where inter vs = [ Poly.mono [ v Poly.^^^ 1 | v <- vs']
                    | vs' <- List.subsequences vs
                    , length vs' <= n ]

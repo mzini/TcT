@@ -462,12 +462,17 @@ toDP =
 -- Fails only if (i) fails.    
 removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
 removeLeaf p = 
-  p `DPSimp.withPEOn` selAnyOf strictLeafs
+  p `DPSimp.withPEOn` anyStrictLeaf
   >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
   >>> try UR.usableRules
   >>> try DPSimp.trivial
-  where strictLeafs = selLeafCWDG `selInter` selStricts
-
+  where 
+    anyStrictLeaf = selAnyOf $ selLeafCWDG `selInter` selStricts
+    -- orientAnyStrictLeaf prob 
+    --   | innermost = some $ p `DPSimp.withPEOn` anyStrictLeaf
+    --   | otherwise = some $ Compose.decompose anyStrictLeaf Compose.Add p
+    --   where innermost = Prob.strategy prob == Prob.Innermost 
+                               
 
 -- default Options
 

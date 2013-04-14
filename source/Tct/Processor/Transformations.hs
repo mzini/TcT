@@ -150,7 +150,7 @@ class TransformationProof t where
   pprintProof proof mde = 
       ppTransformationDetails 
       $+$ case subprobs of 
-            []   -> text "Transformation failed, no sub-problems were generated."
+            []   -> text "No progress on transformation, no sub-problems were generated."
             [_]  -> ppDetails Nothing
             _    -> ppOverviews
                    $+$ text ""
@@ -408,16 +408,13 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
 
 instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) where 
   pprintProof proof mde 
-     | continue (appliedTransformer proof) 
-       && not (isProgressResult (transformationResult proof)) = 
+     | not (isProgressResult (transformationResult proof)) = 
            case subProofs proof of 
               [(_, subproof)] -> P.pprintProof (P.result subproof) mde
-              _               -> text "No subproof generated, we abort!"
+              _               -> pprintProof proof mde
      | otherwise = pprintProof proof mde
   answer proof
-     | continue (appliedTransformer proof) 
-       && not (isProgressResult (transformationResult proof)) = 
-           answerFromSubProof proof
+     | not (isProgressResult (transformationResult proof)) = answerFromSubProof proof
      | otherwise = answer proof
 
   toXml proof = proofToXml proof

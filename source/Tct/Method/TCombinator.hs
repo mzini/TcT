@@ -194,31 +194,30 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) w
             
 
 -- % maybe should return Try t1 proof
-mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (Transformation (Try t2) sub))
+mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (Transformation t2 sub))
 mkComposeProof sub t1 t2 input r1 r2s subproofs =
     Proof { transformationResult = r1
           , inputProblem        = input
           , appliedTransformer  = t1
-          , appliedSubprocessor = t2try `thenApply` sub
+          , appliedSubprocessor = t2 `thenApply` sub
           , subProofs           = mkSubProof1 `map` r2s }
 
-      where t2try = case t2 of TheTransformer t2' as -> TheTransformer (Try True t2') as
-            mkSubProof1 (SN i, r2_i) = (SN i, P.Proof { P.appliedProcessor = t2try `thenApply` sub
+      where mkSubProof1 (SN i, r2_i) = (SN i, P.Proof { P.appliedProcessor = t2 `thenApply` sub
                                                        , P.inputProblem     = prob_i
                                                        , P.result           = proof_i })
                 where prob_i = case r1 of 
                                  NoProgress _        -> input
                                  Progress _ subprobs -> fromMaybe (error "mkComposeProof problem not found") (find i subprobs)
                       proof_i = case r2_i of 
-                                  NoProgress p2_i          -> Proof { transformationResult = NoProgress (TryProof True p2_i)
+                                  NoProgress p2_i          -> Proof { transformationResult = NoProgress p2_i
                                                                    , inputProblem         = prob_i
-                                                                   , appliedTransformer   = t2try
+                                                                   , appliedTransformer   = t2
                                                                    , appliedSubprocessor  = mkSubsumed sub
                                                                    , subProofs            = enumeration' $ catMaybes [liftMS Nothing `liftM` find (One i) subproofs] } 
 
-                                  Progress p2_i subprobs_i -> Proof { transformationResult = Progress (TryProof True p2_i) subprobs_i
+                                  Progress p2_i subprobs_i -> Proof { transformationResult = Progress p2_i subprobs_i
                                                                    , inputProblem         = prob_i
-                                                                   , appliedTransformer   = t2try
+                                                                   , appliedTransformer   = t2
                                                                    , appliedSubprocessor  = mkSubsumed sub
                                                                    , subProofs            = concatMap mkSubProof2 subprobs_i }
                                       where mkSubProof2 (SN j, _) = case find (Two (i,j)) subproofs of 

@@ -64,8 +64,7 @@ module Tct.Processor.Transformations
        , SomeTransformation (..)
        , SomeTransProof (..)
        , someTransformation
-       , someProof
-         
+       , someProof         
          -- * Subsumed Processor
          -- | The following utilities are used only internally.
        , liftMS
@@ -105,7 +104,7 @@ import Tct.Processor.Args hiding (name, description, synopsis)
 
 transformerToXml :: Transformer t => TheTransformer t -> Xml.XmlContent
 transformerToXml tinst = 
-  Xml.elt "transformationProcessor" [] 
+  Xml.elt "transformer" [] 
     [ Xml.elt "arguments" [] $ A.toXml (arguments t) (transformationArgs tinst)
     , Xml.elt "name" [] [Xml.text $ name t]
     , Xml.elt "description" [] [Xml.text $ unwords $ description t]]
@@ -131,7 +130,7 @@ class TransformationProof t where
     Xml.elt "transformation" [] 
      [ transformerToXml tinst
      , Xml.complexityProblem input ans
-     , Xml.elt "transformationProof" [] [Xml.elt n [] cnt]
+     , Xml.elt "transformationDetail" [] [Xml.elt n [] cnt]
      , Xml.elt (if progressed then "progress" else "noprogress") [] []
      , Xml.elt "subProofs" [] [Proof.toXml p | (_,p) <- subproofs ]]
     where (n, cnt)  = tproofToXml tinst input tproof 
@@ -146,7 +145,7 @@ class TransformationProof t where
   pprintTProof :: TheTransformer t -> Problem -> ProofOf t -> P.PPMode -> Doc
   
   -- | Pretty printer of the 'Proof'. A default implementation is given.
-  pprintProof :: P.Processor sub => Proof t sub -> P.PPMode -> Doc
+  pprintProof :: (Transformer t, P.Processor sub) => Proof t sub -> P.PPMode -> Doc
   pprintProof proof mde = 
       ppTransformationDetails 
       $+$ case subprobs of 
@@ -155,11 +154,13 @@ class TransformationProof t where
             _    -> ppOverviews
                    $+$ text ""
                    $+$ ppDetails (Just "Proofs for generated problems")
-      where subproofs = subProofs proof
-            subprobs  = subProblems proof
-            tproof    = transformationProof proof
-            t         = appliedTransformer proof
-            input     = inputProblem proof
+      where nproof    = proof
+            subproofs = subProofs nproof
+            subprobs  = subProblems nproof
+            tproof    = transformationProof nproof
+            t         = appliedTransformer nproof
+            input     = inputProblem nproof
+            
             ppTransformationDetails 
               | mde == P.OverviewOutput = PP.empty
               | otherwise = pprintTProof t input tproof mde
@@ -182,7 +183,23 @@ class TransformationProof t where
                            then text "was proven" <+> Util.pprint (P.answer proof_i)
                            else text "remains open")
                      PP.<> text ".")
+            
 
+  normalisedProof :: (Transformer t, P.Processor sub) => Proof t sub -> Proof SomeTransformation P.SomeProcessor
+  normalisedProof = someProof
+      
+someProof :: (Transformer t, P.Processor sub) => Proof t sub -> Proof SomeTransformation P.SomeProcessor
+someProof proof = 
+  Proof { transformationResult = mapResult (SomeTransProof t) $ transformationResult proof
+        , inputProblem         = prob
+        , appliedTransformer   = someTransformation t
+        , appliedSubprocessor  = P.someInstance sub
+        , subProofs            = P.someProcessorProof `mapEnum` subProofs proof }
+  where 
+    t = appliedTransformer proof
+    sub = appliedSubprocessor proof
+    prob = inputProblem proof
+      
 -- | Result type for a transformation.
 data Result t = NoProgress (ProofOf t)  -- ^ The transformation did not simplify the problem.
               | Progress (ProofOf t) (Enumeration Problem) -- ^ The transformation resulted in the given subproblems.
@@ -280,34 +297,35 @@ class (Arguments (ArgumentsOf t), TransformationProof t) => Transformer t where
 data SomeTransformation = forall t. (Transformer t) => SomeTransformation t (Domains (ArgumentsOf t))
 data SomeTransProof = forall t. (Transformer t, TransformationProof t) => SomeTransProof (TheTransformer t) (ProofOf t)
 
-someProof :: (Transformer t, P.Processor sub) => P.InstanceOf sub -> TheTransformer t -> Problem -> Result t -> Enumeration (P.Proof sub) -> Proof t P.SomeProcessor
-someProof sub t prob res subproofs = Proof { transformationResult = res
-                                           , inputProblem         = prob
-                                           , appliedTransformer   = t
-                                           , appliedSubprocessor  = P.someInstance sub
-                                           , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subproofs }
-
-
 onSomeProof :: P.Processor sub' => 
               (forall t sub. (Transformer t, P.Processor sub) => Proof t sub -> a) -> Proof SomeTransformation sub' -> a
 f `onSomeProof` proof = 
   case transformationProof proof of 
-    SomeTransProof tinst tproof -> 
-        f proof { transformationResult = 
-                     case transformationResult proof of 
-                       NoProgress _  -> NoProgress tproof
-                       Progress _ ps -> Progress tproof ps
-                , appliedTransformer = tinst }
+    SomeTransProof tinst tproof -> f proof'
+      where proof' = proof { transformationResult = 
+                                case transformationResult proof of 
+                                  NoProgress _  -> NoProgress tproof
+                                  Progress _ ps -> Progress tproof ps
+                           , appliedTransformer = tinst }
                 
 instance TransformationProof SomeTransformation where
-  answer proof = answer `onSomeProof` proof 
+  answer proof = answer `onSomeProof` proof
   pprintProof proof = pprintProof `onSomeProof` proof
   pprintTProof _ prob (SomeTransProof t p) = pprintTProof t prob p
-  proofToXml proof = proofToXml `onSomeProof` proof
+  proofToXml proof = proofToXml  `onSomeProof` proof
   tproofToXml _ prob (SomeTransProof t p) = tproofToXml t prob p
-  
-  
-  
+  normalisedProof proof = 
+    -- proof { appliedSubprocessor  = P.someInstance sub
+    --       , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subProofs proof }
+    -- where sub = appliedSubprocessor proof
+    --       prob = inputProblem proof
+    case transformationProof proof of 
+      SomeTransProof tinst tproof -> 
+        normalisedProof $ proof { transformationResult = 
+                                     case transformationResult proof of 
+                                       NoProgress _  -> NoProgress tproof
+                                       Progress _ ps -> Progress tproof ps
+                                , appliedTransformer = tinst }
 
 instance Transformer SomeTransformation where
     name (SomeTransformation t _) = name t
@@ -407,17 +425,20 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
 
 
 instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) where 
-  pprintProof proof mde 
-     | not (isProgressResult (transformationResult proof)) = 
-           case subProofs proof of 
+  pprintProof proof P.StrategyOutput = pprintProof proof P.StrategyOutput
+  
+  pprintProof proof mde
+     | not (isProgressResult (transformationResult proof')) = 
+           case subProofs proof' of 
               [(_, subproof)] -> P.pprintProof (P.result subproof) mde
-              _               -> pprintProof proof mde
-     | otherwise = pprintProof proof mde
+              _               -> pprintProof proof' mde
+     | otherwise = pprintProof proof' mde
+    where proof' = normalisedProof proof
   answer proof
-     | not (isProgressResult (transformationResult proof)) = answerFromSubProof proof
-     | otherwise = answer proof
-
-  toXml proof = proofToXml proof
+     | not (isProgressResult (transformationResult proof')) = answerFromSubProof proof'
+     | otherwise = answer $ normalisedProof proof
+    where proof' = normalisedProof proof
+  toXml proof = proofToXml (normalisedProof proof)
   
 
 -- | Constructor for instances.

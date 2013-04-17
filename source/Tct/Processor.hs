@@ -342,8 +342,8 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
     
     toXml (Proof inst prob res) = 
       Xml.elt "proofNode" [] [ Xml.complexityProblem prob (answer res)
-                             , Xml.elt "proofDetail" [] [toXml res] 
-                             , processorToXml inst]
+                             , processorToXml inst
+                             , Xml.elt "proofDetail" [] [toXml res]]
 
 -- | Objects of type 'ProofPartial proc' correspond to a proof node
 -- obtained by 'solvePartial'. 

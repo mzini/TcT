@@ -29,7 +29,7 @@ import Text.PrettyPrint.HughesPJ
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Qlogic.MiniSat (MiniSatLiteral, MiniSat, MiniSatSolver)
+import Qlogic.MiniSat (MiniSatLiteral, MiniSatSolver)
 import Qlogic.Boolean
 import Qlogic.Diophantine
 import Qlogic.Formula (Formula(..))
@@ -324,13 +324,13 @@ solveConstraint prob ua mk sig mp constraints =
                   Nothing -> Incompatible
                   Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob Nothing []
                   
-formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
-formula fml = run $ toFormula Nothing 3 fml
-  where run :: MiniSat  r -> IO (Either SatSolver.SatError r)
-        run = SatSolver.runSolver
+-- formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
+-- formula fml = run $ toFormula Nothing 3 fml
+--   where run :: MiniSat  r -> IO (Either SatSolver.SatError r)
+--         run = SatSolver.runSolver
 
-gt :: MatrixInter (DioPoly DioVar Int) -> Term -> Term -> DioFormula MiniSatLiteral DioVar Int 
-gt mi l r = interpretTerm mi l .>. interpretTerm mi r
+-- gt :: MatrixInter (DioPoly DioVar Int) -> Term -> Term -> DioFormula MiniSatLiteral DioVar Int 
+-- gt mi l r = interpretTerm mi l .>. interpretTerm mi r
 
 solveConstraint' :: P.SolverM m => 
                    Prob.Problem

@@ -47,19 +47,22 @@ import Text.PrettyPrint.HughesPJ
 
 import Qlogic.Boolean
 import Qlogic.Diophantine
-import Qlogic.MiniSat
 import qualified Qlogic.NatSat as N
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.Semiring
 import qualified Qlogic.Semiring as SR
 import Qlogic.PropositionalFormula (PropAtom)
+import Qlogic.SatSolver ((:&:)(..))
+import qualified Qlogic.MemoizedFormula as MFormula
 
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
+import qualified Termlib.Term as T
 import Termlib.Utils
 import qualified Termlib.Variable as V
+import qualified Termlib.ArgumentFiltering as AF
 
 import qualified Tct.Method.RuleSelector as RS
 import qualified Tct.Certificate as C
@@ -67,6 +70,9 @@ import Tct.Encoding.AbstractInterpretation
 import Tct.Encoding.Natring ()
 import Tct.Encoding.Polynomial as Poly
 import Tct.Encoding.UsablePositions hiding (empty, toXml)
+import qualified Tct.Encoding.UsableRules as UREnc
+import qualified Tct.Encoding.ArgumentFiltering as AFEnc
+
 import Tct.Method.Poly.PolynomialInterpretation
 import Tct.Processor (Answer(..))
 import Tct.Processor.Args hiding (toXml)
@@ -82,7 +88,11 @@ data PolynomialOrder =
   PolynomialOrder { ordInter :: PolyInter Int
                   , param    :: PIKind
                   , uargs    :: UsablePositions 
-                  , input    :: Prob.Problem} deriving Show
+                  , input    :: Prob.Problem
+                  , argFilter :: Maybe AF.ArgumentFiltering
+                  , usymbols  :: [F.Symbol]
+                  
+                  } deriving Show
 
 data NaturalPI = NaturalPI deriving (Typeable, Show)
 
@@ -97,16 +107,21 @@ instance P.ComplexityProof PolynomialOrder where
       $+$ text ""
       $+$ paragraph "This order satisfies following ordering constraints"
       $+$ text ""
-      $+$ indent (pprintOrientRules inter sig vars (Trs.rules $ Prob.allComponents prob))      
-    where ppknd (UnrestrictedPoly   shp) = ppshp shp
-          ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
-          ppshp (SimpleShape s) = show s ++ " polynomial interpretation."
-          ppshp (CustomShape _) = "polynomial interpretation." 
+      $+$ indent (pprintOrientRules inter sig vars rs)      
+    where 
+      ppknd (UnrestrictedPoly   shp) = ppshp shp
+      ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
+      ppshp (SimpleShape s) = show s ++ " polynomial interpretation."
+      ppshp (CustomShape _) = "polynomial interpretation." 
 
-          inter = ordInter order
-          prob = input order
-          sig = Prob.signature prob
-          vars = Prob.variables prob
+      inter = ordInter order
+      prob = input order
+      sig = Prob.signature prob
+      vars = Prob.variables prob
+      rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob 
+                , let rt = T.root $ R.lhs rl 
+                  in or [ rt == Right f | f <- us ] ]
+      us = usymbols order                                            
 
   answer order = CertAnswer $ C.certified (C.unknown, ub)
     where ub = case knd of 
@@ -138,7 +153,7 @@ instance S.Processor NaturalPI where
 
   description NaturalPI = [ "This processor orients the problem using polynomial interpretation over natural numbers." ]
 
-  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool)
+  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool)
   arguments NaturalPI = opt { A.name         = "kind"
                             , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
                                                        , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
@@ -168,6 +183,11 @@ instance S.Processor NaturalPI where
                             , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
                                                       , "in order to relax the monotonicity constraints on the interpretation."]
                             , A.defaultValue = True }
+                        :+:
+                        opt { A.name = "urules"
+                            , A.description = unwords [ "This argument specifies whether usable rules modulo argument filtering is applied"
+                                                      , "in order to decreas the number of rules to orient. "]
+                            , A.defaultValue = True }
 
   instanceName inst = show (shape $ S.processorArgs inst) ++ " polynomial interpretation"
 
@@ -176,16 +196,18 @@ instance S.Processor NaturalPI where
   solve inst prob = orient rs prob (S.processorArgs inst)
        where rs = RS.rsSelect (RS.selAllOf RS.selStricts) prob  
   solvePartial inst rs prob = mkProof `liftM` orient rs prob (S.processorArgs inst)
-       where mkProof res@(Order (PolynomialOrder mi _ _ _)) = 
-               P.PartialProof { P.ppInputProblem = prob
-                              , P.ppResult       = res 
-                              , P.ppRemovableDPs = Trs.toRules $ strictRules mi $ Prob.dpComponents prob
-                              , P.ppRemovableTrs = Trs.toRules $ strictRules mi $ Prob.trsComponents prob }
-             mkProof res = 
-               P.PartialProof { P.ppInputProblem = prob
-                              , P.ppResult       = res
-                              , P.ppRemovableDPs = []
-                              , P.ppRemovableTrs = [] }
+       where 
+         mkProof res@(Order ord@(PolynomialOrder {})) = 
+           P.PartialProof { P.ppInputProblem = prob
+                          , P.ppResult       = res 
+                          , P.ppRemovableDPs = Trs.toRules $ strictRules inter $ Prob.dpComponents prob
+                          , P.ppRemovableTrs = Trs.toRules $ strictRules inter $ Prob.trsComponents prob }
+           where inter = ordInter ord
+         mkProof res = 
+           P.PartialProof { P.ppInputProblem = prob
+                          , P.ppResult       = res
+                          , P.ppRemovableDPs = []
+                          , P.ppRemovableTrs = [] }
 
 polyProcessor :: S.StdProcessor NaturalPI
 polyProcessor = S.StdProcessor NaturalPI
@@ -210,68 +232,109 @@ cbits (_ :+: _ :+: _ :+: b :+: _) = do Nat n <- b
                                        return $ N.Bits n
 
 isUargsOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
-isUargsOn (_ :+: _ :+: _ :+: _ :+: ua) = ua
+isUargsOn (_ :+: _ :+: _ :+: _ :+: ua :+: _) = ua
 
-
-
-solveConstraint :: P.SolverM m => 
-                    Prob.Problem
-                    -> UsablePositions 
-                    -> Prob.StartTerms 
-                    -> F.Signature 
-                    -> Domains (S.ArgumentsOf NaturalPI) 
-                    -> DioFormula MiniSatLiteral DioVar Int
-                    -> m (S.ProofOf NaturalPI)
-solveConstraint prob ua st sig inst constraints = 
-  catchException $ do 
-    let fml = toFormula (liftM N.bound cb) (N.bound n) constraints >>= SatSolver.addFormula
-        i = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
-    thePI <- P.minisatValue fml i
-    return $ case thePI of
-      Nothing -> Incompatible
-      Just pv -> let pint = fmap (\x -> x n) pv in
-                 Order $ PolynomialOrder pint{interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} pk ua prob
-  where n      = bound inst
-        cb     = cbits inst
-        pk     = kind inst st
-
+isUrulesOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
+isUrulesOn (_ :+: _ :+: _ :+: _ :+: _ :+: ur) = ur
 
 data PolyDP = PWithDP | PNoDP deriving (Show, Eq)
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
 instance PropAtom Strict
 
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
-orient rs prob args = 
-  solveConstraint prob ua st sig args $
-    orientationConstraint
-    && dpChoice pdp st uaOn absi
+orient rs prob args = catchException $ do 
+  case pdp of 
+    PWithDP -> solve initial mkOrder 
+      where 
+        mkOrder (pv :&: af :&: us) = 
+          PolynomialOrder { ordInter = mkInter pv
+                          , param = pk 
+                          , uargs = ua 
+                          , input = prob
+                          , argFilter = if allowAF then Just af else Nothing
+                          , usymbols = us }
+        initial = abspi :&: AFEnc.initial sig :&: UREnc.initialUsables prob
+      
+    PNoDP -> solve abspi mkOrder 
+      where 
+        mkOrder pv = 
+          PolynomialOrder { ordInter = mkInter pv
+                          , param = pk 
+                          , uargs = ua 
+                          , input = prob
+                          , argFilter = Nothing
+                          , usymbols = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob }
 
-  where ua = usableArgsWhereApplicable (pdp == PWithDP) sig st uaOn strat allrules
-        absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
-        pdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
-                 then PWithDP
-                 else PNoDP     
-        sig   = Prob.signature prob
-        st    = Prob.startTerms prob
-        strat = Prob.strategy prob
-        allrules = Prob.allComponents prob  
-        pk   = kind args st
-        uaOn = isUargsOn args
-        orientationConstraint = 
-          bigAnd [interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ allrules]
-          -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
-          && orientSelected rs
-          where strictVar = restrictvar . Strict
-                modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
-                orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
-                orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
-                orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
-                orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
+  where 
+    solve :: (SatSolver.Decoder e a, P.SolverM m) => e -> ( e -> PolynomialOrder) -> m (OrientationProof PolynomialOrder)
+    solve initial mkOrder = do 
+      let pform = do
+            pform1 <- MFormula.toFormula mconstraints
+            pform2 <- toFormula (N.bound `liftM` cbits args) (N.bound $ bound args) dconstraints
+            SatSolver.addFormula (pform1 && pform2)
+      mpi <- P.minisatValue pform initial
+      return $ case mpi of
+        Nothing -> Incompatible
+        Just o -> Order $ mkOrder o
+      
+    mkInter pv = pint {interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} 
+      where 
+        pint = fmap (\x -> x n) pv
+        n = bound args
+    
+    abspi = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
+    
+    dconstraints = 
+      dpChoice pdp st uaOn absi
+      && bigAnd [ usable r --> interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ trsrules]
+      && bigAnd [ interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ dprules]      
+      && orientSelected rs
+      && filteringConstraints
+      where 
+        usable 
+          | allowUR = UREnc.usable prob
+          | otherwise = const top
+        strictVar = restrictvar . Strict
+        modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
+        orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
+        orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
+        orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
+        orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 
         dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
         dpChoice PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints
         dpChoice PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
         dpChoice PNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
+        
+        filteringConstraints :: (Eq l, Ord l) => DioFormula l DioVar Int
+        filteringConstraints  
+           | not allowAF = top 
+           | otherwise = 
+             bigAnd [ bigAnd [ c .>. SR.zero --> bigAnd [ atom (AFEnc.InFilter f i) | Poly.Pow (V.Canon i) _ <- powers ] 
+                             | Poly.Mono c powers <- monos ]
+                    | (f,Poly.Poly monos) <- Map.toList $ interpretations absi ]
+    mconstraints = MFormula.liftSat $ MFormula.toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered
+      where 
+        isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
+                         | otherwise = top
+                         
+    
+    ua = usableArgsWhereApplicable (pdp == PWithDP) sig st uaOn strat allrules
+    absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
+    pdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
+          then PWithDP
+          else PNoDP     
+    allowUR = isUrulesOn args && Prob.isDPProblem prob               
+    allowAF = pdp == PWithDP && allowUR
+    pk   = kind args st
+    uaOn = isUargsOn args
+    
+    sig   = Prob.signature prob
+    st    = Prob.startTerms prob
+    strat = Prob.strategy prob
+    allrules = Prob.allComponents prob  
+    dprules  = Prob.dpComponents prob  
+    trsrules = Prob.trsComponents prob  
 
 -- handlefun in the next two functions could be replaced by something else,
 -- e.g. a criterion by Friedl
@@ -345,7 +408,7 @@ instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
 
 -- | This processor implements polynomial interpretations.
 poly :: PolyShape -> S.ProcessorInstance NaturalPI
-poly k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True)
+poly k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True :+: True)
 
 
 -- | Options for @simple@ polynomial interpretations.

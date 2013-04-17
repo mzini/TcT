@@ -300,10 +300,11 @@ import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
 import qualified Tct.Certificate as Cert
 
 import Termlib.Problem (Problem)
+import Termlib.Variable (Variable)
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
-import qualified Data.List as List
+import qualified Data.Set as Set
 
 -- | Path Analysis 
 pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
@@ -588,27 +589,38 @@ instance HasKind (S.ProcessorInstance NaturalPI.NaturalPI) Poly.PolyShape where
 
 instance HasBits (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withBits` bits = S.modifyArguments f p 
-    where f (k :+: bound :+: _ :+: cbits :+: uargs) = (k :+: bound :+: Just (nat bits) :+: cbits :+: uargs)
+    where f (k :+: bound :+: _ :+: cbits :+: uargs :+: urules) = (k :+: bound :+: Just (nat bits) :+: cbits :+: uargs :+: urules)
 
 instance HasCBits (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withCBits` cbits = S.modifyArguments f p 
-    where f (k :+: bound :+: bits :+: _ :+: uargs) = (k :+: bound :+: bits :+: nat `liftM` cbits :+: uargs)
+    where f (k :+: bound :+: bits :+: _ :+: uargs  :+: urules) = (k :+: bound :+: bits :+: nat `liftM` cbits :+: uargs :+: urules)
 
 instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withUsableArgs` uargs = S.modifyArguments f p
-    where f (k :+: bound :+: bits :+: cbits :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs)  
+    where f (k :+: bound :+: bits :+: cbits :+: _ :+: urules) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules) 
+                                                                                                                      
+instance HasUsableRules (S.ProcessorInstance NaturalPI.NaturalPI) where
+  p `withUsableRules` urules = S.modifyArguments f p
+    where f (k :+: bound :+: bits :+: cbits :+: uargs :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules)
+
+          
 
 
 -- | 'polys n' defines a suitable polynomial of degree 'n'
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
 polys 1 = NaturalPI.linearPolynomial
-polys n = NaturalPI.customPolynomial inter `withBits` 2 `withCBits` Just 3
-  where inter vs = [ Poly.mono [ v Poly.^^^ 1 | v <- vs']
-                   | vs' <- List.subsequences vs
-                   , length vs' <= n ]
-                   ++ [Poly.mono [ v Poly.^^^ 2] | v <- vs] 
+polys n = NaturalPI.customPolynomial (abstractInterpretation n) `withBits` 2 `withCBits` Just 3
 
-
+abstractInterpretation :: Int -> [Variable] -> [Poly.SimpleMonomial]
+abstractInterpretation degree vs = Poly.constant : concatMap (map (Poly.mono . Set.toList) . Set.toList) (inter degree)
+      where 
+        inter 1 = [ Set.fromList [ Set.fromList [v Poly.^^^ 1] | v <- vs] ]
+        inter d = Set.fromList [ Set.fromList $ v `mult` Set.toList lm | lm <- Set.toList lead,  v <- vs] : p
+          where p@(lead:_) = inter (d - 1)
+        v `mult` [] = [v Poly.^^^ 1]
+        v `mult` (p@(Poly.Pow v' i):ps)  
+          | v == v'   = Poly.Pow v' (i+1):ps
+          | otherwise = p : v `mult` ps
 
 -- * Competition Strategies
 

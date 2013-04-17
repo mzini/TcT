@@ -34,6 +34,7 @@ module Tct.Method.Poly.PolynomialInterpretation
        , PIKind (..)
        , PIVar (..)
        , PolyInter (..)
+       , Power (..)
        , abstractInterpretation
        , toXml
        , degrees
@@ -79,7 +80,7 @@ type VPolynomial a = Polynomial V.Variable a
 -- and can be build using '^^^', 'constant' and 'mono'.
 data SimpleMonomial = SimpleMonomial {smPowers :: [Power V.Variable]}
                     | CoefficientMonomial {smPowers :: [Power V.Variable]}
-
+   deriving Show
 -- | This datatype reflects standard shapes for polynomial 
 -- interpretations, as found in the literature.
 data SimplePolyShape = StronglyLinear

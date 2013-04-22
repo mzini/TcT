@@ -1,3 +1,4 @@
+
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -54,7 +55,7 @@ timeoutProcessor = S.StdProcessor Timeout
 
 
 data TOProof p = TimedOut Int 
-               | TOProof (P.ProofOf p)
+               | TOProof Int (P.ProofOf p)
 
 instance P.Processor p => S.Processor (Timeout p) where 
     type ProofOf (Timeout p)     = TOProof p
@@ -73,16 +74,18 @@ instance P.Processor p => S.Processor (Timeout p) where
         do io <- P.mkIO $ P.apply inst prob 
            r <- liftIO $ TO.timeout (i * (10^(6 :: Int))) io
            return $ case r of 
-                      Just p  -> TOProof (P.result p)
+                      Just p  -> TOProof i (P.result p)
                       Nothing -> TimedOut i
       where Nat i :+: inst = S.processorArgs tinst    
             
 instance P.ComplexityProof (P.ProofOf p) => P.ComplexityProof (TOProof p) where
-    pprintProof (TOProof p)  mde = P.pprintProof p mde
+    pprintProof (TOProof _ p)  mde = P.pprintProof p mde
     pprintProof (TimedOut i) _   = 
       paragraph ("Computation stopped due to timeout after " 
                  ++ show (double (fromIntegral i)) ++ " seconds.")
-    answer (TOProof p)  = P.answer p
+    answer (TOProof _ p)  = P.answer p
     answer (TimedOut _) = P.TimeoutAnswer
-    toXml (TOProof p)   = P.toXml p
+    toXml (TOProof i p)   = Xml.elt "timeout" [] 
+                            [Xml.elt "seconds" [] [Xml.text $ show (double (fromIntegral i))] 
+                            , Xml.elt "subProof" [] [P.toXml p]]
     toXml (TimedOut i)  = Xml.elt "timeout" [] [Xml.text $ show (double (fromIntegral i))]

@@ -63,9 +63,9 @@ instance (A.Arguments arg, P.ComplexityProof res)
     data InstanceOf (Custom arg res) = TP (Custom arg res) (A.Domains arg)
     name = as
     processorToXml (TP cs args) = 
-      Xml.elt "processor" [] [ Xml.elt "name" [] [Xml.text $ as cs]
+      Xml.elt "processor" [] [ Xml.elt "name" [] [Xml.text "named"]
                              , Xml.elt "arguments" [] $ A.toXml (arguments cs) args
-                             , Xml.elt "description" [] []]
+                             , Xml.elt "description" [] [Xml.text $ as cs]]
     instanceName (TP cs _) = as cs
     solve_ (TP cs arg) prob = (code cs) arg prob
 

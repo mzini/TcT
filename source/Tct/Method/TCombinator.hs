@@ -393,17 +393,17 @@ instance (Transformer t1, Transformer t2) => TransformationProof (t1 :<>: t2) wh
           t1 = fstChoice t
           t2 = sndChoice t
       
-  proofToXml proof = --TODO normalised proof?
-    case transformationProof proof of 
-      ChoiceOne r1 -> proofToXml $ proof { transformationResult = r1 
-                                        , appliedTransformer   = t1}
-      ChoiceTwo r2 -> proofToXml $ proof { transformationResult = r2
-                                        , appliedTransformer   = t2}
-      ChoiceSeq _ r2 -> proofToXml $ proof { transformationResult = r2
-                                          , appliedTransformer   = t2}
-    where (TheTransformer t _) = appliedTransformer proof
-          t1 = fstChoice t
-          t2 = sndChoice t
+  -- proofToXml proof = --TODO normalised proof?
+  --   case transformationProof proof of 
+  --     ChoiceOne r1 -> proofToXml $ proof { transformationResult = r1 
+  --                                       , appliedTransformer   = t1}
+  --     ChoiceTwo r2 -> proofToXml $ proof { transformationResult = r2
+  --                                       , appliedTransformer   = t2}
+  --     ChoiceSeq _ r2 -> proofToXml $ proof { transformationResult = r2
+  --                                         , appliedTransformer   = t2}
+  --   where (TheTransformer t _) = appliedTransformer proof
+  --         t1 = fstChoice t
+  --         t2 = sndChoice t
 
 
 
@@ -507,7 +507,7 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
 
     pprintTProof t prob (TryProof _ p) = pprintTProof (fromTry t) prob p
 
-    proofToXml = proofToXml . normalisedProof --TODO
+    -- proofToXml = proofToXml . normalisedProof --TODO
     
     normalisedProof proof = nproof
       -- nproof { appliedTransformer = liftTry (appliedTransformer nproof) 
@@ -592,7 +592,7 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Timed t)
       $+$ ( text "Wall-time:" <+> text (show (tpWall p)) PP.<> text "s"
             $+$ text "CPU-time:" <+> text (show (tpCpu p)) PP.<> text "s")
 
-    proofToXml = proofToXml . normalisedProof . fromTimedProof
+    -- proofToXml = proofToXml . normalisedProof . fromTimedProof
 
     normalisedProof = normalisedProof . fromTimedProof
 
@@ -693,7 +693,7 @@ instance (Transformer t) => TransformationProof (WithProblem t) where
     answer = P.answer
     pprintProof = P.pprintProof
     pprintTProof _ prob (WithProblemProof tinst proof) = pprintTProof tinst prob proof
-    proofToXml = proofToXml . normalisedProof
+    -- proofToXml = proofToXml . normalisedProof
     normalisedProof proof = normalisedProof $ 
       proof { appliedTransformer = tinst
             , transformationResult = mapResult (const tproof) $ transformationResult proof }

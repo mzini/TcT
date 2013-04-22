@@ -371,7 +371,8 @@ decompose split compfn sub = T.Transformation DecomposeProc `T.withArgs` (split 
 decomposeDynamic :: (P.Processor p1) => DecomposeBound -> P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
 decomposeDynamic = decompose (selAnyOf selStricts)
 
--- | @decomposeStatic == decompose (selAnyOf selStricts)@.
+-- | same as decompose, but results in two sub-problems, but the transformation results in two sub-problems, 
+-- instead of applying a given processor on the selected sub-problem
 decomposeStatic :: ExpressionSelector -> DecomposeBound -> T.TheTransformer (Decompose P.AnyProcessor)
 decomposeStatic split compfn = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: False :+: Nothing)
 

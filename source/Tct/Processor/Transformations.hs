@@ -79,6 +79,7 @@ where
 import Control.Monad (liftM)
 
 import Data.Maybe (catMaybes)
+import Data.Char (isAlphaNum)
 import Text.PrettyPrint.HughesPJ hiding (empty, (<>))
 import qualified Text.PrettyPrint.HughesPJ as PP
 import qualified Data.Set as Set
@@ -105,11 +106,10 @@ import Tct.Processor.Args hiding (name, description, synopsis)
 transformerToXml :: Transformer t => TheTransformer t -> Xml.XmlContent
 transformerToXml tinst = 
   Xml.elt "transformer" [] 
-    [ Xml.elt "arguments" [] $ A.toXml (arguments t) (transformationArgs tinst)
-    , Xml.elt "name" [] [Xml.text $ name t]
+    [ Xml.elt "name" [] [Xml.text $ filter isAlphaNum $ name t]
+    , Xml.elt "arguments" [] $ A.toXml (arguments t) (transformationArgs tinst)
     , Xml.elt "description" [] [Xml.text $ unwords $ description t]]
     where t = transformation tinst
-          
 -- | Every transformer needs to implement this class.
 -- Minimal definition: 'answer' and 'pprintTProof'.
 class TransformationProof t where

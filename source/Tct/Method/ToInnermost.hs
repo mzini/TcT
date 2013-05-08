@@ -22,7 +22,7 @@ module Tct.Method.ToInnermost
        , ToInnermost
        ) where
     
-import Text.PrettyPrint.HughesPJ hiding (empty)
+import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty)
 
 import Tct.Utils.Enum (enumeration')
 
@@ -31,7 +31,7 @@ import qualified Tct.Processor as P
 import Tct.Processor.Args as A
 
 import Termlib.Utils
-import Termlib.Trs (isRightLinear, isOverlay)    
+import Termlib.Trs (isRightLinear, isOverlay, isEmpty)    
 import qualified Termlib.Problem as Prob
 
 
@@ -66,7 +66,7 @@ instance T.Transformer ToInnermost where
     transform _ prob 
          | not (isRightLinear rs) = return $ T.NoProgress ToiNonRightLinear
          | not (isOverlay rs)     = return $ T.NoProgress ToiNonOverlay
-         | not (null weaks)       = return $ T.NoProgress ToiContainsWeakRules
+         | not (isEmpty weaks) = return $ T.NoProgress ToiContainsWeakRules
          | isInnermost          = return $ T.NoProgress ToiSuccess
          | otherwise            = return $ T.Progress ToiSuccess (enumeration' [prob'])
         where rs          = Prob.allComponents prob

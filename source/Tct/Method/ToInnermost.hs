@@ -37,15 +37,17 @@ import qualified Termlib.Problem as Prob
 
 data ToInnermostProof = ToiNonOverlay
                       | ToiNonRightLinear
+                      | ToiContainsWeakRules
                       | ToiSuccess
                         
 data ToInnermost = ToInnermost deriving Show
                         
 instance PrettyPrintable ToInnermostProof where
-  pprint ToiNonRightLinear = text "The input is not right linear." 
-  pprint ToiNonOverlay     = text "The input is not an overlay." 
-  pprint ToiSuccess        = paragraph ("The input is overlay and right-linear. " 
-                                        ++ "Switching to innermost rewriting.")
+  pprint ToiNonRightLinear    = text "The input is not right linear." 
+  pprint ToiNonOverlay        = text "The input is not an overlay." 
+  pprint ToiContainsWeakRules = text "The input contains weak rules." 
+  pprint ToiSuccess           = paragraph ("The input is overlay and right-linear. " 
+                                           ++ "Switching to innermost rewriting.")
                              
 instance T.TransformationProof ToInnermost where
   answer = T.answerFromSubProof
@@ -64,6 +66,7 @@ instance T.Transformer ToInnermost where
     transform _ prob 
          | not (isRightLinear rs) = return $ T.NoProgress ToiNonRightLinear
          | not (isOverlay rs)     = return $ T.NoProgress ToiNonOverlay
+         | not (null weaks)       = return $ T.NoProgress ToiContainsWeakRules
          | isInnermost          = return $ T.NoProgress ToiSuccess
          | otherwise            = return $ T.Progress ToiSuccess (enumeration' [prob'])
         where rs          = Prob.allComponents prob

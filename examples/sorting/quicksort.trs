@@ -33,5 +33,3 @@
     compare(pos(x),pos(y)) ->= compare(x,y)
     compare(s(x),0) ->= GT
     compare(s(x),s(y)) ->= compare(x,y))
-(COMMENT
-    This TRS was automatically generated from the resource aware ML program 'quicksort.raml', c.f. http://raml.tcs.ifi.lmu.de/)

@@ -146,7 +146,7 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
           Progress tproof _ -> 
             pprintTProof t1 prob tproof mde
             $+$ text ""
-            $+$ ppOverviews True
+            $+$ ppOverviews False
           NoProgress _
             | subProgress -> ppOverviews False
             | otherwise   -> PP.empty
@@ -158,9 +158,9 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
             ppOverviews showFailed =
               case catMaybes [ ppOverview i prob_i | (i, prob_i) <- subprobs] of 
                 [(_,pp)] -> pp
-                pps  -> vcat $ punctuate (text "") 
-                        [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] 
-                        | (i, pp) <- pps ]
+                pps  -> vcat $ punctuate (text "") [ indent pp | (_,pp) <- pps]
+                        -- [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] 
+                        -- | (i, pp) <- pps ]
               where 
                 ppOverview sn@(SN i) prob_i = 
                   case find i r2s of 
@@ -287,10 +287,10 @@ data Unique a = One a
               | Two a deriving (Typeable, Eq)
 
 instance Numbering a => Numbering (Unique a) where 
-    -- ppNumbering (One a) = ppNumbering a
-    -- ppNumbering (Two a) = ppNumbering a
-    ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
-    ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
+    ppNumbering (One a) = ppNumbering a
+    ppNumbering (Two a) = ppNumbering a
+    -- ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
+    -- ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     name (TheTransformer t1 _ :>>>: _) = name t1

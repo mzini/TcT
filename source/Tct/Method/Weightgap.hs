@@ -235,7 +235,7 @@ weightgapProcessor = T.Transformation WeightGap
 
 -- | This processor implements the weightgap principle.   
 weightgap :: T.TheTransformer WeightGap
-weightgap =  T.Transformation WeightGap `T.withArgs` (WgOnAny :+: RS.selAnyOf RS.selStricts :+: Algebraic :+: Nothing :+: nat 2 :+: nat 2 :+: Nothing :+: Just (nat 3) :+: True :+: True)
+weightgap =  T.Transformation WeightGap `T.withArgs` (WgOnAny :+: RS.selAnyOf RS.selStricts :+: Algebraic :+: Nothing :+: nat 2 :+: nat 2 :+: Nothing :+: Just (nat 3) :+: True :+: False)
 
 
 wgOn :: T.TheTransformer WeightGap -> WgOn -> T.TheTransformer WeightGap

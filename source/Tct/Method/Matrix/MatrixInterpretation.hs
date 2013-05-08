@@ -39,7 +39,8 @@ import Qlogic.Semiring
 import Qlogic.Boolean
 import Qlogic.PropositionalFormula
 
-import Termlib.Utils
+import Termlib.Utils hiding (columns)
+import Tct.Utils.PPrint (Align(..), columns)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
 
@@ -47,6 +48,7 @@ import qualified Tct.Utils.Xml as Xml
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Matrix
 import qualified Tct.Encoding.UsablePositions as UArgs
+import Data.List (intersperse)
 
 data MatrixInter a = MI { dimension :: Int
                         , signature :: F.Signature
@@ -119,7 +121,7 @@ instance Functor LInter where
   fmap f li = LI (Map.map (fmap f) (coefficients li)) (fmap f (constant li))
 
 instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (MatrixInter a) where
-  pprint (MI _ sig ints) = vcat $ punctuate (text "" $$ text "") [ p indend | (_, p) <- ps ]
+  pprint (MI _ sig ints) = columns [ (AlignLeft, intersperse nl [p indend | (_, p) <- ps ]) ]
                             
     where ps = [ printInter  f li | (f, li) <- Map.assocs ints]
           printInter f li = (length name, \ ind -> pprintLI name ind ppVar li)
@@ -129,6 +131,7 @@ instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (MatrixInter a
                   vs = Map.keys $ coefficients $ li
                   ppVar (V.Canon v) = char 'x' <> int v
                   ppVar (V.User v)  = char 'y' <> int v
+          nl = text " "
           indend = maximum (0 : [ len | (len, _) <- ps ])
 instance (Eq a, PrettyPrintable a, Semiring a) => PrettyPrintable (LInter a) where
    pprint = pprintLI "" 0 mVar

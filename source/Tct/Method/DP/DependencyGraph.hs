@@ -147,6 +147,7 @@ import Data.Graph.Inductive.Query.BFS (bfsn)
 
 import qualified Data.GraphViz.Types.Monadic as GV
 import qualified Data.GraphViz.Attributes as GVattribs
+import qualified Data.GraphViz.Attributes.Complete as GVattribsc
 import Data.GraphViz.Types.Generalised
 import qualified Data.GraphViz.Commands as GVcommands
 import Data.Text.Lazy (pack)
@@ -540,12 +541,18 @@ toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
                   mapM_ edgesToGV nds
                 labelM = GV.graphAttrs [GVattribs.toLabel pplabel]
                 lrules = [(n,r) | (n,(_,r)) <- withNodeLabels' dg nds]
-                pplabel = "Below rules are as follows:\\l" ++ concatMap (\ (n,r) -> " " ++ show n ++ ": " ++ st (R.lhs r) ++ " -> " ++ st (R.rhs r) ++ "\\l") lrules
+                pprule r = st (R.lhs r) ++ " -> " ++ st (R.rhs r) ++ "\\l"
                   where st t = [c | c <- show $ pprint (t,sig,vars), c /= '\n']
+                pplabel = "Below rules are as follows:\\l" ++ concatMap (\ (n,r) -> " " ++ show n ++ ": " ++ pprule r) lrules
+
                 sccToGV (j,scc) = GV.cluster (Str $ pack $ show i ++ "_" ++ show j) $ mapM nodesToGV $ withNodeLabels' dg scc
-                nodesToGV (n,(strictness,_)) = GV.node (nde n) (GVattribs.toLabel (show n) : attribs strictness)
-                  where attribs StrictDP = [GVattribs.shape GVattribs.Circle]
-                        attribs WeakDP   = [GVattribs.shape GVattribs.Circle, GVattribs.style GVattribs.dotted]
+                nodesToGV (n,(strictness,r)) = GV.node (nde n) attribs
+                  where 
+                    attribs = [ GVattribs.toLabel (show n) 
+                              , GVattribsc.Tooltip (pack $ pprule r) ]
+                               ++ shape strictness
+                    shape StrictDP = [GVattribs.shape GVattribs.Circle]
+                    shape WeakDP   = [GVattribs.shape GVattribs.Circle, GVattribs.style GVattribs.dotted]
                 edgesToGV n = mapM (\ (m,_,k) -> GV.edge (nde n) (nde m) [GVattribs.toLabel (show k)]) (lsuccessors dg n)
                 nde n = show i ++ "_" ++ show n
                 

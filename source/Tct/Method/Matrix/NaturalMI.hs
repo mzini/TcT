@@ -113,7 +113,7 @@ instance ComplexityProof MatrixOrder where
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
-                          $+$ paragraph "This order satisfies following ordering constraints"
+                          $+$ paragraph "This order satisfies following ordering constraints:"
                           $+$ text ""                            
                           $+$ indent (pprintOrientRules inter sig vars rs)
 
@@ -135,7 +135,7 @@ instance ComplexityProof MatrixOrder where
               prob  = input order
               sig   = Prob.signature prob
               vars  = Prob.variables prob
-              rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob 
+              rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob
                         , let rt = root $ R.lhs rl
                           in or [ rt == Right f | f <- us ] ]
               us = usymbols order                                            
@@ -322,7 +322,7 @@ solveConstraint prob ua mk sig mp constraints =
        theMI <- P.minisatValue fml mi
        return $ case theMI of
                   Nothing -> Incompatible
-                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob Nothing []
+                  Just mv -> Order $ MatrixOrder (fmap (\x -> x $ bound mp) mv) mk (mikind mp) ua prob Nothing $ Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob
                   
 -- formula :: DioFormula MiniSatLiteral DioVar Int -> IO (Either SatSolver.SatError (PropFormula MiniSatLiteral))
 -- formula fml = run $ toFormula Nothing 3 fml
@@ -340,10 +340,11 @@ solveConstraint' :: P.SolverM m =>
                    -> Domains (S.ArgumentsOf NaturalMI) 
                    -> MatrixDP
                    -> Bool
+                   -> Bool
                    -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral
                    -> DioFormula MiniSatLiteral DioVar Int
                    -> m (OrientationProof MatrixOrder)
-solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
+solveConstraint' prob ua mk sig mp mdp allowAF allowUR mform dform = case mdp of
     MWithDP -> solve initial mkOrder mform dform
       where 
         mkOrder (mv SatSolver.:&: af SatSolver.:&: us) =
@@ -353,7 +354,7 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
                       , uargs     = ua 
                       , input     = prob 
                       , argFilter = if allowAF then Just af else Nothing
-                      , usymbols  = us
+                      , usymbols  = if allowUR then us else defaultUsymbols
                       }
         initial = absmi SatSolver.:&: AFEnc.initial sig SatSolver.:&: UREnc.initialUsables prob
     MNoDP -> solve initial mkOrder mform dform
@@ -365,10 +366,11 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
                       , uargs     = ua
                       , input     = prob
                       , argFilter = Nothing
-                      , usymbols  = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob
+                      , usymbols  = defaultUsymbols
                       }
         initial = absmi
     where 
+      defaultUsymbols = Set.toList $ Trs.definedSymbols $ Prob.trsComponents prob
       absmi = abstractInterpretation mk (dim mp) sig :: MatrixInter (N.Size -> Int)
 
       solve :: SatSolver.Decoder e a => P.SolverM m => e -> ( e -> MatrixOrder) -> MForm.MemoFormula arg MiniSatSolver MiniSatLiteral -> DioFormula MiniSatLiteral DioVar Int -> m (OrientationProof MatrixOrder)
@@ -386,7 +388,7 @@ solveConstraint' prob ua mk sig mp mdp allowAF mform dform = case mdp of
 
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalMI) -> m (S.ProofOf NaturalMI)
 orient rs prob mp = do
-    solveConstraint' prob ua mk sig mp mdp allowAF mform dform
+    solveConstraint' prob ua mk sig mp mdp allowAF allowUR mform dform
     where ua = usableArgsWhereApplicable (mdp == MWithDP) sig st uaOn strat allrules
           mk = kind mp st
           uaOn = isUargsOn mp

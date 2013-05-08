@@ -70,6 +70,7 @@ instance T.Transformer ToInnermost where
          | isInnermost          = return $ T.NoProgress ToiSuccess
          | otherwise            = return $ T.Progress ToiSuccess (enumeration' [prob'])
         where rs          = Prob.allComponents prob
+              weaks       = Prob.weakComponents prob
               prob'       = prob { Prob.strategy = Prob.Innermost }
               isInnermost = Prob.strategy prob == Prob.Innermost
 

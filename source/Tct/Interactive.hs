@@ -767,9 +767,22 @@ bordered n d = text borderUp  $$ text "" $$ d $$ text "" $$ text border
 --- Proof Tree
         
 data ProofTree = Closed Problem (P.InstanceOf P.SomeProcessor) (P.ProofOf P.SomeProcessor)
-               | Transformed Bool Problem (T.TheTransformer T.SomeTransformation) (T.ProofOf T.SomeTransformation) (Enumeration ProofTree)
+               | Transformed Bool Problem (T.TheTransformer T.SomeTransformation) (T.Result T.SomeTransformation) (Enumeration ProofTree)
                | Open Problem
                  
+
+-- proofTreeToProof :: ProofTree -> P.Proof P.SomeProcessor
+-- proofTreeToProof (Transformed _ prob tinst tres ts) = 
+--   P.someProofNode proc prob nproof
+--   where proc = P.someInstance $ tinst `T.thenApply` sub
+--         proof = T.Proof { T.transformationResult = tres
+--                         , T.inputProblem = prob
+--                         , T.appliedTransformer = tinst
+--                         , T.appliedSubprocessor = sub
+--                         , T.subProofs = 
+--         sub = undefined
+--         -- subproofs = [proofTreeToProof        
+-- proofTreeToProof (Open prob) = P.someProofNode open prob OpenProof
 
 pprintTreeWith :: ([Int] -> String -> Problem -> Maybe P.Answer -> Doc -> [Doc] -> Doc) -> ProofTree -> Doc  
 pprintTreeWith ppNode tree = snd $ traverse [1::Int] tree
@@ -782,7 +795,7 @@ pprintTreeWith ppNode tree = snd $ traverse [1::Int] tree
           
     traverse as (Open prob) = (Nothing, ppNode as "Open Problem" prob Nothing empty [])
           
-    traverse as pt@(Transformed progressed prob tinst tproof ts) = (mans, ppNode as name prob mans ppProof subPPs)
+    traverse as pt@(Transformed progressed prob tinst tres ts) = (mans, ppNode as name prob mans ppProof subPPs)
        where 
           ass        = [as ++ [i] | i <- [1..]]
           ts'        = zip ass [ t | (_,t) <- ts]
@@ -793,7 +806,7 @@ pprintTreeWith ppNode tree = snd $ traverse [1::Int] tree
                | otherwise  = T.instanceName tinst ++ " (without progress)"
           mans | isOpen    = Nothing
                | otherwise = Just (P.answer $ proofFromTree pt)
-          ppProof = T.pprintTProof tinst prob tproof P.ProofOutput
+          ppProof = T.pprintTProof tinst prob (T.proofFromResult tres) P.ProofOutput
 
 
 instance U.PrettyPrintable ProofTree where
@@ -841,7 +854,7 @@ proofFromTree (Closed prob proc pproof) =
           , P.inputProblem = prob}
   
 proofFromTree (Open prob) = P.someProofNode open prob OpenProof
-proofFromTree (Transformed progressed prob tinst tres subs) = 
+proofFromTree (Transformed _ prob tinst tres subs) = 
   P.someProofNode proc prob tproof
   where 
         subproofs = proofFromTree `mapEnum` subs
@@ -855,10 +868,10 @@ proofFromTree (Transformed progressed prob tinst tres subs) =
                          | otherwise   = OneOfSucceeded Sequentially p
         proc = tinst T.>>| seqProc                                         
         tproof = 
-          T.Proof { T.transformationResult = 
-                       case progressed of 
-                         True  -> T.Progress tres $ mapEnum P.inputProblem subproofs
-                         False -> T.NoProgress tres
+          T.Proof { T.transformationResult = tres
+                       -- case progressed of 
+                       --   True  -> T.Progress (T.ProofFromResult tres) $ mapEnum P.inputProblem subproofs
+                       --   False -> T.NoProgress tres
                   , T.inputProblem        = prob
                   , T.appliedTransformer  = tinst
                   , T.appliedSubprocessor = T.mkSubsumed seqProc
@@ -1159,9 +1172,8 @@ instance T.Transformer t => Apply (T.TheTransformer t) where
            error "error when transforming some problem"
          Just rs -> 
            return $ \ (SN sn) prob -> mkNode prob `fmap` find sn rs
-          where mkNode prob res = Transformed progressed prob tinst tproof subTrees
+          where mkNode prob res = Transformed progressed prob tinst res subTrees
                   where progressed = T.isProgressResult res
-                        tproof = T.proofFromResult res
                         subTrees | progressed = Open `mapEnum` T.subProblemsFromResult res
                                  | otherwise  = enumeration' [Open prob] 
       where tinst = T.someTransformation t         

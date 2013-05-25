@@ -151,7 +151,7 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
             | subProgress -> ppOverviews False
             | otherwise   -> PP.empty
               -- pprintTProof t1 prob tproof mde
-              -- $+$ ppOverviews True
+              -- ppOverviews True
           
       where subProgress = any (isProgressResult . snd) r2s
             subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
@@ -159,8 +159,7 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
               case catMaybes [ ppOverview i prob_i | (i, prob_i) <- subprobs] of 
                 [(_,pp)] -> pp
                 pps  -> vcat $ punctuate (text "") [ indent pp | (_,pp) <- pps]
-                        -- [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] 
-                        -- | (i, pp) <- pps ]
+                        -- [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] | (i, pp) <- pps ]
               where 
                 ppOverview sn@(SN i) prob_i = 
                   case find i r2s of 

@@ -96,8 +96,8 @@ module Tct.Instances
     , PopStar.popstar
     , PopStar.popstarPS
     , PopStar.lmpo     
-    , PopStar.popstarSmall
-    , PopStar.popstarSmallPS
+    , PopStar.spopstar
+    , PopStar.spopstarPS
     , Mpo.mpo
       
       -- ** Bounds Processor
@@ -628,6 +628,8 @@ instance HasUsableRules (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withUsableRules` urules = S.modifyArguments f p
     where f (k :+: bound :+: bits :+: cbits :+: uargs :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
+instance HasDegree (S.ProcessorInstance PopStar.PopStar) where
+  withDegree = PopStar.withDegree
           
 -- decomposition
           
@@ -798,7 +800,7 @@ rc2012 = named "rc2012" $
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                       `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
                       
-        spopstar = PopStar.popstarSmallPS . Just                    
+        spopstar i = PopStar.spopstarPS `withDegree` Just i
 
         wg dim deg = weightgap `withCertBy` cert' `withDimension` dim' `withDegree` deg' `withCBits` Just (bits' + 1) `withBits` bits' `wgOn` Weightgap.WgOnAny
           where bits' | dim <= 3 = 3
@@ -850,7 +852,7 @@ rc2012 = named "rc2012" $
 
         directs = timeout 58 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
                   `Combinators.orBetter` timeout 5 matchbounds
-                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" PopStar.popstarSmallPS )
+                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" (PopStar.spopstarPS `withDegree`) )
                   `Combinators.orBetter` timeout 58 PopStar.popstarPS
           
           where compse i = withProblem $ \ prob ->

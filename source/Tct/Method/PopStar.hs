@@ -26,9 +26,10 @@ module Tct.Method.PopStar
       -- * Instance Constructors
     , popstar
     , popstarPS
-    , popstarSmall
-    , popstarSmallPS
+    , spopstar
+    , spopstarPS
     , lmpo
+    , withDegree
       
       -- * Processors
     , PopStar      
@@ -335,14 +336,18 @@ popstarPS = popstarProcessor `S.withArgs` (True :+: False :+: Nothing)
 
 -- | This processor implements small polynomial path orders (polynomial path orders with product extension and weak safe composition) 
       --   which allow to determine the degree of the obtained polynomial certificate.
-popstarSmall :: Maybe Int -> S.ProcessorInstance PopStar
-popstarSmall mi = ppopstarProcessor `S.withArgs` (False :+: True :+: (nat `liftM` mi))
+spopstar :: S.ProcessorInstance PopStar
+spopstar = ppopstarProcessor `S.withArgs` (False :+: True :+: Nothing)
 
 -- | This processor is like 'popstarSmall' but incorporates parameter substitution addidionally.
-popstarSmallPS :: Maybe Int -> S.ProcessorInstance PopStar
-popstarSmallPS mi = ppopstarProcessor `S.withArgs` (True :+: True :+: (nat `liftM` mi))
+spopstarPS :: S.ProcessorInstance PopStar
+spopstarPS = ppopstarProcessor `S.withArgs` (True :+: True :+: Nothing)
 
-
+withDegree :: S.ProcessorInstance PopStar -> Maybe Int -> S.ProcessorInstance PopStar
+p `withDegree` Nothing = S.modifyArguments f p
+  where f (ps :+: prod :+: _) = (ps :+: prod :+: Nothing)
+p `withDegree` (Just d) = ppopstarProcessor `S.withArgs` (ps :+: True :+: Just (nat d))
+  where (ps :+: _ :+: _) = S.processorArgs $ S.theProcessorFromInstance p
 
 --------------------------------------------------------------------------------
 -- encoding

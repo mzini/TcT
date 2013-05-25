@@ -252,7 +252,7 @@ matrixProcessor = S.StdProcessor NaturalMI
 
 -- | This processor implements matrix interpretations.     
 matrix :: S.ProcessorInstance NaturalMI
-matrix = S.StdProcessor NaturalMI `S.withArgs` (Algebraic :+: Nothing :+: nat 2 :+: nat 2 :+: Nothing :+: Just (nat 3) :+: True :+: True)
+matrix = S.StdProcessor NaturalMI `S.withArgs` (Automaton :+: Nothing :+: nat 2 :+: nat 2 :+: Nothing :+: Just (nat 3) :+: True :+: True)
 
 -- argument accessors
 

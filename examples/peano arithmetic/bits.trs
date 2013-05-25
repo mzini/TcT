@@ -4,5 +4,6 @@ half(0) -> 0
 half(s(0)) -> 0
 half(s(s(x))) -> s(half(x))
 bits(0) -> 0
-bits(s(x)) -> s(bits(half(s(x))))
+bits(s(0)) -> s(0)
+bits(s(s(x))) -> s(bits(s(half(x))))
 )

@@ -128,8 +128,8 @@ instance T.TransformationProof DPs where
       
 instance T.Transformer DPs where
     name DPs = "dp"
-    instanceName inst | tups = "Weak Dependency Tuples"
-                      | otherwise = "Dependency Pairs"
+    instanceName inst | tups = "Dependency Tuples"
+                      | otherwise = "Weak Dependency Pairs"
        where tups = T.transformationArgs inst
     description DPs = ["Applies the (weak) depencency pair transformation."]
 

@@ -52,16 +52,9 @@ module Tct.Instances
       -- | Further customisation of these processors is possible as described in "Tct.Instances#customise"
       
       -- *** Polynomial Interpretations
-      -- | TcT implements /polynomial interpretations over natural numbers/.
-      -- Configuration parameters are collected in 'PolyOptions', supply 'defaultOptions'
-      -- for using plynomial interpretations with default parameters.
+      -- | TcT implements /polynomial interpretations over natural numbers/. 
+      -- Again these can be customised as described "Tct.Instances#customise"
     , NaturalPI.poly
-    , polys
-      -- | The shape of a polynomial influences the computed certificate, 
-      -- but has also severe impacts on the time spend on proof search.
-      -- In the following, we collect some common shapes of polynomials found
-      -- in the literature. Custom shapes can be used with options 'customPolynomial'.
-      -- Further customisation of is also possible as described in "Tct.Instances#customise"
     , NaturalPI.simplePolynomial 
     , NaturalPI.linearPolynomial
     , NaturalPI.stronglyLinearPolynomial
@@ -176,10 +169,12 @@ module Tct.Instances
       
       -- *** Decompose
     , Compose.decompose
-    , partitionIndependent
-    , Compose.decomposeDynamic
-    , Compose.decomposeStatic      
+    , Compose.decomposeBy
+    , Compose.decomposeAnyWith
+    , Compose.combineBy
     , Compose.greedy      
+    , decomposeIndependentSG
+    , decomposeIndependentCycle
     , Compose.DecomposeBound (..)
       -- *** Weak Dependency Pairs and Dependency Tuples
     , DP.dependencyPairs
@@ -289,7 +284,7 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
 import qualified Tct.Method.Timeout as Timeout
 import Tct.Processor.Args ((:+:)(..), Unit(..))
-import Tct.Processor.Args.Instances (nat)
+import Tct.Processor.Args.Instances (nat,Nat(..))
 import Tct.Processor.Transformations ((>>|), (>>||))
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Method.TCombinator as TCombinator
@@ -418,7 +413,7 @@ cleanTail = some $ force $
             te (DPSimp.simpPEOn sel)
             >>> te (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
   where 
-    sel = selAllOf $ selFromWDG "simple predecessor estimation selector" f
+    sel = selAllOf (selFromWDG f) { rsName = "simple predecessor estimation selector" }
     f wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
       where 
         rs = [ r | (n,(DG.StrictDP, r)) <- DG.lnodes wdg
@@ -426,11 +421,23 @@ cleanTail = some $ force $
         isWeak (_,(DG.WeakDP,_),_) = True
         isWeak _ = False
         
-partitionIndependent :: T.TheTransformer T.SomeTransformation
-partitionIndependent = some $ 
-  Compose.decomposeStatic (selAllOf selIndependentSG) Compose.Add
+
+-- | Using the decomposition processor (c.f. 'Compose.decomposeBy') this transformation 
+-- decomposes dependency pairs into two independent sets, in the sense that these DPs 
+-- constitute unconnected sub-graphs of the dependency graph. Applies 'cleanTail' on the resulting sub-problems,
+-- if applicable.
+decomposeIndependentSG :: T.TheTransformer T.SomeTransformation
+decomposeIndependentSG = some $ 
+  Compose.decomposeBy (selAllOf selIndependentSG)
   >>> try cleanTail
 
+-- | Similar to 'decomposeIndependentSG', but in the computation of the independent sets, 
+-- dependency pairs above cycles in the dependency graph are not taken into account. 
+decomposeIndependentCycle :: T.TheTransformer T.SomeTransformation
+decomposeIndependentCycle = some $ 
+  Compose.decomposeBy (selAllOf selCycleIndependentSG)
+  >>> try cleanTail
+  
 
 -- | Tries dependency pairs for RC, and dependency pairs with weightgap, otherwise uses dependency tuples for IRC. 
 -- Simpifies the resulting DP problem as much as possible.
@@ -450,7 +457,7 @@ toDP =
       <> DP.dependencyTuples
     toDP' _ = DP.dependencyPairs >>> try UR.usableRules >>> try wgOnUsable
     
-    partIndep Prob.Innermost = partitionIndependent
+    partIndep Prob.Innermost = decomposeIndependentCycle
     partIndep _ = some $ linearPathAnalysis
     
     wgOnUsable = weightgap `wgOn` Weightgap.WgOnTrs
@@ -485,6 +492,10 @@ class HasCertBy a where
   -- | Defines under which method a certificate should be obtained
   withCertBy :: a -> NaturalMI.NaturalMIKind -> a
   
+class Decomposing a where 
+  -- | Defines how the decomposition technique should decompose the input problem.
+  selectRules :: a -> ExpressionSelector -> a
+
 class HasDegree a where 
   -- | Specifies an upper bound on the estimated degree, or ounbounded degree if given 'Nothing'.
   withDegree :: a -> Maybe Int -> a
@@ -515,70 +526,76 @@ class HasKind a k | a -> k where
 
 instance HasDimension (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withDimension` d = S.modifyArguments f mx
-    where f (cert :+: deg :+: _ :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (cert :+: deg :+: nat d :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (cert :+: deg :+: _     :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (cert :+: deg :+: nat d :+: bound :+: bits :+: cbits :+: uargs :+: urules)
     
 instance HasCertBy (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withCertBy` c = S.modifyArguments f mx
-    where f (_ :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (c :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (_ :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (c :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
     
 instance HasDegree (S.ProcessorInstance NaturalMI.NaturalMI) where
-  mx `withDegree` deg = S.modifyArguments f mx
-    where f (cert :+: _ :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (cert :+: nat `liftM` deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+  mx `withDegree` Nothing = S.modifyArguments f mx
+    where f (cert :+: _ :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (cert :+: Nothing :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
+  mx `withDegree` (Just deg) = S.modifyArguments f mx
+    where f (cert :+: _              :+: Nat dim  :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (cert :+: Just (nat deg) :+: nat dim' :+: bound :+: bits :+: cbits :+: uargs :+: urules)
+            where dim' 
+                    | dim < deg = deg
+                    | otherwise = dim
 
 instance HasBits (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withBits` bits = S.modifyArguments f mx
-    where f (cert :+: deg :+: dim :+: _        :+: bound :+: cbits :+: uargs :+: urules) = 
-            (cert :+: deg :+: dim :+: nat bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (cert :+: deg :+: dim :+: bound :+: _               :+: cbits :+: uargs :+: urules) = 
+            (cert :+: deg :+: dim :+: bound :+: Just (nat bits) :+: cbits :+: uargs :+: urules)
 
 instance HasCBits (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withCBits` cbits = S.modifyArguments f mx
-      where f (cert :+: deg :+: dim :+: bits :+: bound :+: _ :+: uargs :+: urules) = 
-              (cert :+: deg :+: dim :+: bits :+: bound :+: nat `liftM` cbits :+: uargs :+: urules)
+      where f (cert :+: deg :+: dim :+: bound :+: bits :+: _ :+: uargs :+: urules) = 
+              (cert :+: deg :+: dim :+: bound :+: bits :+: nat `liftM` cbits :+: uargs :+: urules)
 
 instance HasUsableArgs (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withUsableArgs` uargs = S.modifyArguments f mx
-    where f (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: _ :+: urules) = 
-            (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: _ :+: urules) = 
+            (cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
 instance HasUsableRules (S.ProcessorInstance NaturalMI.NaturalMI) where
   mx `withUsableRules` urules = S.modifyArguments f mx
-    where f (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: _) = 
-            (cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: _) = 
+            (cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
 -- weightgap
 
 instance HasDimension (T.TheTransformer Weightgap.WeightGap) where
   wg `withDimension` d = T.modifyArguments f wg
-    where f (on :+: rs :+: cert :+: deg :+: _ :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (on :+: rs :+: cert :+: deg :+: nat d :+: bits :+: bound :+: cbits :+: uargs :+: urules)
-    
+    where f (on :+: rs :+: cert :+: deg :+: _ :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: nat d :+: bound :+: bits :+: cbits :+: uargs :+: urules)
+
 instance HasCertBy (T.TheTransformer Weightgap.WeightGap) where
   wg `withCertBy` c = T.modifyArguments f wg
-    where f (on :+: rs :+: _ :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (on :+: rs :+: c :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (on :+: rs :+: _ :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: c :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
     
 instance HasDegree (T.TheTransformer Weightgap.WeightGap) where
   wg `withDegree` deg = T.modifyArguments f wg
-    where f (on :+: rs :+: cert :+: _ :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules) = 
-            (on :+: rs :+: cert :+: nat `liftM` deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (on :+: rs :+: cert :+: _ :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: nat `liftM` deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
 instance HasBits (T.TheTransformer Weightgap.WeightGap) where
   wg `withBits` bits = T.modifyArguments f wg
-    where f (on :+: rs :+: cert :+: deg :+: dim :+: _        :+: bound :+: cbits :+: uargs :+: urules) = 
-            (on :+: rs :+: cert :+: deg :+: dim :+: nat bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: _               :+: cbits :+: uargs :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: Just (nat bits) :+: cbits :+: uargs :+: urules)
 
 instance HasCBits (T.TheTransformer Weightgap.WeightGap) where
   wg `withCBits` cbits = T.modifyArguments f wg
-      where f (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: _ :+: uargs :+: urules) = 
-              (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: nat `liftM` cbits :+: uargs :+: urules)
+      where f (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: bits :+: _ :+: uargs :+: urules) = 
+              (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: bits :+: nat `liftM` cbits :+: uargs :+: urules)
 
 instance HasUsableArgs (T.TheTransformer Weightgap.WeightGap) where
   wg `withUsableArgs` uargs = T.modifyArguments f wg
-    where f (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: _ :+: urules) = 
-            (on :+: rs :+: cert :+: deg :+: dim :+: bits :+: bound :+: cbits :+: uargs :+: urules)
+    where f (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: _ :+: urules) = 
+            (on :+: rs :+: cert :+: deg :+: dim :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
 -- poly
 
@@ -595,6 +612,14 @@ instance HasCBits (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withCBits` cbits = S.modifyArguments f p 
     where f (k :+: bound :+: bits :+: _ :+: uargs  :+: urules) = (k :+: bound :+: bits :+: nat `liftM` cbits :+: uargs :+: urules)
 
+instance HasDegree (S.ProcessorInstance NaturalPI.NaturalPI) where
+  p `withDegree` mdeg = S.modifyArguments f p
+    where f (_ :+: bound :+: bits :+: cbits :+: uargs  :+: urules) = 
+            (shape mdeg :+: bound :+: bits :+: cbits :+: uargs  :+: urules)
+            where 
+              shape Nothing = Poly.SimpleShape Poly.Quadratic
+              shape (Just deg) = Poly.CustomShape (abstractInterpretation deg)
+
 instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withUsableArgs` uargs = S.modifyArguments f p
     where f (k :+: bound :+: bits :+: cbits :+: _ :+: urules) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules) 
@@ -604,7 +629,12 @@ instance HasUsableRules (S.ProcessorInstance NaturalPI.NaturalPI) where
     where f (k :+: bound :+: bits :+: cbits :+: uargs :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules)
 
           
-
+-- decomposition
+          
+instance P.Processor a => Decomposing (T.TheTransformer (Compose.Decompose a)) where
+  t `selectRules` split = T.modifyArguments f t
+    where f (_ :+: compfn :+: greedy :+: msub) = (split :+: compfn :+: greedy :+: msub)
+            
 
 -- | 'polys n' defines a suitable polynomial of degree 'n'
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
@@ -751,9 +781,9 @@ dc2012 =
               <> compCom (mx 3 2) 
               <> compCom (mx 4 3)
                 
-        compAdd p = Compose.decomposeDynamic Compose.Add p
-        compMul p = Compose.greedy $ Compose.decomposeDynamic Compose.Mult p
-        compCom p = Compose.greedy $ Compose.decomposeDynamic Compose.Compose p        
+        compAdd p = Compose.decomposeAnyWith p
+        compMul p = Compose.greedy $ Compose.decomposeAnyWith p `Compose.combineBy` Compose.Mult
+        compCom p = Compose.greedy $ Compose.decomposeAnyWith p `Compose.combineBy` Compose.Compose
 
 
 rc2012 :: P.InstanceOf P.SomeProcessor
@@ -812,10 +842,10 @@ rc2012 = named "rc2012" $
         basics = 
           timeout 5 matchbounds 
           `Combinators.orFaster` PopStar.popstarPS
-          `Combinators.orFaster` (te (Compose.decomposeDynamic Compose.Add (polys 3)
-                                      <||> Compose.decomposeDynamic Compose.Add (mx 3 3)
-                                      <||> Compose.decomposeDynamic Compose.Add (mx 4 3)                        
-                                      <||> Compose.decomposeDynamic Compose.Add (mx 4 4)) 
+          `Combinators.orFaster` (te (Compose.decomposeAnyWith (polys 3)
+                                      <||> Compose.decomposeAnyWith (mx 3 3)
+                                      <||> Compose.decomposeAnyWith (mx 4 3)                        
+                                      <||> Compose.decomposeAnyWith (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
         directs = timeout 58 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
@@ -825,11 +855,11 @@ rc2012 = named "rc2012" $
           
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
-                    Compose.decomposeDynamic Compose.Add (spopstar i) -- binary search auf grad
-                    <> (when (i == 2 || i == 3) (Compose.decomposeDynamic Compose.Add (polys i))
+                    Compose.decomposeAnyWith (spopstar i) -- binary search auf grad
+                    <> (when (i == 2 || i == 3) (Compose.decomposeAnyWith (polys i))
                         <||> wg i i
-                        <||> Compose.decomposeDynamic Compose.Add (mx i i)
-                        <||> when (i < 4) (Compose.decomposeDynamic Compose.Add (mx (i + 1) i)))
+                        <||> Compose.decomposeAnyWith (mx i i)
+                        <||> when (i < 4) (Compose.decomposeAnyWith (mx (i + 1) i)))
           
         rc2012RC = 
           Combinators.best [ some $ timeout 58 $ DP.dependencyPairs >>| isTrivialDP
@@ -863,7 +893,7 @@ rc2012 = named "rc2012" $
                   | cwdgDepth cwdg == (0::Int) = some $ shiftLeafs 
                   | otherwise = some $ timeout 15 shiftLeafs <> removeFirstCongruence
                 removeFirstCongruence = 
-                  ComposeRC.decomposeDG ComposeRC.decomposeDGselect `ComposeRC.solveUpperWith` proc >>> try simps
+                  ComposeRC.decomposeDG `ComposeRC.solveUpperWith` proc >>> try simps
                   where proc = try simps >>> te shiftLeafs >>! basics
                 cwdgDepth cwdg = maximum $ 0 : [ dp r | r <- DG.roots cwdg]
                   where dp n = maximum $ 0 : [ 1 + dp m | m <- DG.successors cwdg n]
@@ -872,7 +902,7 @@ rc2012 = named "rc2012" $
 
 certify2012 :: P.InstanceOf P.SomeProcessor
 certify2012 = some $ try IRR.irr >>| step [1..] (te . t) (const empty)
-  where t d = some $ Compose.decomposeDynamic Compose.Add (vmx d)
+  where t d = some $ Compose.decomposeAnyWith (vmx d)
                      -- <> decomposeDynamic Add (vps d)
         vmx dimension = matrix 
                         `withCertBy` NaturalMI.Triangular 

@@ -22,8 +22,9 @@ This module provides the /compose/ transformation.
 module Tct.Method.Compose 
        (
          decompose
-       , decomposeDynamic
-       , decomposeStatic         
+       , combineBy
+       , decomposeBy
+       , decomposeAnyWith
        , DecomposeBound (..)
          -- * Proof Object
        , DecomposeProof (..)
@@ -367,15 +368,19 @@ decomposeProcessor = T.Transformation DecomposeProc
 decompose :: (P.Processor p1) => ExpressionSelector -> DecomposeBound -> P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
 decompose split compfn sub = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: False :+: Just sub)
 
--- | @decomposeDynamic == decompose (selAnyOf selStricts)@.
-decomposeDynamic :: (P.Processor p1) => DecomposeBound -> P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
-decomposeDynamic = decompose (selAnyOf selStricts)
-
--- | same as decompose, but results in two sub-problems, but the transformation results in two sub-problems, 
+-- | same as decompose with 'DecomposeBound' 'Add', but the transformation results in two sub-problems, 
 -- instead of applying a given processor on the selected sub-problem
-decomposeStatic :: ExpressionSelector -> DecomposeBound -> T.TheTransformer (Decompose P.AnyProcessor)
-decomposeStatic split compfn = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: False :+: Nothing)
+decomposeBy :: ExpressionSelector -> T.TheTransformer (Decompose P.AnyProcessor)
+decomposeBy split = T.Transformation DecomposeProc `T.withArgs` (split :+: Add :+: False :+: Nothing)
+
+-- | @decomposeAnyWith == decompose (selAnyOf selStricts) Add@.
+decomposeAnyWith :: (P.Processor p1) => P.InstanceOf p1 -> T.TheTransformer (Decompose p1)
+decomposeAnyWith = decompose (selAnyOf selStricts) Add
 
 greedy :: (P.Processor p1) => T.TheTransformer (Decompose p1) -> T.TheTransformer (Decompose p1)
-greedy tinst = T.Transformation DecomposeProc `T.withArgs` (split :+: compfn :+: True :+: sub)
-  where split :+: compfn :+: _ :+: sub = T.transformationArgs tinst
+greedy tinst = T.modifyArguments f tinst
+  where f (split :+: compfn :+: _ :+: sub) = split :+: compfn :+: True :+: sub
+        
+combineBy  :: (P.Processor p1) => T.TheTransformer (Decompose p1) -> DecomposeBound -> T.TheTransformer (Decompose p1)
+tinst `combineBy` compfn = T.modifyArguments f tinst
+  where f (split :+: _ :+: g :+: sub) = split :+: compfn :+: g :+: sub

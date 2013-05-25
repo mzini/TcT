@@ -257,7 +257,7 @@ instance (P.Processor p1, P.Processor p2) => T.TransformationProof (DecomposeDG 
 
 -- | This is the default 'RuleSelector' used with 'decomposeDG'.
 decomposeDGselect :: ExpressionSelector
-decomposeDGselect = selAllOf $ selFromWDG "below first cut in WDG" f
+decomposeDGselect = selAllOf (selFromWDG f) { rsName = "below first cut in WDG" }
   where f wdg = 
           Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (DG.StrictDP,r) <- selectedRules ]
                             , Prob.wdp = Trs.fromRules [r | (DG.WeakDP,r) <- selectedRules ]}
@@ -307,8 +307,8 @@ decomposeDGProcessor = T.Transformation DecomposeDG
 -- processors that are applied on the two individual subproblems. The
 -- transformation results into the systems which could not be oriented
 -- by those processors.
-decomposeDG :: ExpressionSelector -> T.TheTransformer (DecomposeDG P.AnyProcessor P.AnyProcessor)
-decomposeDG s = T.Transformation DecomposeDG `T.withArgs` (s :+: Nothing :+: Nothing)
+decomposeDG :: T.TheTransformer (DecomposeDG P.AnyProcessor P.AnyProcessor)
+decomposeDG = T.Transformation DecomposeDG `T.withArgs` (decomposeDGselect :+: Nothing :+: Nothing)
 
 -- | Specify a processor to solve the lower immediately. 
 -- The Transformation aborts if the problem cannot be handled.

@@ -100,12 +100,12 @@ instance P.ComplexityProof PolynomialOrder where
   pprintProof order _ = 
       (if uargs order == fullWithSignature sig
        then empty
-       else (paragraph "The following argument positions are usable:"
+       else (paragraph "The following argument positions are considered usable:"
              $+$ indent (pprint (uargs order, sig))))
       $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
       $+$ pprint inter
       $+$ text ""
-      $+$ paragraph "This order satisfies following ordering constraints"
+      $+$ paragraph "This order satisfies following ordering constraints."
       $+$ text ""
       $+$ indent (pprintOrientRules inter sig vars rs)      
     where 
@@ -407,29 +407,31 @@ instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
                                             vs  = argpos x
 
 -- | This processor implements polynomial interpretations.
-poly :: PolyShape -> S.ProcessorInstance NaturalPI
-poly k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True :+: True)
+polynomialInterpretation :: PolyShape -> S.ProcessorInstance NaturalPI
+polynomialInterpretation k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True :+: True)
 
+poly :: S.ProcessorInstance NaturalPI
+poly =  simplePolynomial 
 
 -- | Options for @simple@ polynomial interpretations.
 simplePolynomial :: S.ProcessorInstance NaturalPI
-simplePolynomial =  poly $ SimpleShape Simple
+simplePolynomial =  polynomialInterpretation $ SimpleShape Simple
 
 -- | Options for @linear@ polynomial interpretations.
 linearPolynomial :: S.ProcessorInstance NaturalPI
-linearPolynomial = poly $ SimpleShape Linear
+linearPolynomial = polynomialInterpretation $ SimpleShape Linear
 
 -- | Options for @strongly linear@ polynomial interpretations.
 stronglyLinearPolynomial :: S.ProcessorInstance NaturalPI
-stronglyLinearPolynomial = poly $ SimpleShape StronglyLinear
+stronglyLinearPolynomial = polynomialInterpretation $ SimpleShape StronglyLinear
 
 -- | Options for @simple mixed@ polynomial interpretations.
 simpleMixedPolynomial :: S.ProcessorInstance NaturalPI
-simpleMixedPolynomial = poly $ SimpleShape SimpleMixed
+simpleMixedPolynomial = polynomialInterpretation $ SimpleShape SimpleMixed
 
 -- | Options for @quadratic mixed@ polynomial interpretations.
 quadraticPolynomial :: S.ProcessorInstance NaturalPI
-quadraticPolynomial = poly $ SimpleShape Quadratic
+quadraticPolynomial = polynomialInterpretation $ SimpleShape Quadratic
 
 -- | Option for polynomials of custom shape, as defined by the first argument.
 -- This function receives a list of variables 
@@ -444,4 +446,4 @@ quadraticPolynomial = poly $ SimpleShape Quadratic
 -- @
 -- . 
 customPolynomial :: ([V.Variable] -> [SimpleMonomial]) -> S.ProcessorInstance NaturalPI
-customPolynomial mk = poly $ CustomShape mk
+customPolynomial mk = polynomialInterpretation $ CustomShape mk

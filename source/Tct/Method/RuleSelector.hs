@@ -38,6 +38,7 @@ module Tct.Method.RuleSelector
        , selLeafCWDG
        , selLeafWDG
        , selIndependentSG
+       , selCycleIndependentSG         
        , selCloseForward
        , selCloseBackward
        -- * Selector Expressions
@@ -155,16 +156,16 @@ selWeaks = RuleSelector { rsName = "weak-rules" , rsSelect = fn }
 
 -- | Select from the dependency graph, using the given function. 
 -- The first parameter should specify a short name for the rule-selector.
-selFromWDG :: String -> (DG -> Prob.Ruleset) -> RuleSetSelector
-selFromWDG n f = RuleSelector { rsName = n
+selFromWDG :: (DG -> Prob.Ruleset) -> RuleSetSelector
+selFromWDG f = RuleSelector { rsName = "selected from WDG"
                               , rsSelect = \ prob -> f (dg prob) }
     where dg = DG.estimatedDependencyGraph DG.defaultApproximation
 
 -- | Select from the congruence dependency graph, using the given function.
 -- The first parameter should specify a short name for the rule-selector.          
-selFromCWDG :: String -> (CDG -> Prob.Ruleset) -> RuleSetSelector
-selFromCWDG n f = RuleSelector { rsName = n
-                               , rsSelect = \ prob -> f (dg prob) }
+selFromCWDG :: (CDG -> Prob.Ruleset) -> RuleSetSelector
+selFromCWDG f = RuleSelector { rsName = "selected from CWDG"
+                             , rsSelect = \ prob -> f (dg prob) }
     where dg = toCongruenceGraph . DG.estimatedDependencyGraph DG.defaultApproximation
 
 restrictToCongruences :: Prob.Ruleset -> [NodeId] -> CDG -> Prob.Ruleset
@@ -174,14 +175,14 @@ restrictToCongruences rs ns cdg = rs { Prob.sdp = Trs.fromRules [ r | (DG.Strict
 
 -- | Selects all rules from root-nodes in the congruence graph.
 selFirstCongruence :: RuleSetSelector
-selFirstCongruence = selFromCWDG "first congruence from CWDG" fn
+selFirstCongruence = (selFromCWDG fn) { rsName =  "first congruence from CWDG"}
     where fn cdg = restrictToCongruences Prob.emptyRuleset (roots cdg) cdg 
 
 -- | Selects all rules from nodes @n@ of the CWDG that satisfy
 -- (i) the node @n@ references at least one strict rule, and (ii)
 -- there is no node between a root of the CWDG and @n@ containing a strict rule.
 selFirstStrictCongruence :: RuleSetSelector
-selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from CWDG" fn
+selFirstStrictCongruence = (selFromCWDG fn) { rsName = "first congruence with strict rules from CWDG" }
     where 
       fn cdg = restrictToCongruences Prob.emptyRuleset ns cdg 
         where 
@@ -189,19 +190,19 @@ selFirstStrictCongruence = selFromCWDG "first congruence with strict rules from 
                             , any ((==) DG.StrictDP . fst) (allRulesFromNodes cdg [n])  ]
 
 selLeafCWDG :: RuleSetSelector
-selLeafCWDG = selFromCWDG "rules of CWDG leaf" sel
+selLeafCWDG = (selFromCWDG sel) { rsName = "rules of CWDG leaf" }
   where 
     sel cwdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (_, r) <- leafRules cwdg] }
     leafRules cwdg = DG.allRulesFromNodes cwdg (DG.leafs cwdg)
     
 selLeafWDG :: RuleSetSelector    
-selLeafWDG = selFromWDG "leafs in WDG" sel
+selLeafWDG = (selFromWDG sel) { rsName = "leafs in WDG" }
   where 
     sel wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules [ r | (_, r) <- leafRules wdg] }
     leafRules wdg = [r | (_,r) <- DG.withNodeLabels' wdg $ DG.leafs wdg]
 
 selIndependentSG :: RuleSetSelector
-selIndependentSG = selFromWDG "independent sub-graph" f
+selIndependentSG = (selFromWDG f) { rsName = "independent sub-graph" }
   where 
     f wdg = 
       case DG.nodes wdg' of 
@@ -210,6 +211,27 @@ selIndependentSG = selFromWDG "independent sub-graph" f
                                  , Prob.wdp = Trs.fromRules [r | (_,(DG.WeakDP, r)) <- rs] }
           where rs = DG.withNodeLabels' wdg' $ DG.reachablesBfs wdg' [n]
       where wdg' = DG.undirect wdg
+
+selCycleIndependentSG :: RuleSetSelector
+selCycleIndependentSG = (selFromWDG f) { rsName = "cycle independent sub-graph" }
+  where 
+    f wdg = 
+      case DG.roots wdg of 
+        [] -> Prob.emptyRuleset
+        n:_ -> Prob.emptyRuleset { Prob.sdp = Trs.fromRules [r | (_,(DG.StrictDP, r)) <- rs] 
+                                 , Prob.wdp = Trs.fromRules [r | (_,(DG.WeakDP, r)) <- rs] }
+          where ns = walk n [n]
+                rs = DG.withNodeLabels' wdg ns
+      where 
+        walk n ns 
+          | iscycle = ns ++ DG.reachablesBfs wdg [n]
+          | otherwise = 
+            case succs of 
+              [] -> ns
+              (m:_) -> walk m $ m:ns
+          where 
+            iscycle = n `elem` (succs ++ DG.reachablesBfs wdg succs)
+            succs = DG.successors wdg n
 
 selCloseWith :: (Problem -> DG) -> (String -> String) -> RuleSetSelector -> RuleSetSelector
 selCloseWith mkWdg mkName rs = 

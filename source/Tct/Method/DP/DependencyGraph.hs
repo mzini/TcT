@@ -280,7 +280,7 @@ data Approximation = EdgStar -- ^ EDG* approximation
                    deriving (Bounded, Ord, Eq, Typeable, Enum) 
                             
 instance Show Approximation where 
-    show EdgStar     = "edgstar"
+    show EdgStar = "edgstar"
     show Trivial = "trivial"
     show ICapStar = "icapstar"    
     
@@ -532,10 +532,12 @@ pprintLabeledRules name sig vars rs = text name <> text ":"
 
 toGraphViz :: [(DG,F.Signature,V.Variables)] -> Bool -> DotGraph String
 toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
-  where digraph (i,(dg,sig,vars)) = 
+  where digraph (i,(dg,sig,vars)) = do
+          GV.graphAttrs [GVattribsc.Size size]
           GV.cluster (Str $ pack $ "dg_" ++ show i) $
-          if showLabels then graphM >> labelM else graphM
+            if showLabels then graphM >> labelM else graphM
           where nds   = nodes dg
+                size = GVattribsc.Point 12.0 6.0 Nothing True
                 graphM = do
                   mapM_ sccToGV $ zip [(1::Int)..] (DFS.scc dg)
                   mapM_ edgesToGV nds

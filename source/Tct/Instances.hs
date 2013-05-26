@@ -411,7 +411,7 @@ dpsimps = some $ force $
 cleanTail :: T.TheTransformer T.SomeTransformation
 cleanTail = some $ force $ 
             te (DPSimp.simpPEOn sel)
-            >>> te (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+            >>> try (DPSimp.removeTails >>> try (DPSimp.simpDPRHS >>> try usableRules))
   where 
     sel = selAllOf (selFromWDG f) { rsName = "simple predecessor estimation selector" }
     f wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }

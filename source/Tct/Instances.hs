@@ -219,7 +219,7 @@ module Tct.Instances
     , toDP
     , dpsimps
     , removeLeaf
-    , cleanTail
+    , cleanSuffix
       
       -- * Inspecting Combinators
     , TimesOut (..)
@@ -400,7 +400,7 @@ bsearch nm mkinst = Custom.Custom { Custom.as = "bsearch-"++nm
 -- | Fast simplifications based on dependency graph analysis.
 dpsimps :: T.TheTransformer T.SomeTransformation
 dpsimps = some $ force $ 
-  try cleanTail
+  try cleanSuffix
   >>> te DPSimp.removeHeads
   >>> te DPSimp.removeInapplicable
   >>> try DPSimp.simpDPRHS 
@@ -410,10 +410,11 @@ dpsimps = some $ force $
 -- | use 'DPSimp.simpPEOn' and 'DPSimp.removeWeakSuffix' to remove leafs from the dependency graph. 
 -- If successful, right-hand sides of dependency pairs are simplified ('DPSimp.simpDPRHS') 
 -- and usable rules are re-computed ('UR.usableRules'). 
-cleanTail :: T.TheTransformer T.SomeTransformation
-cleanTail = some $ force $ 
-            te (DPSimp.simpPEOn sel)
-            >>> try (DPSimp.removeWeakSuffix >>> try (DPSimp.simpDPRHS >>> try UR.usableRules))
+cleanSuffix :: T.TheTransformer T.SomeTransformation
+cleanSuffix = 
+  some $ force $ 
+  te (DPSimp.simpPEOn sel)
+  >>> try (DPSimp.removeWeakSuffix >>> try (DPSimp.simpDPRHS >>> try UR.usableRules))
   where 
     sel = selAllOf (selFromWDG f) { rsName = "simple predecessor estimation selector" }
     f wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
@@ -426,19 +427,19 @@ cleanTail = some $ force $
 
 -- | Using the decomposition processor (c.f. 'Compose.decomposeBy') this transformation 
 -- decomposes dependency pairs into two independent sets, in the sense that these DPs 
--- constitute unconnected sub-graphs of the dependency graph. Applies 'cleanTail' on the resulting sub-problems,
+-- constitute unconnected sub-graphs of the dependency graph. Applies 'cleanSuffix' on the resulting sub-problems,
 -- if applicable.
 decomposeIndependentSG :: T.TheTransformer T.SomeTransformation
 decomposeIndependentSG = some $ 
   Compose.decomposeBy (selAllOf selIndependentSG)
-  >>> try cleanTail
+  >>> try cleanSuffix
 
 -- | Similar to 'decomposeIndependentSG', but in the computation of the independent sets, 
 -- dependency pairs above cycles in the dependency graph are not taken into account. 
 decomposeIndependentCycle :: T.TheTransformer T.SomeTransformation
 decomposeIndependentCycle = some $ 
   Compose.decomposeBy (selAllOf selCycleIndependentSG)
-  >>> try cleanTail
+  >>> try cleanSuffix
   
 
 -- | Tries dependency pairs for RC, and dependency pairs with weightgap, otherwise uses dependency tuples for IRC. 
@@ -447,10 +448,10 @@ toDP :: T.TheTransformer T.SomeTransformation
 toDP = 
   try (withStrategy toDP')
   >>> try DPSimp.removeInapplicable
-  >>> try cleanTail
+  >>> try cleanSuffix
   >>> te DPSimp.removeHeads
   >>> te (withStrategy partIndep)
-  >>> try cleanTail
+  >>> try cleanSuffix
   >>> try DPSimp.trivial
   >>> try UR.usableRules
   where 
@@ -825,7 +826,7 @@ rc2012 = named "rc2012" $
 
         isTrivialDP = 
           try DPSimp.removeInapplicable
-          >>> try cleanTail 
+          >>> try cleanSuffix 
           >>> try DPSimp.trivial
           >>| empty          
 
@@ -839,7 +840,7 @@ rc2012 = named "rc2012" $
                             <||> when (i == 2) (removeLeaf (polys 2)))
 
         simps = 
-          try cleanTail
+          try cleanSuffix
           >>> try DPSimp.trivial
           >>> try UR.usableRules 
 

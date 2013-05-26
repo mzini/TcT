@@ -195,7 +195,7 @@ module Tct.Instances
     , ComposeRC.solveUpperWith
     , ComposeRC.solveLowerWith
       -- *** DP Simplifications
-    , DPSimp.removeTails
+    , DPSimp.removeWeakSuffix
     , DPSimp.removeHeads
     , DPSimp.trivial
     , DPSimp.removeInapplicable  
@@ -407,11 +407,13 @@ dpsimps = some $ force $
   >>> try UR.usableRules
   >>> try DPSimp.trivial
             
--- | use 'DPSimp.simpPEOn' and 'DPSimp.removeTails' to remove leafs from the dependency graph. 
+-- | use 'DPSimp.simpPEOn' and 'DPSimp.removeWeakSuffix' to remove leafs from the dependency graph. 
+-- If successful, right-hand sides of dependency pairs are simplified ('DPSimp.simpDPRHS') 
+-- and usable rules are re-computed ('UR.usableRules'). 
 cleanTail :: T.TheTransformer T.SomeTransformation
 cleanTail = some $ force $ 
             te (DPSimp.simpPEOn sel)
-            >>> try (DPSimp.removeTails >>> try (DPSimp.simpDPRHS >>> try usableRules))
+            >>> try (DPSimp.removeWeakSuffix >>> try (DPSimp.simpDPRHS >>> try UR.usableRules))
   where 
     sel = selAllOf (selFromWDG f) { rsName = "simple predecessor estimation selector" }
     f wdg = Prob.emptyRuleset { Prob.sdp = Trs.fromRules rs }
@@ -466,12 +468,12 @@ toDP =
 
 -- | tries to remove leafs in the congruence graph, 
 -- by (i) orienting using predecessor extimation and the given processor, 
--- and (ii) using 'DPSimp.removeTails' and various sensible further simplifications. 
+-- and (ii) using 'DPSimp.removeWeakSuffix' and various sensible further simplifications. 
 -- Fails only if (i) fails.    
 removeLeaf :: P.Processor p => P.InstanceOf p -> T.TheTransformer T.SomeTransformation
 removeLeaf p = 
   p `DPSimp.withPEOn` anyStrictLeaf
-  >>> try (DPSimp.removeTails >>> try DPSimp.simpDPRHS)
+  >>> try (DPSimp.removeWeakSuffix >>> try DPSimp.simpDPRHS)
   >>> try UR.usableRules
   >>> try DPSimp.trivial
   where 
@@ -705,7 +707,7 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                      >>| (insideDP 
                          `Combinators.orFaster` (PathAnalysis.pathAnalysis False >>|| UR.usableRules >>| insideDP))
              where insideDP  = te dpsimps' >>| empty `Combinators.before` (try wgUsables >>| te (try dpsimps' >>> wgAll) >>| directs)
-                   dpsimps'  = try DPSimp.removeTails 
+                   dpsimps'  = try DPSimp.removeWeakSuffix 
                                >>> try DPSimp.simpDPRHS 
                                >>> try DPSimp.simpPE                   
                    wgAll     = wg  `withDimension` 1

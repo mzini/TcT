@@ -56,7 +56,7 @@ import Tct.Method.Compose hiding (decompose)
 import Tct.Method.ComposeRC hiding (decomposeDG)
 import Tct.Method.DP.DependencyPairs hiding (dependencyPairs)
 import Tct.Method.DP.PathAnalysis hiding (pathAnalysis)
-import Tct.Method.DP.Simplification hiding (simpDPRHS, simpPE)
+import Tct.Method.DP.Simplification hiding (simpDPRHS, simpPE, removeWeakSuffix)
 import Tct.Method.DP.UsableRules hiding (usableRules)
 #ifdef WithEpoStar
 import Tct.Method.EpoStar hiding (epostar)
@@ -154,7 +154,7 @@ builtInProcessors =
     P.<|>
     S.StdProcessor dependencyPairs
     P.<|>
-    S.StdProcessor removeTail
+    S.StdProcessor removeWeakSuffix
     P.<|>
     S.StdProcessor removeHead
     P.<|>
@@ -830,8 +830,8 @@ removeHead :: T.Transformation RemoveHead P.AnyProcessor
 removeHead = removeHeadProcessor
 
 
-removeTail :: T.Transformation RemoveTail P.AnyProcessor
-removeTail = removeTailProcessor
+removeWeakSuffix :: T.Transformation RemoveWeakSuffix P.AnyProcessor
+removeWeakSuffix = removeWeakSuffixProcessor
 
 {- |
 Simplify right hand sides of dependency pairs by removing marked

@@ -228,7 +228,7 @@ module Tct.Interactive
       -- combination with the combinators from "Tct.Instances".
       -- 
       -- >>> :module +Tct.Instances
-      -- >>> apply $ try removeTails >>> try usableRules 
+      -- >>> apply $ try removeWeakSuffix >>> try usableRules 
       -- ...
       -- ----------------------------------------------------------------------
       -- Selected Open Problems:

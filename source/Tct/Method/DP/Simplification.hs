@@ -21,11 +21,11 @@
 
 module Tct.Method.DP.Simplification 
        (
-         -- * Remove Tails
-         removeTails
-       , RemoveTailProof (..)
-       , removeTailProcessor
-       , RemoveTail
+         -- * Remove Weak Suffixes
+         removeWeakSuffix
+       , RemoveWeakSuffixProof (..)
+       , removeWeakSuffixProcessor
+       , RemoveWeakSuffix
          
          -- * Remove Tails
        , removeHeads
@@ -175,15 +175,15 @@ removeHeads = T.Transformation RemoveHead `T.withArgs` ()
 ----------------------------------------------------------------------
 -- Remove Tail
 
-data RemoveTail = RemoveTail
-data RemoveTailProof = RTProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
+data RemoveWeakSuffix = RemoveWeakSuffix
+data RemoveWeakSuffixProof = RTProof { removables :: [(NodeId, DGNode)] -- ^ Tail Nodes of the dependency graph.
                                , cgraph     :: CDG -- ^ Employed congruence graph.
                                , graph      :: DG -- ^ Employed weak dependency graph.
                                , signature  :: F.Signature
                                , variables  :: V.Variables}
                      | RTError DPError
                        
-instance T.TransformationProof RemoveTail where
+instance T.TransformationProof RemoveWeakSuffix where
   answer = T.answerFromSubProof
   pprintTProof _ _ (RTError e) _ = pprint e
   pprintTProof _ _ p _ 
@@ -200,15 +200,15 @@ instance T.TransformationProof RemoveTail where
 onlyWeaks :: CDGNode -> Bool
 onlyWeaks = not . any ((==) StrictDP . fst . snd) . theSCC
 
-instance T.Transformer RemoveTail where
-  name RemoveTail        = "removetails"
-  description RemoveTail = [unwords [ "Removes trailing paths that do not need to be oriented."
-                                    , "Only applicable if the strict component is empty."]
-                           ]
+instance T.Transformer RemoveWeakSuffix where
+  name RemoveWeakSuffix        = "removetails"
+  description RemoveWeakSuffix = [unwords [ "Removes trailing paths that do not need to be oriented."
+                                          , "Only applicable if the strict component is empty."]
+                                 ]
   
-  type ArgumentsOf RemoveTail = Unit
-  type ProofOf RemoveTail = RemoveTailProof
-  arguments RemoveTail = Unit
+  type ArgumentsOf RemoveWeakSuffix = Unit
+  type ProofOf RemoveWeakSuffix = RemoveWeakSuffixProof
+  arguments RemoveWeakSuffix = Unit
   transform _ prob 
      | not $ Trs.isEmpty $ Prob.strictTrs prob = return $ T.NoProgress $ RTError $ ContainsStrictRule
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RTError $ NonDPProblemGiven
@@ -243,8 +243,8 @@ instance T.Transformer RemoveTail where
                            , Prob.weakDPs   = Prob.weakDPs prob Trs.\\ ls }
                 
 
-removeTailProcessor :: T.Transformation RemoveTail P.AnyProcessor
-removeTailProcessor = T.Transformation RemoveTail
+removeWeakSuffixProcessor :: T.Transformation RemoveWeakSuffix P.AnyProcessor
+removeWeakSuffixProcessor = T.Transformation RemoveWeakSuffix
 
 -- | Removes trailing weak paths. 
 -- A dependency pair is on a trailing weak path if it is from the weak components and all sucessors in the dependency graph 
@@ -252,8 +252,8 @@ removeTailProcessor = T.Transformation RemoveTail
 --  
 -- Only applicable on DP-problems as obtained by 'dependencyPairs' or 'dependencyTuples'. Also 
 -- not applicable when @strictTrs prob \= Trs.empty@.
-removeTails :: T.TheTransformer RemoveTail
-removeTails = T.Transformation RemoveTail `T.withArgs` ()
+removeWeakSuffix :: T.TheTransformer RemoveWeakSuffix
+removeWeakSuffix = T.Transformation RemoveWeakSuffix `T.withArgs` ()
 
 
 

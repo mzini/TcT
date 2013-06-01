@@ -119,7 +119,7 @@ module Tct.Configuration (
   -- withDP = 
   --   ('Tct.Instances.timeout' 5 dps 'Tct.Instances.<>' dts)
   --   'Tct.Instances.>>>' 'Tct.Instances.try' ('Tct.Instances.exhaustively' 'Tct.Instances.partitionIndependent')
-  --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.cleanTail'
+  --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.cleanSuffix'
   --   'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' where 
   --     dps = 'Tct.Instances.dependencyPairs' 'Tct.Instances.>>>' 'Tct.Instances.try' 'Tct.Instances.usableRules' 'Tct.Instances.>>>' wgOnUsable
   --     dts = 'Tct.Instances.dependencyTuples'

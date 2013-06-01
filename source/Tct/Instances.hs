@@ -173,8 +173,8 @@ module Tct.Instances
     , Compose.decomposeAnyWith
     , Compose.combineBy
     , Compose.greedy      
+    , decomposeIndependent
     , decomposeIndependentSG
-    , decomposeIndependentCycle
     , Compose.DecomposeBound (..)
       -- *** Weak Dependency Pairs and Dependency Tuples
     , DP.dependencyPairs
@@ -194,6 +194,7 @@ module Tct.Instances
     , ComposeRC.decomposeDGselect
     , ComposeRC.solveUpperWith
     , ComposeRC.solveLowerWith
+    , ComposeRC.selectLowerBy
       -- *** DP Simplifications
     , DPSimp.removeWeakSuffix
     , DPSimp.removeHeads
@@ -429,16 +430,18 @@ cleanSuffix =
 -- decomposes dependency pairs into two independent sets, in the sense that these DPs 
 -- constitute unconnected sub-graphs of the dependency graph. Applies 'cleanSuffix' on the resulting sub-problems,
 -- if applicable.
-decomposeIndependentSG :: T.TheTransformer T.SomeTransformation
-decomposeIndependentSG = some $ 
+decomposeIndependent :: T.TheTransformer T.SomeTransformation
+decomposeIndependent = some $ 
   Compose.decomposeBy (selAllOf selIndependentSG)
+  >>> try DPSimp.simpDPRHS
   >>> try cleanSuffix
 
--- | Similar to 'decomposeIndependentSG', but in the computation of the independent sets, 
+-- | Similar to 'decomposeIndependent', but in the computation of the independent sets, 
 -- dependency pairs above cycles in the dependency graph are not taken into account. 
-decomposeIndependentCycle :: T.TheTransformer T.SomeTransformation
-decomposeIndependentCycle = some $ 
+decomposeIndependentSG :: T.TheTransformer T.SomeTransformation
+decomposeIndependentSG = some $ 
   Compose.decomposeBy (selAllOf selCycleIndependentSG)
+  >>> try DPSimp.simpDPRHS
   >>> try cleanSuffix
   
 
@@ -460,7 +463,7 @@ toDP =
       <> DP.dependencyTuples
     toDP' _ = DP.dependencyPairs >>> try UR.usableRules >>> try wgOnUsable
     
-    partIndep Prob.Innermost = decomposeIndependentCycle
+    partIndep Prob.Innermost = decomposeIndependentSG
     partIndep _ = some $ linearPathAnalysis
     
     wgOnUsable = weightgap `wgOn` Weightgap.WgOnTrs

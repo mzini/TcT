@@ -25,6 +25,7 @@ module Tct.Method.ComposeRC
          decomposeDG
        , solveUpperWith
        , solveLowerWith         
+       , selectLowerBy
        , decomposeDGselect
          -- * Proof Object
        , DecomposeDGProof (..)
@@ -319,3 +320,7 @@ solveLowerWith (T.TheTransformer _ (s :+: _ :+: p2)) p = T.TheTransformer Decomp
 -- The Transformation aborts if the problem cannot be handled.
 solveUpperWith :: (P.Processor p1, P.Processor p2, P.Processor p) => (T.TheTransformer (DecomposeDG p1 p2)) -> P.InstanceOf p -> (T.TheTransformer (DecomposeDG p1 p))
 solveUpperWith (T.TheTransformer _ (s :+: p1 :+: _)) p = T.TheTransformer DecomposeDG (s :+: p1 :+: Just p)
+
+-- | Specify how the lower component should be selected.
+selectLowerBy :: (P.Processor p1, P.Processor p2) => (T.TheTransformer (DecomposeDG p1 p2)) -> RuleSelector SelectorExpression -> (T.TheTransformer (DecomposeDG p1 p2))
+selectLowerBy (T.TheTransformer _ (_ :+: p1 :+: p2)) s = T.TheTransformer DecomposeDG (s :+: p1 :+: p2)

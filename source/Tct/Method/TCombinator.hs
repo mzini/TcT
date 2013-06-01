@@ -220,7 +220,7 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
              subproofs_i (SN i) (NoProgress _) = -- enumeration' $ catMaybes [find (One i) subproofs] --
                 case r1 of 
                   NoProgress {} 
-                    | length subproofs /= 1 -> error ">>>.normalisedProof: exactly one sub-proof expected"
+                    | length subproofs > 1 -> error ">>>.normalisedProof: at most one sub-proof expected"
                     | otherwise -> subproofs
                   Progress {} -> 
                     case find (One i) subproofs of 

@@ -395,9 +395,9 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
       $+$ text ""
       $+$ if null sel
            then paragraph "The strictly oriented rules are moved into the corresponding weak component(s)."
-           else text "Consider the set of all dependency pairs"
+           else paragraph "We return to the main proof. Consider the set of all dependency pairs"
                 $+$ text ""
-                $+$ pprintLabeledRules "DPs" sig vars [(n,r) | (n, (_, r)) <- lnodes dg]
+                $+$ pprintLabeledRules "" sig vars [(n,r) | (n, (_, r)) <- lnodes dg]
                 $+$ text ""
                 $+$ paragraph (show $ text "Processor" 
                                    <+> text pName 

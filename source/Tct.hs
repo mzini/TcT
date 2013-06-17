@@ -443,7 +443,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
                     do Just mreg <- fromConfig listStrategies
                        let procs = case mreg of 
                                      Just reg -> [ proc | proc <- toProcessorList (processors cfg)
-                                                , matches reg (name proc) || matches reg (unlines (description proc))]
+                                                , matches reg (name proc)]  -- || matches reg (unlines (description proc))
                                      Nothing  -> toProcessorList (processors cfg)
                            p1 `ord` p2     = name p1 `compare` name p2 ;
                            matches reg str = isJust $ matchRegex (mkRegex reg) str ;

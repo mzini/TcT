@@ -78,32 +78,6 @@ import qualified Tct.Processor.Args as A
 -- generated: Fri Jan  6 13:08:14 JST 2012
 builtInProcessors :: P.AnyProcessor 
 builtInProcessors = 
-    isDuplicating
-    P.<|>
-    isConstructor
-    P.<|>
-    isCollapsing
-    P.<|>
-    isGround
-    P.<|>
-    isLeftLinear
-    P.<|>
-    isRightLinear
-    P.<|>
-    isWellFormed
-    P.<|>
-    isOutermost
-    P.<|>
-    isInnermost
-    P.<|>
-    isFull
-    P.<|>
-    isContextSensitive
-    P.<|>
-    isDCProblem
-    P.<|>
-    isRCProblem
-    P.<|>
     popstar
     P.<|>
     ppopstar

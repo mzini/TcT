@@ -157,9 +157,8 @@ instance S.Processor NaturalPI where
   arguments NaturalPI = opt { A.name         = "kind"
                             , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
                                                        , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
-                                                       , "referring to the respective shapes of the abstract polynomials used."
-                                                       , "The deault value is 'stronglylinear'." ]
-                            , A.defaultValue = SimpleShape StronglyLinear }
+                                                       , "referring to the respective shapes of the abstract polynomials used." ]
+                            , A.defaultValue = SimpleShape Linear }
                         :+:
                         opt { A.name        = "bound"
                             , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."

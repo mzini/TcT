@@ -259,13 +259,13 @@ class Processor a => ParsableProcessor a where
     parseFromArgsInteractive :: a -> AnyProcessor -> IO (InstanceOf a)
 
 
-synopsis :: ParsableProcessor a => a -> String
-synopsis p = unwords $ deleteAll "" $ map f (synString p)
-    where f (Token str) = str
+synopsis :: ParsableProcessor a => a -> [String]
+synopsis p = deleteAll "" $ concatMap f (synString p)
+    where f (Token str) = [str]
           f (PosArg i) = case lookup i (posArgs p) of 
-                           Just d  -> adSynopsis d
-                           Nothing -> "<unspecified>"
-          f (OptArgs)  = unwords [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- optArgs p]
+                           Just d  -> [adSynopsis d]
+                           Nothing -> ["<unspecified>"]
+          f (OptArgs)  = [ "[:" ++ adName d ++ " " ++ adSynopsis d ++ "]"| d <- optArgs p]
           deleteAll _ [] = []
           deleteAll x (y:ys) | x == y    = deleteAll x ys
                              | otherwise = y : deleteAll x ys
@@ -273,20 +273,21 @@ synopsis p = unwords $ deleteAll "" $ map f (synString p)
 pprintArgDescrs :: [(Int, ArgDescr)] -> [ArgDescr] -> Doc
 pprintArgDescrs [] [] = empty
 pprintArgDescrs posargs optargs = 
-  Utils.block "Arguments" $ vcat $ punctuate (text "" $+$ text "") pps
+  if null pps 
+   then empty 
+   else Utils.block "Arguments" $ vcat $ punctuate (text "" $+$ text "") pps
   where
-    pps = [ ppArg ("#" ++ show i) d | (i,d) <- posargs ] 
+    pps = [ ppArg ("#" ++ show i) d | (i,d) <- posargs, not (null (adDescr d)) ] 
           ++ [ ppArg (adName d) d | d <- optargs ]
     ppArg n d = 
       text n <> text ":" 
-      $+$ nest 3 (text (mshow (adValue d) (adDefault d))
-                  $+$ text ""
-                  $+$ nest 2 (paragraph (adDescr d)))
+      $+$ nest 4 (mpprint (adValue d) (adDefault d) $+$ paragraph (adDescr d))
       where 
-        mshow Nothing    Nothing    = "" 
-        mshow Nothing    (Just def) = "The default is set to '" ++ def ++ "'."
-        mshow (Just val) _          = "This argument is bound to '" ++ val ++ "'."
-
+        mpprint Nothing    Nothing    = empty
+        mpprint Nothing    (Just def) = text ("The default is set to '" ++ def ++ "'.")
+                                        $+$ text ""
+        mpprint (Just val) _          = text ("This argument is bound to '" ++ val ++ "'.")
+                                        $+$ text ""
 
 
 parseProcessor :: ParsableProcessor a => a -> ProcessorParser (InstanceOf a)
@@ -417,7 +418,7 @@ instance PrettyPrintable SomeProcessor where
     pprint (SomeProcessor proc) = 
          underline ppheading 
          $$ nest 2 (ppdescr 
-                    $++$ Utils.block "Usage" (text (synopsis proc))
+                    $++$ Utils.block "Usage" (nest 2 (fsep [text s | s <- synopsis proc]))
                     $++$ pprintArgDescrs (posArgs proc) (optArgs proc))
         where ppheading = text "Processor" <+> doubleQuotes (text sname) <> text ":"
               ppdescr   | null descr = empty 

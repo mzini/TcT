@@ -923,7 +923,7 @@ instance U.PrettyPrintable ST where
             $+$ text ""
             $+$ nb "Use 'load <filename>' to load a new problem."
           ppTree pt | null opens = 
-            text "Hurray, the problem was solved with certicficate" <+> U.pprint (P.answer $ proofFromTree pt) <> text "."
+            text "Hurray, the problem was solved with certificate" <+> U.pprint (P.answer $ proofFromTree pt) <> text "."
             $+$ text "Use 'proof' to show the complete proof."
                     | otherwise = 
               block  "Unselected Open Problems" [ (SN i, ppProb prob) | (i,(_,prob)) <- unselecteds]

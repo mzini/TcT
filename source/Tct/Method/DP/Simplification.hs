@@ -394,7 +394,7 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
       ppSub 
       $+$ text ""
       $+$ if null sel
-           then paragraph "The strictly oriented rules are moved into the corresponding weak component(s)."
+           then paragraph "The strictly oriented rules are moved into the weak component."
            else paragraph "We return to the main proof. Consider the set of all dependency pairs"
                 $+$ text ""
                 $+$ pprintLabeledRules "" sig vars [(n,r) | (n, (_, r)) <- lnodes dg]
@@ -408,7 +408,7 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
                                    <+> text "These cover all (indirect) predecessors of dependency pairs"
                                    <+> pprintNodeSet (Set.toList knownNodes) <> text ","
                                    <+> text "their number of application is equally bounded."
-                                   <+> text "The dependency pairs are shifted into the corresponding weak component(s).")
+                                   <+> text "The dependency pairs are shifted into the weak component.")
 
     where vars  = skpVars p                              
           sig   = skpSig p

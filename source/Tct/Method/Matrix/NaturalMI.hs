@@ -109,11 +109,11 @@ instance ComplexityProof MatrixOrder where
                             else paragraph "The following argument positions are usable:"
                                  $+$ indent (pprint (uargs order, sig))
                                  $+$ text "")
-                          $+$ paragraph ("TcT has computed following " ++ ppknd (param order))
+                          $+$ paragraph ("TcT has computed the following " ++ ppknd (param order))
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
-                          $+$ paragraph "This order satisfies following ordering constraints:"
+                          $+$ paragraph "This order satisfies the following ordering constraints:"
                           $+$ text ""                            
                           $+$ indent (pprintOrientRules inter sig vars rs)
 

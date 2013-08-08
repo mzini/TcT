@@ -239,20 +239,22 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
 
 findSatSolver :: (String -> SatSolver) -> String -> ErroneousIO SatSolver
 findSatSolver mk nm = do 
-  fn <- findExe 
+  ex <- liftIO $ doesFileExist nm
+  fn <- if ex then return nm else findExe
   checkExe fn
   return $ mk fn
-  where findExe :: ErroneousIO FilePath 
-        findExe = do mr <- liftIO $ findExecutable nm
-                     case mr of 
-                       Just s  -> return s 
-                       Nothing -> err $ "Cannot find sat-solver executable minisat or minisat2 in your path"
-        checkExe :: FilePath -> ErroneousIO ()
-        checkExe fn = do exists <- liftIO $ doesFileExist fn
-                         unless exists (err $ "Minisat executable '" ++ fn ++ "' is not executable")
-                         p <- liftIO $ getPermissions fn
-                         unless (executable p) (err $ "Given executable '" ++ fn ++ "' does not exist")
-        err = throwError .  SatSolverMissing
+  where 
+    findExe :: ErroneousIO FilePath 
+    findExe = do
+      mr <- liftIO $ findExecutable nm
+      case mr of 
+        Just s  -> return s 
+        Nothing -> err $ "Cannot find sat-solver executable minisat or minisat2 in your path"
+    checkExe :: FilePath -> ErroneousIO ()
+    checkExe fn = do 
+      p <- liftIO $ getPermissions fn
+      unless (executable p) (err $ "Given executable '" ++ fn ++ "' does not exist")
+    err = throwError .  SatSolverMissing
         
 processorFromString :: String -> AnyProcessor -> ErroneousIO (InstanceOf SomeProcessor)
 processorFromString str procs = 

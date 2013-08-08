@@ -390,7 +390,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
           allowAF   = (isDP && knd /= LMPO && Trs.isEmpty (Prob.strictTrs prob))
           allowMR   = knd == LMPO 
-          forcePROD = knd == SPOP          
+          forcePROD = knd == SPOP || knd == LMPO
           isDP      = Prob.isDPProblem prob
           
           quasiConstrs = quasiConstructorsFor prob

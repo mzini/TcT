@@ -542,7 +542,7 @@ tct conf =
            let dyreConf = 
                  Dyre.defaultParams { Dyre.projectName = "tct"
                                     , Dyre.configCheck = recompile conf
-                                    , Dyre.realMain    = \ cfg -> withHandledErrors $ checkSat cfg >> realMain cfg
+                                    , Dyre.realMain    = \ cfg -> withHandledErrors $ realMain cfg
                                     , Dyre.showError   = \ cfg msg -> cfg { errorMsg = msg : errorMsg cfg }
                                     , Dyre.configDir   = Just $ return dir
                                     , Dyre.cacheDir    = Just $ return dir
@@ -583,6 +583,7 @@ tct conf =
           | not (null (errorMsg conf')) = throwError $ UnknownError $ show $ unlines $ errorMsg conf'
           | otherwise = do 
             conf'' <- parseArguments conf'
+            checkSat conf''
             if interactive conf''
              then runInteractive conf'' >> return ExitSuccess
              else do

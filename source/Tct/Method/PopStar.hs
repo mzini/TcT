@@ -466,17 +466,20 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           
           validPrecedence = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
                     
-          validRecDepth =  
+          validRecDepth = 
             case bnd of 
-              Just (Nat 0) -> nonCollapsingAF && bindRD 0
+              Just (Nat 0) -> nonCollapsingAF && validRD 0 && bindRD 0
               Just (Nat b) 
-                | allCompoundsMonadic prob -> bindRD b
-                | allowAF -> bindRD (floor (fromIntegral b / 2 :: Double))
-                             || (nonCollapsingAF && bindRD b)
-                | otherwise -> bindRD b
+                | allCompoundsMonadic prob -> validRD b && bindRD b
+                | allowAF -> validRD b 
+                             && (bindRD (floor (fromIntegral b / 2 :: Double))
+                                 || (nonCollapsingAF && bindRD b))
+                | otherwise -> validRD b && bindRD b
               Nothing -> top
             where 
-              bindRD = liftSat . PrecEnc.restrictRecDepthM (Set.toList quasiDefineds)
+              ds = Set.toList quasiDefineds
+              validRD = liftSat . PrecEnc.encodeRecDepthM ds
+              bindRD = liftSat . PrecEnc.restrictRecDepthM ds
               nonCollapsingAF = bigAnd [ not (return $ AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
           validUsableRules = 
             liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
@@ -504,10 +507,6 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                                  } 
                     defP f = fm $ f `Set.member` quasiDefineds
                     compP f = fm $ isCompound sig f
-                    -- markeds = Trs.definedSymbols dps
-                    -- colP f | allowAF && forceWSC && forcePROD = if f `Set.member` markeds
-                    --                                           then bot 
-                    --                                           else AFEnc.isCollapsing f
                     colP f | allowAF = AFEnc.isCollapsing f
                            | otherwise = bot
                       

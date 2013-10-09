@@ -62,6 +62,7 @@ import Qlogic.MiniSat
 import Qlogic.PropositionalFormula
 import Qlogic.SatSolver ((:&:) (..), addFormula)
 import qualified Qlogic.SatSolver as S
+import qualified Qlogic.NatSat as N
 
 import Termlib.FunctionSymbol (Symbol, isMarked, isCompound, arity)
 import Termlib.Problem (StartTerms(..), Strategy(..), Problem(..))
@@ -466,7 +467,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
           
           validPrecedence = liftSat $ PrecEnc.validPrecedenceM (Set.toList quasiDefineds)
                     
-          validRecDepth = 
+          validRecDepth = liftSat $ N.toFormula $ 
             case bnd of 
               Just (Nat 0) -> nonCollapsingAF && validRD 0 && bindRD 0
               Just (Nat b) 
@@ -478,9 +479,9 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
               Nothing -> top
             where 
               ds = Set.toList quasiDefineds
-              validRD = liftSat . PrecEnc.encodeRecDepthM ds
-              bindRD = liftSat . PrecEnc.restrictRecDepthM ds
-              nonCollapsingAF = bigAnd [ not (return $ AFEnc.isCollapsing f) | f <- fs, isMarked sig f]
+              validRD = PrecEnc.encodeRecDepthM ds
+              bindRD = PrecEnc.restrictRecDepthM ds
+              nonCollapsingAF = return $ bigAnd [ not AFEnc.isCollapsing f | f <- fs, isMarked sig f]
           validUsableRules = 
             liftSat $ toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered                    
               where isUnfiltered f i | allowAF   = AFEnc.isInFilter f i

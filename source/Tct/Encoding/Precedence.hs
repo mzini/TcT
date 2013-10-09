@@ -49,7 +49,7 @@ import Qlogic.Formula hiding (size)
 import Qlogic.Boolean
 import Prelude hiding ((&&),(||),not)
 import Qlogic.PropositionalFormula
-import Qlogic.NatSat (mGrt,mEqu,Size(..),natAtom, toFormula, natToFormula, NatFormula)
+import Qlogic.NatSat (NatMonad, mGrt,mEqu,Size(..),natAtom, toFormula, natToFormula, NatFormula)
 import Termlib.FunctionSymbol (Symbol, Signature)
 import Qlogic.SatSolver
 
@@ -106,8 +106,8 @@ validPrecedenceM syms = toFormula constraint
 recDepth :: Eq l => Int -> Symbol -> NatFormula l
 recDepth maxrd sym = natAtom (Bound $ max 1 maxrd) (RecDepth sym)
 
-encodeRecDepthM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Int -> SatSolver s l (PropFormula l)
-encodeRecDepthM syms bound = toFormula $ 
+encodeRecDepthM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Int -> NatMonad s l (PropFormula l)
+encodeRecDepthM syms bound = 
   bigAnd [ isRecursiveM f --> recdepth f `mGrt` natToFormula 0 | f <- syms]
   && 
   bigAnd [ bigAnd [ f `mgt` g --> f `recGt` g
@@ -123,8 +123,8 @@ encodeRecDepthM syms bound = toFormula $
     f `mgt` g = return $ f `gt` g
     f `meq` g = return $ f `eq` g  
 
-restrictRecDepthM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Int -> SatSolver s l (PropFormula l)
-restrictRecDepthM syms bound = toFormula $ 
+restrictRecDepthM :: (Eq l, Monad s, Solver s l) => [Symbol] -> Int -> NatMonad s l (PropFormula l)
+restrictRecDepthM syms bound = 
   bigAnd [ natToFormula (bound + 1) `mGrt` recdepth f | f <- syms]
   where
     recdepth = recDepth bound

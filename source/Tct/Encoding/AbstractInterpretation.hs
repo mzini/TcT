@@ -80,7 +80,7 @@ pprintOrientRules inter sig vars rs =
   where 
     (as, bs, cs) = unzip3 $ concatMap ppOrientRl rs
     ppOrientRl rule
-      | '?' `elem` ord = []
+      -- | '?' `elem` ord = []
       | otherwise = [ (ppIntTerm l , text " = " , pprint (il, vars))
                     , (empty       , text ord   , pprint (ir, vars))
                     , (empty       , text " = " , ppIntTerm r)

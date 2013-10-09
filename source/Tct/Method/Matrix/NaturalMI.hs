@@ -113,7 +113,7 @@ instance ComplexityProof MatrixOrder where
                           $+$ text ""
                           $+$ indent (pprint inter)
                           $+$ text ""
-                          $+$ paragraph "This order satisfies the following ordering constraints:"
+                          $+$ paragraph "The order satisfies the following ordering constraints:"
                           $+$ text ""                            
                           $+$ indent (pprintOrientRules inter sig vars rs)
 
@@ -135,9 +135,10 @@ instance ComplexityProof MatrixOrder where
               prob  = input order
               sig   = Prob.signature prob
               vars  = Prob.variables prob
-              rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob
-                        , let rt = root $ R.lhs rl
-                          in or [ rt == Right f | f <- us ] ]
+              rs = Trs.rules $ Prob.allComponents prob
+              -- rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob
+              --           , let rt = root $ R.lhs rl
+              --             in or [ rt == Right f | f <- us ] ]
               us = usymbols order                                            
     
     answer order = CertAnswer $ certified (unknown, ub)

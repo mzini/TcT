@@ -217,7 +217,7 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
                  NoProgress _        -> input
                  Progress _ subprobs -> fromMaybe (error "compose.normalisedProof problem not found") (find i subprobs)             
                  
-             subproofs_i (SN i) (NoProgress _) = -- enumeration' $ catMaybes [find (One i) subproofs] --
+             subproofs_i (SN i) (NoProgress _) = 
                 case r1 of 
                   NoProgress {} 
                     | length subproofs > 1 -> error ">>>.normalisedProof: at most one sub-proof expected"

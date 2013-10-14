@@ -1,0 +1,61 @@
+(VAR N E P F p q n m e f w)
+
+(RULES 
+  src(edge(n,w,m)) -> n
+  wt(edge(n,w,m)) -> w
+  trg(edge(n,w,m)) -> m
+
+  forrest(graph(N,E)) -> kruskal(sort(E),[], partitions(N))
+
+  partitions([]) -> []
+  partitions(::(n,N)) -> ::(::(n,[]),partitions(N))
+
+  kruskal([],F,P) -> pair(F,P)
+  kruskal(::(e,E),F,P) -> kruskal?(inBlock(e,P),e,E,F,P)
+  kruskal?(true,e,E,F,P) -> kruskal(E,F,P)
+  kruskal?(false,e,E,F,P) -> kruskal(E,::(e,F),join(e,P,[]))
+
+  inBlock(e,[]) -> false
+  inBlock(e,::(p,P)) -> or(and(elem(src(e),p),elem(trg(e),p))
+                            , inBlock(e,P))
+
+  join(e,[],q) -> ::(q,[])
+  join(e,::(p,P),q) -> join?(or(elem(src(e),p),elem(trg(e),p)), e, p,P,q)
+  join?(true, e, p,P,q) -> join(e,P,++(p,q))
+  join?(false, e, p,P,q) -> ::(p,join(e,P,q))
+
+  elem(n,[]) -> false
+  elem(n,::(m,p)) -> or(=(n,m),elem(n,p))
+
+  ++([],q) -> q
+  ++(::(n,p),q) -> ::(n,++(p,q))
+
+  sort([])        -> []
+  sort(::(e,E))  -> insert(e,sort(E))
+
+  insert(e,[])      -> ::(e,[])
+  insert(e,::(f,E)) -> insert?(<=(wt(e),wt(f)), e, f,E)
+
+  insert?(true , e, f, E)  -> ::(e,::(f,E))
+  insert?(false, e, f, E)  -> ::(f,insert(e,E))
+
+  =(0,0) -> true
+  =(s(n),0) -> false
+  =(0,s(m)) -> false
+  =(s(n),s(m)) -> =(n,m)
+
+  <=(0,0)       -> true
+  <=(s(n), 0)   -> false
+  <=(0,s(m))    -> true
+  <=(s(n),s(m)) -> <=(n,m)
+
+  and(true,true) -> true
+  and(false,true) -> false
+  and(true,false) -> false
+  and(false,false) -> false
+
+  or(true,true) -> true
+  or(false,true) -> true
+  or(true,false) -> true
+  or(false,false) -> false
+)

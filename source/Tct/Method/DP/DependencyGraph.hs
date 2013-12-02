@@ -537,7 +537,10 @@ toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
           GV.cluster (Str $ pack $ "dg_" ++ show i) $
             if showLabels then graphM >> labelM else graphM
           where nds   = nodes dg
-                size = GVattribsc.Point 12.0 6.0 Nothing True
+                size = GVattribsc.GSize { 
+                                      GVattribsc.width = 12.0
+                                    , GVattribsc.height = Just 6.0
+                                    , GVattribsc.desiredSize = True }
                 graphM = do
                   mapM_ sccToGV $ zip [(1::Int)..] (DFS.scc dg)
                   mapM_ edgesToGV nds

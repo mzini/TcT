@@ -116,28 +116,7 @@ data ComposeProof t1 t2 = ComposeProof (Result t1) (Maybe (Enumeration (Result t
 
 
 instance (TransformationProof t1, Transformer t1, Transformer t2) => TransformationProof (t1 :>>>: t2) where
-    -- pprintProof proof mde =
-    --   case tproof of 
-    --      ComposeProof _ Nothing    -> PP.empty -- pprintTProof t1 input (proofFromResult r1) mde
-    --      ComposeProof r1 (Just r2s) -> P.pprintProof proof mde
-    --   where tproof    = transformationProof proof
-    --         input     = inputProblem proof
-    --         subproofs = P.someProcessorProof `mapEnum` subProofs proof
-    --         sub       = P.someInstance (appliedSubprocessor proof)
-    --         TheTransformer (t1 :>>>: t2) () = appliedTransformer proof
-    -- pprintProof proof = pprintProof (normalisedProof proof)
-    -- answer = answer . normalisedProof
     answer = error "TransformationProof.answer intentionally not implemented"
-    -- answer _ = P.MaybeAnswer
-    -- answer proof =
-    --   case tproof of 
-    --      ComposeProof _  Nothing    -> P.MaybeAnswer
-    --      ComposeProof r1 (Just r2s) -> answer proof
-    --   where tproof    = transformationProof proof
-    --         input     = inputProblem proof
-    --         subproofs = P.someProcessorProof `mapEnum` subProofs proof
-    --         sub       = P.someInstance (appliedSubprocessor proof)
-    --         TheTransformer (t1 :>>>: t2) () = appliedTransformer proof
 
     pprintTProof (TheTransformer (t1 :>>>: _) _)  prob (ComposeProof r1 Nothing) mde = 
         pprintTProof t1  prob (proofFromResult r1) mde
@@ -150,8 +129,6 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
           NoProgress _
             | subProgress -> ppOverviews False
             | otherwise   -> PP.empty
-              -- pprintTProof t1 prob tproof mde
-              -- ppOverviews True
           
       where subProgress = any (isProgressResult . snd) r2s
             subprobs = case r1 of { Progress _ ps -> ps; _ -> enumeration' [prob] }
@@ -159,7 +136,6 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
               case catMaybes [ ppOverview i prob_i | (i, prob_i) <- subprobs] of 
                 [(_,pp)] -> pp
                 pps  -> vcat $ punctuate (text "") [ indent pp | (_,pp) <- pps]
-                        -- [ block' (show $ text "Sub-problem" <+> Util.pprint i) [pp] | (i, pp) <- pps ]
               where 
                 ppOverview sn@(SN i) prob_i = 
                   case find i r2s of 
@@ -179,22 +155,6 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
                   $+$ 
                   pprintTProof t2 prob_i (proofFromResult r2_i) mde
 
-    -- proofToXml = proofToXml . normalisedProof
-      -- case tproof of 
-      --    ComposeProof r1 Nothing -> 
-      --      proofToXml $ Proof { transformationResult = r1
-      --                         , inputProblem = input
-      --                         , appliedSubprocessor = sub
-      --                         , appliedTransformer = t1
-      --                         , subProofs = subproofs }
-      --    ComposeProof r1 (Just r2s) -> 
-      --      proofToXml (mkComposeProof sub t1 t2 input r1 r2s subproofs)
-      -- where tproof    = transformationProof proof
-      --       input     = inputProblem proof
-      --       subproofs = P.someProcessorProof `mapEnum` subProofs proof
-      --       sub       = P.someInstance (appliedSubprocessor proof)
-      --       trans     = appliedTransformer proof
-            
     normalisedProof proof = 
       case proofFromResult res of 
         ComposeProof r1 Nothing -> 
@@ -216,7 +176,14 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
                case r1 of 
                  NoProgress _        -> input
                  Progress _ subprobs -> fromMaybe (error "compose.normalisedProof problem not found") (find i subprobs)             
-                 
+
+             -- errProofNotFound :: Numbering a => a -> b
+             -- errProofNotFound num = 
+             --     error $ show $ 
+             --     text ">>>.normalisedProof: subproof"
+             --     <+> ppNumbering num <+> text "not found in" 
+             --     <+> vcat [ ppNumbering n | (SN n,_) <- subproofs ]
+
              subproofs_i (SN i) (NoProgress _) = 
                 case r1 of 
                   NoProgress {} 
@@ -224,14 +191,17 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
                     | otherwise -> subproofs
                   Progress {} -> 
                     case find (One i) subproofs of 
-                      Just pr -> enumeration' [pr]
-                      Nothing -> error ">>>.normalisedProof: subproof not found sub-proof"
+                      Just pr -> [(SN i,pr)]
+                      Nothing -> []
+                      -- Nothing -> errProofNotFound (One i)
              subproofs_i (SN i) (Progress _ subprobs_i) = concatMap mkSubProof_j subprobs_i
                where
                  mkSubProof_j (SN j, _) = 
                    case find (Two (i,j)) subproofs of 
                      Just sp -> [(SN j, sp)]
-                     Nothing    -> error $ "subproof" ++ show (ppNumbering (i,j)) ++ "not found"
+                     Nothing -> []
+                     -- Nothing    -> errProofNotFound (Two (i,j))
+
              mkSubProof_i (sn_i,r2_i) = 
                ( sn_i
                , P.Proof { P.appliedProcessor = P.someInstance $ appliedTransformer tproof_i `thenApply` appliedSubprocessor tproof_i
@@ -250,46 +220,16 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
         res = transformationResult proof
         subproofs = subProofs proof
 
--- -- % maybe should return Try t1 proof            
--- mkComposeProof :: (P.Processor sub, Transformer t1, Transformer t2) => P.InstanceOf sub -> TheTransformer t1 -> TheTransformer t2 -> Problem -> Result t1 -> [(SomeNumbering, Result t2)] -> Enumeration (P.Proof sub) -> Proof t1 (S.StdProcessor (Transformation t2 sub))
--- mkComposeProof sub t1 t2 input r1 r2s subproofs = 
---     Proof { transformationResult = r1
---           , inputProblem        = input
---           , appliedTransformer  = t1
---           , appliedSubprocessor = t2 `thenApply` sub
---           , subProofs           = mkSubProof1 `map` r2s }
-
---       where mkSubProof1 (SN i, r2_i) = (SN i, P.Proof { P.appliedProcessor = t2 `thenApply` sub
---                                                        , P.inputProblem     = prob_i
---                                                        , P.result           = proof_i })
---                 where prob_i = case r1 of 
---                                  NoProgress _        -> input
---                                  Progress _ subprobs -> fromMaybe (error "mkComposeProof problem not found") (find i subprobs)
---                       proof_i = case r2_i of 
---                                   NoProgress p2_i          -> Proof { transformationResult = NoProgress p2_i
---                                                                    , inputProblem         = prob_i
---                                                                    , appliedTransformer   = t2
---                                                                    , appliedSubprocessor  = mkSubsumed sub
---                                                                    , subProofs            = enumeration' $ catMaybes [liftMS Nothing `liftM` find (One i) subproofs] } 
-
---                                   Progress p2_i subprobs_i -> Proof { transformationResult = Progress p2_i subprobs_i
---                                                                    , inputProblem         = prob_i
---                                                                    , appliedTransformer   = t2
---                                                                    , appliedSubprocessor  = mkSubsumed sub
---                                                                    , subProofs            = concatMap mkSubProof2 subprobs_i }
---                                       where mkSubProof2 (SN j, _) = case find (Two (i,j)) subproofs of 
---                                                                       Just proof -> [(SN j, liftMS Nothing proof)]
---                                                                       Nothing    -> []
 
                   
 data Unique a = One a
               | Two a deriving (Typeable, Eq)
 
 instance Numbering a => Numbering (Unique a) where 
-    ppNumbering (One a) = ppNumbering a
-    ppNumbering (Two a) = ppNumbering a
-    -- ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
-    -- ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
+    -- ppNumbering (One a) = ppNumbering a
+    -- ppNumbering (Two a) = ppNumbering a
+    ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
+    ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     name (TheTransformer t1 _ :>>>: _) = name t1
@@ -302,26 +242,33 @@ instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
     transform inst prob = do
       r1 <- transform t1 prob
       case r1 of 
-        NoProgress _   -> if continue t1
-                         then transform2 r1 (enumeration' [prob])
-                         else return $ NoProgress $ ComposeProof r1 Nothing
-        Progress _ ps -> transform2 r1 ps -- [(a,prob1), (b,prob2), (c,prob3)...]
+        NoProgress _ 
+            | continue t1 -> transform2 r1 (enumeration' [prob])
+            | otherwise -> return $ NoProgress $ ComposeProof r1 Nothing
+        Progress _ ps -> transform2 r1 ps
 
-        where transform2 :: P.SolverM m => Result t1 -> Enumeration Problem -> m (Result (t1 :>>>: t2))
-              transform2 r1 ps = do r2s <- mapM trans ps
-                                    let tproof = ComposeProof r1 $ Just [(e1,r2_i) | (e1, r2_i,_) <- r2s]
-                                        esubprobs = concatMap mkSubProbs r2s
-                                        progressed | continue t2 = isProgressResult r1 || any isProgressResult [r2_i | (_,r2_i,_) <- r2s]
-                                                   | otherwise   = all isProgressResult [r2_i | (_,r2_i,_) <- r2s]
-                                        proof | progressed = Progress tproof esubprobs
-                                              | otherwise  = NoProgress tproof
-                                    return proof
-                  where trans (e1, prob_i) = do {r2_i <- transform t2 prob_i; return (e1, r2_i, prob_i)}
+        where 
+          transform2 :: P.SolverM m => Result t1 -> Enumeration Problem -> m (Result (t1 :>>>: t2))
+          transform2 r1 ps = do 
+             r2s <- mapM trans ps
+             let tproof = ComposeProof r1 $ Just [(e1,r2_i) | (e1, r2_i,_) <- r2s]
+                 esubprobs = concatMap mkSubProbs r2s
+                 progressed 
+                     | continue t2 = isProgressResult r1 || any isProgressResult [r2_i | (_,r2_i,_) <- r2s]
+                     | otherwise   = all isProgressResult [r2_i | (_,r2_i,_) <- r2s]
+                 proof 
+                     | progressed = Progress tproof esubprobs
+                     | otherwise  = NoProgress tproof
+             return proof
+              where 
+                trans (e1, prob_i) = do 
+                   r2_i <- transform t2 prob_i
+                   return (e1, r2_i, prob_i)
 
-                        mkSubProbs (SN e1, Progress _ subprobs, _     ) = [(SN (Two (e1,e2)), subprob) | (SN e2, subprob) <- subprobs]
-                        mkSubProbs (SN e1, NoProgress _       , prob_i) = [(SN (One e1), prob_i)]
+                mkSubProbs (SN e1, Progress _ subprobs, _     ) = [(SN (Two (e1,e2)), subprob) | (SN e2, subprob) <- subprobs]
+                mkSubProbs (SN e1, NoProgress _       , prob_i) = [(SN (One e1), prob_i)]
 
-              t1 :>>>: t2 = transformation inst
+          t1 :>>>: t2 = transformation inst
 
 -- | The transformer @t1 >>> t2@ first transforms using @t1@, resulting subproblems are 
 -- transformed using @t2@. 

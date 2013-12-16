@@ -44,6 +44,7 @@ import Termlib.Trs (Trs, definedSymbols)
 import Termlib.Variable(Variables)
 import Termlib.Utils
 import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -121,8 +122,8 @@ instance T.TransformationProof DPs where
     tproofToXml _ _ p = 
       ( "dp"
       , [ Xml.elt (if tuplesUsed p then "tuples" else "pairs") [] []
-        , Xml.elt "strictDPs" [] [Xml.rules (strictDPs p) sig vs]
-        , Xml.elt "weakDPs" [] [Xml.rules (weakDPs p) sig vs]])
+        , Xml.elt "strictDPs" [] [XmlE.rules (strictDPs p) sig vs]
+        , Xml.elt "weakDPs" [] [XmlE.rules (weakDPs p) sig vs]])
       where sig = newSignature p
             vs = newVariables p
       

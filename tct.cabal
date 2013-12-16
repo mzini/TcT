@@ -41,6 +41,7 @@ Executable tct
     parsec >= 3.1,
     filepath >= 1.2,
     HaXml >= 1.22,
+    xmlgen >= 0.6,
     xhtml >= 3000,
     graphviz >= 2999.16,
     regex-compat >= 0.95, 
@@ -55,6 +56,7 @@ Executable tct
     parfold == 0.9,
     termlib == 0.9, 
     haskeline >= 0.7, 
+    bytestring >= 0.9,
     satchmo == 1.10.*,
     satchmo-backends == 1.9.1
  Else 
@@ -68,6 +70,7 @@ Executable tct
     parsec >= 3.1,
     filepath >= 1.2,
     HaXml >= 1.22,
+    xmlgen >= 0.6,
     xhtml >= 3000,
     graphviz >= 2999.16,
     regex-compat >= 0.95, 
@@ -81,7 +84,8 @@ Executable tct
     qlogic == 0.9, 
     parfold == 0.9,
     termlib == 0.9, 
-    haskeline >= 0.7
+    haskeline >= 0.7, 
+    bytestring >= 0.9
 
  hs-source-dirs:    
   source
@@ -113,6 +117,7 @@ Library
    Tct.Utils.Enum
    Tct.Utils.Ask
    Tct.Utils.Xml
+   Tct.Utils.Xml.Encoding
    Tct.Utils.PPrint
    Tct.Encoding.ArgumentFiltering
    Tct.Encoding.UsableRules
@@ -180,6 +185,7 @@ Library
    Tct.Utils.Enum
    Tct.Utils.Ask
    Tct.Utils.Xml
+   Tct.Utils.Xml.Encoding
    Tct.Utils.PPrint
    Tct.Encoding.ArgumentFiltering
    Tct.Encoding.UsableRules
@@ -239,6 +245,7 @@ Library
     parsec >= 3.1,
     filepath >= 1.2,
     HaXml >= 1.22,
+    xmlgen >= 0.6,
     xhtml >= 3000,
     graphviz >= 2999.16,
     regex-compat >= 0.95, 
@@ -252,7 +259,8 @@ Library
     qlogic == 0.9, 
     parfold == 0.9,
     termlib == 0.9, 
-    haskeline >= 0.7,
+    haskeline >= 0.7,    
+    bytestring >= 0.9,
     satchmo == 1.10.*,
     satchmo-backends == 1.9.1
  Else 
@@ -266,6 +274,7 @@ Library
     parsec >= 3.1,
     filepath >= 1.2,
     HaXml >= 1.22,
+    xmlgen >= 0.6,
     xhtml >= 3000,
     graphviz >= 2999.16,
     regex-compat >= 0.95, 
@@ -279,7 +288,8 @@ Library
     qlogic == 0.9, 
     parfold == 0.9,
     termlib == 0.9, 
-    haskeline >= 0.7
+    haskeline >= 0.7, 
+    bytestring >= 0.9
 
  hs-source-dirs:    
   source

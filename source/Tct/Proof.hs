@@ -22,13 +22,12 @@ module Tct.Proof where
 
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.ParserCombinators.Parsec as Parsec
-import qualified Text.XML.HaXml.Types as Xml
 
 import Tct.Certificate
+import qualified Tct.Utils.Xml as Xml
 
 import Termlib.Utils (PrettyPrintable (..))
 import qualified Termlib.Utils as Utils
-
 
 -- | The datatype 'Answer' reflects the answer type 
 -- from the complexity competition. 
@@ -90,8 +89,6 @@ data PPMode = ProofOutput    -- ^ standard proof output
             | OverviewOutput  -- ^ Only present an overview
             deriving (Show, Eq, Ord)
 
-type XmlContent = Xml.Content ()
-
 -- | Complexity proofs should be instance of the 'ComplexityProof' class.
 class ComplexityProof proof where
     -- | Construct an 'Answer' from the proof.
@@ -99,7 +96,7 @@ class ComplexityProof proof where
     -- | Pretty printer of proof. 
     pprintProof :: proof -> PPMode -> Doc
     
-    toXml :: proof -> XmlContent
-    toXml p = Xml.CElem (Xml.Elem (Xml.N "proofdata") [] [d]) ()
-      where d = Xml.CString True s ()
+    toXml :: proof -> Xml.XmlContent
+    toXml p = Xml.elt "proofdata" [] [d]
+      where d = Xml.text s
             s = show $ pprintProof p ProofOutput 

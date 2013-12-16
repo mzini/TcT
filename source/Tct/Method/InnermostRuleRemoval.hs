@@ -33,6 +33,7 @@ import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import Tct.Utils.Enum (enumeration')
 import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
@@ -78,7 +79,7 @@ instance T.TransformationProof InnermostRuleRemoval where
       ("irr"
       , [Xml.elt "removal" [] ((Xml.elt "reason" [] [rule r] ) : [Xml.elt "removed" [] [rule r' | r' <- rs]])
         | RuleRemoval rs r <- rss])
-        where rule r = Xml.rule r sig vars
+        where rule r = XmlE.rule r Nothing sig vars
               sig = Prob.signature ip
               vars = Prob.variables ip
               

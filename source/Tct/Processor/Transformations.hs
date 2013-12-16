@@ -91,6 +91,7 @@ import qualified Termlib.Utils as Util
 
 import Tct.Utils.Enum
 import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 import Tct.Utils.PPrint
 import qualified Tct.Processor as P
 import qualified Tct.Proof as Proof
@@ -120,16 +121,16 @@ class TransformationProof t where
   -- | Construct an Xml-node from a transformation proof.
   -- The default implementation wraps the pretty-printed output
   -- in a 'proofdata' node
-  tproofToXml :: (Transformer t) => TheTransformer t -> Problem -> ProofOf t -> (String, [Proof.XmlContent])
+  tproofToXml :: (Transformer t) => TheTransformer t -> Problem -> ProofOf t -> (String, [Xml.XmlContent])
   tproofToXml t prob proof = 
     ( name (transformation t)
     , [ Xml.elt "proofdata" [] [Xml.text $ show $ pprintTProof t prob proof P.ProofOutput] ])
     
-  proofToXml :: (Transformer t, P.Processor sub) => Proof t sub -> Proof.XmlContent
+  proofToXml :: (Transformer t, P.Processor sub) => Proof t sub -> Xml.XmlContent
   proofToXml proof = 
     Xml.elt "transformation" [] 
      [ transformerToXml tinst
-     , Xml.complexityProblem input ans
+     , XmlE.complexityProblem input ans
      , Xml.elt "transformationDetail" [] [Xml.elt n [] cnt]
      , Xml.elt (if progressed then "progress" else "noprogress") [] []
      , Xml.elt "subProofs" [] [Proof.toXml p | (_,p) <- subproofs ]]
@@ -315,10 +316,6 @@ instance TransformationProof SomeTransformation where
   proofToXml proof = proofToXml  `onSomeProof` proof
   tproofToXml _ prob (SomeTransProof t p) = tproofToXml t prob p
   normalisedProof proof = 
-    -- proof { appliedSubprocessor  = P.someInstance sub
-    --       , subProofs            = (P.someProofNode sub prob . P.result) `mapEnum` subProofs proof }
-    -- where sub = appliedSubprocessor proof
-    --       prob = inputProblem proof
     case transformationProof proof of 
       SomeTransProof tinst tproof -> 
         normalisedProof $ proof { transformationResult = 
@@ -362,7 +359,7 @@ p1 `subsumes` p2 = check strictTrs
 data Transformation t sub = Transformation t
 
 instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub) where
-    type ProofOf (Transformation t sub)     = Proof t (Subsumed sub)
+    type ProofOf (Transformation t sub)     = Proof SomeTransformation P.SomeProcessor
     type ArgumentsOf (Transformation t sub) = Arg Bool :+: Arg Bool :+: Arg Bool :+: ArgumentsOf t :+: Arg (Proc sub)
     
     name (Transformation t)        = name t
@@ -417,7 +414,9 @@ instance ( Transformer t , P.Processor sub) => S.Processor (Transformation t sub
               splitSubsumed ((e_i, p_i):ps) = ([ (e_i, p_i, e_j) | (e_j, _) <- subs_i ] ++ subs', unsubs')
                 where (subs_i, unsubs_i) = partition (\ (_, p_j) -> p_i `subsumes` p_j) ps
                       (subs', unsubs') = splitSubsumed unsubs_i
-              mkProof res subproofs = Proof { transformationResult = res
+              mkProof res subproofs = 
+                  normalisedProof $ 
+                  Proof { transformationResult = res
                                             , inputProblem         = prob
                                             , appliedSubprocessor  = (SSI sub)
                                             , appliedTransformer   = tinst
@@ -428,17 +427,15 @@ instance ( Transformer t, P.Processor sub ) => P.ComplexityProof (Proof t sub) w
   pprintProof proof P.StrategyOutput = pprintProof proof P.StrategyOutput
   
   pprintProof proof mde
-     | not (isProgressResult (transformationResult proof')) = 
-           case subProofs proof' of 
+     | not (isProgressResult (transformationResult proof)) = 
+           case subProofs proof of 
               [(_, subproof)] -> P.pprintProof (P.result subproof) mde
-              _               -> pprintProof proof' mde
-     | otherwise = pprintProof proof' mde
-    where proof' = normalisedProof proof
+              _               -> pprintProof proof mde
+     | otherwise = pprintProof proof mde
   answer proof
-     | not (isProgressResult (transformationResult proof')) = answerFromSubProof proof'
-     | otherwise = answer $ normalisedProof proof
-    where proof' = normalisedProof proof
-  toXml proof = proofToXml (normalisedProof proof)
+     | not (isProgressResult (transformationResult proof)) = answerFromSubProof proof
+     | otherwise = answer proof
+  toXml proof = proofToXml proof
   
 
 -- | Constructor for instances.

@@ -42,6 +42,8 @@ import qualified Termlib.Trs as Trs
 import Termlib.Trs (Trs)
 import Termlib.Trs.PrettyPrint (pprintNamedTrs)
 import Termlib.Utils hiding (block)
+import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
@@ -98,7 +100,16 @@ instance PrettyPrintable URProof where
 instance T.TransformationProof UR where
     answer = T.answerFromSubProof
     pprintTProof _ _ p _ = pprint p
-
+    tproofToXml _ _ (Error e) = ("usableRules", [errorToXml e])
+    tproofToXml _ _ p = 
+        ("usablerules", 
+         [
+          Xml.elt "strict" [] [XmlE.rules (usableStrict p) sig vs]
+          , Xml.elt "weak" [] [XmlE.rules (usableWeak p) sig vs]
+         ])
+            where 
+              sig = signature p
+              vs = variables p
 instance T.Transformer UR where 
     name UR = "usablerules"
     description UR = [ "This processor restricts the strict- and weak-rules to usable rules with"

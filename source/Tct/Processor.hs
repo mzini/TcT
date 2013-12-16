@@ -109,6 +109,7 @@ import Termlib.Rule (Rule)
 
 import Tct.Proof
 import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 import Tct.Certificate
 import qualified Tct.Processor.Parse as Parse
 
@@ -192,7 +193,7 @@ class (ComplexityProof (ProofOf proc)) => Processor proc where
   -- proof output.
   instanceName    :: (InstanceOf proc) -> String
   
-  processorToXml  :: (InstanceOf proc) -> XmlContent
+  processorToXml  :: (InstanceOf proc) -> Xml.XmlContent
 
   -- | The solve method. Given an instance and a problem, it constructs
   -- a proof object. This method should not be called directly, instead
@@ -342,7 +343,8 @@ instance (Processor proc) => ComplexityProof (Proof proc) where
     answer = answer . result
     
     toXml (Proof inst prob res) = 
-      Xml.elt "proofNode" [] [ Xml.complexityProblem prob (answer res)
+      Xml.elt "proofNode" [] [ 
+                             XmlE.complexityProblem prob (answer res)
                              , processorToXml inst
                              , Xml.elt "proofDetail" [] [toXml res]]
 
@@ -369,7 +371,16 @@ instance (ComplexityProof proof) => ComplexityProof (PartialProof proof) where
   pprintProof p = pprintProof (ppResult p)
   answer p | progressed p = answer $ ppResult p
            | otherwise    = CertAnswer $ certified (constant, constant)
-
+  toXml p = 
+      Xml.elt "partialProof" [] 
+             [ Xml.elt "removableDPs" [] [ XmlE.rule r Nothing sig vars | r <- ppRemovableDPs p]
+             , Xml.elt "removableTrs" [] [ XmlE.rule r Nothing sig vars | r <- ppRemovableTrs p]
+             , Xml.elt "result" [] [toXml $ ppResult p]
+             ]
+      where 
+        prob = ppInputProblem p
+        sig = signature prob
+        vars = variables prob
 -- * Someprocessor
 
 -- | Existential quantification of 'ParsableProcessor'. 

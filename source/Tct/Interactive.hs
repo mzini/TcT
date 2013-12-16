@@ -771,19 +771,6 @@ data ProofTree = Closed Problem (P.InstanceOf P.SomeProcessor) (P.ProofOf P.Some
                | Open Problem
                  
 
--- proofTreeToProof :: ProofTree -> P.Proof P.SomeProcessor
--- proofTreeToProof (Transformed _ prob tinst tres ts) = 
---   P.someProofNode proc prob nproof
---   where proc = P.someInstance $ tinst `T.thenApply` sub
---         proof = T.Proof { T.transformationResult = tres
---                         , T.inputProblem = prob
---                         , T.appliedTransformer = tinst
---                         , T.appliedSubprocessor = sub
---                         , T.subProofs = 
---         sub = undefined
---         -- subproofs = [proofTreeToProof        
--- proofTreeToProof (Open prob) = P.someProofNode open prob OpenProof
-
 pprintTreeWith :: ([Int] -> String -> Problem -> Maybe P.Answer -> Doc -> [Doc] -> Doc) -> ProofTree -> Doc  
 pprintTreeWith ppNode tree = snd $ traverse [1::Int] tree
   where 
@@ -868,10 +855,8 @@ proofFromTree (Transformed _ prob tinst tres subs) =
                          | otherwise   = OneOfSucceeded Sequentially p
         proc = tinst T.>>| seqProc                                         
         tproof = 
+          T.someProof $ 
           T.Proof { T.transformationResult = tres
-                       -- case progressed of 
-                       --   True  -> T.Progress (T.ProofFromResult tres) $ mapEnum P.inputProblem subproofs
-                       --   False -> T.NoProgress tres
                   , T.inputProblem        = prob
                   , T.appliedTransformer  = tinst
                   , T.appliedSubprocessor = T.mkSubsumed seqProc
@@ -1241,12 +1226,6 @@ instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T
 instance (T.Transformer t, A.ParsableArguments (T.ArgumentsOf t)) => Describe (T.Transformation t P.AnyProcessor) where            
   describe = describe . S.StdProcessor
 
--- instance (T.Transformer t) => Show (T.Transformation t sub) where
---   show (T.Transformation t) = "<transformation " ++ T.name t ++ ">"
-
--- instance (S.Processor p) => Show (S.StdProcessor p) where
---   show (S.StdProcessor p) = "<processor " ++ S.name p ++ ">"
-
 allProcessors :: IO P.AnyProcessor
 allProcessors = Tct.processors `liftM` getConfig
                    
@@ -1264,10 +1243,6 @@ processor proc =
        mkInst `liftM` A.parseInteractive (S.arguments proc) procs
   where mkInst args = S.StdProcessor proc `S.withArgs` args
           
--- instance Apply P.SomeProcessor where
---   apply' (P.SomeProcessor p) = 
---     case cast p of 
---       Just (S.StdProcessor (T.Transformation t)) -> undefined
     
 instance (A.ParsableArguments (S.ArgumentsOf p), S.Processor p) => Apply (S.StdProcessor p) where
   apply' (S.StdProcessor proc) selected = 

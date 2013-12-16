@@ -50,12 +50,13 @@ import qualified Termlib.Variable as V
 import Termlib.Utils
 
 import Tct.Certificate
-import Tct.Method.DP.DependencyGraph
+import Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Processor as P
 import Tct.Processor.Args as A
 import Tct.Utils.PPrint
 import Tct.Utils.Enum
+import qualified Tct.Utils.Xml as Xml
 import Tct.Processor.Args.Instances ()
 import Tct.Method.DP.Utils
 
@@ -169,6 +170,24 @@ instance T.TransformationProof PathAnalysis where
                            Nothing  -> P.MaybeAnswer
                          where mproofs = sequence [ T.findProof e proof | (SN e,_) <- subprobs]
                                mkUb proofs = maximum $ (Poly $ Just 1) : [upperBound $ P.certificate p | p <- proofs]
+
+    tproofToXml _ _ (Error e) = ("pathanalysis", [errorToXml e])
+    tproofToXml _ _ p = 
+        ( "pathanalysis"
+        , [ DG.toXml (dg, sig, vs)
+          , Xml.elt "kind" [] [ Xml.text kind ]
+          , Xml.elt "paths" [] [ pToXml path | path <- computedPaths p ]
+          ])
+            where 
+              sig = signature p
+              vs = variables p
+              dg = computedDG p
+              cwdg = computedCongrDG p
+              kind | isLinearProof p = "linear"
+                   | otherwise = "quadratic"
+              pToXml path = Xml.elt "path" [] [ Xml.elt "congruence" [] [ Xml.elt "elt" [] [Xml.text $ show m] |  m <- congruence cwdg n] 
+                                                | n <- thePath path]
+                        
                            
     pprintProof proof mde = 
         case T.transformationProof proof of 
@@ -196,7 +215,6 @@ instance T.TransformationProof PathAnalysis where
                               ppSubsumed = const (text "subsumed") `liftM` List.lookup pth (subsumedBy tproof)
 
                     findSubProof pth = T.findProof (thePath pth) proof
-
                     ppPathName path = printPathName cwdg sig vars path
 
                     ppDetails = vcat $ List.intersperse (text "") 

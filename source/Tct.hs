@@ -60,7 +60,8 @@ import qualified Termlib.Trs as Trs
 
 import Tct.Main.Flags
 import Tct.Processor
-import Tct.Utils.Xml (putXmlProof)
+import Tct.Utils.Xml (putXml)
+import qualified Tct.Utils.Xml.Encoding as XmlE
 import Tct.Processor.LoggingSolver
 import qualified Tct.Main.Version as V
 import qualified Tct.Main.Version as Version
@@ -462,8 +463,7 @@ runTct cfg = snd `liftM` evalRWST m TCTROState { config = cfg }  TCTState
                          
                          case outputMode cfg of 
                            OnlyAnswer    -> putPretty (pprint ans)
-                           WithXml       ->
-                             putXmlProof prob rulelist proof ans
+                           WithXml       -> putXml $ XmlE.proofDocument prob rulelist proof ans
                            WithProof mde -> 
                              putPretty $ 
                              pprint ans

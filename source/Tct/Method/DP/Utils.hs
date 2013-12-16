@@ -20,6 +20,7 @@ module Tct.Method.DP.Utils where
 import Text.PrettyPrint.HughesPJ hiding (empty)
 
 import Termlib.Utils
+import qualified Tct.Utils.Xml as Xml
 
 data DPError = NonDPProblemGiven 
              | NonRCProblemGiven
@@ -32,3 +33,12 @@ instance PrettyPrintable DPError where
     pprint (NotApplicable r) = hang (text "The processor is not applicable. Reason:") 3 r
     pprint ContainsStrictRule = paragraph "The processor is inapplicable since the strict component of the input problem is not empty"
     
+
+errorToXml :: DPError -> Xml.XmlContent
+errorToXml err = 
+           Xml.elt "dperror" [] [errXml err]
+    where 
+      errXml NonDPProblemGiven = Xml.elt "nodpproblem" [] []
+      errXml NonRCProblemGiven = Xml.elt "norcproblem" [] []
+      errXml (NotApplicable r) = Xml.elt "notapplicable" [] [ Xml.text $ show r ]
+      errXml ContainsStrictRule = Xml.elt "containsstrictrule" [] []

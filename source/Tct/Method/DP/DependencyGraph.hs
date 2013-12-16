@@ -127,10 +127,14 @@ module Tct.Method.DP.DependencyGraph
       -- | Default pretty printer for CDGs. Prints the given CDG in a tree-like shape.
     , pprintNodeSet      
       -- | Default pretty printer for set of nodes.
+    , toXml
+     -- | Xml representation of given 'DG'. 
     , toGraphViz
       -- | translates 'DG' into a GraphViz graph.
     , saveGraphViz
       -- | output 'DG' as Svg.
+    , graphVizSVG
+      -- | return 'DG' as Svg string.
     , graphvizShowDG
       -- | show a 'DG' in a GraphViz canvas.
     -- * Misc
@@ -151,6 +155,10 @@ import qualified Data.GraphViz.Attributes.Complete as GVattribsc
 import Data.GraphViz.Types.Generalised
 import qualified Data.GraphViz.Commands as GVcommands
 import Data.Text.Lazy (pack)
+import System.IO
+import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 
 import qualified Control.Monad.State.Lazy as State
 import Data.List (delete, sortBy)
@@ -176,6 +184,8 @@ import Text.PrettyPrint.HughesPJ hiding (empty, isEmpty, Str)
 import qualified Text.PrettyPrint.HughesPJ as PP
 import Termlib.Utils
 import Tct.Utils.PPrint
+import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 
 --------------------------------------------------------------------------------
 -- Dependency Graph Type
@@ -498,7 +508,8 @@ pprintNodeSet :: [NodeId] -> Doc
 pprintNodeSet ns = braces $ hcat $ punctuate (text ",") [ text $ show n | n <- ns]
   
 pprintCWDGNode :: CDG -> F.Signature -> V.Variables -> NodeId -> Doc
-pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> pprintNodeSet (congruence cwdg n)
+-- pprintCWDGNode cwdg _ _ n = text (show n) <> (text ":") <> pprintNodeSet (congruence cwdg n)
+pprintCWDGNode cwdg _ _ n = pprintNodeSet (congruence cwdg n)
 
 pprintCWDG :: CDG -> F.Signature -> V.Variables -> ([NodeId] -> NodeId -> Doc) -> Doc
 pprintCWDG cwdg sig vars ppLabel | isEmpty = text "empty"
@@ -529,6 +540,8 @@ pprintLabeledRules name sig vars rs = text name <> text ":"
 
 
 -- graphviz output of dgs
+
+
 
 toGraphViz :: [(DG,F.Signature,V.Variables)] -> Bool -> DotGraph String
 toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
@@ -563,6 +576,31 @@ toGraphViz dgs showLabels = GV.digraph' $ mapM digraph $ zip [(1::Int)..] dgs
                 
 saveGraphViz :: [(DG,F.Signature,V.Variables)] -> Bool -> FilePath -> IO FilePath
 saveGraphViz dgs showLabels = GVcommands.runGraphvizCommand GVcommands.Dot (toGraphViz dgs showLabels) GVcommands.Svg
-                
+
+graphVizSVG :: [(DG,F.Signature,V.Variables)] -> Bool -> String
+graphVizSVG dgs showLabels = unsafePerformIO $ 
+  GVcommands.graphvizWithHandle GVcommands.Dot (toGraphViz dgs showLabels) GVcommands.Svg rd
+    where rd h = do 
+            bs <- BS.hGetContents h
+            hClose h
+            return $! BSC.unpack bs
+  
+            
+    
 graphvizShowDG :: [(DG,F.Signature,V.Variables)] -> IO ()              
 graphvizShowDG dgs = GVcommands.runGraphvizCanvas GVcommands.Dot (toGraphViz dgs True) GVcommands.Gtk
+
+
+toXml :: (DG, F.Signature, V.Variables) -> Xml.XmlContent
+toXml (dg,sig,vs) = 
+    Xml.elt "dependencygraph" [] 
+           [
+            -- Xml.elt "svg" [] [ Xml.text $ graphVizSVG [(dg,sig,vs)] False ]
+           Xml.elt "nodes" [] [ XmlE.rule r (Just n) sig vs | (n,(_,r)) <- lnodes dg  ]
+           , Xml.elt "edges" [] [ Xml.elt "edge" [] $ 
+                                          Xml.elt "source" [] [Xml.int n] : [ Xml.elt "target" [] [Xml.int  m] | m <- successors dg n ] 
+                                  | n <- nodes dg] ]
+           -- , Xml.elt "edges" [] [ Xml.elt "edge" [] $ 
+           --                                Xml.elt "source" [] [Xml.rule r (Just n) sig vs]
+           --                                       : [ Xml.elt "targets" [] [Xml.rule s (Just m) sig vs | (m,(_,s),_) <- lsuccessors dg n ] ]
+           --                        | (n,(_,r)) <- lnodes dg] ]

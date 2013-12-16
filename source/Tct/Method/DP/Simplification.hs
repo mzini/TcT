@@ -84,6 +84,7 @@ import Termlib.Term (properSubterms, functionSymbols)
 import Termlib.Trs.PrettyPrint (pprintNamedTrs, pprintTrs)
 import Termlib.Utils hiding (block)
 import Data.Maybe (isJust, fromMaybe)
+import qualified Data.Graph.Inductive.Graph as Graph
 
 import qualified Tct.Certificate as Cert
 import qualified Tct.Processor.Transformations as T
@@ -93,10 +94,11 @@ import Tct.Processor.Args.Instances
 import Tct.Utils.PPrint
 import Tct.Utils.Enum (enumeration')
 import Tct.Method.DP.Utils 
-import Tct.Method.DP.DependencyGraph hiding (Trivial)
+import Tct.Method.DP.DependencyGraph as DG hiding (Trivial) 
 import Tct.Method.RuleSelector as RS
+import qualified Tct.Utils.Xml as Xml
+import qualified Tct.Utils.Xml.Encoding as XmlE
 
-import qualified Data.Graph.Inductive.Graph as Graph
 
 
 
@@ -123,11 +125,25 @@ instance T.TransformationProof RemoveHead where
      $+$ text ""
      $+$ indent (pprintTrs ppRule [r | (_, (_, r)) <- rems])
      $+$ text ""
-     where vars     = rhVars p                              
-           sig      = rhSig p
-           wdg      = rhGraph p
-           rems     = rhRemoveds p
-           ppRule r = pprint (r, sig, vars)
+     where 
+       vars     = rhVars p                              
+       sig      = rhSig p
+       wdg      = rhGraph p
+       rems     = rhRemoveds p
+       ppRule r = pprint (r, sig, vars)
+  tproofToXml _ _ (RHError e) = ("removeHead", [errorToXml e])
+  tproofToXml _ _ p = 
+        ( "removeHead"
+        , [ DG.toXml (dg, sig, vs)
+          , Xml.elt "removedHeads" [] [ XmlE.rule r (Just n) sig vs 
+                                      | (n, (_, r)) <- rems]
+          ]
+        )
+            where 
+              sig = rhSig p
+              vs = rhVars p
+              dg = rhGraph p
+              rems = rhRemoveds p
 
 instance T.Transformer RemoveHead where
   name RemoveHead        = "removehead"
@@ -276,9 +292,23 @@ instance T.TransformationProof SimpRHS where
        paragraph "Due to missing edges in the dependency-graph, the right-hand sides of following rules could be simplified:"
        $+$ text ""
        $+$ indent (pprint (Trs.fromRules repls, sig, vars))
-     where vars  = srhsVars p                              
-           sig   = srhsSig p
-           repls = srhsReplacedRules p
+     where 
+       vars  = srhsVars p                              
+       sig   = srhsSig p
+       repls = srhsReplacedRules p
+  tproofToXml _ _ (SRHSError e) = ("simpRHS", [errorToXml e])
+  tproofToXml _ _ p = 
+        ( "simpRHS"
+        , [ DG.toXml (dg, sig, vars)
+          , Xml.elt "simplified" [] [ XmlE.rule r Nothing sig vars
+                                      | r <- srhsReplacedRules p]
+          ]
+        )
+     where 
+       vars  = srhsVars p                              
+       dg  = srhsDG p                              
+       sig   = srhsSig p
+
 
 instance T.Transformer SimpRHS where 
   name _ = "simpDPRHS"
@@ -433,17 +463,37 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
              $+$ text ""
              $+$ block' "Sub-proof" [P.pprintProof pproof P.ProofOutput]
 
-          -- ppPropagates _ [] = PP.empty
-          -- ppPropagates sofar ss =
-          --   text "-" <+> paragraph ("The rules " ++ (sns sofar) ++ " have known complexity. "
-          --                           ++ "These cover all predecessors of " ++ (sns newnodes) 
-          --                           ++ " from in the estimated DG, their complexity is equally bounded.")
-          --   $+$ ppPropagates (sofar `Set.union` newnodes) ss'
-          --   where sns = show . pprintNodeSet . Set.toList
-          --         (new,ss') = partition predsCovered ss
-          --         predsCovered s = all (\ (n,_) -> n `Set.member` sofar) $ skpPredecessors s
-          --         newnodes = Set.fromList [skpNode s | s <- new]
             
+  tproofToXml _ _ (SimpPEErr e) = ("simpPE", [errorToXml e])
+  tproofToXml _ _ p@(SimpPEProof {}) = 
+        ( "simpPE"
+        , [ DG.toXml (dg, sig, vars)
+          , Xml.elt "pe" [] $ concat
+                    [ [ XmlE.rule r (Just n) sig vars
+                      , Xml.elt "predecessors" [] [ XmlE.rule s (Just m) sig vars | (m,s) <- rs ] 
+                      ]
+                    | SimpPESelection n r rs <- skpSelections p ]
+          ]
+        )
+      where 
+        vars  = skpVars p                              
+        sig   = skpSig p
+        dg    = skpDG p
+  tproofToXml _ _ p@(SimpPEProof {}) = 
+        ( "simpPE"
+        , [ DG.toXml (dg, sig, vars)
+          , Xml.elt "pe" [] $ concat
+                    [ [ XmlE.rule r (Just n) sig vars
+                      , Xml.elt "predecessors" [] [ XmlE.rule s (Just m) sig vars | (m,s) <- rs ] 
+                      ]
+                    | SimpPESelection n r rs <- skpSelections p ]
+          , P.toXml (skpPProof p)
+          ]
+        )
+      where 
+        vars  = skpVars p                              
+        sig   = skpSig p
+        dg    = skpDG p
 
 instance (P.Processor p) => T.Transformer (SimpPE p) where 
   name _ = "simpPE"
@@ -572,6 +622,7 @@ inst `withPEOn` rs = T.Transformation SimpPE `T.withArgs` (rs :+: Just inst)
 
 data Trivial = Trivial
 data TrivialProof = TrivialProof { trivialCDG   :: CDG -- ^ Employed congruence graph.
+                                 , trivialDG    :: DG  -- ^ Employed dg
                                  , trivialSig   :: F.Signature
                                  , trivialVars  :: V.Variables}
                   | TrivialError DPError
@@ -583,6 +634,12 @@ instance T.TransformationProof Trivial where
   pprintTProof _ _ TrivialFail _ = text "The DP problem is not trivial."
   pprintTProof _ _ _ _ = 
     paragraph "The dependency graph contains no loops, we remove all dependency pairs." 
+  tproofToXml _ _ (TrivialError err) = ("trivial", [errorToXml err])
+  tproofToXml _ _ p                  = ("trivial", [DG.toXml (dg, sig, vars)])
+      where 
+        dg = trivialDG p
+        sig = trivialSig p
+        vars = trivialVars p
 
 instance T.Transformer Trivial where
   name Trivial        = "trivial"
@@ -606,6 +663,7 @@ instance T.Transformer Trivial where
               vars  = Prob.variables prob
               proof = TrivialProof { trivialCDG = cwdg
                                    , trivialSig = sig
+                                   , trivialDG  = wdg
                                    , trivialVars = vars }
               prob' = prob { Prob.strictDPs = Trs.empty
                            , Prob.weakDPs = Trs.empty }
@@ -628,11 +686,12 @@ trivial = T.Transformation Trivial `T.withArgs` ()
 data RemoveInapplicable = RemoveInapplicable
 
 data RemoveInapplicableProof = 
-  RemoveInapplicableProof { riWDG         :: DG -- ^ Employed dependency graph.
-                          , riInitials    :: [NodeId] -- ^ Nodes that start a dependency derivation 
-                          , riReachable   :: [NodeId] -- ^ Nodes reachable from initial nodes
-                          , riSig         :: F.Signature
-                          , riVars        :: V.Variables}
+  RemoveInapplicableProof { riWDG          :: DG -- ^ Employed dependency graph.
+                          , riInitials     :: [(NodeId,Rule)] -- ^ Nodes that start a dependency derivation 
+                          , riReachable    :: [(NodeId,Rule)] -- ^ Nodes reachable from initial nodes
+                          , riNonReachable :: [(NodeId,Rule)] -- ^ Nodes /not/ reachable from initial nodes
+                          , riSig          :: F.Signature
+                          , riVars         :: V.Variables}
   | RemoveInapplicableError DPError
   | RemoveInapplicableFail
                        
@@ -649,11 +708,25 @@ instance T.TransformationProof RemoveInapplicable where
                    if null (riReachable p)
                     then text "No dependency pair can be employed in a derivation starting from a marked basic term."
                     else text "Only the nodes" 
-                         <+> pprintNodeSet (riReachable p)
+                         <+> pprintNodeSet (map fst $ riReachable p)
                          <+> text "are reachable from nodes"
-                         <+> pprintNodeSet (riInitials p)
+                         <+> pprintNodeSet (map fst $ riInitials p)
                          <+> text "that start derivation from marked basic terms."
-                         <+> text "These nodes not reachable are removed from the problem.")
+                         <+> text "The nodes not reachable are removed from the problem.")
+    where 
+      vars = riVars p                              
+      sig  = riSig p
+      wdg  = riWDG p
+  tproofToXml _ _ (RemoveInapplicableError err) = ("removeinapplicable", [errorToXml err])
+  tproofToXml _ _ RemoveInapplicableFail = ("removeinapplicable", [])
+  tproofToXml _ _ p = 
+      ("removeinapplicable"
+      , [ DG.toXml (wdg,sig,vars)
+        , Xml.elt "initial" [ ] [ XmlE.rule r (Just i) sig vars | (i,r) <- riInitials p]
+        , Xml.elt "reachable" [ ] [ XmlE.rule r (Just i) sig vars | (i,r) <- riReachable p]
+        , Xml.elt "nonreachable" [ ] [ XmlE.rule r (Just i) sig vars | (i,r) <- riNonReachable p]
+        ]
+      )
     where 
       vars = riVars p                              
       sig  = riSig p
@@ -668,29 +741,31 @@ instance T.Transformer RemoveInapplicable where
   arguments RemoveInapplicable = Unit
   transform _ prob 
      | not $ Prob.isDPProblem prob = return $ T.NoProgress $ RemoveInapplicableError $ NonDPProblemGiven
-     | null unreachables = return $ T.NoProgress RemoveInapplicableFail
+     | null lunreachables = return $ T.NoProgress RemoveInapplicableFail
      | otherwise = return $ T.Progress proof (enumeration' [prob'])
         where 
           constrs = Prob.constrs $ Prob.startTerms prob
-          initials = [n | (n, (_,r)) <- lns
-                        , all (\ ti -> functionSymbols ti `Set.isSubsetOf` constrs) (properSubterms $ lhs r) ]
+          linitials = [ tr | tr@(_, (_,r)) <- lns
+                      , all (\ ti -> functionSymbols ti `Set.isSubsetOf` constrs) (properSubterms $ lhs r) ]
                   
-          reachables = reachablesDfs wdg initials
-          unreachables = [ n | (n,_) <- lns , not $ n `Set.member` rs ]
+          reachables = reachablesDfs wdg (map fst linitials)
+          lreachables = withNodeLabels' wdg reachables
+          lunreachables = [ ln | ln <- lns , not $ (fst ln) `Set.member` rs ]
             where rs = Set.fromList reachables
 
-          prob' = prob { Prob.strictDPs = Trs.fromRules [ r | (_,(StrictDP,r)) <- lreachables ]
+          prob' = prob { Prob.strictDPs = Trs.fromRules [ r | (_,(StrictDP, r)) <- lreachables ]
                        , Prob.weakDPs   = Trs.fromRules [ r | (_,(WeakDP,r)) <- lreachables ] }
-            where lreachables = withNodeLabels' wdg reachables 
 
           proof = RemoveInapplicableProof { riWDG = wdg
                                           , riSig = sig
-                                          , riInitials = initials
-                                          , riReachable = reachables
+                                          , riInitials = toRS linitials
+                                          , riReachable = toRS lreachables
+                                          , riNonReachable = toRS lunreachables
                                           , riVars = vars }
 
+          toRS ns = [(n,r) | (n,(_,r)) <- ns]
           wdg   = estimatedDependencyGraph defaultApproximation prob
-          lns   = lnodes wdg
+          lns   = lnodes wdg                  
           sig   = Prob.signature prob
           vars  = Prob.variables prob
                 

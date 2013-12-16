@@ -43,7 +43,7 @@ import qualified Qlogic.Semiring as SR
 
 import Termlib.Utils
 
-import Termlib.Term (Term,root)
+import Termlib.Term (Term)
 import qualified Tct.Utils.Xml as Xml
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Problem as Prob
@@ -139,7 +139,7 @@ instance ComplexityProof MatrixOrder where
               -- rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob
               --           , let rt = root $ R.lhs rl
               --             in or [ rt == Right f | f <- us ] ]
-              us = usymbols order                                            
+              -- us = usymbols order                                            
     
     answer order = CertAnswer $ certified (unknown, ub)
        

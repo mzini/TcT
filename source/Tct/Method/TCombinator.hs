@@ -78,6 +78,9 @@ import qualified Tct.Processor as P
 import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
 
+
+import System.IO (hPutStr, stderr,hFlush)
+import System.IO.Unsafe (unsafePerformIO)
 --------------------------------------------------------------------------------
 -- Id
               
@@ -157,15 +160,17 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
 
     normalisedProof proof = 
       case proofFromResult res of 
-        ComposeProof r1 Nothing -> 
-          normalisedProof $ 
+        ComposeProof r1 Nothing -> unsafePerformIO $ do
+         hPutStr stderr ("normalise 1:" ++ name (transformation t1) ++ "\n") >> hFlush stderr
+         return $ normalisedProof $ 
           Proof { transformationResult = r1
                 , inputProblem         = input
                 , appliedTransformer   = t1
                 , appliedSubprocessor  = sub
                 , subProofs            = subproofs }
-        ComposeProof r1 (Just r2s) -> 
-          normalisedProof $ 
+        ComposeProof r1 (Just r2s) -> unsafePerformIO $ do
+         hPutStr stderr ("normalise 2:" ++ name (transformation t1) ++ "\n") >> hFlush stderr
+         return $ normalisedProof $ 
           Proof { transformationResult = r1
                 , inputProblem         = input
                 , appliedTransformer   = t1
@@ -226,13 +231,13 @@ data Unique a = One a
               | Two a deriving (Typeable, Eq)
 
 instance Numbering a => Numbering (Unique a) where 
-    -- ppNumbering (One a) = ppNumbering a
-    -- ppNumbering (Two a) = ppNumbering a
-    ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
-    ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
+    ppNumbering (One a) = ppNumbering a
+    ppNumbering (Two a) = ppNumbering a
+    -- ppNumbering (One a) = text "One(" PP.<> ppNumbering a PP.<> text ")"
+    -- ppNumbering (Two a) = text "Two(" PP.<> ppNumbering a PP.<> text ")"
 
 instance (Transformer t1, Transformer t2) => Transformer (t1 :>>>: t2) where
-    name (TheTransformer t1 _ :>>>: _) = name t1
+    name (TheTransformer t1 _ :>>>: TheTransformer t2 _ ) = take 100 $ "(" ++ name t1 ++ " >>> " ++ name t2 ++ ")"
     instanceName (TheTransformer (t1 :>>>: _) _) = instanceName t1
     description (TheTransformer t1 _ :>>>: _) = description t1
     type ArgumentsOf (t1 :>>>: t2) = Unit
@@ -453,18 +458,12 @@ instance (Transformer t, TransformationProof t) => TransformationProof (Try t) w
 
     pprintTProof t prob (TryProof _ p) = pprintTProof (fromTry t) prob p
 
-    -- proofToXml = proofToXml . normalisedProof --TODO
+    proofToXml = proofToXml . normalisedProof
     
-    normalisedProof proof = nproof
-      -- nproof { appliedTransformer = liftTry (appliedTransformer nproof) 
-      --        , transformationResult = TryProof isTry `mapResult` transformationResult nproof }
-      
-      where (TryProof _ tproof) = transformationProof proof
-            -- liftTry | isTry = try  
-            --         | otherwise = force
-            nproof = normalisedProof $ 
+    normalisedProof proof = normalisedProof $ 
                      proof { appliedTransformer  = fromTry $ appliedTransformer proof
                            , transformationResult = const tproof `mapResult` transformationResult proof }
+      where (TryProof _ tproof) = transformationProof proof
 
 
 instance (Transformer t) => Transformer (Try t) where

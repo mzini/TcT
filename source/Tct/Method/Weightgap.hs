@@ -55,6 +55,7 @@ import Tct.Utils.Enum (enumeration')
 import qualified Tct.Method.RuleSelector as RS
 import qualified Tct.Processor.Args as A
 import qualified Tct.Processor as P
+import qualified Tct.Proof as Proof
 import qualified Tct.Processor.Transformations as T
 import qualified Tct.Certificate as Cert
 import Tct.Processor (certificate)
@@ -102,6 +103,9 @@ instance T.TransformationProof WeightGap where
           ubound = Cert.upperBound . certificate
           
   pprintTProof _ _ tproof _ = pprint tproof
+
+  tproofToXml _ _ tproof = ( "weightgap"
+                           , [Proof.toXml (wgProof tproof)])
 
 instance T.Transformer WeightGap where
   name WeightGap = "weightgap"

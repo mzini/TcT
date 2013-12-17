@@ -160,17 +160,20 @@ instance (TransformationProof t1, Transformer t1, Transformer t2) => Transformat
 
     normalisedProof proof = 
       case proofFromResult res of 
-        ComposeProof r1 Nothing -> unsafePerformIO $ do
-         hPutStr stderr ("normalise 1:" ++ name (transformation t1) ++ "\n") >> hFlush stderr
-         return $ normalisedProof $ 
+        ComposeProof r1 Nothing -> -- unsafePerformIO $ do
+         -- hPutStr stderr ("normalise 1:" ++ name (transformation t1) ++ "\n") >> hFlush stderr 
+         -- return $ 
+         normalisedProof $ 
           Proof { transformationResult = r1
                 , inputProblem         = input
                 , appliedTransformer   = t1
                 , appliedSubprocessor  = sub
                 , subProofs            = subproofs }
-        ComposeProof r1 (Just r2s) -> unsafePerformIO $ do
-         hPutStr stderr ("normalise 2:" ++ name (transformation t1) ++ "\n") >> hFlush stderr
-         return $ normalisedProof $ 
+        ComposeProof r1 (Just r2s) -> 
+         -- unsafePerformIO $ do
+         -- hPutStr stderr ("normalise 2:" ++ name (transformation t1) ++ "\n") >> hFlush stderr
+         -- return $ 
+         normalisedProof $ 
           Proof { transformationResult = r1
                 , inputProblem         = input
                 , appliedTransformer   = t1

@@ -732,7 +732,7 @@ dc2012 mto =
   ite (isDuplicating Strict) Combinators.fail $
     try IRR.irr
     >>| try Uncurry.uncurry
-    >>| dc2012' Combinators.best 
+    >>| dc2012' (case mto of Just _ -> Combinators.best ; _ -> Combinators.fastest)
   where withTO = 
             case mto of 
               Just (Nat t) -> some . timeout t
@@ -810,6 +810,7 @@ rc2012 mto
             case mto of 
               Just (Nat t) -> some . timeout t
               _ -> some
+        combinator = case mto of Just _ -> Combinators.best; _ -> Combinators.fastest
         wgOnUsable = wg 2 1 `wgOn` Weightgap.WgOnTrs
         
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
@@ -866,11 +867,11 @@ rc2012 mto
                                   >>! PopStar.popstarPS)
 
         directs = 
-            Combinators.best 
-                           [ withTO $ some $ te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty
-                           , withTO $ some $ timeout 5 matchbounds
-                           , withTO $ some $ bsearch "popstar" (PopStar.spopstarPS `withDegree`)
-                           , withTO $ some $ PopStar.popstarPS ]
+            combinator 
+            [ withTO $ some $ te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty
+            , withTO $ some $ timeout 5 matchbounds
+            , withTO $ some $ bsearch "popstar" (PopStar.spopstarPS `withDegree`)
+            , withTO $ some $ PopStar.popstarPS ]
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
                     Compose.decomposeAnyWith (spopstar i) -- binary search auf grad
@@ -880,9 +881,9 @@ rc2012 mto
                         <||> when (i < 4) (Compose.decomposeAnyWith (mx (i + 1) i)))
           
         rc2012RC = 
-          Combinators.best [ withTO $ some $ DP.dependencyPairs >>| isTrivialDP
-                           , withTO $ some directs 
-                           , withTO $ some $ dp >>| withProblem (rc2012DP 1)]
+          combinator [ withTO $ some $ DP.dependencyPairs >>| isTrivialDP
+                     , some directs 
+                     , withTO $ some $ dp >>| withProblem (rc2012DP 1)]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
                      >>> try wgOnUsable

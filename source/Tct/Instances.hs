@@ -726,21 +726,25 @@ rc2011 = some $ named "rc2011" $ ite Predicates.isInnermost (rc DP.dependencyTup
                    directs  = empty `Combinators.before` (matricesBlockOf 3 `Combinators.orFaster` matchbounds)
 
 
-dc2012 :: P.InstanceOf P.SomeProcessor
-dc2012 = 
+dc2012 :: Maybe Nat -> P.InstanceOf P.SomeProcessor
+dc2012 mto = 
   named "dc2012" $ 
   ite (isDuplicating Strict) Combinators.fail $
     try IRR.irr
     >>| try Uncurry.uncurry
     >>| dc2012' Combinators.best 
-  where dc2012' combinator = 
+  where withTO = 
+            case mto of 
+              Just (Nat t) -> some . timeout t
+              _ -> some
+        dc2012' combinator = 
           combinator [ some empty
-                     , some $ timeout 59 $ fastest [matrix `withDimension` i `withDegree` Nothing `withCBits` Just 4 `withBits` 3 `withCertBy` NaturalMI.Algebraic 
+                     , withTO $ some $ fastest [matrix `withDimension` i `withDegree` Nothing `withCBits` Just 4 `withBits` 3 `withCertBy` NaturalMI.Algebraic 
                                                    | i <- [1..3] ]
-                     , some $ timeout 59 $ bsearch "matrix" (mmx 4)
-                     , some $ timeout 59 $ Combinators.iteProgress mxs (dc2012' fastest) empty
-                     , some $ timeout 59 $ del >>| dc2012' fastest
-                     , some $ timeout 10 matchbounds
+                     , withTO $ some $ bsearch "matrix" (mmx 4)
+                     , withTO $ some $ Combinators.iteProgress mxs (dc2012' fastest) empty
+                     , withTO $ some $ del >>| dc2012' fastest
+                     , withTO $ some $ matchbounds
                      ]
                       
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
@@ -794,15 +798,20 @@ dc2012 =
         compCom p = Compose.greedy $ Compose.decomposeAnyWith p `Compose.combineBy` Compose.Compose
 
 
-rc2012 :: P.InstanceOf P.SomeProcessor
-rc2012 = named "rc2012" $ 
-          withProblem $ \ prob -> 
-           case Prob.strategy prob of 
-             Prob.Innermost -> some rc2012RCi
-             _ -> some $ Combinators.iteProgress TOI.toInnermost rc2012RCi rc2012RC
+rc2012 :: Maybe Nat -> P.InstanceOf P.SomeProcessor
+rc2012 mto 
+    = named "rc2012" $ 
+      withProblem $ \ prob -> 
+          case Prob.strategy prob of 
+            Prob.Innermost -> some $ rc2012RCi
+            _ -> some $ Combinators.iteProgress TOI.toInnermost rc2012RCi rc2012RC
     
-  where wgOnUsable = wg 2 1 `wgOn` Weightgap.WgOnTrs
-          
+  where withTO = 
+            case mto of 
+              Just (Nat t) -> some . timeout t
+              _ -> some
+        wgOnUsable = wg 2 1 `wgOn` Weightgap.WgOnTrs
+        
         matchbounds = Bounds.bounds Bounds.Minimal Bounds.Match 
                       `Combinators.orFaster` Bounds.bounds Bounds.PerSymbol Bounds.Match
                       
@@ -856,11 +865,12 @@ rc2012 = named "rc2012" $
                                       <||> Compose.decomposeAnyWith (mx 4 4)) 
                                   >>! PopStar.popstarPS)
 
-        directs = timeout 58 (te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty)
-                  `Combinators.orBetter` timeout 5 matchbounds
-                  `Combinators.orBetter` timeout 58 ( bsearch "popstar" (PopStar.spopstarPS `withDegree`) )
-                  `Combinators.orBetter` timeout 58 PopStar.popstarPS
-          
+        directs = 
+            Combinators.best 
+                           [ withTO $ some $ te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty
+                           , withTO $ some $ timeout 5 matchbounds
+                           , withTO $ some $ bsearch "popstar" (PopStar.spopstarPS `withDegree`)
+                           , withTO $ some $ PopStar.popstarPS ]
           where compse i = withProblem $ \ prob ->
                   when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
                     Compose.decomposeAnyWith (spopstar i) -- binary search auf grad
@@ -870,9 +880,9 @@ rc2012 = named "rc2012" $
                         <||> when (i < 4) (Compose.decomposeAnyWith (mx (i + 1) i)))
           
         rc2012RC = 
-          Combinators.best [ some $ timeout 58 $ DP.dependencyPairs >>| isTrivialDP
-                           , some $ directs 
-                           , some $ Timeout.timeout 58 (dp >>| withProblem (rc2012DP 1))]
+          Combinators.best [ withTO $ some $ DP.dependencyPairs >>| isTrivialDP
+                           , withTO $ some directs 
+                           , withTO $ some $ dp >>| withProblem (rc2012DP 1)]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
                      >>> try wgOnUsable
@@ -880,7 +890,7 @@ rc2012 = named "rc2012" $
         rc2012RCi = 
           try IRR.irr 
           >>! Combinators.best [ some $ directs 
-                               , some $ timeout 58 $ rc2012DPi]
+                               , some $ withTO rc2012DPi]
           
         rc2012DP i prob
           | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi

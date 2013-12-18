@@ -233,8 +233,8 @@ defaultConfig = Config { makeProcessor   = defaultProcessor
                        , interactive     = False}
 
   where defaultProcessor prob _ = return $ case Prob.startTerms prob of 
-          Prob.TermAlgebra {} -> someInstance Instances.dc2012
-          _                   -> someInstance Instances.rc2012
+          Prob.TermAlgebra {} -> someInstance $ Instances.dc2012 Nothing
+          _                   -> someInstance $ Instances.rc2012 Nothing
         getDefaultSolver = findSatSolver MiniSat "minisat" `catchError` (const $ findSatSolver MiniSat "minisat2")
 
 

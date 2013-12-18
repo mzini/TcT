@@ -72,8 +72,9 @@ import Tct.Method.Weightgap hiding (weightgap)
 import Tct.Method.Timeout hiding (timeout)
 import Tct.Method.Mpo hiding (mpo)
 import qualified Tct.Instances as Inst
-import Tct.Method.Custom (Custom (..))
+import qualified Tct.Method.Custom as CP
 import qualified Tct.Processor.Args as A
+import qualified Tct.Processor.Args.Instances as AI
 
 -- generated: Fri Jan  6 13:08:14 JST 2012
 builtInProcessors :: P.AnyProcessor 
@@ -144,17 +145,21 @@ builtInProcessors =
     P.<|>
     S.StdProcessor uncurry
     P.<|>
-    Custom { as = "rc2012", code = \ () -> P.solve $ Inst.rc2012, arguments = A.Unit }
+    CP.strategyToProcessor rc2012
+    P.<|> 
+    CP.strategyToProcessor dc2012
     P.<|>
-    Custom { as = "dc2012", code = \ () -> P.solve $  Inst.dc2012, arguments = A.Unit }
-    P.<|>
-    Custom { as = "certify2012", code = \ () -> P.solve $ Inst.certify2012, arguments = A.Unit }    
-    P.<|>
-    Custom { as = "rc2011", code = \ () -> P.solve $  Inst.rc2012, arguments = A.Unit }    
-    P.<|>
-    Custom { as = "dc2011", code = \ () -> P.solve $  Inst.rc2012, arguments = A.Unit }    
+    CP.strategyToProcessor rc2011
+    P.<|> 
+    CP.strategyToProcessor dc2011
     P.<|>
     foldr (P.<|>) P.none Preds.predicateProcessors
+    where
+      rc2012 = Inst.rc2012 CP.::: CP.strategy "rc2012" (A.optional (AI.maybeArg AI.naturalArg) "timeout" Nothing)
+      dc2012 = Inst.dc2012 CP.::: CP.strategy "dc2012" (A.optional (AI.maybeArg AI.naturalArg) "timeout" Nothing)
+      rc2011 = Inst.rc2011 CP.::: CP.strategy "rc2011"
+      dc2011 = Inst.dc2011 CP.::: CP.strategy "dc2011"
+
 
 -- generated: Fri Jan  6 13:10:41 JST 2012
 {- |

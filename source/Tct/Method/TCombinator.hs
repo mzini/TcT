@@ -79,8 +79,6 @@ import qualified Tct.Processor.Args as A
 import Tct.Processor.Args hiding (name, description, synopsis)
 
 
-import System.IO (hPutStr, stderr,hFlush)
-import System.IO.Unsafe (unsafePerformIO)
 --------------------------------------------------------------------------------
 -- Id
               

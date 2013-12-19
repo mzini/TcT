@@ -867,22 +867,41 @@ rc2012 mto
                                   >>! PopStar.popstarPS)
 
         directs = 
-            combinator 
-            [ withTO $ some $ te (compse 1) >>> te (compse 2) >>> te (compse 3) >>> te (compse 4) >>| empty
+            combinator
+            [ withTO $ some $ timeout 30 interpretations
             , withTO $ some $ timeout 5 matchbounds
-            , withTO $ some $ bsearch "popstar" (PopStar.spopstarPS `withDegree`)
-            , withTO $ some $ PopStar.popstarPS ]
-          where compse i = withProblem $ \ prob ->
-                  when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
-                    Compose.decomposeAnyWith (spopstar i) -- binary search auf grad
-                    <> (when (i == 2 || i == 3) (Compose.decomposeAnyWith (polys i))
-                        <||> wg i i
-                        <||> Compose.decomposeAnyWith (mx i i)
-                        <||> when (i < 4) (Compose.decomposeAnyWith (mx (i + 1) i)))
+            , some $ Combinators.best 
+                       [ withTO $ some $ bsearch "popstar" (PopStar.spopstarPS `withDegree`)
+                       , withTO $ some $ PopStar.popstarPS ]
+            ]
+        
+        interpretations = 
+            te (comp (mx 1 1) <||> comp (spopstar 1) <||> wg 1 1)
+            >>! te (comp (spopstar 2))
+            >>! fastest [ some $ te (comp (polys 2)) 
+                                 >>> te (comp (polys 3)) 
+                                 >>| empty
+                        , some $ te (comp (mx 2 1) <||> comp (mx 3 1))
+                                 >>! te (comp (mx 2 2) <||> comp (mx 3 2) <||> wg 2 2)
+                                 >>! te (comp (mx 3 3) <||> comp (mx 4 3))
+                                 >>! te (comp (mx 4 4))
+                                 >>| empty
+                        ]
+
+        comp p = withProblem $ \ prob -> 
+                  when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ Compose.decomposeAnyWith p
+                     
+            -- compse i = withProblem $ \ prob ->
+            --       when (not $ Trs.isEmpty $ Prob.strictComponents prob) $ 
+            --         Compose.decomposeAnyWith (spopstar i) -- binary search auf grad
+            --         <> (when (i == 2 || i == 3) (Compose.decomposeAnyWith (polys i))
+            --             <||> wg i i
+            --             <||> Compose.decomposeAnyWith (mx i i)
+            --             <||> when (i < 4) (Compose.decomposeAnyWith (mx (i + 1) i)))
           
         rc2012RC = 
           combinator [ withTO $ some $ DP.dependencyPairs >>| isTrivialDP
-                     , some directs 
+                     , some $ directs
                      , withTO $ some $ dp >>| withProblem (rc2012DP 1)]
           where dp = DP.dependencyPairs 
                      >>> try UR.usableRules 
@@ -890,8 +909,8 @@ rc2012 mto
                      
         rc2012RCi = 
           try IRR.irr 
-          >>! Combinators.best [ some $ directs 
-                               , some $ withTO rc2012DPi]
+          >>! combinator [ some $ directs
+                         , some $ withTO rc2012DPi ]
           
         rc2012DP i prob
           | Trs.isEmpty (Prob.strictTrs prob) = some $ rc2012DPi

@@ -63,6 +63,7 @@ module Tct.Instances
       
       -- **** Custom Polynomial Shapes
     , NaturalPI.customPolynomial
+    , polys
     , Poly.SimpleMonomial
     , (Poly.^^^)
     , Poly.mono

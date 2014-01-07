@@ -277,7 +277,7 @@ iteProcessor = S.StdProcessor Ite
 
 data IteProgress g t e = IteProgress (T.TheTransformer g)
 
-data IteProgressProof g t e = IteProgressTransformed   (T.Proof g t) 
+data IteProgressProof g t e = IteProgressTransformed   (T.Proof T.SomeTransformation P.SomeProcessor) 
                             | IteProgressUntransformed (T.TheTransformer g) (T.ProofOf g) (P.Proof e)
 
 instance ( T.Transformer g
@@ -334,7 +334,8 @@ instance ( T.Transformer g
                            [P.apply t prob_i >>= \ r -> return (i,r) 
                            | (i,prob_i) <- ps]
               let subproofs = case esubproofs of {Left (fld,sps) -> fld:sps; Right sps -> sps}
-                  proof = T.Proof { T.transformationResult = res
+                  proof = T.normalisedProof $ 
+                          T.Proof { T.transformationResult = res
                                   , T.inputProblem         = prob
                                   , T.appliedSubprocessor  = t
                                   , T.appliedTransformer   = g

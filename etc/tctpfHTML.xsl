@@ -65,7 +65,7 @@
       	  <xsl:apply-templates select="proofDetail/ite/subProof/proofNode" mode="filter"/>
       	</xsl:when>
 	<xsl:when test="proofDetail/timeout">
-      	  <xsl:apply-templates select="proofDetail/timeout/subProof/proofNode" mode="filter"/>	  
+      	  <xsl:apply-templates select="proofDetail/timeout/subProof" mode="filter"/>	  
 	</xsl:when>
 	<xsl:when test="proofDetail/oneOf/subProof">
       	  <xsl:apply-templates select="proofDetail/oneOf/subProof/proofNode" mode="filter"/>	  

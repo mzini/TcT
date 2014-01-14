@@ -855,7 +855,7 @@ proofFromTree (Transformed _ prob tinst tres subs) =
                          | otherwise   = OneOfSucceeded Sequentially p
         proc = tinst T.>>| seqProc                                         
         tproof = 
-          T.someProof $ 
+          T.normalisedProof $ 
           T.Proof { T.transformationResult = tres
                   , T.inputProblem        = prob
                   , T.appliedTransformer  = tinst

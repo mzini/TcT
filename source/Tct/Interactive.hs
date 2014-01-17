@@ -467,6 +467,8 @@ module Tct.Interactive
       -- selected problems. To produce an SVG-picture, use the procedure
       -- 'wdgs' that draws weak dependency graphs, but also shows
       -- congruence classes.
+    , types 
+      -- | This action displays a simple typing of the selected problems.
     , uargs      
       -- | This action displays the usable argument positions of the selected problems.
 
@@ -733,6 +735,7 @@ import Text.PrettyPrint.HughesPJ
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Encoding.UsablePositions as UA
 import qualified Tct.Method.RuleSelector as RS
+import qualified Termlib.Types as Types
 
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Set as Set
@@ -1461,6 +1464,15 @@ cwdgs = (zip [1..] `liftM` problems') >>= mapM f
           do let dg = DG.toCongruenceGraph $ DG.estimatedDependencyGraph DG.defaultApproximation prob
              pprintIth "Congruence Graph of Problem" U.pprint (i,(dg,Prob.signature prob,Prob.variables prob))
              return dg
+
+
+types :: IO [Types.Typing Int]
+types = do 
+  (zip [1..] `liftM` problems') >>= mapM f
+    where f (i,prob) = pprintIth "Typing of Problem" U.pprint (i, (tp, sig)) >> return tp
+              where 
+                sig = Prob.signature prob
+                tp = Types.infer sig (Trs.toRules $ Prob.allComponents prob)
 
 uargs :: IO [UA.UsablePositions]
 uargs = (zip [1..] `liftM` problems') >>= mapM f

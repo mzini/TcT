@@ -136,10 +136,6 @@ instance ComplexityProof MatrixOrder where
               sig   = Prob.signature prob
               vars  = Prob.variables prob
               rs = Trs.rules $ Prob.allComponents prob
-              -- rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob
-              --           , let rt = root $ R.lhs rl
-              --             in or [ rt == Right f | f <- us ] ]
-              -- us = usymbols order                                            
     
     answer order = CertAnswer $ certified (unknown, ub)
        
@@ -414,7 +410,6 @@ orient rs prob mp = do
           orientationConstraints = 
            bigAnd [usable (r) --> interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules trsrules]
            && bigAnd [interpretTerm absmi (R.lhs r) .>=. (modify r $ interpretTerm absmi (R.rhs r)) | r <- Trs.rules dprules]
-           -- && bigOr [strictVar r .>. SR.zero | r <- Trs.rules $ Prob.strictComponents prob]
            && RS.onSelectedRequire rs (\ _ r -> strictVar r .>. SR.zero)
            where modify r inter = inter { constant = case constant inter of  
                                              Vector [] -> error "NaturalMI: zero-length vector in modify"
@@ -522,7 +517,6 @@ data DiagOnesVar = DiagOnesVar Int
 instance PropAtom DiagOnesVar
 
 diagOnesConstraints :: Eq l => Int -> MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
--- diagOnesConstraints :: (RingConst a, AbstrOrdSemiring a b) => Int -> MatrixInter a -> b
 diagOnesConstraints deg mi = diagOnesVars && maxDegree
   where d = dimension mi
         toD = [1..d]
@@ -560,14 +554,6 @@ rcConstraints mi = bigAnd [ ggeq mi 1 x --> dioAtom (R 1 x) | x <- toD ]
   where d = dimension mi
         toD = [1..d]
 
--- goneConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
--- goneConstraints mi = bigAnd [ f i j | i <- toD, j <- toD ]
---   where d     = dimension mi
---         toD   = [1..d]
---         f i j = g i j && h i j
---         g i j = (dioAtom $ Ggeq i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>=. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
---         h i j = (dioAtom $ Ggrt i j) <-> bigOr (map (bigOr . map (\ m -> entry i j m .>. SR.one) . Map.elems . coefficients) $ Map.elems $ interpretations mi)
-
 gtwoConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar Int
 gtwoConstraints mi  = bigAnd [ f i j k l | i <- toD, j <- toD, k <- toD, l <- toD ]
   where d           = dimension mi
@@ -598,7 +584,6 @@ dConstraints :: Eq l => MatrixInter (DioPoly DioVar Int) -> DioFormula l DioVar 
 dConstraints mi = foreapprox && forecompat && backapprox && backcompat && exactness
   where d           = dimension mi
         toD         = [1..d]
---        diagonal    = bigAnd [ if x == y then dioAtom (D x y) else not (dioAtom $ D x y) | x <- toD, y <- toD ]
         foreapprox  = bigAnd [ dioAtom (R 1 x) --> dioAtom (Done x x x) | x <- toD ]
         forecompat  = bigAnd [ (dioAtom (Done i x y) && dioAtom (Gtwo x y z u)) --> dioAtom (Done i z u) | i <- toD, x <- toD, y <- toD, z <- toD, u <- toD ]
         backapprox  = bigAnd [ dioAtom (R 1 x) --> dioAtom (Dtwo x x x) | x <- toD ]

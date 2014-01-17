@@ -1466,7 +1466,7 @@ cwdgs = (zip [1..] `liftM` problems') >>= mapM f
              return dg
 
 
-types :: IO [Types.Typing Int]
+types :: IO [Types.Typing String]
 types = do 
   (zip [1..] `liftM` problems') >>= mapM f
     where f (i,prob) = pprintIth "Typing of Problem" U.pprint (i, (tp, sig)) >> return tp

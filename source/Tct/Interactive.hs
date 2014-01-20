@@ -91,7 +91,8 @@ module Tct.Interactive
       -- matching the categories of the complexity division of 
       -- the internation termination competition 
       -- <http://termination-portal.org/wiki/Complexity>.
-    
+    , loadProblem
+      -- | Same as 'load', but doesn't read the 'Problem' from file.
     , loadRC
       -- | Same as 'load', but overwrites strategy and start-terms 
       -- in order to match a runtime-complexity problem.
@@ -935,6 +936,15 @@ modifyState :: (ST -> ST) -> IO ()
 modifyState f = do st <- getState
                    putState (f st)
 
+loadProblem' :: Problem -> IO ()
+loadProblem' prob = do
+  modifyState (\ _ -> ST { unselected = []
+                         , proofTree = Just $ Open prob} )
+  writeState
+
+loadProblem :: Problem -> IO ()
+loadProblem p = loadProblem' p >> printState
+
 load' :: FilePath -> IO ()
 load' file = 
   do r <- ProbParse.problemFromFile file
@@ -945,10 +955,7 @@ load' file =
             return ()
        Right (prob,_,warns) -> 
          do ppwarns warns
-            modifyState (\ _ -> ST { unselected = []
-                                  , proofTree = Just $ Open prob} )
-            writeState
-            return ()
+            loadProblem' prob 
   where ppwarns [] = return ()
         ppwarns ws = do putStrLn "Warnings:"
                         pprint `mapM_` ws

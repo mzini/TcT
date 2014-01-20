@@ -5,11 +5,12 @@
                 version="1.0">
     <xsl:output method="html"/>
     <xsl:strip-space elements="*"/>
+
+    <xsl:include href="tctpfNORM.xsl"/>
     
     <xsl:variable name="reducedProofTree">
       <xsl:apply-templates select="/tctOutput/proofNode" mode="filter"/>
     </xsl:variable>
-
 
     <xsl:template match="/tctOutput">
     <html>
@@ -21,21 +22,21 @@
             <body style="max-width:800px;">
 	      <h1>Outline</h1>
 	      <div class="outline">
-	      	<xsl:apply-templates select="exsl:node-set($reducedProofTree)">
-		  <xsl:with-param name="outline">true</xsl:with-param>
+	      	<xsl:apply-templates select="exsl:node-set($reducedProofTree)/proofNode">
+	      	  <xsl:with-param name="outline">true</xsl:with-param>
 	      	  <xsl:with-param name="number">1</xsl:with-param>
 	      	  <xsl:with-param name="prefix"></xsl:with-param>
 	      	</xsl:apply-templates>
 	      </div>
 	      <div class="proof">
-		<h1>Input Problem</h1>
-		We consider the <xsl:apply-templates select="proofNode/complexityInput"/>
+	      	<h1>Input Problem</h1>
+	      	We consider the <xsl:apply-templates select="proofNode/complexityInput"/>
 		
-		<h2>Proof Output</h2>
-		<xsl:apply-templates select="exsl:node-set($reducedProofTree)">
-		  <xsl:with-param name="number">1</xsl:with-param>
-		  <xsl:with-param name="prefix"></xsl:with-param>
-		</xsl:apply-templates>
+	      	<h2>Proof Output</h2>
+	      	<xsl:apply-templates select="exsl:node-set($reducedProofTree)/proofNode">
+	      	  <xsl:with-param name="number">1</xsl:with-param>
+	      	  <xsl:with-param name="prefix"></xsl:with-param>
+	      	</xsl:apply-templates>
 	      </div>
 	    </body>
 	</html>
@@ -55,43 +56,16 @@
       </xsl:choose>
     </xsl:template>
 
-
-    <!-- extract relevant proof -->
-
-    
-    <xsl:template match="proofNode" mode="filter">
-      <xsl:choose>
-      	<xsl:when test="proofDetail/ite">
-      	  <xsl:apply-templates select="proofDetail/ite/subProof/proofNode" mode="filter"/>
-      	</xsl:when>
-	<xsl:when test="proofDetail/timeout">
-      	  <xsl:apply-templates select="proofDetail/timeout/subProof" mode="filter"/>	  
-	</xsl:when>
-	<xsl:when test="proofDetail/oneOf/subProof">
-      	  <xsl:apply-templates select="proofDetail/oneOf/subProof/proofNode" mode="filter"/>	  
-	</xsl:when>
-	<xsl:when test="proofDetail/transformation/noprogress">
-	  <xsl:apply-templates select="proofDetail/transformation/subProofs/proofNode" mode="filter"/>
-	</xsl:when>
-      	<xsl:otherwise>
-          <xsl:copy>
-            <xsl:apply-templates select="@*|node()" mode="filter"/>
-          </xsl:copy>
-      	</xsl:otherwise>
-      </xsl:choose>
-    </xsl:template>
-
-    <xsl:template match="@*|node()" mode="filter">
-      <xsl:copy>
-	<xsl:apply-templates  select="@*|node()" mode="filter"/>
-      </xsl:copy>
-    </xsl:template>
-
     <!-- extract names -->
 
     <xsl:template match="proofNode" mode="processorName">
       <xsl:apply-templates select="proofDetail/*[1]" mode="processorName"/>
     </xsl:template>
+
+    <xsl:template match="empty" mode="processorName">
+      empty
+    </xsl:template>
+
 
     <xsl:template match="success" mode="processorName">
       success
@@ -139,6 +113,9 @@
 	<xsl:when test="transformationDetail/pathanalysis">
 	  <xsl:value-of select="transformationDetail/pathanalysis/kind"/> path analysis
 	</xsl:when>
+	<xsl:when test="transformationDetail/decomposeDG">
+	  DG decomposition
+	</xsl:when>
 	<xsl:when test="transformationDetail/dp">
 	  <xsl:choose>
 	    <xsl:when test="transformationDetail/dp/pairs">weak dependency pairs</xsl:when>
@@ -147,7 +124,7 @@
 	  </xsl:choose>
 	</xsl:when>
 	<xsl:otherwise>
-	  a<xsl:copy-of select="transformationDetail/*[1]"/>a
+	  unknown
 	</xsl:otherwise>
       </xsl:choose>
     </xsl:template>
@@ -171,8 +148,8 @@
       <xsl:choose>
 	<xsl:when test="$outline='true'">
 	  <div class ="outline-item">
-	    <xsl:apply-templates select="." mode="processorName"/>
-	    (<a><xsl:attribute name="href">#<xsl:value-of select="$id"/></xsl:attribute><xsl:value-of select="$id"/></a>) 
+	    <span class="outline-link"><a><xsl:attribute name="href">#<xsl:value-of select="$id"/></xsl:attribute><xsl:value-of select="$id"/></a></span>
+	    <span class="outline-processor"><xsl:apply-templates select="." mode="processorName"/></span>
 	    <span class="outline-answer"><xsl:apply-templates select="complexityInput/answer"/></span>
 	  </div>
 	</xsl:when>
@@ -505,7 +482,7 @@
 	  </xsl:if>
 	</xsl:when>
 	<xsl:otherwise>
-	  empty set of rewrite rules
+	  empty set of rewrite rules.
 	</xsl:otherwise>
       </xsl:choose>
     </xsl:template>
@@ -962,7 +939,4 @@
             <xsl:apply-templates select="*[2]"/>
         </sub>
     </xsl:template>
-
-
-
 </xsl:stylesheet>

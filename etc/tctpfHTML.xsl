@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
                 xmlns:exsl="http://exslt.org/common"
+		xmlns:m="http://www.w3.org/1998/Math/MathML"
+		xmlns:tct="http://cl-informatik.uibk.ac.at/software/tct"
+		xmlns="http://www.w3.org/1999/xhtml"
                 extension-element-prefixes="exsl"
                 version="1.0">
-    <xsl:output method="html"/>
+    <xsl:output method="xml"
+		doctype-system="http://www.w3.org/TR/xhtml1/DTD/xhtml11.dtd" 
+		doctype-public="-//W3C//DTD XHTML 1.1 Transitional//EN" indent="yes"/>
+
     <xsl:strip-space elements="*"/>
 
     <xsl:include href="tctpfNORM.xsl"/>
@@ -11,12 +17,14 @@
     <xsl:variable name="reducedProofTree">
       <xsl:apply-templates select="/tctOutput/proofNode" mode="filter"/>
     </xsl:variable>
+    
 
     <xsl:template match="/tctOutput">
-    <html>
+      <html xmlns="http://www.w3.org/1999/xhtml"
+	    xmlns:m="http://www.w3.org/1998/Math/MathML">
             <head>
                 <title>Tct Output</title>
-
+		<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
                 <link rel="stylesheet" type="text/css" href="http://cl-informatik.uibk.ac.at/software/tct/includes/tct-output.css"/>
             </head>
             <body style="max-width:800px;">
@@ -292,7 +300,7 @@
       <xsl:choose>
 	<xsl:when test="compatible">
 	  TcT found the following compatible 
-	  <xsl:apply-templates select="compatible/interpretation"/>:
+	  <xsl:apply-templates select="compatible/interpretation"/>
 	</xsl:when>
 	<xsl:otherwise>
 	  <xsl:text>TcT cound not find any compatible order.</xsl:text>
@@ -327,21 +335,21 @@
 
     <xsl:template match="dp">
       <xsl:variable name="dps">
-	<ruleset>
-	  <strict>
+	<tct:ruleset>
+	  <tct:strict>
 	    <xsl:copy-of select="strictDPs/rules/*"/>
-	  </strict>
+	  </tct:strict>
 	  <weak>
 	    <xsl:copy-of select="weakDPs/rules/*"/>
 	  </weak>
-	</ruleset>
+	</tct:ruleset>
       </xsl:variable>
       <xsl:text>We add following dependency</xsl:text>
       <xsl:choose>
 	<xsl:when test="pairs">pairs</xsl:when>
 	<xsl:when test="tuples">tuples</xsl:when>
       </xsl:choose>
-      <xsl:apply-templates select="exsl:node-set($dps)"/>
+      <xsl:apply-templates select="exsl:node-set($dps)/*"/>
       <xsl:text>and adapt the set of starting terms appropriately.</xsl:text>
     </xsl:template>
 
@@ -351,17 +359,17 @@
     
     <xsl:template match="usablerules">
       <xsl:variable name="urs">
-	<ruleset>
-	  <strict>
+	<tct:ruleset>
+	  <tct:strict>
 	    <xsl:copy-of select="strict/rules/*"/>
-	  </strict>
+	  </tct:strict>
 	  <weak>
 	    <xsl:copy-of select="weak/rules/*"/>
 	  </weak>
-	</ruleset>
+	</tct:ruleset>
       </xsl:variable>
       <xsl:text>We replace rewrite rules by the following usable rules</xsl:text>
-      <xsl:apply-templates select="exsl:node-set($urs)"/>      
+      <xsl:apply-templates select="exsl:node-set($urs)/*"/>      
     </xsl:template>
 
 
@@ -449,16 +457,16 @@
 	    <xsl:when test="strictDPs or weakDPs">
 	      dependency pairs 
 	      <xsl:variable name="dps">
-		<ruleset>
-		  <strict>
+		<tct:ruleset>
+		  <tct:strict>
 		    <xsl:copy-of select="strictDPs/rules/*"/>
-		  </strict>
-		  <weak>
+		  </tct:strict>
+		  <tct:weak>
 		    <xsl:copy-of select="weakDPs/rules/*"/>
-		  </weak>
-		</ruleset>
+		  </tct:weak>
+		</tct:ruleset>
 	      </xsl:variable>
-	      <xsl:apply-templates select="exsl:node-set($dps)"/>
+	      <xsl:apply-templates select="exsl:node-set($dps)/*"/>
 	      <xsl:if test="strictTrs or weakTrs">
 		together with the rewrite rules
 	      </xsl:if>
@@ -469,16 +477,16 @@
 	  </xsl:choose>
 	  <xsl:if test="strictTrs or weakTrs">
 	    <xsl:variable name="rules">
-	      <ruleset>
-		<strict>
+	      <tct:ruleset>
+		<tct:strict>
 		  <xsl:copy-of select="strictTrs/rules/*"/>
-		</strict>
-		<weak>
+		</tct:strict>
+		<tct:weak>
 		  <xsl:copy-of select="weakTrs/rules/*"/>
-		</weak>
-	      </ruleset>
+		</tct:weak>
+	      </tct:ruleset>
 	    </xsl:variable>
-	    <xsl:apply-templates select="exsl:node-set($rules)"/>
+	    <xsl:apply-templates select="exsl:node-set($rules)/*"/>
 	  </xsl:if>
 	</xsl:when>
 	<xsl:otherwise>
@@ -487,30 +495,30 @@
       </xsl:choose>
     </xsl:template>
 
-    <xsl:template match="ruleset">
+    <xsl:template match="tct:ruleset">
       <p>
       <table class="ruleset">
 	<xsl:variable name="strict">
-	  <rules>
-	    <xsl:copy-of select="strict/*"/>
-	  </rules>
+	  <tct:rules>
+	    <xsl:copy-of select="tct:strict/*"/>
+	  </tct:rules>
 	</xsl:variable>
 	<xsl:variable name="weak">
-	  <rules>
-	    <xsl:copy-of select="weak/*"/>
-	  </rules>
+	  <tct:rules>
+	    <xsl:copy-of select="tct:weak/*"/>
+	  </tct:rules>
 	</xsl:variable>
-	<xsl:apply-templates select="exsl:node-set($strict)">
+	<xsl:apply-templates select="exsl:node-set($strict)/*">
 	  <xsl:with-param name="strict">true</xsl:with-param>
 	</xsl:apply-templates>
-	<xsl:apply-templates select="exsl:node-set($weak)">		
+	<xsl:apply-templates select="exsl:node-set($weak)/*">		
 	  <xsl:with-param name="strict">false</xsl:with-param>
 	</xsl:apply-templates>		  
       </table>
       </p>
     </xsl:template>
 
-    <xsl:template match="rules">
+    <xsl:template match="tct:rules">
         <xsl:param name="strict">true</xsl:param>
 	<xsl:for-each select="*">
 	      <tr>
@@ -532,15 +540,22 @@
 	    </xsl:for-each>
     </xsl:template>
 
+    <xsl:template match="lhs">
+      <xsl:apply-templates select="*[1]"/>
+    </xsl:template>
+
+    <xsl:template match="rhs">
+      <xsl:apply-templates select="*[1]"/>
+    </xsl:template>
     <!-- misc objects -->
 
     <xsl:template match="dependencygraph">
       <xsl:variable name="dps">
-	<ruleset>
-	  <strict>
+	<tct:ruleset>
+	  <tct:strict>
 	    <xsl:copy-of select="nodes/*"/>
-	  </strict>
-	</ruleset>
+	  </tct:strict>
+	</tct:ruleset>
       </xsl:variable>
       <!-- <xsl:variable name="thesvg"> -->
       <!-- 	<xsl:value-of select="svg" disable-output-escaping="yes" /> -->
@@ -621,58 +636,58 @@
 	    <xsl:apply-templates select="coefficient"/>
 	  </xsl:when>
 	  <xsl:when test="variable">
-	      <mrow>
+	      <m:mrow>
 		<msub class="var">
-		  <mn>x</mn>
-		  <mn><xsl:value-of select="variable/text()"/></mn>
+		  <m:mn>x</m:mn>
+		  <m:mn><xsl:value-of select="variable/text()"/></m:mn>
 		</msub>
-	      </mrow>
+	      </m:mrow>
 	  </xsl:when>
 	  <xsl:when test="sum">
-	    <mrow>
+	    <m:mrow>
 	      <xsl:if test="$inner = 'true'">
-		<mo>(</mo>                    
+		<m:mo>(</m:mo>                    
 	      </xsl:if>
 	      <xsl:for-each select="sum/polynomial">
 		<xsl:apply-templates select="."/>
-		<xsl:if test="position() != last()"><mo>+</mo></xsl:if>                    
+		<xsl:if test="position() != last()"><m:mo>+</m:mo></xsl:if>                    
 	      </xsl:for-each>
 	      <xsl:if test="$inner = 'true'">
-		<mo>)</mo>
+		<m:mo>)</m:mo>
 	      </xsl:if>
-	    </mrow>
+	    </m:mrow>
 	  </xsl:when>
 	  <xsl:when test="product">
-	    <mrow>
+	    <m:mrow>
 	      <xsl:for-each select="product/polynomial">
 		<xsl:apply-templates select=".">
 		  <xsl:with-param name="inner">true</xsl:with-param>
 		</xsl:apply-templates>
-		<xsl:if test="position() != last()"> <mo>&#183;</mo></xsl:if>
+		<xsl:if test="position() != last()"> <m:mo>&#183;</m:mo></xsl:if>
 	      </xsl:for-each>
-	    </mrow>
+	    </m:mrow>
 	  </xsl:when>
 	  <xsl:when test="max">
-	    <mrow>
-	      <mi>max</mi>
-	      <mo stretchy="false">(</mo>
+	    <m:mrow>
+	      <m:mi>max</m:mi>
+	      <m:mo stretchy="false">(</m:mo>
 	      <xsl:for-each select="max/polynomial">
 		<xsl:apply-templates select="."/>
-		<xsl:if test="position() != last()"><mi>,</mi></xsl:if>
+		<xsl:if test="position() != last()"><m:mi>,</m:mi></xsl:if>
 	      </xsl:for-each>
-	      <mo stretchy="false">)</mo>
-	    </mrow>
+	      <m:mo stretchy="false">)</m:mo>
+	    </m:mrow>
 	  </xsl:when>
 	  <xsl:when test="min">
-	    <mrow>
-	      <mi>min</mi>
-	      <mo stretchy="false">(</mo>
+	    <m:mrow>
+	      <m:mi>min</m:mi>
+	      <m:mo stretchy="false">(</m:mo>
 	      <xsl:for-each select="min/polynomial">
 		<xsl:apply-templates select="."/>
-		<xsl:if test="position() != last()"><mi>,</mi></xsl:if>
+		<xsl:if test="position() != last()"><m:mi>,</m:mi></xsl:if>
 	      </xsl:for-each>
-	      <mo stretchy="false">)</mo>
-	    </mrow>
+	      <m:mo stretchy="false">)</m:mo>
+	    </m:mrow>
 	  </xsl:when>
 	  <xsl:otherwise>unknown polynomial type</xsl:otherwise>
 	</xsl:choose>
@@ -680,53 +695,53 @@
 
     
     <xsl:template match="integer">
-      <mn>
+      <m:mn>
 	<xsl:value-of select="text()"/>
-      </mn>
+      </m:mn>
     </xsl:template>
     
     <xsl:template match="rational">
-      <mrow>
+      <m:mrow>
 	<xsl:variable name="denom" select="denominator/text()"/>
 	<xsl:choose>
 	  <xsl:when test="$denom != 1">
-	    <mfrac>
-	      <mn>
+	    <m:mfrac>
+	      <m:mn>
 		<xsl:value-of select="numerator/text()"/>	
-	      </mn>
-	      <mn>
+	      </m:mn>
+	      <m:mn>
 		<xsl:value-of select="$denom"/>
-	      </mn>
-	    </mfrac>
+	      </m:mn>
+	    </m:mfrac>
 	  </xsl:when>
 	  <xsl:otherwise>
-	    <mn>
+	    <m:mn>
 	      <xsl:value-of select="numerator/text()"/>	
-	    </mn>
+	    </m:mn>
 	  </xsl:otherwise>
 	</xsl:choose>
-      </mrow>
+      </m:mrow>
     </xsl:template>    
 
     <xsl:template match="vector">
         <xsl:choose>
-	  <xsl:when test="count(coefficient) = 0"><mo stretchy="false">(</mo><mo stretchy="false">)</mo></xsl:when>
+	  <xsl:when test="count(coefficient) = 0"><m:mo stretchy="false">(</m:mo><m:mo stretchy="false">)</m:mo></xsl:when>
 	  <xsl:otherwise>
-	    <mrow>
-	      <mo>[</mo>
-	      <mtable>
+	    <m:mrow>
+	      <m:mo>[</m:mo>
+	      <m:mtable>
 		<xsl:for-each select="coefficient">
-		  <mtr>
-		    <mtd columnalign="center">
-		      <mrow>
+		  <m:mtr>
+		    <m:mtd columnalign="center">
+		      <m:mrow>
 			<xsl:apply-templates select="."/>
-		      </mrow>
-		    </mtd>
-		  </mtr>
+		      </m:mrow>
+		    </m:mtd>
+		  </m:mtr>
 		</xsl:for-each>
-	      </mtable>
-	      <mo>]</mo>
-	    </mrow>
+	      </m:mtable>
+	      <m:mo>]</m:mo>
+	    </m:mrow>
 	  </xsl:otherwise>
         </xsl:choose>
     </xsl:template>
@@ -735,17 +750,17 @@
         <xsl:choose>
             <xsl:when test="count(vector) = 0">()</xsl:when>
             <xsl:otherwise>
-	      <mrow>
-		<mo>[</mo>
-		<mtable>
+	      <m:mrow>
+		<m:mo>[</m:mo>
+		<m:mtable>
 		  <xsl:call-template name="matrix2">
 		    <xsl:with-param name="width" select="count(vector)"/>
 		    <xsl:with-param name="heigth" select="count(vector[1]/coefficient)"/>
 		    <xsl:with-param name="h" select="1"/>
 		  </xsl:call-template>
-		</mtable>
-		<mo>]</mo>
-	      </mrow>
+		</m:mtable>
+		<m:mo>]</m:mo>
+	      </m:mrow>
             </xsl:otherwise>
         </xsl:choose>
     </xsl:template>
@@ -754,13 +769,13 @@
       <xsl:param name="heigth"/>
       <xsl:param name="width"/>
       <xsl:param name="h"/>
-      <mtr>
+      <m:mtr>
 	<xsl:call-template name="matrix3">
 	  <xsl:with-param name="width" select="$width"/>
 	  <xsl:with-param name="h" select="$h"/>                
 	  <xsl:with-param name="w" select="1"/>                
 	</xsl:call-template>
-      </mtr>
+      </m:mtr>
       <xsl:if test="$h != $heigth">
 	<xsl:call-template name="matrix2">
 	  <xsl:with-param name="heigth" select="$heigth"/>
@@ -774,11 +789,11 @@
       <xsl:param name="width"/>
       <xsl:param name="h"/>
       <xsl:param name="w"/>
-      <mtd>
-	<mn>
+      <m:mtd>
+	<m:mn>
 	  <xsl:apply-templates select="vector[$w]/coefficient[$h]"/>
-	</mn>
-      </mtd>
+	</m:mn>
+      </m:mtd>
       <xsl:if test="$w != $width">
 	<xsl:call-template name="matrix3">
 	  <xsl:with-param name="width" select="$width"/>
@@ -848,32 +863,32 @@
     <xsl:template match="interpretation">
       <xsl:apply-templates select="*[1]"/>
       <p>
-	<math display='block' xmlns="http://www.w3.org/1998/Math/MathML">
-	  <mtable>
+	<m:math display='block'>
+	  <m:mtable>
 	    <xsl:for-each select="interpret">
-	      <mtr>
-		<mtd columnalign="right">
-		  <mrow>
-		    <mi>
+	      <m:mtr>
+		<m:mtd columnalign="right">
+		  <m:mrow>
+		    <m:mi>
 		      <xsl:text>[</xsl:text>
 		      <xsl:apply-templates select="*[1]"/>
 		      <xsl:call-template name="genVars">
 			<xsl:with-param name="n" select="arity"/>
 		      </xsl:call-template>
 		      <xsl:text>]</xsl:text>
-		    </mi>
-		  </mrow>
-		</mtd>
-		<mtd columnalign="center">
-		  <mo>=</mo>
-		</mtd>
-		<mtd columnalign="left">		  
+		    </m:mi>
+		  </m:mrow>
+		</m:mtd>
+		<m:mtd columnalign="center">
+		  <m:mo>=</m:mo>
+		</m:mtd>
+		<m:mtd columnalign="left">		  
 		  <xsl:apply-templates select="*[3]"/>
-		</mtd>
-	      </mtr>
+		</m:mtd>
+	      </m:mtr>
 	    </xsl:for-each>
-	  </mtable>
-	</math>
+	  </m:mtable>
+	</m:math>
       </p>
     </xsl:template>
 
@@ -939,4 +954,9 @@
             <xsl:apply-templates select="*[2]"/>
         </sub>
     </xsl:template>
+
+
+    
+
+
 </xsl:stylesheet>

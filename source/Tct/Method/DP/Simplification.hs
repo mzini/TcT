@@ -479,7 +479,7 @@ instance P.Processor p => T.TransformationProof (SimpPE p) where
         vars  = skpVars p                              
         sig   = skpSig p
         dg    = skpDG p
-  tproofToXml _ _ p@(SimpPEProof {}) = 
+  tproofToXml _ _ p@(SimpPEPProof {}) = 
         ( "simpPE"
         , [ DG.toXml (dg, sig, vars)
           , Xml.elt "pe" [] $ concat

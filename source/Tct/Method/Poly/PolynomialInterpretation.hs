@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -40,12 +41,15 @@ module Tct.Method.Poly.PolynomialInterpretation
        , toXml
        , degrees
        , typedInterpretation
+       , interpretationOfDegree
        ) 
        where
 
 import Data.Typeable
+import Text.Parsec.Combinator (choice)
+import Text.Parsec.Char (string)
+import Text.Parsec.Prim (try)
 import Data.Function (on)
-import Tct.Utils.PPrint (Align(..), columns)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -56,6 +60,7 @@ import qualified Qlogic.NatSat as N
 import Qlogic.PropositionalFormula
 import Qlogic.Semiring
 
+import Tct.Utils.PPrint (Align(..), columns)
 import Termlib.Utils hiding (columns)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
@@ -63,7 +68,10 @@ import qualified Termlib.Types as Tpe
 import Termlib.Types ((:::)(..))
 
 import qualified Tct.Utils.Xml as Xml
-import Tct.Processor.Args.Instances (AssocArgument (..),Nat(..))
+import Tct.Processor.Args.Instances (Nat(..))
+import qualified Tct.Processor.Args as Args
+import qualified Tct.Processor.Parse as Parse
+
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Polynomial
 import qualified Tct.Encoding.UsablePositions as UArgs
@@ -101,6 +109,56 @@ data SimplePolyShape = StronglyLinear
 data PolyShape = SimpleShape SimplePolyShape                      
                | CustomShape ([V.Variable] -> [SimpleMonomial])
                deriving (Typeable)
+
+interpretationOfDegree :: Int -> [V.Variable] -> [SimpleMonomial]
+interpretationOfDegree degree vs = 
+    constant : concatMap (map (mono . Set.toList) . Set.toList) (inter degree)
+      where 
+        inter 1 = [ Set.fromList [ Set.fromList [v ^^^ 1] | v <- vs] ]
+        inter d = Set.fromList [ Set.fromList $ v `mult` Set.toList lm | lm <- Set.toList lead,  v <- vs] : p
+          where p@(lead:_) = inter (d - 1)
+        v `mult` [] = [v ^^^ 1]
+        v `mult` (p@(Pow v' i):ps)  
+          | v == v'   = Pow v' (i+1):ps
+          | otherwise = p : v `mult` ps
+
+
+
+instance Show SimplePolyShape where
+  show StronglyLinear = "strongly linear"
+  show Linear         = "linear"
+  show Simple         = "simple"
+  show SimpleMixed    = "mixed"
+  show Quadratic      = "quadratic"
+
+
+instance Args.Argument PolyShape where
+    type Domain PolyShape = PolyShape
+    domainName _ = "polynomial shape"
+    showArg _ (SimpleShape sh) = show sh
+    showArg _ (CustomShape _) = "custom shape"
+
+instance Args.ParsableArgument PolyShape where
+    parseArg _ = do
+      choice [ try $ string "stronglylinear" >> return (SimpleShape StronglyLinear)
+             , try $ string "linear" >> return (SimpleShape Linear)
+             , try $ string "simplemixed" >> return (SimpleShape SimpleMixed)
+             , try $ string "simple" >> return (SimpleShape Simple)
+             , try $ string "quadratic" >> return (SimpleShape Quadratic)
+             , custom
+             ]
+          where 
+            custom = do 
+                   _ <- string "upto"
+                   _ <- Parse.whiteSpace
+                   n <- Parse.natural
+                   return (CustomShape (interpretationOfDegree n))
+        
+
+instance Show PolyShape where
+  show (SimpleShape s) = show s
+  show (CustomShape _) = "custom shape"
+
 
 data PIKind = UnrestrictedPoly { shape         :: PolyShape }
             | ConstructorBased { constructors  :: Set.Set F.Symbol
@@ -154,24 +212,6 @@ pprintPolynomial (Poly ms) ppVar = hcat $ punctuate (text " + ") $ [ppMono  m | 
         ppPow (Pow v e) | e == 1     = ppVar v
                         | otherwise = ppVar v <> char '^' <> int e
 
-instance Show SimplePolyShape where
-  show StronglyLinear = "strongly linear"
-  show Linear         = "linear"
-  show Simple         = "simple"
-  show SimpleMixed    = "mixed"
-  show Quadratic      = "quadratic"
-
-instance AssocArgument PolyShape where
-  assoc _ = [ ("linear", SimpleShape Linear)
-            , ("stronglylinear", SimpleShape StronglyLinear)
-            , ("simple", SimpleShape Simple)
-            , ("simplemixed", SimpleShape SimpleMixed)              
-            , ("quadratic", SimpleShape Quadratic)
-            ]
-
-instance Show PolyShape where
-  show (SimpleShape s) = show s
-  show (CustomShape _) = "custom shape"
 
 instance (Eq a, Semiring a) => Interpretation (PolyInter a) (Polynomial V.Variable a) where
   interpretFun i f tis = bigPplus $ map handleMono fpoly

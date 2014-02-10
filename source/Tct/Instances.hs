@@ -297,11 +297,9 @@ import Tct.Method.Predicates (WhichTrs (..), isDuplicating)
 import qualified Tct.Certificate as Cert
 
 import Termlib.Problem (Problem)
-import Termlib.Variable (Variable)
 import qualified Termlib.Problem as Prob
 import qualified Termlib.Trs as Trs
 
-import qualified Data.Set as Set
 
 -- | Path Analysis 
 pathAnalysis :: T.TheTransformer PathAnalysis.PathAnalysis
@@ -626,7 +624,7 @@ instance HasDegree (S.ProcessorInstance NaturalPI.NaturalPI) where
           (shape :+: bnd :+: bits :+: cbits :+: uargs  :+: urules :+: typeBased :+: shape :+: cdeg)
           where 
             cdeg = maybe Nothing (Just . Nat) mdeg
-            shape = maybe (Poly.SimpleShape Poly.Quadratic) (Poly.CustomShape . abstractInterpretation) mdeg
+            shape = maybe (Poly.SimpleShape Poly.Quadratic) (Poly.CustomShape . Poly.interpretationOfDegree) mdeg
 
 
 instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
@@ -650,18 +648,8 @@ instance P.Processor a => Decomposing (T.TheTransformer (Compose.Decompose a)) w
 -- | 'polys n' defines a suitable polynomial of degree 'n'
 polys :: Int -> S.ProcessorInstance NaturalPI.NaturalPI
 polys 1 = NaturalPI.linearPolynomial
-polys n = NaturalPI.customPolynomial (abstractInterpretation n) `withBits` 2 `withCBits` Just 3
+polys n = NaturalPI.customPolynomial (Poly.interpretationOfDegree n) `withBits` 2 `withCBits` Just 3
 
-abstractInterpretation :: Int -> [Variable] -> [Poly.SimpleMonomial]
-abstractInterpretation degree vs = Poly.constant : concatMap (map (Poly.mono . Set.toList) . Set.toList) (inter degree)
-      where 
-        inter 1 = [ Set.fromList [ Set.fromList [v Poly.^^^ 1] | v <- vs] ]
-        inter d = Set.fromList [ Set.fromList $ v `mult` Set.toList lm | lm <- Set.toList lead,  v <- vs] : p
-          where p@(lead:_) = inter (d - 1)
-        v `mult` [] = [v Poly.^^^ 1]
-        v `mult` (p@(Poly.Pow v' i):ps)  
-          | v == v'   = Poly.Pow v' (i+1):ps
-          | otherwise = p : v `mult` ps
 
 -- * Competition Strategies
 

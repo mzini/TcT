@@ -152,54 +152,56 @@ instance S.Processor NaturalPI where
 
   description NaturalPI = [ "This processor orients the problem using polynomial interpretation over natural numbers." ]
 
-  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg (Assoc PolyShape)) :+: (Arg (Maybe Nat))
+  type ArgumentsOf NaturalPI = (Arg PolyShape) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg PolyShape) :+: (Arg (Maybe Nat))
   arguments NaturalPI = opt { A.name         = "kind"
-                            , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
-                                                       , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
+                            , A.description  = unwords [ "This argument specifies the shape of the polynomials used in the interpretation."
+                                                       , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', 'quadratic',"
+                                                       , "and 'upto <nat>'"
                                                        , "referring to the respective shapes of the abstract polynomials used." ]
                             , A.defaultValue = SimpleShape Linear }
                         :+:
                         opt { A.name        = "bound"
-                            , A.description = unlines [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
+                            , A.description = unwords [ "This argument specifies an upper-bound on coefficients appearing in the interpretation."
                                                       , "Such an upper-bound is necessary as we employ bit-blasting to SAT internally"
                                                       , "when searching for compatible matrix interpretations."]
                             , A.defaultValue = Nat 3 }
                         :+:
                         opt { A.name        = "bits"
-                            , A.description = unlines [ "This argument plays the same role as 'bound',"
+                            , A.description = unwords [ "This argument plays the same role as 'bound',"
                                                       , "but instead of an upper-bound the number of bits is specified."
                                                       , "This argument overrides the argument 'bound'."]
                             , A.defaultValue = Nothing }
                         :+:
                         opt { A.name        = "cbits"
-                            , A.description = unlines [ "This argument specifies the number of bits used for intermediate results, "
+                            , A.description = unwords [ "This argument specifies the number of bits used for intermediate results, "
                                                       , "as for instance coefficients of matrices obtained by interpreting"
                                                       , "left- and right-hand sides."]
                             , A.defaultValue = Nothing }
                         :+:
                         opt { A.name        = "uargs"
-                            , A.description = unlines [ "This argument specifies whether usable arguments are computed (if applicable)"
+                            , A.description = unwords [ "This argument specifies whether usable arguments are computed (if applicable)"
                                                       , "in order to relax the monotonicity constraints on the interpretation."]
                             , A.defaultValue = True }
                         :+:
                         opt { A.name = "urules"
-                            , A.description = unlines [ "This argument specifies whether usable rules modulo argument filtering is applied"
-                                                      , "in order to decreas the number of rules to orient. "]
+                            , A.description = unwords [ "This argument specifies whether usable rules modulo argument filtering is applied"
+                                                      , "in order to decrease the number of rules that have to be orient. "]
                             , A.defaultValue = True }
                         :+:
                         opt { A.name = "type-based"
-                            , A.description = unlines [ "If set, type-based constructor restricted interpretations are used for runtime complexity analysis." ]
+                            , A.description = unwords [ "If set, type-based constructor restricted interpretations are used for runtime complexity analysis."
+                                                      , "See flag 'constructor-kind' to specify the interpretation shape of constructor symbols, "
+                                                      , "and the flag 'degree'." ]
                             , A.defaultValue = True }
                         :+:
                         opt { A.name = "constructor-kind"
-                            , A.description = unlines [ "Specifies the shape of interpretations of constructor symbols."
-                                                      , "This argument is ignored if the flag 'type-based' is not set."
+                            , A.description = unwords [ "Specifies the shape of interpretations of constructor symbols."
                                                       , "The given shape is automatically restricted so that polynomial bounds can be inferred."
-                                                      , "This argument is ignored for derivational complexity analysis."]
+                                                      , "This argument is ignored if the flag 'type-based' is not set."]
                             , A.defaultValue = SimpleShape Linear }
                         :+:
                         opt { A.name        = "degree"
-                            , A.description = unlines [ "Specifies upper bound on the interpretation."
+                            , A.description = unwords [ "Specifies an induced upper bound for type-based constructor restricted interpretations."
                                                       , "This argument is ignored if the flag 'type-based' is not set."]
                             , A.defaultValue = Nothing }
                         

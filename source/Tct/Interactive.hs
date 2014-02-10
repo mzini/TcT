@@ -472,6 +472,8 @@ module Tct.Interactive
       -- | This action displays a simple typing of the selected problems.
     , uargs      
       -- | This action displays the usable argument positions of the selected problems.
+    , normalForms
+      -- | Compute normal forms of a given term with respect to the first selected problem.
 
     , selectedRules
       -- | This action displays the application of a rule-selector.
@@ -700,6 +702,7 @@ module Tct.Interactive
     -- * Silent Versions
     , wdgs'
     , problems' 
+    , normalForms'
     -- * Misc 
     , runTct
     )
@@ -713,11 +716,13 @@ import Termlib.Term (root,Term)
 import Termlib.Rule (Rule(..))
 import Termlib.Problem.Parser as ProbParse
 import Termlib.Problem.ParseErrors ()
+import qualified Termlib.Rewrite as Rew
 import qualified Termlib.Utils as U
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Repl as TRepl
 import qualified Termlib.Term.Parser as TParser
 import Termlib.Trs.PrettyPrint (pprintTrs)
+import qualified Termlib.Types as Types
 
 import Tct (Config, defaultConfig)
 import qualified Tct as Tct
@@ -736,7 +741,7 @@ import Text.PrettyPrint.HughesPJ
 import qualified Tct.Method.DP.DependencyGraph as DG
 import qualified Tct.Encoding.UsablePositions as UA
 import qualified Tct.Method.RuleSelector as RS
-import qualified Termlib.Types as Types
+import Tct.Utils.Ask (askStr)
 
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Set as Set
@@ -1651,3 +1656,50 @@ writeState = do
           | otherwise = U.block n $ pprintTrs pprl rs
           where rs = [ (i,rl) | (i, (sr', rl)) <- DG.lnodes dg, sr == sr']
                 pprl (i,rl) = U.pprint i <> text ":" <+> U.pprint (rl,sig,vars)
+
+
+class ToTerm a where
+    toTerm :: a -> IO Term
+
+
+instance ToTerm Term where
+    toTerm = return
+
+instance ToTerm String where
+    toTerm str = do 
+      probs <- problems'
+      case probs of 
+        [] -> error "To parse a term, first load a problem"
+        (p:_) -> return $ fst $ TRepl.parseFromString TParser.term str p
+          
+
+normalForms' :: ToTerm a => a -> IO [Term]
+normalForms' a = liftM2 nfss problems' (toTerm a) 
+    where nfss [] = \ t -> [t]
+          nfss (prob:_) = nfss'
+              where 
+                nfss' t = 
+                    case Rew.fullRewrite (Prob.allComponents prob) t of 
+                      [] -> [t]
+                      rs -> concatMap (nfss' . Rew.result) rs
+
+normalForms :: ToTerm a => a -> IO [Term]      
+normalForms a = do
+    nfss <- normalForms' a
+    p:_ <- problems'
+    let sig = Prob.signature p
+        vs = Prob.variables p
+        go [] = return ()
+        go [t] = pprint (t,sig,vs)
+        go (t:ts) = do 
+          pprint (t,sig,vs)
+          cont <- askStr "next? [y|N]" ["y","n"]
+          when (cont == (Just "y")) (go ts)
+    go nfss
+    return nfss
+      
+  -- let sig = Prob.signature prob
+  --     vs = Prob.variables vs
+  --     ns = nfss term prob 
+          
+  

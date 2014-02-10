@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -38,14 +39,17 @@ module Tct.Method.Poly.PolynomialInterpretation
        , abstractInterpretation
        , toXml
        , degrees
+       , typedInterpretation
        ) 
        where
 
 import Data.Typeable
+import Data.Function (on)
 import Tct.Utils.PPrint (Align(..), columns)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Maybe (fromJust)
 import Text.PrettyPrint.HughesPJ
 
 import qualified Qlogic.NatSat as N
@@ -55,9 +59,11 @@ import Qlogic.Semiring
 import Termlib.Utils hiding (columns)
 import qualified Termlib.FunctionSymbol as F
 import qualified Termlib.Variable as V
+import qualified Termlib.Types as Tpe
+import Termlib.Types ((:::)(..))
 
 import qualified Tct.Utils.Xml as Xml
-import Tct.Processor.Args.Instances (AssocArgument (..))
+import Tct.Processor.Args.Instances (AssocArgument (..),Nat(..))
 import Tct.Encoding.HomomorphicInterpretation
 import Tct.Encoding.Polynomial
 import qualified Tct.Encoding.UsablePositions as UArgs
@@ -95,9 +101,18 @@ data SimplePolyShape = StronglyLinear
 data PolyShape = SimpleShape SimplePolyShape                      
                | CustomShape ([V.Variable] -> [SimpleMonomial])
                deriving (Typeable)
-data PIKind = UnrestrictedPoly PolyShape
-            | ConstructorBased (Set.Set F.Symbol) PolyShape
-            deriving Show 
+
+data PIKind = UnrestrictedPoly { shape         :: PolyShape }
+            | ConstructorBased { constructors  :: Set.Set F.Symbol
+                               , shape         :: PolyShape }
+            | TypeBased        { shape             :: PolyShape
+                               , shapeConstructors :: PolyShape
+                               , equivType         :: Tpe.Type String -> Tpe.Type String -> Bool
+                               , constructorTyping :: Tpe.Typing String 
+                               , definedsTyping    :: Tpe.Typing String
+                               , typing            :: Tpe.Typing String 
+                               , enforcedDegree    :: Maybe Nat}
+
 
 instance PropAtom PIVar
 
@@ -190,14 +205,12 @@ toXml pint knd uargs = tpe : [ inter f polys | (f,polys) <- Map.toList $ interpr
                  , Xml.elt "degree" [] [Xml.int deg]
                  , Xml.elt "kind" [] 
                    [ case knd of 
-                        UnrestrictedPoly _   -> Xml.elt "unrestricted" [] []
-                        ConstructorBased _ _ -> Xml.elt "constructorBased" [] []
+                        UnrestrictedPoly {} -> Xml.elt "unrestricted" [] []
+                        ConstructorBased {} -> Xml.elt "constructorBased" [] []
+                        TypeBased {} -> Xml.elt "typeBased" [] []
                    ]
                  , Xml.elt "shape" []
-                   [ Xml.text $ show $ 
-                     case knd of 
-                       UnrestrictedPoly sp   -> sp
-                       ConstructorBased _ sp -> sp ]
+                   [ Xml.text (show (shape knd)) ]
                  , UArgs.toXml sig uargs]]
         inter :: F.Symbol -> VPolynomial Int -> Xml.XmlContent
         inter f (Poly ms) =
@@ -243,7 +256,7 @@ boolCoefficient (CoefficientMonomial ps) = SimpleMonomial ps
 boolCoefficient sm                       = sm
 
 polynomialFromShape :: RingConst a => PolyShape -> (F.Symbol, Int) -> VPolynomial a
-polynomialFromShape shape (f,ar) = mkPoly $ normalise $ monoFromShape shape
+polynomialFromShape shpe (f,ar) = mkPoly $ normalise $ monoFromShape shpe
   where mkPoly monos = Poly $ [mkMono sm | sm <- monos]
           where mkMono (SimpleMonomial ps) = Mono (restrictvar $ PIVar True f ps) ps
                 mkMono (CoefficientMonomial ps) = Mono (ringvar $ PIVar False f ps) ps
@@ -265,11 +278,63 @@ polynomialFromShape shape (f,ar) = mkPoly $ normalise $ monoFromShape shape
         vs = [V.Canon i | i <- [1..ar]]
         
 
+typedInterpretation :: Eq t => PolyInter a -> (F.Symbol ::: Tpe.TypeDecl t) -> Polynomial (V.Variable ::: t) a
+typedInterpretation pint (f ::: decl) = typePoly (f ::: decl) poly
+    where poly = case Map.lookup f (interpretations pint) of 
+                   Nothing ->  error $ "PolynomialInterpretation.typedInterpretation: interpretation for symbol " ++ show f ++ " not found"
+                   Just p -> p
+
+
+
+typePoly :: (t ::: Tpe.TypeDecl a) -> Polynomial V.Variable b -> Polynomial (V.Variable ::: Tpe.Type a) b
+typePoly (_ ::: decl) (Poly ms) = Poly [typeMono m | m <- ms]
+    where 
+      typedVars = zip [V.Canon v | v <- [1..]] (Tpe.inputTypes decl)
+      typeVar v = case lookup v typedVars of 
+                    Just tv -> tv
+                    Nothing -> error $ "PolynomialInterpretation.typePoly: variable " ++ show v ++ " not found"
+
+      typeMono (Mono n ps) = Mono n [ typePower p | p <- ps]
+      typePower (Pow v k) = Pow (v ::: typeVar v) k
+
+untypePoly :: Polynomial (V.Variable ::: Tpe.Type a) b -> Polynomial V.Variable b
+untypePoly (Poly ms) = Poly [untypeMono m | m <- ms]
+    where 
+      untypeMono (Mono n ps) = Mono n [ untypePower p | p <- ps]
+      untypePower (Pow (v ::: _) k) = Pow v k
+
+
 abstractInterpretation :: RingConst a => PIKind -> F.Signature -> PolyInter a
-abstractInterpretation pk sig = PI sig $ Map.fromList $ map (\f -> (f, interpretf f)) $ Set.elems $ F.symbols sig
-  where interpretf f = polynomialFromShape (getShape pk) (f,ar)
-          where ar = F.arity sig f
-                getShape (UnrestrictedPoly shape) = shape
-                getShape (ConstructorBased cs shape) 
-                  | f `Set.member` cs = SimpleShape StronglyLinear
-                  | otherwise         = shape
+abstractInterpretation pk sig = PI sig $ Map.fromList [ (f, interpretf f) | f <- Set.elems $ F.symbols sig ]
+  where 
+    interpretf f = 
+        case pk of 
+          ConstructorBased {}
+              | f `Set.member` (constructors pk) -> 
+                  polynomialFromShape (SimpleShape StronglyLinear) (f,F.arity sig f)
+
+          TypeBased {}
+              | f `elem` cs -> untypePoly (safePoly typedPoly)
+              where 
+                cs = Map.keys (constructorTyping pk)
+
+                fdecl = fromJust (Map.lookup f (constructorTyping pk))
+
+                typedPoly = typePoly (f ::: fdecl) (polynomialFromShape (shapeConstructors pk) (f,F.arity sig f))
+                    
+                simpleMono tv@(v ::: _) = Mono (restrictvar $ PIVar True f [Pow v 1]) [Pow tv 1]
+
+                recVars (Mono _ pows) = [ tv | Pow tv@(_ ::: t) _ <- pows
+                                             , Tpe.outputType fdecl `equiv` t ] 
+                    where equiv = equivType pk
+
+                dropRecursives m
+                    | null (recVars m) = [m]
+                    | otherwise        = []
+
+                safePoly (Poly monomials) = Poly $ 
+                          concatMap dropRecursives monomials                  
+                          ++ [ simpleMono v | v <- nub $ concatMap recVars monomials ]
+                    where nub = List.nubBy ((==) `on` (\ (v ::: _) -> v) )
+
+          _ -> polynomialFromShape (shape pk) (f,F.arity sig f)

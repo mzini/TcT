@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -39,7 +41,7 @@ module Tct.Method.Poly.NaturalPI
 
 import Prelude hiding ((&&),not)
 
-import Control.Monad (liftM)
+import Control.Monad (liftM,foldM)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Typeable
@@ -51,8 +53,8 @@ import qualified Qlogic.NatSat as N
 import qualified Qlogic.SatSolver as SatSolver
 import Qlogic.Semiring
 import qualified Qlogic.Semiring as SR
-import Qlogic.PropositionalFormula (PropAtom)
-import Qlogic.SatSolver ((:&:)(..))
+import Qlogic.PropositionalFormula
+import Qlogic.SatSolver ((:&:)(..), SatSolver (..))
 import qualified Qlogic.MemoizedFormula as MFormula
 
 import qualified Termlib.FunctionSymbol as F
@@ -60,6 +62,8 @@ import qualified Termlib.Problem as Prob
 import qualified Termlib.Rule as R
 import qualified Termlib.Trs as Trs
 import qualified Termlib.Term as T
+import qualified Termlib.Types as Tpe
+import Termlib.Types ((:::)(..))
 import Termlib.Utils
 import qualified Termlib.Variable as V
 import qualified Termlib.ArgumentFiltering as AF
@@ -92,30 +96,42 @@ data PolynomialOrder =
                   , argFilter :: Maybe AF.ArgumentFiltering
                   , usymbols  :: [F.Symbol]
                   
-                  } deriving Show
+                  } 
 
 data NaturalPI = NaturalPI deriving (Typeable, Show)
 
 instance P.ComplexityProof PolynomialOrder where
   pprintProof order _ = 
-      (if uargs order == fullWithSignature sig
-       then empty
-       else (paragraph "The following argument positions are considered usable:"
-             $+$ indent (pprint (uargs order, sig))))
-      $+$ paragraph ("TcT has computed the following " ++ ppknd (param order))
+      (case knd of 
+         TypeBased {} -> 
+             paragraph "We consider the following typing:"
+              $+$ text "" $+$ indent (pprint (typing knd, sig)) $+$ text ""
+         _ -> empty)
+      $+$ (if uargs order == fullWithSignature sig
+           then empty
+           else (paragraph "The following argument positions are considered usable:"
+                 $+$ text "" $+$ indent (pprint (uargs order, sig))) $+$ text "")
+      $+$ paragraph ("TcT has computed the following " ++ ppknd)
+      $+$ text ""
       $+$ pprint inter
       $+$ text ""
       $+$ paragraph "This order satisfies the following ordering constraints."
       $+$ text ""
       $+$ indent (pprintOrientRules inter sig vars rs)      
     where 
-      ppknd (UnrestrictedPoly   shp) = ppshp shp
-      ppknd (ConstructorBased _ shp) = "constructor-restricted " ++ ppshp shp
-      ppshp (SimpleShape s) = show s ++ " polynomial interpretation."
-      ppshp (CustomShape _) = "polynomial interpretation." 
+      ppknd  = 
+          case knd of 
+            UnrestrictedPoly {} -> ppshp
+            ConstructorBased {} -> "constructor-restricted " ++ ppshp
+            TypeBased {} -> "constructor-restricted typed" ++ ppshp
+      ppshp = 
+          case shape knd of 
+            SimpleShape s -> show s ++ " polynomial interpretation."
+            CustomShape {} -> "polynomial interpretation." 
 
       inter = ordInter order
       prob = input order
+      knd = param order
       sig = Prob.signature prob
       vars = Prob.variables prob
       rs = [ rl | rl <- Trs.rules $ Prob.allComponents prob 
@@ -123,24 +139,7 @@ instance P.ComplexityProof PolynomialOrder where
                   in or [ rt == Right f | f <- us ] ]
       us = usymbols order                                            
 
-  answer order = CertAnswer $ C.certified (C.unknown, ub)
-    where ub = case knd of 
-                 ConstructorBased _ _ -> C.poly (Just degree)
-                 UnrestrictedPoly _ | isStrong && degree <= 1 -> C.poly (Just 1)
-                                    | degree <= 1            -> C.expo (Just 1)
-                                    | otherwise             -> C.expo (Just 2)
-                 
-          degree = foldl max 0 [ d |  (f, d) <- degrees pint, consider f ]
-            where consider f = 
-                    case knd of 
-                      ConstructorBased cs _ -> not $ f `Set.member` cs
-                      _                     -> True
-          
-          isStrong = all (all (\ (Mono n _) -> n <= 1)) [ monos | (_,Poly monos) <- inters]
-          
-          knd      = param order
-          pint     = ordInter order
-          inters   = Map.toList $ interpretations $ pint
+  answer order = CertAnswer $ C.certified (C.unknown, degree order)
 
   toXml order = 
     Xml.elt "interpretation" [] (toXml ord par ua)
@@ -153,7 +152,7 @@ instance S.Processor NaturalPI where
 
   description NaturalPI = [ "This processor orients the problem using polynomial interpretation over natural numbers." ]
 
-  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool)
+  type ArgumentsOf NaturalPI = (Arg (Assoc PolyShape)) :+: (Arg Nat) :+: (Arg (Maybe Nat)) :+: (Arg (Maybe Nat)) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg Bool) :+: (Arg (Assoc PolyShape)) :+: (Arg (Maybe Nat))
   arguments NaturalPI = opt { A.name         = "kind"
                             , A.description  = unlines [ "This argument specifies the shape of the polynomials used in the interpretation."
                                                        , "Allowed values are 'stronglylinear', 'linear', 'simple', 'simplemixed', and 'quadratic',"
@@ -184,11 +183,29 @@ instance S.Processor NaturalPI where
                             , A.defaultValue = True }
                         :+:
                         opt { A.name = "urules"
-                            , A.description = unwords [ "This argument specifies whether usable rules modulo argument filtering is applied"
+                            , A.description = unlines [ "This argument specifies whether usable rules modulo argument filtering is applied"
                                                       , "in order to decreas the number of rules to orient. "]
                             , A.defaultValue = True }
+                        :+:
+                        opt { A.name = "type-based"
+                            , A.description = unlines [ "If set, type-based constructor restricted interpretations are used for runtime complexity analysis." ]
+                            , A.defaultValue = True }
+                        :+:
+                        opt { A.name = "constructor-kind"
+                            , A.description = unlines [ "Specifies the shape of interpretations of constructor symbols."
+                                                      , "This argument is ignored if the flag 'type-based' is not set."
+                                                      , "The given shape is automatically restricted so that polynomial bounds can be inferred."
+                                                      , "This argument is ignored for derivational complexity analysis."]
+                            , A.defaultValue = SimpleShape Linear }
+                        :+:
+                        opt { A.name        = "degree"
+                            , A.description = unlines [ "Specifies upper bound on the interpretation."
+                                                      , "This argument is ignored if the flag 'type-based' is not set."]
+                            , A.defaultValue = Nothing }
+                        
 
-  instanceName inst = show (shape $ S.processorArgs inst) ++ " polynomial interpretation"
+
+  instanceName _ = "polynomial interpretation" -- TODO: show kind (shape $ S.processorArgs inst) ++ 
 
   type ProofOf NaturalPI = OrientationProof PolynomialOrder
 
@@ -213,13 +230,28 @@ polyProcessor = S.StdProcessor NaturalPI
 
 -- argument accessors
 
-kind :: Domains (S.ArgumentsOf NaturalPI) -> Prob.StartTerms -> PIKind
-kind args st = kind' (shape args) st
-  where kind' shp Prob.TermAlgebra {}    = UnrestrictedPoly shp
-        kind' shp (Prob.BasicTerms _ cs) = ConstructorBased cs shp
+kind :: Domains (S.ArgumentsOf NaturalPI) -> Prob.Problem -> PIKind
+kind (shp :+: _ :+: _ :+: _ :+: _  :+: _ :+: True :+: cshp :+: mdeg) prob = 
+    case Prob.startTerms prob of 
+      (Prob.BasicTerms _ cs) ->
+              let types = Tpe.infer (Prob.signature prob) (Trs.toRules (Prob.allComponents prob))
+                  (constrTypes, defTypes) = Tpe.partition (\f _ -> f `Set.member` cs) types
+                  equivs = Tpe.equivs constrTypes
+                  a1 `equiv` a2 = any (\ es -> a1 `elem` es && a2 `elem` es) equivs
+              in TypeBased { shape = shp
+                           , shapeConstructors = cshp
+                           , equivType = equiv
+                           , constructorTyping = constrTypes
+                           , definedsTyping = defTypes
+                           , typing = types
+                           , enforcedDegree = mdeg}
+      _ -> UnrestrictedPoly shp
+kind (shp :+: _ :+: _ :+: _ :+: _  :+: _ :+: False :+: _) prob = 
+    case Prob.startTerms prob of 
+      (Prob.BasicTerms _ cs) ->
+              ConstructorBased { constructors = cs, shape = shp}
+      _ -> UnrestrictedPoly shp
 
-shape :: Domains (S.ArgumentsOf NaturalPI) -> PolyShape
-shape (shp :+: _ :+: _ :+: _ :+: _) = shp
 
 bound :: Domains (S.ArgumentsOf NaturalPI) -> N.Size
 bound (_ :+: Nat bnd :+: mbits :+: _ :+: _) = case mbits of
@@ -234,11 +266,14 @@ isUargsOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
 isUargsOn (_ :+: _ :+: _ :+: _ :+: ua :+: _) = ua
 
 isUrulesOn :: Domains (S.ArgumentsOf NaturalPI) -> Bool
-isUrulesOn (_ :+: _ :+: _ :+: _ :+: _ :+: ur) = ur
+isUrulesOn (_ :+: _ :+: _ :+: _ :+: _ :+: ur :+: _) = ur
 
 data PolyDP = PWithDP | PNoDP deriving (Show, Eq)
 data Strict = Strict R.Rule deriving (Eq, Ord, Show, Typeable)
 instance PropAtom Strict
+
+data ValDeg = DegVal (Tpe.Type String) deriving (Eq, Ord, Show, Typeable)
+instance PropAtom ValDeg
 
 orient :: P.SolverM m => P.SelectorExpression  -> Prob.Problem -> Domains (S.ArgumentsOf NaturalPI) -> m (S.ProofOf NaturalPI)
 orient rs prob args = catchException $ do 
@@ -268,14 +303,18 @@ orient rs prob args = catchException $ do
     solve :: (SatSolver.Decoder e a, P.SolverM m) => e -> ( e -> PolynomialOrder) -> m (OrientationProof PolynomialOrder)
     solve initial mkOrder = do 
       let pform = do
-            pform1 <- MFormula.toFormula mconstraints
-            pform2 <- toFormula (N.bound `liftM` cbits args) (N.bound $ bound args) dconstraints
-            SatSolver.addFormula (pform1 && pform2)
+            pform1 <- MFormula.toFormula usableConstraints
+            pform2 <- runDio orientConstraints
+            pform3 <- N.toFormula typingConstraints
+            SatSolver.addFormula (pform1 && pform2 && pform3)
       mpi <- P.minisatValue pform initial
       return $ case mpi of
         Nothing -> Incompatible
         Just o -> Order $ mkOrder o
       
+    runDio :: (Ord l, SatSolver.Solver s l) => DioFormula l DioVar Int -> SatSolver s l (PropFormula l)
+    runDio = toFormula (N.bound `liftM` cbits args) (N.bound $ bound args)
+
     mkInter pv = pint {interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} 
       where 
         pint = fmap (\x -> x n) pv
@@ -283,27 +322,31 @@ orient rs prob args = catchException $ do
     
     abspi = abstractInterpretation pk sig :: PolyInter (N.Size -> Int)
     
-    dconstraints = 
-      dpChoice pdp st uaOn absi
+    orientConstraints = 
+      monotonicity pdp st uaOn absi
       && bigAnd [ usable r --> interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ trsrules]
       && bigAnd [ interpretTerm absi (R.lhs r) .>=. (modify r $ interpretTerm absi (R.rhs r)) | r <- Trs.rules $ dprules]      
       && orientSelected rs
       && filteringConstraints
+      -- && typingConstraints
       where 
         usable 
           | allowUR = UREnc.usable prob
           | otherwise = const top
+
         strictVar = restrictvar . Strict
+
         modify r (Poly monos) = Poly $ Mono (strictVar r) [] : monos
+
         orientSelected (P.SelectDP r) = strictVar r .>. SR.zero
         orientSelected (P.SelectTrs r) = strictVar r .>. SR.zero
         orientSelected (P.BigAnd es) = bigAnd [ orientSelected e | e <- es]
         orientSelected (P.BigOr es) = bigOr [ orientSelected e | e <- es]          
 
-        dpChoice PWithDP _                     u     = safeRedpairConstraints ua u
-        dpChoice PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints
-        dpChoice PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
-        dpChoice PNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
+        monotonicity PWithDP _                     u     = safeRedpairConstraints ua u
+        monotonicity PNoDP   Prob.TermAlgebra {}   _     = monotoneConstraints
+        monotonicity PNoDP   (Prob.BasicTerms _ _) True  = uargMonotoneConstraints ua
+        monotonicity PNoDP   (Prob.BasicTerms _ _) False = monotoneConstraints
         
         filteringConstraints :: (Eq l, Ord l) => DioFormula l DioVar Int
         filteringConstraints  
@@ -312,12 +355,54 @@ orient rs prob args = catchException $ do
              bigAnd [ bigAnd [ c .>. SR.zero --> bigAnd [ atom (AFEnc.InFilter f i) | Poly.Pow (V.Canon i) _ <- powers ] 
                              | Poly.Mono c powers <- monos ]
                     | (f,Poly.Poly monos) <- Map.toList $ interpretations absi ]
-    mconstraints = MFormula.liftSat $ MFormula.toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered
+
+    usableConstraints = MFormula.liftSat $ MFormula.toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered
       where 
         isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
                          | otherwise = top
+
+    typingConstraints :: (Eq l, Ord l, Monad s, SatSolver.Solver s l) =>  N.NatMonad s l (PropFormula l)
+    typingConstraints = 
+        case pk of 
+          UnrestrictedPoly {} -> top
+          ConstructorBased {} -> top
+          TypeBased {} -> maybe top enforceDegree (enforcedDegree pk)
+                where 
+                  enforceDegree :: (Eq l, Ord l, SatSolver.Solver s l) => Nat -> N.NatMonad s l (PropFormula l)
+                  enforceDegree (Nat deg) = 
+                      bigAnd [ (liftDio $ i .>. SR.zero) -->
+                                  (sumPowers powers `mleq` return (natConst deg))
+                             | (f ::: decl) <- Tpe.decls (definedsTyping pk)
+                             , let Poly monos = typedInterpretation  absi (f ::: decl)
+                             , Mono i powers <- monos]
+                      && 
+                      bigAnd [ (liftDio $ i .>. SR.zero) -->
+                                  sumPowers powers `mleq` (return (degValOf otype))
+                             | (c ::: decl) <- Tpe.decls (constructorTyping pk) 
+                             , let otype = Tpe.outputType decl
+                             , let Poly monos = typedInterpretation  absi (c ::: decl) 
+                             , Mono i powers <- monos
+                             ]
+                      where 
+                        ma `mleq` mb = do {a <- ma; b <- mb; b `N.mGeq` a}
+
+                        degValOf t = N.natAtom (N.Bound $ max 1 deg) (DegVal t)
+
+                        sumPowers powers = sumM [natConst k `N.mTimesNO` degValOf tv | Pow (_:::tv) k <- powers ]
+                            where 
+                              sumM ms = sequence ms >>= foldM (\ n a -> n `N.mAdd` a) (natConst 0)
+                        
+
+                        natConst = N.natToFormula 
+                        
+                        liftDio :: Ord l => SatSolver.Solver s l => DioFormula l DioVar Int -> N.NatMonad s l (PropFormula l)
+                        liftDio dio = N.liftN (runDio dio)
+
+                          
+
                          
-    
+     
+
     ua = usableArgsWhereApplicable (pdp == PWithDP) sig st uaOn strat allrules
     absi = abstractInterpretation pk sig :: PolyInter (DioPoly DioVar Int)
     pdp = if Trs.isEmpty (Prob.strictTrs prob) && Prob.isDPProblem prob
@@ -325,7 +410,7 @@ orient rs prob args = catchException $ do
           else PNoDP     
     allowUR = isUrulesOn args && Prob.isDPProblem prob               
     allowAF = pdp == PWithDP && allowUR
-    pk   = kind args st
+    pk   = kind args prob
     uaOn = isUargsOn args
     
     sig   = Prob.signature prob
@@ -407,7 +492,7 @@ instance SatSolver.Decoder (PolyInter (N.Size -> Int)) (N.PLVec DioVar) where
 
 -- | This processor implements polynomial interpretations.
 polynomialInterpretation :: PolyShape -> S.ProcessorInstance NaturalPI
-polynomialInterpretation k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True :+: True)
+polynomialInterpretation k = polyProcessor `S.withArgs` (k :+: nat 3 :+: Just (nat 2) :+: Just (nat 3) :+: True :+: True :+: True :+: SimpleShape Linear :+: Nothing)
 
 poly :: S.ProcessorInstance NaturalPI
 poly =  simplePolynomial 
@@ -446,3 +531,45 @@ quadraticPolynomial = polynomialInterpretation $ SimpleShape Quadratic
 -- . 
 customPolynomial :: ([V.Variable] -> [SimpleMonomial]) -> S.ProcessorInstance NaturalPI
 customPolynomial mk = polynomialInterpretation $ CustomShape mk
+
+                      
+degree :: PolynomialOrder -> C.Complexity
+degree order = 
+    case knd of 
+      ConstructorBased cs _ -> C.poly (Just deg)
+          where deg = max' [ d |  (f, d) <- degrees pint, not $ f `Set.member` cs]
+      UnrestrictedPoly {}
+          | isStrong && deg <= 1 -> C.poly (Just 1)
+          | deg <= 1             -> C.expo (Just 1)
+          | otherwise            -> C.expo (Just 2)
+          where 
+            deg = max' [ d |  (_, d) <- degrees pint ]
+            isStrong = all (all (\ (Mono n _) -> n <= 1)) [ monos | (_,Poly monos) <- inters]
+      TypeBased {} -> C.poly (Just deg)
+          where 
+            degValue tpe = 
+                max' [ degMono monomial 
+                     | (c ::: decl) <- Tpe.decls (constructorTyping knd)
+                     , Tpe.outputType decl `equiv` tpe
+                     , let Poly monos = typedInterpretation  pint (c ::: decl) 
+                     , Mono i monomial <- monos, i > 0]
+                where 
+                  degMono monomial 
+                      | any ofTpe monomial = 1
+                      | otherwise = sum [ k * degValue tv  | Pow (_::: tv) k <- monomial]
+                  ofTpe (Pow (_::: tv) _) = tv `equiv` tpe
+            
+            equiv = equivType knd
+
+            deg = 
+                max' [ sum [ k * degValue tv | Pow (_::: tv) k <- monomial]
+                     | (f ::: decl) <- Tpe.decls (definedsTyping knd)
+                     , let Poly monos = typedInterpretation  pint (f ::: decl) 
+                     , Mono i monomial <- monos, i > 0]
+
+    where 
+      knd      = param order
+      pint     = ordInter order
+      inters   = Map.toList $ interpretations $ pint
+      max' = foldl max 0 
+

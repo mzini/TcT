@@ -613,7 +613,7 @@ instance HasKind (S.ProcessorInstance NaturalPI.NaturalPI) Poly.PolyShape where
 
 instance HasBits (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withBits` bits = S.modifyArguments f p 
-    where f (k :+: bound :+: _ :+: cbits :+: uargs :+: urules) = (k :+: bound :+: Just (nat bits) :+: cbits :+: uargs :+: urules)
+    where f (k :+: bound :+: _ :+: as) = (k :+: bound :+: Just (nat bits) :+: as)
 
 instance HasCBits (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withCBits` cbits = S.modifyArguments f p 
@@ -621,19 +621,21 @@ instance HasCBits (S.ProcessorInstance NaturalPI.NaturalPI) where
 
 instance HasDegree (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withDegree` mdeg = S.modifyArguments f p
-    where f (_ :+: bound :+: bits :+: cbits :+: uargs  :+: urules) = 
-            (shape mdeg :+: bound :+: bits :+: cbits :+: uargs  :+: urules)
-            where 
-              shape Nothing = Poly.SimpleShape Poly.Quadratic
-              shape (Just deg) = Poly.CustomShape (abstractInterpretation deg)
+    where 
+      f (_ :+: bnd :+: bits :+: cbits :+: uargs  :+: urules :+: typeBased :+: _ :+: _) = 
+          (shape :+: bnd :+: bits :+: cbits :+: uargs  :+: urules :+: typeBased :+: shape :+: cdeg)
+          where 
+            cdeg = maybe Nothing (Just . Nat) mdeg
+            shape = maybe (Poly.SimpleShape Poly.Quadratic) (Poly.CustomShape . abstractInterpretation) mdeg
+
 
 instance HasUsableArgs (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withUsableArgs` uargs = S.modifyArguments f p
-    where f (k :+: bound :+: bits :+: cbits :+: _ :+: urules) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules) 
+    where f (k :+: bound :+: bits :+: cbits :+: _ :+: as) = (k :+: bound :+: bits :+: cbits :+: uargs :+: as) 
                                                                                                                       
 instance HasUsableRules (S.ProcessorInstance NaturalPI.NaturalPI) where
   p `withUsableRules` urules = S.modifyArguments f p
-    where f (k :+: bound :+: bits :+: cbits :+: uargs :+: _) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules)
+    where f (k :+: bound :+: bits :+: cbits :+: uargs :+: _ :+: as) = (k :+: bound :+: bits :+: cbits :+: uargs :+: urules :+: as)
 
 instance HasDegree (S.ProcessorInstance PopStar.PopStar) where
   withDegree = PopStar.withDegree

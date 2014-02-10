@@ -324,6 +324,13 @@
     (tcti-send (concat load " \"" (expand-file-name file) "\""))
     (tcti-pop-to-buffer)))
 
+(defun tcti-load-buffer (buffer-name)
+  (interactive "b")
+  (let (buffer (get-buffer buffer-name))
+    (if (and buffer (buffer-file-name buffer))
+	(tcti-load-file (buffer-file-name buffer))
+      (message "No file loaded in buffer"))))
+
 (defun tcti-symbols ()
   (interactive)
   (tcti-send ":browse")

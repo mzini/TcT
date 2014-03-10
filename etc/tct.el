@@ -326,7 +326,7 @@
 
 (defun tcti-load-buffer (buffer-name)
   (interactive "b")
-  (let (buffer (get-buffer buffer-name))
+  (let ((buffer (get-buffer buffer-name)))
     (if (and buffer (buffer-file-name buffer))
 	(tcti-load-file (buffer-file-name buffer))
       (message "No file loaded in buffer"))))

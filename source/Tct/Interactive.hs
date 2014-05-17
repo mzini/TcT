@@ -1128,7 +1128,7 @@ apply a = app `Ex.catch`
                if anyChange
                 then putState st' 
                      >> if null (enumOpenFromTree pt')
-                        then pprint $ (text "Hurray, the problem was solved with certicficate" 
+                        then pprint $ (text "Hurray, the problem was solved with certificate" 
                                        <+> U.pprint (P.answer $ proofFromTree pt')) <> text "."
                                        $+$ text "Use 'proof' to show the complete proof."
                         else pprint (text "Problems simplified. Use 'state' to see the current proof state.")

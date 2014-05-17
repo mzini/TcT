@@ -23,6 +23,8 @@ module Tct.Method.Predicates
        , WhichTrs(..)   
        , Predicate
        , predicateProcessors
+       , trsPredicateProcessor
+       , problemPredicateProcessor
        -- * Instances
        , isCollapsing
        , isConstructor

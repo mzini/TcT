@@ -210,9 +210,9 @@ orientProblem prod prob = maybe Incompatible Order `liftM` slv
           solveConstraint constraint initial makeResult = 
               do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
                  return $ makeResult `liftM` r
-          
-          form = bigAnd [not (usable r) || atom (strictlyOriented r) | r <- rules $ stricts]
-                 && bigAnd [not (usable r) || atom (weaklyOriented r)   | r <- rules $ weaks]
+
+          form = bigAnd [not (usable r) || propAtom (strictlyOriented r) | r <- rules stricts]
+                 && bigAnd [not (usable r) || propAtom (weaklyOriented r)   | r <- rules weaks]
                  && validPrecedence
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
@@ -231,7 +231,7 @@ orientProblem prod prob = maybe Incompatible Order `liftM` slv
 orderingConstraints :: (S.Solver s l, Eq l, Show l, Ord l) => Bool -> Bool -> Trs -> Trs -> MemoFormula MpoArg s l
 orderingConstraints allowAF useProd strict weak = 
     strict `orientStrictBy` mpoSt && weak `orientWeakBy` mpoEq
-      where orientBy ob trs ord = bigAnd [atom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
+      where orientBy ob trs ord = bigAnd [propAtom (ob r) --> lhs r `ord` rhs r | r <- rules trs]
             orientStrictBy = orientBy strictlyOriented 
             orientWeakBy = orientBy weaklyOriented
             mpoSt s t       = orient useProd preds (Gt s t)

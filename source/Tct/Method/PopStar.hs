@@ -137,7 +137,7 @@ instance ComplexityProof PopStarOrder where
                                          $++$ pparam af
                                          $++$ paragraph "Usable defined function symbols are a subset of:"
                                          $++$ pparam (braces $ fsep $ punctuate (text ",")  [pprint (f,sig) | f <- us]))
-                        $++$ paragraph ("For your convenience, here are the satisfied ordering constraints:")
+                        $++$ paragraph "For your convenience, here are the satisfied ordering constraints:"
                         $++$ indent ppOrient
       where pparam :: PrettyPrintable p => p -> Doc 
             pparam   = nest 1 . pprint
@@ -166,7 +166,7 @@ instance ComplexityProof PopStarOrder where
                     pp (Fun f ts) = 
                       case AF.filtering f af of 
                         AF.Projection i -> pp (ts!!(i-1))
-                        AF.Filtering is -> pprint (f,sig) <> parens ( ppargs )
+                        AF.Filtering is -> pprint (f,sig) <> parens ppargs
                           where (safes,normals) = IntSet.partition (SMEnc.isSafe sm f) is
                                 ppargs | IntSet.null is = PP.empty
                                        | otherwise      = ppa normals <> sc <> ppa safes
@@ -174,7 +174,7 @@ instance ComplexityProof PopStarOrder where
                                                                                      , i `IntSet.member` poss]
                                 sc | IntSet.null safes = text ";"
                                    | otherwise         = text "; "
-                    af = maybe (AF.empty sig) id maf
+                    af = fromMaybe (AF.empty sig) maf
             prob           = popInputProblem order
             sig            = Prob.signature prob
             vars           = Prob.variables prob
@@ -291,14 +291,15 @@ instance S.Processor PopStar where
                   :+: argDeg
 
     type ProofOf PopStar = OrientationProof PopStarOrder
-    solve inst prob = case (Prob.startTerms prob, Prob.strategy prob) of 
-                     ((BasicTerms _ _), Innermost) -> orientProblem inst Nothing prob
-                     _                             -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
+    solve inst prob =
+      case (Prob.startTerms prob, Prob.strategy prob) of 
+        (BasicTerms _ _, Innermost) -> orientProblem inst Nothing prob
+        _                           -> return (Inapplicable "Processor only applicable for innermost runtime complexity analysis")
 
     solvePartial inst rs prob = 
       case (Prob.startTerms prob, Prob.strategy prob) of 
-        ((BasicTerms _ _), Innermost) -> mkPP `liftM` orientProblem inst (Just rs) prob
-        _                             -> return $ mkPP $ Inapplicable "Processor only applicable for innermost runtime complexity analysis"
+        (BasicTerms _ _, Innermost) -> mkPP `liftM` orientProblem inst (Just rs) prob
+        _                           -> return $ mkPP $ Inapplicable "Processor only applicable for innermost runtime complexity analysis"
       where sig = Prob.signature prob
             mkPP proof = P.PartialProof { P.ppInputProblem  = prob
                                         , P.ppResult        = proof
@@ -346,7 +347,7 @@ spopstarPS = ppopstarProcessor `S.withArgs` (True :+: True :+: Nothing)
 
 withDegree :: S.ProcessorInstance PopStar -> Maybe Int -> S.ProcessorInstance PopStar
 p `withDegree` Nothing = S.modifyArguments f p
-  where f (ps :+: prod :+: _) = (ps :+: prod :+: Nothing)
+  where f (ps :+: prod :+: _) = ps :+: prod :+: Nothing
 p `withDegree` (Just d) = ppopstarProcessor `S.withArgs` (ps :+: True :+: Just (nat d))
   where (ps :+: _ :+: _) = S.processorArgs $ S.theProcessorFromInstance p
 
@@ -354,8 +355,7 @@ p `withDegree` (Just d) = ppopstarProcessor `S.withArgs` (ps :+: True :+: Just (
 -- encoding
 
 quasiConstructorsFor :: Problem -> Set Symbol
-quasiConstructorsFor prob = constructors
-                            `Set.union` (quasiConstructors $ Prob.allComponents prob)
+quasiConstructorsFor prob = constructors `Set.union` quasiConstructors (Prob.allComponents prob)
     where quasiConstructors rs = Set.unions [qd (lhs r) | r <- rules rs ]
           qd (Fun _ ts) = Set.unions [ functionSymbols t | t <- ts] 
           qd _          = error "Method.PopStar: non-trs given"
@@ -389,7 +389,7 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                                     
     where knd = kind $ S.processor inst
           allowPS :+: forceWSC :+: bnd = S.processorArgs inst
-          allowAF   = (isDP && knd /= LMPO && Trs.isEmpty (Prob.strictTrs prob))
+          allowAF   = isDP && knd /= LMPO && Trs.isEmpty (Prob.strictTrs prob)
           allowMR   = knd == LMPO 
           forcePROD = knd == SPOP || knd == LMPO
           isDP      = Prob.isDPProblem prob
@@ -440,23 +440,21 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
               do r <- P.minisatValue (toFormula constraint >>= addFormula) initial
                  return $ makeResult `liftM` r
           
-          form = validPrecedence -- fm maybeOrientable 
+          form = validPrecedence
                  && validRecDepth
                  && (fm allowAF --> validArgumentFiltering)
                  && validUsableRules
                  && orderingConstraints allrules allrules
                  && orientAllUsableWeak
-                 -- && orientAtleastOne
                  && orientSelectedStrict (fromMaybe selectStricts mruleselect)
                        where selectStricts = P.BigAnd $ [ P.SelectDP d | d <- Trs.rules $ Prob.strictDPs prob]
                                                         ++ [ P.SelectTrs d | d <- Trs.rules $ Prob.strictTrs prob]
                  
           usable = return . UREnc.usable prob
           
-          -- orientAtleastOne = bigOr [ atom (strictlyOriented r) | r <- Trs.toRules $ Prob.strictComponents prob]
-          orientAllUsableWeak = bigAnd [not (usable r) || atom (strictlyOriented r) || atom (weaklyOriented r) | r <- rules $ allrules]
-          orientSelectedStrict (P.SelectDP r) = atom (strictlyOriented r)
-          orientSelectedStrict (P.SelectTrs r) = atom (strictlyOriented r)
+          orientAllUsableWeak = bigAnd [not (usable r) || propAtom (strictlyOriented r) || propAtom (weaklyOriented r) | r <- rules allrules]
+          orientSelectedStrict (P.SelectDP r) = propAtom (strictlyOriented r)
+          orientSelectedStrict (P.SelectTrs r) = propAtom (strictlyOriented r)
           orientSelectedStrict (P.BigAnd es) = bigAnd [ orientSelectedStrict e | e <- es]
           orientSelectedStrict (P.BigOr es) = bigOr [ orientSelectedStrict e | e <- es]          
           
@@ -488,8 +486,8 @@ orientProblem inst mruleselect prob = maybe Incompatible Order `liftM` slv
                                      | otherwise = top
                                                  
           orderingConstraints srules eqrules = 
-            bigAnd [ atom (strictlyOriented r) --> lhs r `pop` rhs r | r <- rules srules]
-            && bigAnd [ atom (weaklyOriented r) --> lhs r `eq` rhs r | r <- rules eqrules]
+            bigAnd [ propAtom (strictlyOriented r) --> lhs r `pop` rhs r | r <- rules srules]
+            && bigAnd [ propAtom (weaklyOriented r) --> lhs r `eq` rhs r | r <- rules eqrules]
               where pop s t = orient preds (Gt s t)
                     eq s t  = orient preds (Eq s t)
                     preds = 
@@ -525,7 +523,7 @@ instance PropAtom DeltaAtom
 instance PropAtom EpsilonAtom
 instance PropAtom GammaAtom
 
-orient :: (S.Solver s l, Eq l, Show l) => Predicates l -> (PopArg -> MemoFormula PopArg s l)
+orient :: (S.Solver s l, Eq l, Show l) => Predicates l -> PopArg -> MemoFormula PopArg s l
 orient p = memoized $ \ a -> 
            case a of 
              Gt (Var _)      _  -> bot
@@ -552,9 +550,9 @@ orient p = memoized $ \ a ->
                                      where seqExtGt = -- every position j of rhs is covered:
                                                       -- for ps, only cover of normal args of rhs required
                                                       forall js (\ j -> (inFilter g j && (not ps || isNormal g j)) -- for ps, only constraint on normal args
-                                                                   --> exist is (\ i -> gamma i j))
+                                                                   --> exist is (`gamma` j))
                                                       -- if ps, cover only on by normal argument positions of rhs
-                                                      && (ps --> (forall is (\ i -> (exist js (\ j -> gamma i j)) --> inFilter f i && isNormal f i)))
+                                                      && (ps --> (forall is (\ i -> exist js (gamma i) --> inFilter f i && isNormal f i)))
                                                       -- if one of following holds then s_i covers single t_j:
                                                       --   s_i = t_j (i.e. epsilon i)
                                                       --   product extension is used and in case of ps i is normal arg pos
@@ -602,12 +600,12 @@ orient p = memoized $ \ a ->
 
              Eq (Var v1)     (Var v2)     -> fm $ v1 == v2
              Eq v@(Var _)    t@(Fun _ _)  -> t `equiv` v
-             Eq (Fun f us)   v@(Var _)    -> isCollapsing f && (forall (indexed us) $ \ (ui,i) -> inFilter f i --> v `equiv` ui)
-             Eq s@(Fun f ss) t@(Fun g ts) -> fm (s == t) || (ite (isCollapsing f) 
+             Eq (Fun f us)   v@(Var _)    -> isCollapsing f && forall (indexed us) (\ (ui,i) -> inFilter f i --> v `equiv` ui)
+             Eq s@(Fun f ss) t@(Fun g ts) -> fm (s == t) || ite (isCollapsing f) 
                                                                 (equivCollaps f iss t) 
                                                                 (ite (isCollapsing g) 
                                                                      (equivCollaps g its s) 
-                                                                     equivNonCollaps))
+                                                                     equivNonCollaps)
                  where (iss, its) = (indexed ss, indexed ts)
                        is = [i | (_,i) <- iss]
                        js = [j | (_,j) <- its] 
@@ -615,14 +613,14 @@ orient p = memoized $ \ a ->
                        equivCollaps f' ius w   = bigAnd [ inFilter f' i --> u_i `equiv` w | (u_i,i) <- ius ]
                        equivNonCollaps         = f `pEq` g
                                                  && encodeDelta 
-                                                 && (forall iss $ \ (s_i,i) -> 
-                                                         forall its $ \ (t_j, j) -> 
+                                                 && forall iss (\ (s_i,i) -> 
+                                                         forall its (\ (t_j, j) -> 
                                                              delta i j --> bigAnd [ inFilter f i
                                                                            , inFilter g j 
                                                                            , isSafe f i <-> isSafe g j
-                                                                           , s_i `equiv` t_j])
-                       encodeDelta             = ( forall is $ \ i -> inFilter f i --> exactlyOne [delta i j | j <- js])
-                                                 && ( forall js $ \ j -> inFilter g j --> exactlyOne [delta i j | i <- is])
+                                                                           , s_i `equiv` t_j]))
+                       encodeDelta             = forall is (\ i -> inFilter f i --> exactlyOne [delta i j | j <- js])
+                                                 && forall js (\ j -> inFilter g j --> exactlyOne [delta i j | i <- is])
 
 
     where s `gpop` t = orient p (Gt s t)

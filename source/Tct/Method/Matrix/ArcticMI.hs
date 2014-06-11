@@ -297,7 +297,7 @@ instance (AbstrOrd a b, AIEntry a) => AbstrOrd (LInter a) b where
   (LI lcoeffs lconst) .<=. (LI rcoeffs rconst) = bigAnd (Map.elems zipmaps) && lconst .<=. rconst
                                                  where zipmaps = Map.intersectionWith (.<=.) lcoeffs rcoeffs
 
-instance (Ord l, SatSolver.Solver s l) => MSemiring s l (AS.ArcFormula l) DioVar ArcInt where
+instance MSemiring MiniSatSolver MiniSatLiteral (AS.ArcFormula MiniSatLiteral) DioVar ArcInt where
   plus = AS.mAdd
   prod = AS.mTimes
   zero = AS.arcToFormula MinusInf

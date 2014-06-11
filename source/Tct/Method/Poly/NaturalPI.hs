@@ -87,6 +87,7 @@ import Tct.Utils.PPrint (indent)
 import qualified Tct.Utils.Xml as Xml
 import qualified Tct.Processor as P
 import qualified Tct.Processor.Standard as S
+import Qlogic.MiniSat (MiniSatLiteral, MiniSatSolver)
 
 data PolynomialOrder = 
   PolynomialOrder { ordInter :: PolyInter Int
@@ -314,7 +315,7 @@ orient rs prob args = catchException $ do
         Nothing -> Incompatible
         Just o -> Order $ mkOrder o
       
-    runDio :: (Ord l, SatSolver.Solver s l) => DioFormula l DioVar Int -> SatSolver s l (PropFormula l)
+    runDio :: DioFormula MiniSatLiteral DioVar Int -> SatSolver MiniSatSolver MiniSatLiteral (PropFormula MiniSatLiteral)
     runDio = toFormula (N.bound `liftM` cbits args) (N.bound $ bound args)
 
     mkInter pv = pint {interpretations = Map.map (unEmpty . shallowSimp) $ interpretations pint} 
@@ -354,23 +355,22 @@ orient rs prob args = catchException $ do
         filteringConstraints  
            | not allowAF = top 
            | otherwise = 
-             bigAnd [ bigAnd [ c .>. SR.zero --> bigAnd [ atom (AFEnc.InFilter f i) | Poly.Pow (V.Canon i) _ <- powers ] 
+             bigAnd [ bigAnd [ c .>. SR.zero --> bigAnd [ propAtom (AFEnc.InFilter f i) | Poly.Pow (V.Canon i) _ <- powers ] 
                              | Poly.Mono c powers <- monos ]
                     | (f,Poly.Poly monos) <- Map.toList $ interpretations absi ]
 
-    usableConstraints = MFormula.liftSat $ MFormula.toFormula $ UREnc.validUsableRulesEncoding prob isUnfiltered
+    usableConstraints = UREnc.validUsableRulesEncoding prob isUnfiltered
       where 
         isUnfiltered f i | allowAF   = AFEnc.isInFilter f i
                          | otherwise = top
 
-    typingConstraints :: (Eq l, Ord l, Monad s, SatSolver.Solver s l) =>  N.NatMonad s l (PropFormula l)
+    typingConstraints :: N.NatMonad MiniSatSolver MiniSatLiteral (PropFormula MiniSatLiteral)
     typingConstraints = 
         case pk of 
           UnrestrictedPoly {} -> top
           ConstructorBased {} -> top
           TypeBased {} -> maybe top enforceDegree (enforcedDegree pk)
                 where 
-                  enforceDegree :: (Eq l, Ord l, SatSolver.Solver s l) => Nat -> N.NatMonad s l (PropFormula l)
                   enforceDegree (Nat deg) = 
                       bigAnd [ (liftDio $ i .>. SR.zero) -->
                                   (sumPowers powers `mleq` return (natConst deg))
@@ -397,7 +397,7 @@ orient rs prob args = catchException $ do
 
                         natConst = N.natToFormula 
                         
-                        liftDio :: Ord l => SatSolver.Solver s l => DioFormula l DioVar Int -> N.NatMonad s l (PropFormula l)
+                        liftDio :: DioFormula MiniSatLiteral DioVar Int -> N.NatMonad MiniSatSolver MiniSatLiteral (PropFormula MiniSatLiteral)
                         liftDio dio = N.liftN (runDio dio)
 
                           
@@ -466,7 +466,7 @@ instance (AbstrOrd a b, Semiring a, PIEntry a) => AbstrOrd (Polynomial V.Variabl
   (Poly []) .<=. (Poly _) = top
   p@(Poly (Mono _ vs:_)) .<=. q@(Poly _) = (getCoeff vs p .<=. getCoeff vs q) && (deleteCoeff vs p .<=. deleteCoeff vs q)
 
-instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
+instance MSemiring MiniSatSolver MiniSatLiteral (N.NatFormula MiniSatLiteral) DioVar Int where
   plus = N.mAddNO
   prod = N.mTimesNO
   zero = N.natToFormula 0

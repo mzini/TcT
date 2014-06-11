@@ -1,3 +1,4 @@
+
 {- | 
 Module      :  Tct.Encoding.Precedence
 Copyright   :  (c) Martin Avanzini <martin.avanzini@uibk.ac.at>, 

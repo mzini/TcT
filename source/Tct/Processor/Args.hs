@@ -156,9 +156,6 @@ instance ParsableArguments Unit where
     parseInteractive _ _ = return ()
 
 
-
-
-
 instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => ParsableArguments (Arg a) where
     parseArgs a opts | isOptional_ a = return $ fromMaybe (defaultValue a) lookupOpt 
                      | otherwise     = parseArg (Phantom :: Phantom a)
@@ -214,11 +211,11 @@ instance (ParsableArgument a, Show (Domain a), (Typeable (Domain a))) => Parsabl
          process (Just str) = do 
            res <- ipParse ip str
            case res of 
-             Left _ -> putStrLn "" >> putStrLn ("Error parsing argument. Type ':h' for help.") >> ask
+             Left _ -> putStrLn "" >> putStrLn "Error parsing argument. Type ':h' for help." >> ask
              Right a  -> return a 
 
          putHelp = 
-           putStrLn $ show $ 
+           print $ 
            nest 2 $ 
            text ""
            $+$ descr 
@@ -262,7 +259,7 @@ synopsis a = ofList oSyn `app` ofList nSyn
     where oSyn = [ "[:" ++ P.adName d ++ " " ++ P.adSynopsis d ++ "]"| d <- opts]
           nSyn = [ P.adSynopsis d | d <- nonopts]
           (opts, nonopts) = partition P.adIsOptional (descriptions a Nothing)
-          ofList l = concat $ intersperse " " l
+          ofList = concat . intersperse " "
           "" `app` n = n
           n `app` "" = n
           n `app` m  = n ++ " " ++ m

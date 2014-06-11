@@ -97,6 +97,14 @@ Executable tct
     ghc-options:       
       -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-N
 
+ extensions:
+  TypeSynonymInstances
+  DeriveDataTypeable
+  MultiParamTypeClasses
+  FlexibleInstances
+  FlexibleContexts
+  TypeFamilies
+
 Library
  if flag(epostar)
   exposed-modules:   
@@ -303,3 +311,11 @@ Library
  else
     ghc-options:       
        -threaded -Wall -O2 -fno-warn-orphans -fno-spec-constr-count -rtsopts -with-rtsopts=-Nt
+
+ extensions:
+  TypeSynonymInstances
+  DeriveDataTypeable
+  MultiParamTypeClasses
+  FlexibleInstances
+  FlexibleContexts
+  TypeFamilies

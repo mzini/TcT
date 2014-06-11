@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -7,6 +6,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE PolymorphicComponents #-}
 
 --------------------------------------------------------------------------------
@@ -46,6 +47,7 @@ import qualified Tct.Processor.Args as A
 import qualified Tct.Processor.Args.Instances as AI
 import Termlib.Problem (Problem)
 import Termlib.Utils (underline)
+import Data.Typeable
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
 
@@ -53,6 +55,7 @@ import Text.PrettyPrint.HughesPJ hiding (parens)
 data Custom args res = Custom { as :: String
                               , arguments :: args
                               , code :: forall m. P.SolverM m => A.Domains args -> Problem -> m res}
+                       deriving Typeable
 
 --------------------------------------------------------------------------------
 -- processor instance
@@ -104,7 +107,7 @@ type ConstantDeclaration = A.Unit -> (String,A.Unit)
 type FunctionDeclaration args = (String, args)
 
 instance (P.Processor proc) => AsStrategy (P.InstanceOf proc) ConstantDeclaration where 
-  toProcessor inst f = P.someProcessor $ Custom { as = name 
+  toProcessor inst f = P.SomeProcessor $ Custom { as = name 
                                                 , arguments = A.Unit
                                                 , code = const $ P.solve inst}
       where (name, _) = f undefined
@@ -118,9 +121,10 @@ instance (A.ParsableArguments args, P.Processor proc, ds ~ A.Domains args)
 
 
 instance (T.Transformer trans) => AsStrategy (T.TheTransformer trans) ConstantDeclaration where 
-  toProcessor inst f = P.someProcessor $ Custom { as = name 
-                                                , arguments = AI.processorArg
-                                                , code = \ proc -> P.solve $ inst T.>>| proc}
+  toProcessor inst f =
+    P.someProcessor $ Custom { as = name 
+                             , arguments = AI.processorArg
+                             , code = \ proc -> P.solve $ inst T.>>| proc}
       where (name, _) = f undefined
 
 instance (A.ParsableArguments args, T.Transformer trans, ds ~ A.Domains args) 

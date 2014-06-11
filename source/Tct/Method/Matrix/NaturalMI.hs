@@ -428,7 +428,7 @@ orient rs prob mp = do
 
 
           mform = validUsableRules
-          dform = (kindConstraint && dpConstraint && orientationConstraint && filteringConstraint)
+          dform = kindConstraint && dpConstraint && orientationConstraint && filteringConstraint
             where
               kindConstraint        = kindConstraints mk absmi
               dpConstraint          = dpChoice mdp st uaOn
@@ -460,7 +460,7 @@ filteringConstraints allowAF prob absmi =
           Just mx -> let entries = (\(n,m) -> [(k,l) | k <- [1 .. n], l <- [1 .. m]]) $ mdim mx in
                     notZero mx entries
         notZero mx es = bigOr $ map (\(k,l) -> entry k l mx .>. SR.zero) es
-    constraint args = map (\(f,i) -> (atom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) args
+    constraint args = map (\(f,i) -> (dioAtom (AFEnc.InFilter f i) <-> isNotZeroMatrix f i absmi)) args
 
 uargMonotoneConstraints :: AbstrOrdSemiring a b => UsablePositions -> MatrixInter a -> b
 uargMonotoneConstraints uarg = bigAnd . Map.mapWithKey funConstraint . interpretations
@@ -665,7 +665,7 @@ instance (AbstrOrd a b, MIEntry a) => AbstrOrd (LInter a) b where
   (LI lcoeffs lconst) .<=. (LI rcoeffs rconst) = bigAnd (Map.elems zipmaps) && lconst .<=. rconst
                                                  where zipmaps = Map.intersectionWith (.<=.) lcoeffs rcoeffs
 
-instance (Ord l, SatSolver.Solver s l) => MSemiring s l (N.NatFormula l) DioVar Int where
+instance MSemiring MiniSatSolver MiniSatLiteral (N.NatFormula MiniSatLiteral) DioVar Int where
   plus = N.mAddNO
   prod = N.mTimesNO
   zero = N.natToFormula 0

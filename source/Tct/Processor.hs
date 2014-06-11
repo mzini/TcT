@@ -1,10 +1,12 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE AutoDeriveTypeable #-}
 {-# OPTIONS_HADDOCK prune #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 ----------------------------------------------------------------------------------
 -- |
@@ -26,7 +28,7 @@
 
 
 module Tct.Processor
-    ( -- * Answers
+    ( -- * AnswersStandaloneDeriving
       Answer (..)
     , yesAnswer
       
@@ -93,7 +95,7 @@ where
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Concurrent.PFold (pfoldA, Return(..))
-import Data.Typeable hiding (mkTyCon)
+import Data.Typeable
 import Text.ParserCombinators.Parsec (CharParser, ParseError, getState, choice)
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.PrettyPrint.HughesPJ hiding (parens)
@@ -124,7 +126,7 @@ data SelectorExpression =
   | SelectTrs Rule  
   | BigAnd [SelectorExpression]
   | BigOr [SelectorExpression]    
- deriving (Show, Typeable)
+ deriving (Show,Typeable)
 -- * The Solver Monad
 
 -- | The interface for a /solver monad/, i.e., the monad under within 
@@ -182,7 +184,7 @@ minisatValue m e  =
 -- | A /processor/ 'p' is an object whose /instances/ 'InstanceOf p'
 -- are equipped with a /solving method/, translating a complexity 
 -- problem into a proof object of type 'ProofOf proc'. 
-class (ComplexityProof (ProofOf proc)) => Processor proc where
+class (Typeable InstanceOf, ComplexityProof (ProofOf proc)) => Processor proc where
   -- | The instance of the processor.
   data InstanceOf proc
   -- | The proof type of the processor.
@@ -205,6 +207,8 @@ class (ComplexityProof (ProofOf proc)) => Processor proc where
   -- this method returns 'PartialInapplicable'. 
   solvePartial_   :: SolverM m => InstanceOf proc -> SelectorExpression -> Problem -> m (PartialProof (ProofOf proc))
   solvePartial_   _ _ prob = return $ PartialInapplicable prob
+
+deriving instance Typeable InstanceOf
 
 type ProcessorParser a = CharParser AnyProcessor a 
 
@@ -397,12 +401,6 @@ instance ComplexityProof SomeProof where
     answer (SomeProof p)      = answer p
     toXml (SomeProof p)       = toXml p
 
-instance Typeable (SomeProcessor) where 
-    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor"  "SomeProcessor") []]
-
-instance Typeable (InstanceOf SomeProcessor) where 
-    typeOf (SPI _) = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SPI") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeInstance") []]
-
 instance Processor SomeProcessor where
     type ProofOf    SomeProcessor = SomeProof
     data InstanceOf SomeProcessor = SPI SomeInstance
@@ -505,12 +503,6 @@ instance Processor AnyProcessor where
         where modify (PartialInapplicable str) = PartialInapplicable str
               modify pp = pp { ppResult = SomeProof $ ppResult pp}
 
-instance Typeable AnyProcessor where 
-    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "AnyProcessor") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "OO") []]
-
-instance Typeable (InstanceOf AnyProcessor) where 
-    typeOf _ = mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "OOI") [mkTyConApp (mkTyCon3 "tct" "Tct.Processor" "SomeInstance") []]
-
 instance ParsableProcessor AnyProcessor where
     description _             = []
     synString _               = []
@@ -550,7 +542,7 @@ toProcessorList (OO _ l) = l
 
 -- | Construct an 'AnyProcessor' from a list of processors.
 fromProcessorList :: [SomeProcessor] -> AnyProcessor
-fromProcessorList l = OO "any processor" l
+fromProcessorList = OO "any processor"
 
 liftOOI :: InstanceOf SomeProcessor -> InstanceOf AnyProcessor
 liftOOI = OOI

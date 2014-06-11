@@ -54,13 +54,13 @@ data UsableAtom = UsableAtom Symbol
                      
 instance PropAtom UsableAtom 
 
-usable :: (NGBoolean b UsableAtom) => Problem -> Rule.Rule -> b
+usable :: (NGBoolean b, Atom b ~ PA) => Problem -> Rule.Rule -> b
 usable prob | not (Prob.isDPProblem prob) = const top                      
-            | otherwise                 = \ r -> usable' (root (Rule.lhs r))
+            | otherwise                 = usable' . root . Rule.lhs
   where 
     usable' (Right f) 
       | f `Set.member` ds = top
-      | otherwise         = atom $ UsableAtom f
+      | otherwise         = propAtom (UsableAtom f)
     usable' _         = top
     ds = 
       case Prob.startTerms prob of 
@@ -74,7 +74,7 @@ initialUsables prob = Set.toList $
     Prob.TermAlgebra fs -> fs
     st -> Prob.defineds st
 
-validUsableRulesEncoding :: (Eq l, Ord l, Monad s, Solver s l) => Problem -> (Symbol -> Int -> PropFormula l) -> Memo Term s l (PropFormula l)
+validUsableRulesEncoding :: (Eq l, Ord l, Monad s, Solver s l) => Problem -> (Symbol -> Int -> PropFormula l) -> MemoFormula Term s l
 validUsableRulesEncoding prob unfiltered 
   | Prob.isDPProblem prob = bigAnd [ usableM r --> omega (Rule.rhs r) | r <- Trs.rules allRules ]
   | otherwise             = top
@@ -84,7 +84,7 @@ validUsableRulesEncoding prob unfiltered
                Fun f ts -> bigAnd [ usableM rl | rl <- Trs.rules $ Trs.definingSymbol allRules f]
                           && bigAnd [ unfilteredM f i --> omega ti | (i,ti) <- zip [1..] ts]
            
-           usableM = return . usable prob
+           usableM = usable prob
            unfilteredM f i = return $ unfiltered f i
            allRules = Prob.allComponents prob
            -- rhss trs = nubs $ [Rule.rhs r | r <- Trs.rules trs]
